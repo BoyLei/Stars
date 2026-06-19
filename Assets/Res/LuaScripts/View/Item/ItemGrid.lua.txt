@@ -1,0 +1,548 @@
+--[[
+*文件名   :   ItemGrid
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/09 09:44:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local ItemGrid = {}
+
+ItemGrid.__index = ItemGrid
+
+function ItemGrid:New(_go, _parent)
+    local self = {}
+    setmetatable(self, ItemGrid)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    if _parent ~= nil then
+        self.transform:SetParent(_parent, false)
+        --self.transform.localPosition = Vector3.zero
+        self.transform.localScale = Vector3.one
+    end
+
+    self.Num = self.transform:Find("Have/Num"):GetComponent(typeof(Text))
+    self.Icon = self.transform:Find("Have/Icon"):GetComponent(typeof(Image))
+    self.Rare = self.transform:Find("Have/BgRare"):GetComponent(typeof(Image))
+
+    self.go_Selected = self.transform:Find("Have/Selected").gameObject
+    self.go_Selected:SetActive(false)
+
+    if self.transform:Find("Have/PartnerHead") ~= nil then
+        self.PartnerHead = self.transform:Find("Have/PartnerHead"):GetComponent(typeof(Image))
+        self.PartnerHead.gameObject:SetActive(false)
+    end
+
+    --已装备
+    if self.transform:Find("Have/Equip") ~= nil then
+        self.go_Equip = self.transform:Find("Have/Equip").gameObject
+        self.go_Equip:SetActive(false)
+    end
+
+    --可以用作绑定
+    self.go_Lock = self.transform:Find("Have/Lock").gameObject
+    self.go_Lock:SetActive(false)
+
+    --无法装备
+    if self.transform:Find("Have/CantEquip") ~= nil then
+        self.go_CantEquip = self.transform:Find("Have/CantEquip").gameObject
+        if self.transform:Find("Have/CantEquip/Txt") ~= nil then
+            self.go_CantEquipTex = self.transform:Find("Have/CantEquip/Txt"):GetComponent(typeof(Text))
+        end
+    end
+    --非绑定
+    if self.transform:Find("Have/Sell") ~= nil then
+        self.go_Sell = self.transform:Find("Have/Sell").gameObject
+    end
+
+    self.go_New = self.transform:Find("Have/New").gameObject
+    self.go_New:SetActive(false)
+
+    self.go_Have = self.transform:Find("Have").gameObject
+    self.go_Have:SetActive(false)
+
+    if self.transform:Find("Null") ~= nil then
+        self.go_Null = self.transform:Find("Null").gameObject
+        self.go_Null:SetActive(true)
+    end
+
+    if self.transform:Find("Have/Up") ~= nil then
+        self.go_Up = self.transform:Find("Have/Up").gameObject
+        self.go_Up:SetActive(true)
+    end
+
+    if self.transform:Find("Have/State") ~= nil then
+        self.go_State = self.transform:Find("Have/State").gameObject
+        self.go_State:SetActive(false)
+        self.go_StateText = self.transform:Find("Have/State/Text"):GetComponent(typeof(Text))
+    end
+    self.Stars = {}
+    if self.transform:Find("Have/Star1") ~= nil then
+        table.insert(self.Stars, self.transform:Find("Have/Star1").gameObject)
+    end
+    if self.transform:Find("Have/Star2") ~= nil then
+        table.insert(self.Stars, self.transform:Find("Have/Star2").gameObject)
+    end
+    if self.transform:Find("Have/Star3") ~= nil then
+        table.insert(self.Stars, self.transform:Find("Have/Star3").gameObject)
+    end
+    self.IsInCD = false
+    --道具Cd
+    if self.transform:Find("Have/Cd") ~= nil then
+        self.go_Cd = self.transform:Find("Have/Cd").gameObject
+        self.go_Cd:SetActive(false)
+        self.CD = self.transform:Find("Have/Cd/Cd"):GetComponent(typeof(Text))
+
+        self.UpdateFun = function()
+            self:UpdateCD()
+        end
+
+        MonoHelper.AddUpdateListener(self.UpdateFun)
+    end
+
+    self.IsUsed = false
+
+    --点击事件
+    self.btnClick = self.transform:GetComponent(typeof(JButton))
+    self.btnClick.OnClick = (function()
+        if self.OnItemCkick ~= nil then
+            if self.IsUsed then
+                self.OnItemCkick(self)
+            end
+        end
+    end)
+
+    --长按事件
+    self.btnClick.OnLongPressDown = (function()
+        if self.OnItemCkick ~= nil then
+            if self.IsUsed then
+            --self.OnItemCkick(self);
+            end
+        end
+    end)
+
+    return self --返回自身
+end
+
+--更新CD
+function ItemGrid:UpdateCD()
+    if self.ItemData ~= nil and self.EntityID ~= nil and self.EntityID ~= 0 and self.ItemData.CD ~= 0 then
+        local leftTime = self.ItemData.CD - CS.SGF.Time.TimeUtils.ServerNowStampMilli
+        if leftTime > 0 then
+            if not self.go_Cd.activeSelf then
+                self.go_Cd:SetActive(true)
+            end
+            self.CD.text = math.ceil(leftTime / 1000)
+            self.IsInCD = true
+        else
+            self.IsInCD = false
+            self.go_Cd:SetActive(false)
+            self.ItemData.CD = 0
+        end
+    end
+end
+
+--初始化Item
+function ItemGrid:InitItem(isHaveBoard, onItemCkick)
+    self.isHaveBoard = isHaveBoard
+
+    self.OnItemCkick = onItemCkick
+    self:SetUse(false)
+end
+
+function ItemGrid:SetUse(b)
+    self.IsUsed = b
+    self.go_Have:SetActive(b)
+    if self.go_Null ~= nil then
+        self.go_Null:SetActive(not (b))
+    end
+
+    --如果没有有底板就隐藏
+    if not self.isHaveBoard then
+        self.gameObject:SetActive(b)
+    end
+end
+
+--设置Item
+function ItemGrid:SetItem(item, hideNum1)
+    self.Item = item
+
+    --无法装备【装备用】
+    if self.go_CantEquip ~= nil then
+        self.go_CantEquip:SetActive(false)
+    end
+
+    if self.go_State ~= nil then
+        self.go_State:SetActive(false)
+    end
+
+    if self.PartnerHead ~= nil then
+        self.PartnerHead.gameObject:SetActive(false)
+        if item.Heroid ~= nil and item.Heroid ~= 0 then
+            local mgr = BusinessManager.Instance:GetPartnerMDMgr()
+            if mgr ~= nil then
+                local partner = mgr:GetPartnerMD(item.Heroid)
+                if (partner ~= nil) then
+                    self:SetPartnerHead(partner.Index)
+
+                    if partner.State == CS.ProtoMsg.PartnerState.InBattle or partner.State == CS.ProtoMsg.PartnerState.Concretization then
+                        self.go_StateText.text = LanguageHelp:GetLanguageByKey("partner_sys_27")
+                        self.go_State:SetActive(true)
+                    elseif partner.State == CS.ProtoMsg.PartnerState.Assist then
+                        self.go_StateText.text = LanguageHelp:GetLanguageByKey("partner_sys_28")
+                        self.go_State:SetActive(true)
+                    end
+                end
+            end
+        end
+    end
+
+    if self.go_Equip ~= nil then
+        self.go_Equip:SetActive(false)
+    end
+
+    --绑定
+    self.go_Lock:SetActive(false)
+    --无法装备【装备用】
+    if self.go_CantEquip ~= nil then
+        self.go_CantEquip:SetActive(false)
+    end
+    --非绑定
+    if self.go_Sell ~= nil then
+        self.go_Sell:SetActive(false)
+    end
+
+    self.IsInCD = false
+    self.go_Cd:SetActive(false)
+    --背包特判
+    if item.BaseID == 0 then
+        self:SetUse(false)
+        self.ItemData = nil
+        self:MakeSelected(false)
+    else
+        self:SetUse(true)
+
+        self.EntityID = item.EntityID
+        self.BaseID = item.BaseID
+
+        if item.Num ~= nil then
+            if hideNum1 and item.Num == 1 then
+                self.Num.text = ""
+            else
+                self.Num.text = "" .. item.Num
+            end
+        else
+            self.Num.text = ""
+        end
+
+        --稀有度底板
+        local cfg = ConfigDataAccessor.Item[self.BaseID]
+
+        if cfg.Dealid > 0 then
+            cfg = ConfigDataAccessor.Item[cfg.Dealid]
+        end
+
+        self:SetStar(0)
+        local equip_Cfg = ConfigDataAccessor.PartnerEquip[self.BaseID]
+        if equip_Cfg ~= nil then
+            self:SetStar(equip_Cfg.AdvancedLevel)
+        end
+
+        --装备，纹章 这些不可堆叠的显示等级
+        --if not(hideNum1) then
+        if cfg.ItemType == 2 or cfg.ItemType == 5 then
+            if cfg.ItemType == 2 then
+                local equipCfg = ConfigDataAccessor.Equip[self.BaseID]
+                self.Num.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {equipCfg.Level})
+            end
+            if cfg.ItemType == 5 then
+                local equipCfg = ConfigDataAccessor.AmuletEquip[self.BaseID]
+                self.Num.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit5"), {equipCfg.EquipLevel})
+            end
+        end
+        --end
+
+        if self.EntityID ~= nil and self.EntityID ~= 0 then
+            self.ItemData = BusinessManager.Instance:GetItemByItemEntityId(self.EntityID)
+
+            --绑定
+            if self.go_Lock ~= nil and self.ItemData ~= nil then
+            --self.go_Lock:SetActive(self.ItemData.IsBind);
+            end
+
+            --无法装备【装备用】
+            if self.go_CantEquip ~= nil then
+                local cantEquipTex = ""
+
+                if cfg.ItemType == 2 then
+                    local cantEquip = false
+
+                    --等级不足无法穿戴
+                    local lvLimit = ConfigDataAccessor.Equip[cfg.Id].Level
+                    local playerLv = GameManager.Instance:GetPlayerLevel()
+                    if lvLimit > playerLv then
+                        cantEquip = true
+                        cantEquipTex = LanguageHelp:GetLanguageByKey("Local_Str_cantEquipTex2")
+                    end
+
+                    --职业不同无法装备
+                    if not (cantEquip) then
+                        local JobType = ConfigDataAccessor.Equip[cfg.Id].JobBaseType
+                        local playerJob = GameManager.Instance:GetPlayJobBaseID()
+                        local isMarchPlayerJob = false
+                        if JobType == 0 or JobType == playerJob then
+                            isMarchPlayerJob = true
+                        end
+
+                        if not (isMarchPlayerJob) then
+                            cantEquip = true
+                            cantEquipTex = LanguageHelp:GetLanguageByKey("Local_Str_cantEquipTex1")
+                        end
+                    end
+
+                    if cantEquip then
+                        if self.go_CantEquipTex ~= nil then
+                            self.go_CantEquipTex.text = cantEquipTex
+                        end
+                        self.go_CantEquip:SetActive(true)
+                    end
+                elseif cfg.ItemType == 5 then
+                    --装备等级
+                    local lvLimit = ConfigDataAccessor.AmuletEquip[cfg.Id].Level
+                    local playerLv = GameManager.Instance:GetPlayerLevel()
+                    if lvLimit > playerLv then
+                        if self.go_CantEquipTex ~= nil then
+                            self.go_CantEquipTex.text = LanguageHelp:GetLanguageByKey("Local_Str_cantEquipTex2")
+                        end
+                        self.go_CantEquip:SetActive(true)
+                    end
+                end
+            end
+            --非绑定
+            if self.go_Sell ~= nil and self.ItemData ~= nil then
+                self.go_Sell:SetActive(not (self.ItemData.IsBind))
+            end
+        end
+
+        local quality = cfg.Quality
+        if quality == 99 then
+            quality = 1
+        end
+        --self.Rare.sprite= AtlasManager.Instance:GetSprite("ui/common/atlas/commonitem","Bag_Grid_sq"..quality);
+        ResourceHelper:LoadIconByAtlasAsync(self.Rare, ResourceHelper.AtlasPathCommonItem, "Bag_Grid_sq" .. quality, false)
+
+        --ICON
+        ResourceHelper:LoadIconAsync(self.Icon, "", cfg.Icon, false)
+
+        self.Quality = quality
+
+        --是否是新物品
+        if self.ItemData ~= nil then
+        --self.go_New:SetActive(self.ItemData.IsNew)
+        end
+
+        if self.EntityID ~= nil and self.EntityID ~= 0 and self.ItemData ~= nil then
+            --是否显示已装备【纹章和星次石】
+            if (cfg.ItemType == 4 or cfg.ItemType == 5) and self.ItemData.Heroid > 0 then
+                if self.go_Equip ~= nil then
+                    self.go_Equip:SetActive(true)
+                end
+            end
+
+            --伙伴装备
+            if self.ItemData.SpaceId == 20 then
+                if self.go_Equip ~= nil then
+                    self.go_Equip:SetActive(true)
+                end
+            end
+        end
+
+        if item.IsSelected == nil then
+            self:MakeSelected(false)
+        else
+            self:MakeSelected(item.IsSelected)
+        end
+    end
+end
+
+function ItemGrid:SetStar(star)
+    if self.Stars ~= nil and #self.Stars > 0 then
+        for i = 1, #self.Stars do
+            if self.Stars[i] ~= nil then
+                self.Stars[i]:SetActive(i <= star)
+            end
+        end
+    end
+end
+
+function ItemGrid:SetPartnerHead(partnerBaseID)
+    if self.PartnerHead ~= nil then
+        --self.PartnerHead.gameObject:SetActive(false);
+        --不需要显示小头像
+
+        self.PartnerHead.gameObject:SetActive(true)
+
+        local config = ConfigDataAccessor.Partner[partnerBaseID]
+        if config ~= nil then
+            local avatarCfg = ConfigDataAccessor.Avatar[config.AvatarID]
+            if avatarCfg ~= nil then
+                local headCfg = ConfigDataAccessor.ModelHead[avatarCfg.HeadID]
+                if headCfg ~= nil then
+                    ResourceHelper:LoadIconByAtlasAsync(self.PartnerHead, headCfg.HeadAtlasName, headCfg.MinHead, false)
+
+                --ResourceManager.Instance:LoadSpriteAsync(headCfg.MinHead,function (sp)
+                --if sp~=nil then
+                --self.PartnerHead.sprite=sp;
+                --end
+                --end)
+                end
+            end
+        end
+    end
+end
+
+--设置Item
+function ItemGrid:SetItemNum(BaseID, Num, needHaveNum, noNeedMaxNum)
+    --绑定
+    self.go_Lock:SetActive(false)
+    --无法装备【装备用】
+    if self.go_CantEquip ~= nil then
+        self.go_CantEquip:SetActive(false)
+    end
+    --非绑定
+    if self.go_Sell ~= nil then
+        self.go_Sell:SetActive(false)
+    end
+    if self.go_Equip ~= nil then
+        self.go_Equip:SetActive(false)
+    end
+
+    if BaseID == 0 then
+        self:SetUse(false)
+        self.ItemData = nil
+        self:MakeSelected(false)
+        return
+    end
+
+    local isEnough = true
+
+    self.IsInCD = false
+    self.go_Cd:SetActive(false)
+
+    self:SetUse(true)
+
+    self.BaseID = BaseID
+
+    if self.PartnerHead ~= nil then
+        self.PartnerHead.gameObject:SetActive(false)
+    end
+
+    if self.go_Equip ~= nil then
+        self.go_Equip:SetActive(false)
+    end
+
+    if needHaveNum == nil then
+        if Num == 0 then
+            self.Num.text = ""
+        else
+            self.Num.text = "" .. Num
+        end
+
+        isEnough = true
+    else
+        local haveNum = BusinessManager.Instance:GetCurrencyNum(self.BaseID)
+        if haveNum >= Num then
+            if noNeedMaxNum then
+                self.Num.text = "" .. Num
+            else
+                if haveNum > 999 then
+                    self.Num.text = "999+/" .. Num
+                else
+                    self.Num.text = "" .. haveNum .. "/" .. Num
+                end
+            end
+        else
+            if noNeedMaxNum then
+                self.Num.text = "<color=#ff0000>" .. Num .. "</color>"
+            else
+                if haveNum > 999 then
+                    self.Num.text = "<color=#ff0000>999+</color>/" .. Num
+                else
+                    self.Num.text = "<color=#ff0000>" .. haveNum .. "</color>/" .. Num
+                end
+            end
+
+            isEnough = false
+        end
+    end
+
+    --稀有度底板
+    local cfg = ConfigDataAccessor.Item[self.BaseID]
+    if cfg == nil then
+        Log("道具表找不到 id=" .. self.BaseID)
+        return
+    end
+
+    if cfg.Dealid > 0 then
+        cfg = ConfigDataAccessor.Item[cfg.Dealid]
+    end
+
+    local quality = cfg.Quality
+    if quality == 99 then
+        quality = 1
+    end
+
+    --装备，纹章 这些不可堆叠的显示等级
+    if cfg.ItemType == 2 or cfg.ItemType == 5 then
+        if cfg.ItemType == 2 then
+            local equipCfg = ConfigDataAccessor.Equip[self.BaseID]
+            self.Num.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {equipCfg.Level})
+        end
+        if cfg.ItemType == 5 then
+            local equipCfg = ConfigDataAccessor.AmuletEquip[self.BaseID]
+            self.Num.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit5"), {equipCfg.EquipLevel})
+        end
+    end
+
+    --self.Rare.sprite= AtlasManager.Instance:GetSprite("ui/common/atlas/commonitem","Bag_Grid_sq"..quality);
+    ResourceHelper:LoadIconByAtlasAsync(self.Rare, ResourceHelper.AtlasPathCommonItem, "Bag_Grid_sq" .. quality, false)
+    --ICON
+    ResourceHelper:LoadIconAsync(self.Icon, "", cfg.Icon, false)
+
+    self:MakeSelected(false)
+
+    return isEnough
+end
+
+--是否被选中
+function ItemGrid:MakeSelected(b)
+    self.go_Selected:SetActive(b)
+
+    if b and self.ItemData ~= nil then
+        self.ItemData.IsNew = false
+        self.go_New:SetActive(false)
+    end
+end
+
+--隐藏减号
+function ItemGrid:HideDel()
+    self.transform:Find("Have/del").gameObject:SetActive(false)
+end
+
+--显示箭头
+function ItemGrid:SetUp(isUp)
+    if self.go_Up ~= nil then
+        self.go_Up:SetActive(isUp)
+    end
+end
+
+--显示New
+function ItemGrid:SetNew(isNew)
+    if self.go_New ~= nil then
+        self.go_New:SetActive(isNew)
+    end
+end
+
+return ItemGrid

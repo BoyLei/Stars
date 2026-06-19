@@ -1,0 +1,80 @@
+
+local KeyMap = {
+	ID = 1,
+	LevelName = 2,
+	BaseID = 3,
+	LevelCollider = 4,
+	LevelType = 5,
+	LevelNumber = 6,
+	BehaviorTree = 7,
+	AutoBattle = 8,
+	EnterCleanCD = 9,
+	ExitCleanCD = 10,
+	IsHidePartner = 11,
+	IsHideOtherPlayer = 12,
+	IsCameraRotate = 13,
+
+}
+
+local R = {
+	_1 = "",
+}
+
+local TeamDailyLevelList = 
+{
+	[50000]=
+	{
+		50000,
+		L("TeamDailyLevelLevelName50000"),
+		18,
+		R._1,
+		0,
+		0,
+		50201,
+		true,
+		false,
+		false,
+		false,
+		false,
+		true,
+	},
+	[50201]=
+	{
+		50201,
+		R._1,
+		2,
+		R._1,
+		2,
+		1,
+		50201,
+		true,
+		false,
+		false,
+		false,
+		false,
+		true,
+	},
+	[50202]=
+	{
+		50202,
+		R._1,
+		2,
+		R._1,
+		2,
+		2,
+		50201,
+		true,
+		false,
+		false,
+		false,
+		false,
+		true,
+	},
+
+}
+
+do
+    MT(KeyMap, TeamDailyLevelList)
+end
+
+return TeamDailyLevelList

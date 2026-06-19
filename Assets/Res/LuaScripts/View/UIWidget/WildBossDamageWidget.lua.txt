@@ -1,0 +1,135 @@
+--[[
+*文件名   :   WildBossDamageWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/10/31 15:00:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] WildBossDamageWidget = class("WildBossDamageWidget", UIPanel)
+WildBossDamageWidget.BossEID = 0
+
+function WildBossDamageWidget:Awake()
+    self.gameObject = self.prefab;
+    self.transform = self.prefab.transform;
+
+    self.m_CanRewardRoot = self.transform:Find("CanRewardRoot").gameObject;
+    self.m_PercentImage = self.transform:Find("CanRewardRoot/PercentImage"):GetComponent(typeof(Image));
+    self.m_PercentText = self.transform:Find("CanRewardRoot/PercentText"):GetComponent(typeof(Text));
+    self.m_RewardedRoot = self.transform:Find("RewardedRoot").gameObject;
+    self.m_Anim = self.transform:Find("CanRewardRoot/Anim").gameObject;
+
+    -- 刷新时间
+    self.NeedRefesh = false;
+    self.UpdateFun = function()
+        self:RefeshDamage();
+    end
+
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.WildBossHurtRetID, function(data)
+        self:OnWildBossHurtRet(data)
+    end, nil);
+
+    self.lastRefreshTime = os.time() -- 记录上次刷新的时间
+    self.refreshInterval = 1;
+
+    self.Module = nil;
+end
+
+-- 怪物伤害统计数据回包
+function WildBossDamageWidget:OnWildBossHurtRet(rsp)
+    if rsp == nil or rsp.data == nil then
+        return
+    end
+
+    if self.BossData ~= nil and rsp.data.EID == self.BossData.EID then
+        local percent = rsp.data.HurtValue / self.BossData.cfgData.BoxDamage
+        self:RenderProgress(percent)
+    end
+end
+
+function WildBossDamageWidget:RenderProgress(percent)
+    if percent > 1 then
+        percent = 1
+        self.m_Anim:SetActive(true)
+    end
+    self.m_PercentImage.fillAmount = percent
+    self.m_PercentText.text = math.floor(percent * 100) .. "%"
+end
+
+function WildBossDamageWidget:BindModule(m)
+    self.Module = m;
+end
+
+-- 1秒拉一次
+function WildBossDamageWidget:WildBossHurtReq()
+    if self.BossEID > 0 then
+        local message = CS.ProtoMsg.WildBossHurtReq()
+        message.EID = self.BossEID
+        CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace, message,
+            false);
+    end
+end
+
+function WildBossDamageWidget:RefeshDamage()
+    if self.NeedRefesh then
+        local currentTime = os.time()
+        -- 判断是否已经过去了1秒
+        if currentTime - self.lastRefreshTime >= self.refreshInterval then
+            if self.BossEntity ~= nil then
+                self.lastRefreshTime = currentTime -- 更新上次刷新的时间
+                -- 这里可以放入需要刷新的代码
+                self:WildBossHurtReq();
+            else
+                self:CloseWidget();
+            end
+        end
+    end
+end
+
+function WildBossDamageWidget:Start()
+
+end
+
+function WildBossDamageWidget:OnEnable()
+
+end
+
+function WildBossDamageWidget:OnDisable()
+
+end
+
+function WildBossDamageWidget:OnDestroy()
+    if self.Module ~= nil then
+        self.Module:OnWildBossDamageWidgetDestroy()
+    end
+end
+
+function WildBossDamageWidget:OnOpen(arg)
+    self.BossData = arg.BossData
+    self.BossEID = self.BossData.EID
+    self.BossEntity = GameManager.Instance:GetEntityCtr(self.BossEID);
+    local info = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.ComCount):GetData(18)
+    local canReward = info.RemainCount > 0
+    self:RenderProgress(0)
+    self.m_Anim:SetActive(false)
+    self.m_CanRewardRoot:SetActive(canReward)
+    self.m_RewardedRoot:SetActive(not canReward)
+
+    self.NeedRefesh = canReward
+    if self.NeedRefesh then
+        MonoHelper.AddUpdateListener(self.UpdateFun);
+    end
+end
+
+function WildBossDamageWidget:OnClose(arg)
+    self.NeedRefesh = false
+    self.BossData = nil
+    self.BossEID = 0
+    MonoHelper.RemoveUpdateListener(self.UpdateFun);
+end
+
+function WildBossDamageWidget:CloseWidget()
+    self.gameObject:SetActive(false);
+    UIManager.Instance:CloseWidget("WildBoss/Prefab/WildBossDamageWidget", nil, true);
+end
+
+return WildBossDamageWidget

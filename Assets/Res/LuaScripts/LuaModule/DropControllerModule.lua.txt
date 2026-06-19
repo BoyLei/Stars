@@ -1,0 +1,259 @@
+--[[
+*文件名   :   DropControllerModule
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/03 09:26:40"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] DropControllerModule =
+    class("DropControllerModule", BaseLuaModule)
+
+-- LuaModule 消息模块
+DropControllerModule.ModuleMessages = {}
+
+DropControllerModule.ItemList = {}
+
+--
+function DropControllerModule:OnTestModuleMessage(...)
+end
+
+-- LuaModule 创建
+function DropControllerModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.DropControllerModule, self)
+    ModuleManager.Instance:CreateModule(ModuleDef.LootControllerModule) -- 掉落显示模块
+
+    -- 掉落通知
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.DropNotifyID,
+        function(data)
+            self:OnDropNotify(data)
+        end,
+        nil
+    )
+
+    -- 通用奖励通知
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.CommonRewardNtfID,
+        function(data)
+            self:OnCommonRewardNtf(data)
+        end,
+        nil
+    )
+end
+
+function DropControllerModule:OnCommonRewardNtf(data)
+	--抽卡处理 如果在抽卡模块 则不调用此弹框
+	local drawcardmodule = LuaModuleDispatcher:GetModule(ModuleDef.DrawCardModule)
+	if (drawcardmodule.drawCardWindow ~= nil and drawcardmodule.drawCardWindow.IsOpen) or (drawcardmodule.tenTimesWindow ~= nil and drawcardmodule.tenTimesWindow.IsOpen) or (drawcardmodule.drawCardDetailWindow ~= nil and drawcardmodule.drawCardDetailWindow.IsOpen) then
+		return	
+	end
+	local infos = data.data.FinalDrop
+
+    -- 0表示默认弹窗
+    if data.data.ShowType == 0 then
+        local temp = {}
+
+        -- 去重
+        for i = 0, infos.Count - 1 do
+            local dropinfo = infos[i]
+
+            local key = dropinfo.DBID
+            if key == 0 then
+                key = dropinfo.Index
+            end
+
+            if temp[key] == nil then
+                local rw = {}
+                rw.BaseID = dropinfo.Index
+                rw.Num = dropinfo.Count
+                rw.EntityID = dropinfo.DBID
+
+                temp[key] = rw
+            else
+                temp[key].Num = temp[key].Num + dropinfo.Count
+            end
+        end
+
+        local rewardsList = {}
+
+        for k, v in pairs(temp) do
+            table.insert(rewardsList, v)
+        end
+
+        -- 弹窗逻辑（先塞进去之后在外面调用）
+		
+        LuaModuleDispatcher:SendMessage(ModuleDef.RewardsPopModule, "OnOpenRewardsPop", {rewardsList})
+    else
+        -- 1表示只有进包提示，无弹窗，无掉落展示
+        for i = 0, infos.Count - 1 do
+            local dropinfo = {}
+            dropinfo.Itemid = infos[i].Index -- baseID
+            dropinfo.ItemNum = infos[i].Count -- 数量
+            LuaModuleDispatcher:SendMessage(ModuleDef.DropInfoListModule, "OnAddDrop", {dropinfo})
+        end
+    end
+end
+
+function DropControllerModule:OnDropNotify(data)
+    local infos = data.data.Infos
+
+    local ownerId = data.data.OwnerId
+
+    local ownerPos = GameManager.Instance:GetEntityPosById(ownerId)
+    ownerPos.y = ownerPos.y + 1.0
+
+    -- print("OnDropNotify ownerId:"..ownerId .. "ownerPos" .. ownerPos)
+
+    local dropIdx = 0
+
+    local isNeedWindow = false
+    local rewardsList = {}
+
+    local AwardType = data.data.AwardType
+
+    for i = 0, infos.Count - 1 do
+        local dropinfo = infos[i]
+
+        local EntityID = dropinfo.EntityID
+        local Itemid = dropinfo.Itemid
+        local ItemNum = dropinfo.ItemNum
+        local Showtype = dropinfo.Showtype
+        local WindowsType = dropinfo.WindowsType
+		-- 发送获得奖励消息
+		local msgList = {}
+		local jobID = GameManager.Instance:GetPlayerJob()
+		local strLanVal = LanguageHelp:GetLanguageByKey("Local_Str_Tips_GetReward")
+		local itemCfg = ConfigDataAccessor.Item[dropinfo.Itemid];
+		local quality = 1;
+		local itemName = ""
+		if itemCfg ~= nil then
+			quality = itemCfg.Quality;
+			itemName = itemCfg.Name;
+		end
+        local equipStrSp = ExtraData.GetEquipStrByID(dropinfo.Itemid);
+		local chatMsgNotice = CS.ProtoMsg.ChatMsgNotice()
+		chatMsgNotice.EID = 0
+		chatMsgNotice.PID = 0
+		local strContentVal = equipStrSp .. GetQualityColor(quality) .. itemName .. "</color>x" .. dropinfo.ItemNum
+		chatMsgNotice.Data = StringFormat(strLanVal, {strContentVal})
+		chatMsgNotice.Channel = CS.ProtoMsg.ChatChannel.ChannelSystem
+		chatMsgNotice.ChatTime = TimeUtils.ServerNowStampMilli
+		chatMsgNotice.ChatLevel = 1
+		chatMsgNotice.JobID = jobID
+		table.insert(msgList, chatMsgNotice)
+
+
+		
+        -- 掉落进背包
+        if Showtype == 2 then
+            -- 直接进背包
+            local IsShowDrop = true
+
+            -- 排除角色经验等货币
+            local CurrencyCfg = ConfigDataAccessor.CurrencyCfg[Itemid]
+            if CurrencyCfg ~= nil then
+                IsShowDrop = CurrencyCfg.IsShowDrop
+            end
+
+            if IsShowDrop then
+                dropIdx = dropIdx + 1
+                dropIdx = 0
+                -- 生成掉落表现
+                DOVirtual.DelayedCall(
+                    0.15 * dropIdx,
+                    function()
+                        -- 生成的掉落物品
+                        -- local tempLoot = ResourceHelperMono.LoadPrefab("Loot/Loot1");
+                        -- local tempLoot1 =tempLoot;
+                        -- tempLoot.transform.position = ownerPos;
+
+                        -- 生成的掉落物品
+                        LuaModuleDispatcher:SendMessage(ModuleDef.LootControllerModule, "OnAddLoot", {Itemid, ownerPos, ItemNum, EntityID})
+
+                        -- UI显示
+                        -- LuaModuleDispatcher:SendMessage(ModuleDef.DropInfoListModule, "OnAddDrop",{dropinfo} );
+                    end
+                )
+            end
+        elseif Showtype == 1 then
+			
+
+			
+            local dropinfoT = {}
+            dropinfoT.Itemid = dropinfo.Itemid
+            dropinfoT.ItemNum = dropinfo.ItemNum
+            dropinfoT.AwardType = data.data.AwardType
+
+            -- UI显示
+            LuaModuleDispatcher:SendMessage(ModuleDef.DropInfoListModule, "OnAddDrop", {dropinfoT})
+			
+
+        elseif Showtype == 3 then
+            -- 弹窗逻辑（先塞进去之后在外面调用）
+            isNeedWindow = true
+
+            local rw = {}
+            rw.BaseID = Itemid
+            rw.Num = ItemNum
+            rw.EntityID = EntityID
+            table.insert(rewardsList, rw)
+        end
+		
+		LuaModuleDispatcher:SendMessage(ModuleDef.ChatModule, "OnAnalogReceptionChatMsg", {msgList})
+        --[[
+
+		if WindowsType==1 then
+			--弹窗逻辑（先塞进去之后在外面调用）
+			isNeedWindow=true;
+			
+			local rw={};
+			rw.BaseID=Itemid;
+			rw.Num=ItemNum;
+			rw.EntityID=EntityID;
+			table.insert( rewardsList,rw);
+		end
+
+		]]
+    end
+
+    if isNeedWindow then
+        -- 弹窗逻辑（先塞进去之后在外面调用）
+        LuaModuleDispatcher:SendMessage(ModuleDef.RewardsPopModule, "OnOpenRewardsPop", {rewardsList})
+    else
+        if #rewardsList > 0 then
+            local msgList = {}
+            for _, v in ipairs(rewardsList) do
+                local chatMsgNotice = CS.ProtoMsg.ChatMsgNotice()
+                chatMsgNotice.EID = 0
+                chatMsgNotice.PID = 0
+
+                local strLanVal = LanguageHelp:GetLanguageByKey("Local_Str_Tips_GetReward")
+                local equipStrSp = ExtraData.GetEquipStrByID(v.BaseID);
+                local strContentVal = equipStrSp .. GetQualityColor(ConfigDataAccessor.Item[v.BaseID].Quality) .. ConfigDataAccessor.Item[v.BaseID].Name .. "</color>x" .. v.Num
+                chatMsgNotice.Data = StringFormat(strLanVal, {strContentVal})
+                chatMsgNotice.Channel = CS.ProtoMsg.ChatChannel.ChannelSystem
+                chatMsgNotice.ChatTime = TimeUtils.ServerNowStampMilli
+                chatMsgNotice.ChatLevel = 1
+                chatMsgNotice.JobID = GameManager.Instance:GetPlayerJob()
+                table.insert(msgList, chatMsgNotice)
+            end
+            LuaModuleDispatcher:SendMessage(ModuleDef.ChatModule, "OnAnalogReceptionChatMsg", {msgList})
+        end
+    end
+end
+
+-- LuaModule 消息处理
+function DropControllerModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...)
+end
+
+-- LuaModule显示
+function DropControllerModule:OnModuleShow(arg)
+end
+
+-- LuaModule 释放
+function DropControllerModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.DropControllerModule)
+end
+
+return DropControllerModule

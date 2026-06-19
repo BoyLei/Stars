@@ -1,0 +1,171 @@
+RewardsWindow = class("RewardsWindow", UIPanel);
+
+function RewardsWindow:Awake()
+
+end
+
+function RewardsWindow:BindModule(m)
+	RewardsWindow.module = m;
+end
+
+function RewardsWindow:InitControls()
+	self.transform = self.prefab.transform;
+	self.gameObject = self.transform.gameObject;
+
+	self.winTb = {};
+	self.loseTb = {};
+	local BattleFieldRank = ConfigDataAccessor.BattleFieldRankList;
+	for k, v in pairs(BattleFieldRank) do
+		if v.Result == true then
+			table.insert(self.winTb, v);
+		else
+			table.insert(self.loseTb, v);
+		end
+	end
+
+	self.winItem = self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/Rank/Guild/Win/Viewport/Content/Item").gameObject;
+	self.loseItem = self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/Rank/Guild/Lose/Viewport/Content/Item").gameObject;
+
+	for _, v in pairs(self.winTb) do
+		local _go = newObject(self.winItem)
+		_go.transform:SetParent(self.winItem.transform.parent);
+		_go.transform.localPosition = Vector3.zero
+		_go.transform.localScale = Vector3.one
+		_go:SetActive(true);
+
+		local rank = _go.transform:Find("Rank"):GetComponent(typeof(Text));
+		rank.text = v.Rank;
+
+		local winRewardItem = _go.transform:Find("Items/Viewport/Content/Item").gameObject;
+
+		for k2, v2 in pairs(v.Reward1) do
+			local _go2 = newObject(winRewardItem)
+			_go2.transform:SetParent(winRewardItem.transform.parent);
+			_go2.transform.localPosition = Vector3.zero
+			_go2.transform.localScale = Vector3.one
+			_go2:SetActive(true);
+
+			self:InitRewardItem(_go2.transform, v2, v.Reward1Num[k2]);
+		end
+	end
+
+	for _, v in pairs(self.winTb) do
+		local _go = newObject(self.loseItem)
+		_go.transform:SetParent(self.loseItem.transform.parent)
+		_go.transform.localPosition = Vector3.zero
+		_go.transform.localScale = Vector3.one
+		_go:SetActive(true);
+
+		local rank = _go.transform:Find("Rank"):GetComponent(typeof(Text));
+		rank.text = v.Rank;
+
+		local loseRewardItem = _go.transform:Find("Items/Viewport/Content/Item").gameObject;
+
+		for k2, v2 in pairs(v.Reward1) do
+			local _go2 = newObject(loseRewardItem)
+			_go2.transform:SetParent(loseRewardItem.transform.parent);
+			_go2.transform.localPosition = Vector3.zero
+			_go2.transform.localScale = Vector3.one
+			_go2:SetActive(true);
+			
+			self:InitRewardItem(_go2.transform, v2, v.Reward1Num[k2]);
+		end
+	end
+
+	self.winGO = self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/Rank/Guild/Win").gameObject;
+	self.loseGO = self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/Rank/Guild/Lose").gameObject;
+
+	self.winGO:SetActive(true);
+	self.loseGO:SetActive(false);
+
+	self.winBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/Rank/Menu/TagItem1"):GetComponent(typeof(JButton));
+	self.winBtn.OnClick = function()
+		self.winGO:SetActive(true);
+		self.loseGO:SetActive(false);
+		
+		self.winSel:SetActive(true);
+		self.winNoSel:SetActive(false);
+		self.loseSel:SetActive(false);
+		self.loseNoSel:SetActive(true);
+	end
+
+	self.loseBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/Rank/Menu/TagItem2"):GetComponent(typeof(JButton));
+	self.loseBtn.OnClick = function()
+		self.winGO:SetActive(false);
+		self.loseGO:SetActive(true);
+		
+		self.winSel:SetActive(false);
+		self.winNoSel:SetActive(true);
+		self.loseSel:SetActive(true);
+		self.loseNoSel:SetActive(false);
+	end
+	
+	self.winSel = self.winBtn.transform:Find("selected").gameObject;
+	self.winNoSel = self.winBtn.transform:Find("noselected").gameObject;
+	self.loseSel = self.loseBtn.transform:Find("selected").gameObject;
+	self.loseNoSel = self.loseBtn.transform:Find("noselected").gameObject;
+
+	self.closeBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/BtnClose"):GetComponent(typeof(JButton));
+	self.closeBtn.OnClick = function()
+		self.Close();
+	end
+end
+
+function RewardsWindow:InitRewardItem(trans, itemID, num)
+	local icon = trans:Find("Icon"):GetComponent(typeof(Image));
+	local numTxt = trans:Find("Num"):GetComponent(typeof(Text));
+	local Rare = trans:Find("Rare"):GetComponent(typeof(Image));
+	--local Rare = trans:Find("RankBg"):GetComponent(typeof(Image));
+	
+	local cfg = ConfigDataAccessor.Item[itemID];
+	ResourceHelper:LoadIconAsync(icon, "", cfg.Icon, false)
+
+	local quality = cfg.Quality;
+	ResourceHelper:LoadIconByAtlasAsync(
+		Rare,
+		ResourceHelper.AtlasPathCommonItem,
+		"Bag_Grid_sq" .. quality,
+		false
+	)
+	numTxt.text = tostring(num);
+
+	local btn = trans:GetComponent(typeof(JButton));
+	btn.OnClick = (function()
+			LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", {itemID, false, 0, self.transform, 0});
+		end);
+end
+
+function RewardsWindow:OnShow()
+end
+
+function RewardsWindow:Start()
+
+end
+
+function RewardsWindow:OnEnable()
+
+end
+
+function RewardsWindow:OnDisable()
+
+end
+
+function RewardsWindow:OnDestroy()
+
+end
+
+function RewardsWindow:OnOpen(arg)
+	self.IsOpen = true;
+end
+
+function RewardsWindow:OnClose(arg)
+	self:CloseWindow();
+	self.module.rewardsWindow=nil;
+end
+
+function RewardsWindow:CloseWindow()
+	self.IsOpen = false;
+	self.module.rewardsWindow=nil;
+end
+
+return RewardsWindow

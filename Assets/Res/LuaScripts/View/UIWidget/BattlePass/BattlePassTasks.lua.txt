@@ -1,0 +1,276 @@
+--[[
+*文件名   :   BattlePassTasks
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] local BattlePassTasks = {}
+
+BattlePassTasks.__index = BattlePassTasks
+
+local BattlePassTasksItem = require("View/UIWidget/BattlePass/BattlePassTasksItem")
+local SelectBtn = require("View/Item/SelectBtn")
+
+function BattlePassTasks:New(_go, BattlePassWidget)
+    local self = {}
+    setmetatable(self, BattlePassTasks)
+
+    self.BattlePassWidget = BattlePassWidget
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    -- 菜单按钮
+    self.MenuBtns = {}
+    local btn1 = SelectBtn:New(self.transform:Find("View/tag1").gameObject)
+    btn1:InitItem(
+        1,
+        function(idx)
+            self:OnMenuBtnClick(idx)
+            self.rect_grid.anchoredPosition = Vector2(self.rect_grid.anchoredPosition.x, 0)
+        end
+    )
+    table.insert(self.MenuBtns, btn1)
+
+    local btn2 = SelectBtn:New(self.transform:Find("View/tag2").gameObject)
+    btn2:InitItem(
+        2,
+        function(idx)
+            self:OnMenuBtnClick(idx)
+            self.rect_grid.anchoredPosition = Vector2(self.rect_grid.anchoredPosition.x, 0)
+        end
+    )
+    table.insert(self.MenuBtns, btn2)
+
+    self.idxNow = -1
+
+    self.go_red1 = self.transform:Find("View/tag1/RedPoint").gameObject
+    self.go_red2 = self.transform:Find("View/tag2/RedPoint").gameObject
+
+    self.rect_grid = self.transform:Find("TaskRoot/Mask/List"):GetComponent(typeof(RectTransform))
+
+    -- 道具列表
+    self.BagItemList = {}
+    -- 无限列表
+    self.go_BagItem = self.transform:Find("TaskRoot/Mask/List/BattlePassTasksItem").gameObject
+
+    self.tr_ItemRoot = self.transform:Find("TaskRoot/Mask/List")
+    self.go_BagItem:SetActive(false)
+    self.go_BagItem.transform:SetParent(self.transform)
+    self.BagScorllView = self.transform:Find("TaskRoot"):GetComponent(typeof(SuperScrollViewController))
+    self.BagScorllView:NewScroll(
+        self.go_BagItem,
+        0,
+        function(tr, idx)
+            self:OnBagItemRefesh(tr, idx)
+        end
+    )
+
+    -- 全部领取
+    self.transform:Find("BtnGetAll"):GetComponent(typeof(JButton)).OnClick = (function()
+        if #self.SubmitIds > 0 then
+            -- 发送领取消息
+            local batchSubmitTaskReq = CS.ProtoMsg.BatchSubmitTaskReq()
+            for i = 1, #self.SubmitIds do
+                batchSubmitTaskReq.BatchIds:Add(self.SubmitIds[i])
+            end
+
+            CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, batchSubmitTaskReq, false)
+        else
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_117"))
+        end
+    end)
+
+    self.GetAllBg = self.transform:Find("BtnGetAll/bg"):GetComponent(typeof(Image))
+
+    self.message1 = function(data)
+        self:OnSubmitTaskAck(data)
+    end
+
+    self.message2 = function(data)
+        self:OnBatchSubmitTaskAck(data)
+    end
+    self.gameObject:SetActive(false)
+
+    return self -- 返回自身
+end
+
+function BattlePassTasks:SetMessage(b)
+    if b then
+        ---提交任务服务器回调
+        CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.SubmitTaskAckID, self.message1, nil)
+
+        ---一键提交任务服务器回调
+        CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.BatchSubmitTaskAckID, self.message2, nil)
+    else
+        ---提交任务服务器回调
+        CS.SGF.Network.NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.SubmitTaskAckID, self.message1, nil)
+
+        ---一键提交任务服务器回调
+        CS.SGF.Network.NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.BatchSubmitTaskAckID, self.message2, nil)
+    end
+end
+
+function BattlePassTasks:OnMenuBtnClick(idx)
+    --if self.idxNow == idx then
+    --    return;
+    --end
+
+    self.idxNow = idx
+
+    for i = 1, #self.MenuBtns do
+        self.MenuBtns[i]:MakeSelected(false)
+    end
+    self.MenuBtns[idx]:MakeSelected(true)
+
+    self:Refesh(true)
+end
+
+function BattlePassTasks:OnBagItemRefesh(tr, idx)
+    for i = 1, #self.BagItemList do
+        if self.BagItemList[i].transform == tr then
+            self.BagItemList[i]:SetItem(self.ItemDataList[idx + 1]) -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+        end
+    end
+
+    local bi = BattlePassTasksItem:New(tr.gameObject)
+
+    bi.gameObject:SetActive(true)
+    bi:SetItem(self.ItemDataList[idx + 1]) -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+
+    table.insert(self.BagItemList, bi)
+end
+
+function BattlePassTasks:Refesh(needResetPos)
+    if self.ItemDataList == nil then
+        self.ItemDataList = {}
+    else
+        for k, _ in pairs(self.ItemDataList) do
+            self.ItemDataList[k] = nil
+        end
+    end
+
+    if self.SubmitIds == nil then
+        self.SubmitIds = {}
+    else
+        for k, _ in pairs(self.SubmitIds) do
+            self.SubmitIds[k] = nil
+        end
+    end
+
+    self.go_red1:SetActive(false)
+    self.go_red2:SetActive(false)
+
+    for k, v in pairs(ConfigDataAccessor.BPTask) do
+        local state = 0
+
+        local idNow = v.TaskID
+        -- 任务状态
+        if TaskHelper.ContainTask(idNow) then
+            -- 正在进行
+            local TaskInfo = TaskHelper.GetRunningTask(idNow)
+            if TaskInfo ~= nil then
+                if TaskInfo.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStageRunning then
+                    -- 任务进行中
+                    state = 1
+                elseif TaskInfo.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStageFinished then
+                    -- 任务已完成未提交
+                    state = 2
+                    if v.TaskCycle == 1 then
+                        -- 任务已完成未提交
+                        self.go_red1:SetActive(true)
+                    elseif v.TaskCycle == 2 then
+                        -- 任务已完成未提交
+                        self.go_red2:SetActive(true)
+                    end
+
+                    if self.idxNow == v.TaskCycle then
+                        table.insert(self.SubmitIds, idNow)
+                    end
+                end
+            end
+        elseif TaskHelper.IsTaskFinsh(idNow) then
+            -- 已经完成
+            state = 0
+        end
+
+        if self.idxNow == v.TaskCycle then
+            local data = {}
+            data.TaskID = v.TaskID
+            data.JumpID = v.JumpID
+            data.State = state
+            data.TaskCycle = v.TaskCycle
+            table.insert(self.ItemDataList, data)
+        end
+    end
+
+    if #self.SubmitIds > 0 then
+        self.GetAllBg.color = Color(1, 1, 1)
+    else
+        self.GetAllBg.color = Color(0.67, 0.67, 0.67)
+    end
+
+    self:SortItem(self.ItemDataList)
+    self.BagScorllView:ContinueScroll(#self.ItemDataList, false)
+end
+
+function BattlePassTasks:Show(b)
+    self.gameObject:SetActive(b)
+    if b then
+        self.idxNow = -1
+        self:OnMenuBtnClick(1)
+    else
+        self.idxNow = -1
+    end
+end
+
+function BattlePassTasks:OnBatchSubmitTaskAck(data)
+    local SubmitTaskAck = data.data
+
+    local Ret = SubmitTaskAck.Ret -- RepeatedField<global::ProtoMsg.SubmitTaskAck>
+
+    Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_120"))
+
+    DOVirtual.DelayedCall(
+        0.3,
+        function()
+            self:Refesh()
+        end
+    )
+end
+
+function BattlePassTasks:OnSubmitTaskAck(data)
+    local SubmitTaskAck = data.data
+
+    if SubmitTaskAck.Ret == CS.ProtoMsg.SubmitTaskAck.Types.ResultType.Ok then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_120"))
+
+        DOVirtual.DelayedCall(
+            0.3,
+            function()
+                self:Refesh()
+            end
+        )
+    else
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_122"))
+    end
+end
+
+function BattlePassTasks:SortItem(tbl)
+    if #tbl > 1 then
+        table.sort(
+            tbl,
+            function(a, b)
+                if a.State > b.State then
+                    -- 任务状态降序
+                    return true
+                end
+                return false
+            end
+        )
+    end
+end
+
+return BattlePassTasks

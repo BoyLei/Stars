@@ -1,0 +1,331 @@
+--[[
+*文件名   :   EquipUpgradeModule
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/02/03 13:39:39"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] EquipUpgradeModule =
+    class("EquipUpgradeModule", BaseLuaModule)
+
+local EquipUpgradeWindowPath = "Equip/EquipUpgradeWindow"
+
+EquipUpgradeModule.IsOpenTips = false
+
+-- LuaModule 消息模块
+EquipUpgradeModule.ModuleMessages = {
+    -- 打开
+    -- ModuleManager.Instance.SendMessage(ModuleDef.EquipUpgradeModule, "OnOpenEquip", new object[] { xxxx });
+    ["OnOpenEquipUpgrade"] = function(...)
+        EquipUpgradeModule:OnOpenEquipUpgradeMsg(...)
+    end,
+    -- 关闭
+    -- ModuleManager.Instance.SendMessage(ModuleDef.EquipUpgradeModule, "OnCloseEquip", new object[] { xxxx });
+    ["OnCloseEquipUpgrade"] = function(...)
+        EquipUpgradeModule:OnCloseEquipUpgradeMsg(...)
+    end,
+    -- 刷新
+    -- ModuleManager.Instance.SendMessage(ModuleDef.EquipUpgradeModule, "OnRefeshEquip", new object[] { xxxx });
+    ["OnRefeshEquipUpgrade"] = function(...)
+        EquipUpgradeModule:OnRefeshEquipUpgradeMsg(...)
+    end,
+    -- 全刷新
+    -- ModuleManager.Instance.SendMessage(ModuleDef.EquipUpgradeModule, "OnRefeshEquip", new object[] { xxxx });
+    ["OnRefeshAllEquipUpgrade"] = function(...)
+        EquipUpgradeModule:OnRefeshAllEquipUpgradeMsg(...)
+    end
+}
+
+function EquipUpgradeModule:OnRefeshAllEquipUpgradeMsg(...)
+    self.IsOpenTips = false
+
+    if self.equipUpgradeWindowView ~= nil then
+        -- 显示
+        self.equipUpgradeWindowView:RefeshEquipUpgrade()
+    end
+end
+
+function EquipUpgradeModule:OnRefeshEquipUpgradeMsg(...)
+    local tb = ...
+    self.EntityID = 0 -- 实体id
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        self.EntityID = tb[1]
+        self.SlotID = tb[2] -- 装备槽ID
+    else
+        -- C#调用
+        self.EntityID = tb[0]
+        self.SlotID = tb[1] -- 装备槽ID
+    end
+
+    if self.EntityID ~= nil and self.EntityID ~= 0 then
+        self.BaseID = BusinessManager.Instance:GetItemByItemEntityId(self.EntityID).BaseID
+    end
+
+    self.IsOpenTips = false
+
+    if self.equipUpgradeWindowView ~= nil then
+        -- 显示
+        self.equipUpgradeWindowView:RefeshEquipUpgrade()
+        CheckAllEquipsRedPoint()
+    end
+end
+
+function EquipUpgradeModule:OnCloseEquipUpgradeMsg()
+    if self.equipUpgradeWindowView ~= nil then
+        self.equipUpgradeWindowView:CloseWidget()
+    end
+end
+
+-- 监听打开奖励面板
+function EquipUpgradeModule:OnOpenEquipUpgradeMsg(...)
+    local tb = ...
+
+    local equipUpgradeWindowCs = UIManager.Instance:OpenWindow(EquipUpgradeWindowPath, nil, CS.StarProjectDef.MainPageCommond.HideBoth)
+    if self.equipUpgradeWindowView == nil then
+        self.equipUpgradeWindowView = equipUpgradeWindowCs:GetLuaPanel().ScriptTable
+        self.equipUpgradeWindowView:BindModule(self)
+        self.equipUpgradeWindowView:InitItems()
+        self.evtOnCloseEquipUpgrade = LuaModuleDispatcher:Event(ModuleDef.EquipUpgradeModule, "OnCloseEquipUpgradeEvt")
+    end
+
+    self.OpenFrom = 0 -- 0为主界面打开，1为ItemTips-强化打开，2为ItemTips-精炼打开，
+    self.EntityID = 0 -- 实体id
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        self.OpenFrom = tb[1]
+        self.EntityID = tb[2]
+    else
+        -- C#调用
+        self.OpenFrom = tb[0]
+        self.EntityID = tb[1]
+    end
+
+    self:FindOneEquip()
+
+    -- 显示
+    if self.OpenFrom == 0 then
+        self.equipUpgradeWindowView:OpenEquipUpgrade(1)
+    else
+        self.equipUpgradeWindowView:OpenEquipUpgrade(self.OpenFrom)
+    end
+
+    self.equipUpgradeWindowView.currencyBar:OnListener()
+
+    CheckAllEquipsRedPoint()
+end
+
+-- 找到一个装备
+function EquipUpgradeModule:FindOneEquip()
+    if self.EntityID == nil then
+        self.EntityID = 0
+    end
+
+    if BusinessManager.Instance:GetItemByItemEntityId(self.EntityID) == nil then
+        self.EntityID = 0
+    end
+
+    -- 从已经装备的装备上找一个装备
+    if self.EntityID == 0 then
+        -- 另外两个饰品暂时没有用
+        for i = 1, 8 do
+            local data = BusinessManager.Instance:GetHeroEquipedEquip(i)
+            if data ~= nil then
+                self.EntityID = data.EntityID
+                self.BaseID = data.BaseID
+                self.SlotID = i -- 装备槽ID
+                break
+            end
+        end
+    else
+        self.BaseID = BusinessManager.Instance:GetItemByItemEntityId(self.EntityID).BaseID
+        for i = 1, 8 do
+            local data = BusinessManager.Instance:GetHeroEquipedEquip(i)
+            if data ~= nil and self.EntityID == data.EntityID then
+                self.SlotID = i -- 装备槽ID
+                break
+            end
+        end
+    end
+
+    -- 如果一个装备都没有默认选第一个
+    if self.EntityID == 0 then
+        self.EntityID = nil
+        self.BaseID = 0
+        self.SlotID = 1 -- 装备槽ID
+    end
+end
+
+function EquipUpgradeModule:OpenItemTips(baseID, entityID)
+    -- print("EquipUpgradeModule:OpenItemTips:"..baseID);
+    LuaModuleDispatcher:SendMessage(
+        ModuleDef.ItemTipsModule,
+        "OnOpenTips",
+        {
+            baseID,
+            true,
+            entityID,
+            self.equipUpgradeWindowView.tips_anchor,
+            self.OpenFrom + 1
+        }
+    )
+end
+
+function EquipUpgradeModule:CloseItemTips()
+    print("EquipUpgradeModule:CloseItemTips")
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips", {})
+end
+
+function EquipUpgradeModule:OpenEquipBagTag(subType)
+    -- 两个饰品还没解锁
+    if subType <= 8 then
+        LuaModuleDispatcher:SendMessage(ModuleDef.BagModule, "OnOpenBagTag", {2, subType})
+    end
+end
+
+-- 关闭回调
+function EquipUpgradeModule:OnCloseEquipUpgradeEvt(arg)
+    self.evtOnCloseEquipUpgrade:Invoke()
+    self.equipUpgradeWindowView = nil
+end
+
+-- 关闭
+function EquipUpgradeModule:OnCloseEquipUpgrade()
+    self.equipUpgradeWindowView.currencyBar:OffListener()
+
+    self:OnCloseEquipUpgradeEvt()
+
+    -- LuaModuleDispatcher:SendMessage(ModuleDef.EquipModule, "OnCloseEquip", { });
+end
+
+-- 发送精练请求
+function EquipUpgradeModule:EquipRefineReq(num)
+    local equipRefineReq = CS.ProtoMsg.EquipRefineReq()
+    equipRefineReq.ID = self.EntityID
+    equipRefineReq.Times = num
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, equipRefineReq, false)
+end
+
+-- 发送强化请求
+function EquipUpgradeModule:EquipSlotUpgradeReq()
+    local equipSlotUpgradeReq = CS.ProtoMsg.EquipSlotUpgradeReq()
+    equipSlotUpgradeReq.SlotID = self.SlotID
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, equipSlotUpgradeReq, false)
+end
+
+-- LuaModule 创建
+function EquipUpgradeModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.EquipUpgradeModule, self)
+
+    -- 监听强化槽位 失败
+    CS.SGF.Network.MsgRetManager.Instance:OnMessageEnum(
+        function(data)
+            self:OnEquipSlotUpgradeReqRet(data)
+        end,
+        CS.MsgIDEnum.EquipSlotUpgradeReqID
+    )
+
+    -- 监听精练返回
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.EquipRefineRetID,
+        function(data)
+            self:OnEquipRefineRet(data)
+        end,
+        nil
+    )
+
+    -- 监听精练返回 失败
+    CS.SGF.Network.MsgRetManager.Instance:OnMessageEnum(
+        function(data)
+            self:OnEquipRefineReqRet(data)
+        end,
+        CS.MsgIDEnum.EquipRefineReqID
+    )
+end
+
+-- 槽位升级回调 因为没有内容，所以可以使用简单回复
+function EquipUpgradeModule:OnEquipSlotUpgradeReqRet(args)
+    local RetMsgID = args.MsgRet.RetMsgID -- 对应的消息号(这个可以判断是哪个协议)
+
+    local RetCode = args.MsgRet.RetCode
+    if RetCode == 0 then
+        -- 成功
+        self.equipUpgradeWindowView.equipUpgradeSlotUpgrade.equipUpgradeSuccess:Show(true, self.SlotID, self.BaseID)
+        self.equipUpgradeWindowView.anim:Play("SimpleSuccess_Anim")
+        self.equipUpgradeWindowView.equipUpgradeSlotUpgrade:ShowSuccessPs()
+
+        CheckAllEquipsRedPoint()
+    elseif RetCode == 1052 then
+        args.IsDialog = true
+        -- 失败
+        self.equipUpgradeWindowView.equipUpgradeSlotUpgrade.equipUpgradeFail:Show(true, self.SlotID, self.BaseID)
+        self.equipUpgradeWindowView.anim:Play("SimpleFail_Anim")
+    else
+        -- 不需要处理，交给上层去处理
+    end
+end
+
+-- 精炼回调 因为没有内容，所以可以使用简单回复
+function EquipUpgradeModule:OnEquipRefineReqRet(args)
+    local RetMsgID = args.MsgRet.RetMsgID -- 对应的消息号(这个可以判断是哪个协议)
+
+    local RetCode = args.MsgRet.RetCode
+    if RetCode == 0 then
+        -- 成功
+    else
+        -- 不需要处理，交给上层去处理
+        -- args.IsDialog=true
+        -- 报错
+        self.equipUpgradeWindowView.equipUpgradeAttrUpgrade.equipUpgradeAttrSuccess.canClose = true
+        -- 刷新面板
+        self.equipUpgradeWindowView:RefeshEquipUpgrade()
+        self.equipUpgradeWindowView.equipUpgradeAttrUpgrade:ShowSuccessPs()
+    end
+end
+
+function EquipUpgradeModule:OnEquipRefineRet(data)
+    if self.equipUpgradeWindowView ~= nil then
+        local ret = data.data.Ret
+
+        if ret == CS.ProtoMsg.EquipOPResult.Ok then
+            local newAttrs = data.data.RefPropList
+            -- 成功
+
+            self.equipUpgradeWindowView.equipUpgradeAttrUpgrade.equipUpgradeAttrSuccess:Show(true, self.EntityID, self.BaseID, self.equipUpgradeWindowView.equipUpgradeAttrUpgrade.OldAttr, newAttrs)
+            self.equipUpgradeWindowView.anim:Play("AttrUpgrade_SimpleSuccess_Anim")
+            self.equipUpgradeWindowView.equipUpgradeAttrUpgrade:ShowSuccessPs()
+            CheckAllEquipsRedPoint()
+        --[[
+			self.equipUpgradeWindowView.equipUpgradeAttrUpgrade.equipUpgradeAttrSuccess:Show(true,self.EntityID,self.BaseID,self.equipUpgradeWindowView.equipUpgradeAttrUpgrade.OldAttr,newAttrs);
+		
+			self.equipUpgradeWindowView:PlayAnimation("UpgradeAnim_Open",function ()
+				self.equipUpgradeWindowView.equipUpgradeAttrUpgrade.equipUpgradeAttrSuccess.canClose=true;
+				--刷新面板
+				self.equipUpgradeWindowView:RefeshEquipUpgrade();
+			end);
+			]]
+        end
+    end
+end
+
+-- LuaModule 消息处理
+function EquipUpgradeModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...)
+end
+
+-- LuaModule显示
+function EquipUpgradeModule:OnModuleShow(arg)
+    self:OnOpenEquipUpgradeMsg(arg)
+end
+
+function EquipUpgradeModule:OnModuleHide(arg)
+end
+
+-- LuaModule 释放
+function EquipUpgradeModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.EquipUpgradeModule)
+end
+
+return EquipUpgradeModule

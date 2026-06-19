@@ -1,0 +1,92 @@
+-- 副本确认界面
+EctypeRingPopWindow = class("EctypeRingPopWindow", UIPanel)
+EctypeRingPopWindow.IsOpen = false
+local RewardItem = require("View/UIWindow/Ectype/RewardItem")
+
+function EctypeRingPopWindow:Awake()
+end
+
+function EctypeRingPopWindow:BindModule(m)
+    EctypeRingPopWindow.module = m
+end
+
+function EctypeRingPopWindow:InitControls()
+    self.transform = self.prefab.transform
+    self.gameObject = self.transform.gameObject
+
+    --额外奖励
+    local playerLv = GameManager.Instance:GetPlayerLevel()
+    local ringTaskGroupCfg = ConfigDataAccessor.GetRingTaskGroupByLevel(playerLv)
+
+    self.extraPassRewardItem = self.transform:Find("Image/Rewards/Viewport/Content/Item").gameObject
+
+    self.extraItems = {}
+    for i = 1, #ringTaskGroupCfg.AwardsDisplay do
+        local gob = newObject(self.extraPassRewardItem)
+        gob:SetActive(true)
+        gob.transform:SetParent(self.extraPassRewardItem.transform.parent)
+        gob.transform.localPosition = Vector3.zero
+        gob.transform.localScale = Vector3.one
+        local it = RewardItem:New(gob, ringTaskGroupCfg.AwardsDisplay[i], ringTaskGroupCfg.AwardsDisplayNum[i])
+        self.extraItems[i] = gob
+    end
+
+    local gotoBtn = self.transform:Find("Image/GotoBtn"):GetComponent(typeof(Button))
+    gotoBtn.onClick:AddListener(
+        function()
+            --跑到npc那边去
+            BusinessManager.Instance:FindNpcPath(
+                9,
+                100002,
+                1,
+                function(result)
+                    --走到面前后交互
+                    if result then
+                        LuaModuleDispatcher:SendMessage(ModuleDef.RingTaskModule, "OnCkeckAndOpenRingTaskWindow", {})
+                    end
+                end
+            )
+
+            UIManager.Instance:CloseWindow("Ectype/Prefab/GamePlayChoiceWindow")
+            UIManager.Instance:CloseWindow("Ectype/Prefab/EctypeRingPopWindow")
+        end
+    )
+
+    local btnCloseInfo = self.transform:Find("Close"):GetComponent(typeof(Button))
+    btnCloseInfo.onClick:AddListener(
+        function()
+            if not (GameManager.Instance.IsOpenItemTips) then
+                self.Close()
+            end
+        end
+    )
+end
+
+function EctypeRingPopWindow:Start()
+    print("EctypeBagWindow:Start")
+end
+
+function EctypeRingPopWindow:OnEnable()
+end
+
+function EctypeRingPopWindow:OnDisable()
+end
+
+function EctypeRingPopWindow:OnDestroy()
+end
+
+function EctypeRingPopWindow:OnOpen(arg)
+    EctypeRingPopWindow.IsOpen = true
+end
+
+function EctypeRingPopWindow:OnClose(arg)
+    EctypeRingPopWindow:CloseWindow()
+    self.module.ectypeRingPopWindow = nil
+end
+
+function EctypeRingPopWindow:CloseWindow()
+    EctypeRingPopWindow.IsOpen = false
+    self.module.ectypeRingPopWindow = nil
+end
+
+return EctypeRingPopWindow

@@ -1,0 +1,78 @@
+--[[
+*文件名   :   ItemAttr
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/08 20:04:35"
+*创建人   :   "quzhenxin"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+ItemAttr = class("ItemAttr", UIPanel)
+ItemAttr.m_transform = nil;
+ItemAttr.Icon = nil;
+ItemAttr.Name = nil;
+ItemAttr.Num = nil;
+ItemAttr.JBtn = nil;
+
+ItemAttr.AttrData = nil;
+ItemAttr.Callback = nil;
+
+function ItemAttr:Awake()
+	self.m_transform = self.prefab.transform;
+	self.Icon = self:Find("Icon"):GetComponent(typeof(Image));
+	self.Name = self:Find("Name"):GetComponent(typeof(Text));
+	self.Num = self:Find("Num"):GetComponent(typeof(Text));
+
+	self.JBtn = self.prefab.transform:GetComponent(typeof(JButton));
+	self.JBtnFun = function()
+		self:JBtnClick();
+	end
+	self.JBtn.OnClick = self.JBtnFun;
+end
+
+function ItemAttr:SetItemSize()
+	return Vector2(500, 63);
+end
+
+function ItemAttr:OnUpdateContent(data)
+	self.AttrData = data[1];
+	if self.AttrData == nil then
+		return;
+	end
+	if self.Callback == nil and data[2] ~= nil then
+		self.Callback = data[2];
+	end
+	self.Name.text = self.AttrData.Name;
+	local value = self.AttrData.Value;
+	if value == nil then
+		value = 1;
+	end
+
+	if self.AttrData.Type == 1 then
+		self.Num.text = tostring(value);
+	else
+		value = value / 100;
+		self.Num.text = string.format("%.1f", value) .. "%";
+	end
+
+	---- 加载icon
+	--local iconPath = "UI/StarWorldPage/Textures/Hud_Buffbg_1";
+	--ResourceManager.Instance:LoadSpriteAsync(iconPath,function (sp)
+	--self:SetIcon(sp);
+	--end)
+end
+
+function ItemAttr:SetIcon(icon)
+	if self.Icon ~= nil and icon ~= nil then
+		self.Icon.sprite = icon;
+	end
+end
+
+function ItemAttr:JBtnClick()
+	if self.AttrData == nil then
+		return;
+	end
+	--Log("ItemAttr JBtn.OnClick");
+	self.Callback(self.AttrData);
+end
+
+return ItemAttr

@@ -1,0 +1,510 @@
+--[[
+*文件名   :   Purchase
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/10/16 16:01:09"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+Purchase=class("Purchase",UIPanel)
+
+local PurchaseGoodsItem=require("View/UIWindow/Exchange/PurchaseGoodsItem")
+local PurchaseFilterItem=require("View/UIWindow/Exchange/PurchaseFilterItem")
+local ExchangeDetailUI=require("View/UIWindow/Exchange/ExchangeDetailUI");
+
+Purchase.m_RefreshBtn=nil;
+Purchase.m_FilterScrollView=nil;
+Purchase.m_ItemGrid=nil;
+Purchase.m_Dropdown=nil;
+Purchase.m_ScrollView=nil;
+Purchase.m_Item=nil;
+Purchase.m_Main=nil;
+Purchase.m_SortBtn=nil;
+Purchase.m_SortUp=nil;
+Purchase.m_SortDown=nil;
+Purchase.m_FilterBtn=nil;
+Purchase.m_BackBtn=nil
+Purchase.m_SearchText=nil;
+Purchase.m_Search=nil;
+Purchase.m_ExchangeDetailUI=nil;
+Purchase.PurchaseItemList={}
+Purchase.PurchaseItemDatas={}
+Purchase.FilterItemList={}
+Purchase.FilterItemDatas={}
+Purchase.CurrentDropIndex=0;
+Purchase.OrderPass=true;
+Purchase.ExchangeDetailUI=nil;
+Purchase.SelectType=0;
+Purchase.IsQuerying=false;
+Purchase.SetFinderState=nil;
+Purchase.InDetails=false;
+local PurchaseType=1;
+local OptionsItems={LanguageHelp:GetLanguageByKey("Local_Str_quality"),LanguageHelp:GetLanguageByKey("Local_Str_stock"),LanguageHelp:GetLanguageByKey("Local_Str_cost")}
+local RefreshBtnFunc=nil;
+local OnDropDownFunc=nil;
+local SortBtnFunc=nil;
+local FilterBtnFunc=nil;
+local BankSetMyFollowItemIDRetFunc=nil;
+local OnQueryDataHandlerFunc=nil;
+local OnBankItemIDListRetFunc=nil;
+local OnBankGoodsListRetFunc=nil;
+local BackBtnFunc=nil;
+local OnUpdateFunc=nil;
+local CDTime=0;
+
+function Purchase:ctor(go, atlas,func)
+	self.prefab = go;
+	self.AtlasPath = atlas;
+	self.SetFinderState=func;
+	self.InDetails=false;
+	self.m_Main=self:Find("Main").gameObject;
+	self.m_RefreshBtn=self:Find("Main/RefreshBtn"):GetComponent(typeof(JButton));
+	self.m_ScrollView=self:Find("Main/Center/Scroll View"):GetComponent(typeof(SuperScrollViewController));
+	self.m_ItemGrid=self:Find("Main/ItemGrid").gameObject;
+	self.m_Dropdown=self:Find("Main/Dropdown"):GetComponent(typeof(Dropdown));
+	self.m_FilterScrollView=self:Find("Main/Select/Scroll View"):GetComponent(typeof(SuperScrollViewController));
+	self.m_Item=self:Find("Main/Select/Item").gameObject;
+	self.m_SortBtn=self:Find("Main/SortBtn"):GetComponent(typeof(JButton));
+	self.m_SortUp=self:Find("Main/SortBtn/Up").gameObject;
+	self.m_SortDown=self:Find("Main/SortBtn/Down").gameObject;;
+	self.m_FilterBtn=self:Find("Main/Filter"):GetComponent(typeof(JButton));
+	self.m_BackBtn=self:Find("Main/Center/Search/BackBtn"):GetComponent(typeof(JButton));
+	self.m_SearchText=self:Find("Main/Center/Search/Text"):GetComponent(typeof(Text));
+	self.m_Search=self:Find("Main/Center/Search").gameObject;
+
+	self.m_ExchangeDetailUI=self:Find("ExchangeDetailUI").gameObject;
+	self.m_ScrollView:NewScroll(self.m_ItemGrid, 0, function (tr,idx)
+			self:OnPurchaseItemRefesh(tr,idx);
+		end);
+	self.m_FilterScrollView:NewScroll(self.m_Item, 0, function (tr,idx)
+			self:OnFilterItemRefesh(tr,idx);
+		end);
+	self.m_ExchangeDetailUI:SetActive(false)
+	self.ExchangeDetailUI=ExchangeDetailUI.new(self.m_ExchangeDetailUI,self.AtlasPath)
+
+	RefreshBtnFunc=function() self:OnClickRefreshBtn(); end;
+	OnDropDownFunc=function(index)
+		self:OnDropDownHandler(index);
+	end;
+
+	SortBtnFunc=function() self:OnClickSortBtnBtn(); end;
+	FilterBtnFunc=function() self:OnClickFilterBtn(); end;
+	BankSetMyFollowItemIDRetFunc=function(data) self:OnBankSetMyFollowItemIDRet(data); end
+	OnBankItemIDListRetFunc=function(data)
+		self:OnBankItemIDListRet(data)
+	end
+
+	OnBankGoodsListRetFunc=function(data)
+		self:OnBankGoodsListRet(data)
+	end
+	OnQueryDataHandlerFunc=function(result)
+		self:OnQueryDataHandler(result);
+	end
+	BackBtnFunc=function()
+		self:OnBackBtn();
+	end
+
+	OnUpdateFunc=function()
+		self:OnUpdate();
+	end
+
+	self.IsQuerying=false;
+	self.m_ScrollView:BinderQueryDataDelegate(OnQueryDataHandlerFunc);
+
+	self.SelectType=0;
+	self.OrderPass=true;
+	self.PurchaseItemList={}
+	self.PurchaseItemDatas={}
+	self.FilterItemList={}
+	self.FilterItemDatas={}
+	self.m_Search:SetActive(false)
+	self:Start();
+
+end
+
+function Purchase:OnQueryDataHandler(result)
+	if self.IsQuerying then
+		return
+	end
+	local index=0;
+	if result then
+		index=1
+		print("请求下一页")
+	else
+		index=-1;
+		print("请求上一页")
+	end
+	LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule, "OnQueryItemsByPage",{index});
+	self.IsQuerying=true;
+
+	UIAPI.ShowRequestLoading(2000,function ()
+			self.IsQuerying=false;
+		end)
+end
+
+function Purchase:OnBankSetMyFollowItemIDRet(data)
+	if data~=nil then
+
+		for i=1,#self.PurchaseItemList do
+			if self.PurchaseItemList[i].prefab ~=nil then
+				if self.PurchaseItemList[i].ItemID==data.ItemID then
+					if data.IsFollow then
+						Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_168"));
+					else
+						Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_169"))
+					end
+
+					self.PurchaseItemList[i]:SetAttention(data.IsFollow)
+				end
+			end
+		end
+
+	end
+
+end
+
+function Purchase:OnBackBtn()
+	self:FilterSelect(self.SelectType)
+end
+
+function Purchase:GetSortIndex()
+	if self.OrderPass then
+		return 1
+	end
+	return 2
+end
+
+function Purchase:OnClickSortBtnBtn()
+	self.OrderPass=not self.OrderPass;
+	self.m_SortUp:SetActive(self.OrderPass)
+	self.m_SortDown:SetActive(not self.OrderPass)
+	LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule,"OnSetOrderRule",{true,PurchaseType,self:GetSortIndex(),self.CurrentDropIndex})
+end
+
+
+
+function Purchase:OnClickFilterBtn()
+	LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule,"OnOpenItemTypeFilter",
+		{
+			self.SelectType
+		});
+end
+
+
+function Purchase:OnShowDetail(itemID)
+	self.m_ExchangeDetailUI:SetActive(true)
+	self.m_Main:SetActive(false)
+
+	if self.SetFinderState~=nil then
+		self.SetFinderState(false)
+	end
+	self.ExchangeDetailUI:OnOpen({ItemID=itemID,Cb=function()
+				self:FilterSelect(self.SelectType)
+				self:OnDetailBack()
+			end})
+	self.InDetails=true;
+end
+
+function Purchase:OnDetailBack()
+	if self.SetFinderState~=nil then
+		self.SetFinderState(true)
+	end
+	self.m_ExchangeDetailUI:SetActive(false)
+	self.m_Main:SetActive(true)
+	self.InDetails=false;
+	--刷新
+	--LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule,"OnFreshItems")
+end
+
+function  Purchase:OnPurchaseItemRefesh(tr,idx)
+	if self.PurchaseItemList==nil then
+		return;
+	end
+	for i=1,#self.PurchaseItemList do
+		if self.PurchaseItemList[i].transform == tr then
+			self.PurchaseItemList[i]:ClearData();
+			self.PurchaseItemList[i]:UpdateContent(self.PurchaseItemDatas[idx+1],function (ItemID)
+					for k, v in pairs(self.PurchaseItemList) do
+						v:Select(v.ItemID==ItemID)
+					end
+					self:OnShowDetail(ItemID)
+				end);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+			return
+		end
+	end
+
+	local bi = PurchaseGoodsItem.new(tr.gameObject,self.AtlasPath);
+	bi.prefab:SetActive(true);
+	bi:UpdateContent(self.PurchaseItemDatas[idx+1],function (ItemID)
+			for k, v in pairs(self.PurchaseItemList) do
+				v:Select(v.ItemID==ItemID)
+			end
+			self:OnShowDetail(ItemID)
+		end);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+	table.insert(self.PurchaseItemList, bi);
+end
+
+function  Purchase:OnFilterItemRefesh(tr,idx)
+	if self.FilterItemList==nil then
+		return;
+	end
+	for i=1,#self.FilterItemList do
+		if self.FilterItemList[i].transform == tr then
+			self.FilterItemList[i]:UpdateContent(self.FilterItemDatas[idx+1],function (type)
+					self:FilterSelect(type)
+				end);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+			return
+		end
+	end
+
+	local bi = PurchaseFilterItem.new(tr.gameObject,self.AtlasPath);
+	bi.prefab:SetActive(true);
+	bi:UpdateContent(self.FilterItemDatas[idx+1],function (type)
+			self:FilterSelect(type)
+		end);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+	table.insert(self.FilterItemList, bi);
+end
+
+function Purchase:FilterSelect(type)
+	self.SelectType=type;
+	for k, v in pairs(self.FilterItemList) do
+		v:Select(v.Type==type)
+	end
+
+	if type==-1 then
+		self.m_FilterBtn.gameObject:SetActive(false)
+		--我的关注
+		local playerinfo= BusinessManager.Instance.M_BankPlayerMD;
+		local items={}
+		if playerinfo~=nil then
+			if playerinfo.FollowItem~=nil  and playerinfo.FollowItem.ItemIDList~=nil and playerinfo.FollowItem.ItemIDList.Count>0 then
+				for i = 1, playerinfo.FollowItem.ItemIDList.Count do
+					table.insert(items,playerinfo.FollowItem.ItemIDList[i-1])
+				end
+			end
+		end
+
+		LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule,"OnBankTypeListReq",{items,""})
+	else
+		self.m_FilterBtn.gameObject:SetActive(true)
+		--道具分类
+		LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule,"OnBankSubTypeListReq",{type})
+	end
+end
+
+function Purchase:Start()
+	self.m_RefreshBtn.OnClick=RefreshBtnFunc;
+	self.m_SortBtn.OnClick=SortBtnFunc;
+	self.m_FilterBtn.OnClick=FilterBtnFunc;
+	self.m_BackBtn.OnClick=BackBtnFunc;
+
+	self.m_Dropdown.onValueChanged:AddListener(OnDropDownFunc);
+	self.m_SortUp:SetActive(self.OrderPass)
+	self.m_SortDown:SetActive(not self.OrderPass)
+	local BankItemIDListRetEvent=LuaModuleDispatcher:Event(ModuleDef.ExchangeModule,"BankItemIDListRetEvent");
+	BankItemIDListRetEvent:AddListener(OnBankItemIDListRetFunc)
+
+	local BankSetMyFollowItemIDRetEvent=LuaModuleDispatcher:Event(ModuleDef.ExchangeModule,"BankSetMyFollowItemIDRetEvent");
+	BankSetMyFollowItemIDRetEvent:AddListener(BankSetMyFollowItemIDRetFunc)
+
+
+	local BankGoodsListRetEvent=LuaModuleDispatcher:Event(ModuleDef.ExchangeModule,"BankGoodsListRetEvent");
+	BankGoodsListRetEvent:AddListener(OnBankGoodsListRetFunc)
+
+
+	MonoHelper.AddUpdateListener(OnUpdateFunc, MonoHelper.E_ModuleType.CommonBusiness);
+
+
+end
+
+
+function Purchase:OnBankGoodsListRet(data)
+
+	if  self.InDetails then
+		return
+	end
+
+	self.m_ExchangeDetailUI:SetActive(true)
+	self.m_Main:SetActive(false)
+
+	if self.SetFinderState~=nil then
+		self.SetFinderState(false)
+	end
+	self.ExchangeDetailUI:OnOpenByGoods({Data=data,Cb=function()
+				self:FilterSelect(self.SelectType)
+				self:OnDetailBack()
+			end})
+	self.InDetails=true;
+
+end
+
+function Purchase:OnBankItemIDListRet(data)
+
+	if data.Node~=nil and data.Node~="" then
+		self.m_Search:SetActive(true)
+		--self.m_SearchText.text="搜索"..'\"'..data.Node..'\"';
+		self.m_SearchText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Purchase_SearchText"), {data.Node});
+
+	else
+		self.m_Search:SetActive(false)
+	end
+
+	if self.PurchaseItemDatas==nil then
+		self.PurchaseItemDatas ={}
+	else
+		for k,_ in pairs(self.PurchaseItemDatas) do self.PurchaseItemDatas[k] = nil end
+	end
+
+	for k, v in pairs(self.PurchaseItemList) do
+		v:ClearData();
+	end
+
+	local PageNum=data.PageNum;
+
+	local startIdx=0;
+	if PageNum>1 and data.Datas.Count>40 then
+		startIdx=20;
+	end
+	if data.Datas~=nil and data.Datas.Count>0 then
+		for i = 1, data.Datas.Count do
+			table.insert(self.PurchaseItemDatas,data.Datas[i-1])
+		end
+	end
+
+	self.m_ScrollView:ContinueScroll(#self.PurchaseItemDatas,false,startIdx);
+	self.IsQuerying=false;
+	UIAPI.CloseRequestLoading();
+end
+
+
+function Purchase:OnEnable()
+
+end
+
+function Purchase:OnHide()
+	if self.ExchangeDetailUI~=nil then
+		self.ExchangeDetailUI:OnHide();
+	end
+	self:OnDetailBack()
+end
+
+function Purchase:OnDestroy()
+	self.m_RefreshBtn.OnClick=nil;
+	self.m_SortBtn.OnClick=nil;
+	self.m_FilterBtn.OnClick=nil;
+	self.m_BackBtn.OnClick=nil;
+
+	self.m_Dropdown.onValueChanged:RemoveListener(OnDropDownFunc);
+
+
+	MonoHelper.RemoveUpdateListener(OnUpdateFunc, MonoHelper.E_ModuleType.CommonBusiness);
+
+	local BankItemIDListRetEvent=LuaModuleDispatcher:Event(ModuleDef.ExchangeModule,"BankItemIDListRetEvent");
+	BankItemIDListRetEvent:RemoveListener(OnBankItemIDListRetFunc)
+
+	local BankSetMyFollowItemIDRetEvent=LuaModuleDispatcher:Event(ModuleDef.ExchangeModule,"BankSetMyFollowItemIDRetEvent");
+	BankSetMyFollowItemIDRetEvent:RemoveListener(BankSetMyFollowItemIDRetFunc)
+
+
+	local BankGoodsListRetEvent=LuaModuleDispatcher:Event(ModuleDef.ExchangeModule,"BankGoodsListRetEvent");
+	BankGoodsListRetEvent:RemoveListener(OnBankGoodsListRetFunc)
+	self.ExchangeDetailUI:OnDestroy();
+	self.ExchangeDetailUI=nil;
+end
+
+function Purchase:OnDropDownHandler(index)
+	self.CurrentDropIndex=index;
+	LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule,"OnSetOrderRule",{true,PurchaseType,self:GetSortIndex(),self.CurrentDropIndex})
+end
+
+function Purchase:OnOpen(arg)
+	self:OnDetailBack();
+	self:InitFilter();
+	self:InitDropdown();
+	LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule,"OnSetOrderRule",{false,PurchaseType,self:GetSortIndex(),self.CurrentDropIndex})
+	for k, v in pairs(self.FilterItemList) do
+		if v.Type==-1 then
+			v:OnClickItem()
+			break;
+		end
+	end
+end
+
+function Purchase:InitFilter()
+
+	local list={}
+	list[-1]={Content=LanguageHelp:GetLanguageByKey("Local_Str_my_interest"),Type=-1}
+	local config=ConfigDataAccessor.ItemType;
+	for k, v in pairs(config) do
+		if v.TradVisible then
+			if list[v.ItemType]==nil or list[v.ItemType]=="" then
+				list[v.ItemType]={Content=ConfigDataAccessor.ItemMainType[v.ItemType].Name,Type=v.ItemType}
+			end
+		end
+	end
+	self.FilterItemDatas={}
+	for k, v in pairs(list) do
+		table.insert(self.FilterItemDatas,v)
+	end
+
+	table.sort(self.FilterItemDatas,function (item1,item2)
+			return item1.Type<item2.Type;
+		end)
+
+	self.m_FilterScrollView:ContinueScroll(#self.FilterItemDatas);
+
+
+end
+
+
+function Purchase:InitDropdown()
+	self.m_Dropdown:ClearOptions();
+	self.CurrentDropIndex=0;
+	local list= List_String()
+	for i = 1, #OptionsItems do
+		list:Add(OptionsItems[i])
+	end
+	self.m_Dropdown:AddOptions(list);
+	--self:OnFresh();
+end
+
+function Purchase:OnClose(arg)
+
+end
+
+function Purchase:OnClickRefreshBtn()
+	self.m_RefreshBtn.UnClick=true
+	self.m_RefreshBtn.Image.raycastTarget=false;
+	CDTime=Time.time;
+	if self.SelectType== -1 then
+		local playerinfo= BusinessManager.Instance.M_BankPlayerMD;
+		local items={}
+		if playerinfo~=nil then
+			if playerinfo.FollowItem~=nil  and playerinfo.FollowItem.ItemIDList~=nil and playerinfo.FollowItem.ItemIDList.Count>0 then
+				for i = 1, playerinfo.FollowItem.ItemIDList.Count do
+					table.insert(items,playerinfo.FollowItem.ItemIDList[i-1])
+				end
+			end
+		end
+
+		LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule,"OnBankTypeListReq",{items,""})
+	else
+		LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule,"OnFreshItems")
+	end
+end
+
+
+function Purchase:OnUpdate()
+	if CDTime>0 then
+		local delta=Time.time-CDTime
+		if delta>=10 then
+			if self.m_RefreshBtn~=nil then
+				self.m_RefreshBtn.UnClick=false
+				self.m_RefreshBtn.Image.raycastTarget=true;
+			end
+		end
+	end
+
+end
+
+return  Purchase

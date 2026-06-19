@@ -1,0 +1,89 @@
+--[[
+*文件名   :   BattlePassRankUpWidget
+*内  容   :   现金购买
+*说  明   :
+*创建日期 :   "2022/12/06 10:33:06"
+*创建人   :   "quzhenxin"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+BattlePassRankUpWidget=class("BattlePassRankUpWidget",UIPanel)
+
+local ItemGrid= require("View/Item/ItemGrid")
+local ObjectPool= require("Common/Helper/ObjectPool")
+
+function BattlePassRankUpWidget:Awake()
+	self.transform=self.prefab.transform;
+	self.gameObject=self.transform.gameObject;
+
+	--[[
+	local btnCloseInfo=self.transform:Find("Background"):GetComponent(typeof(Button));
+	btnCloseInfo.onClick:AddListener(function()
+		self:OnPlayBack();
+	end);
+	]]
+
+	
+
+	self.Lv=self.transform:Find("Cut4Cam90/AssemblyRatio2/Lv"):GetComponent(typeof(Text));
+
+end
+
+
+
+function BattlePassRankUpWidget:Refesh()
+
+	self.Lv.text=self.toLv;
+
+	DOVirtual.DelayedCall(1.1,function ()
+		self:OnPlayBack();
+	end)
+end
+
+
+function BattlePassRankUpWidget:Start()
+
+end
+
+function BattlePassRankUpWidget:OnEnable()
+	
+end
+
+function BattlePassRankUpWidget:OnDisable()
+	
+end
+
+function BattlePassRankUpWidget:OnDestroy()
+
+end
+
+
+function BattlePassRankUpWidget:RefeshData()
+
+	
+end
+
+function BattlePassRankUpWidget:OnOpen(arg)
+
+	self.fromLv=arg.FromLv;
+	self.toLv=arg.ToLv;
+
+	self:Refesh()
+
+end
+
+
+
+function BattlePassRankUpWidget:OnClose(arg)
+
+end
+
+function BattlePassRankUpWidget:OnPlayBack()
+
+	self.gameObject:SetActive(false);
+	UIManager.Instance:CloseWidget("Shop/BattlePassRankUpWidget",nil,false);
+
+end
+
+
+
+return  BattlePassRankUpWidget

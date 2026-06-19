@@ -1,0 +1,135 @@
+--[[
+*文件名   :   EventTipsModule
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/10/31 14:54:39"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+EventTipsModule = class("EventTipsModule",BaseLuaModule)
+
+local EventTipsWidgetPath = "Event/EventTipsWidget"
+
+--LuaModule 消息模块
+EventTipsModule.ModuleMessages=
+{
+	--打开功能Tips
+	--ModuleManager.Instance.SendMessage(ModuleDef.EventTipsModule, "OnOpenTips", new object[] { 1 }); //只要传一个对话ID
+	["OnOpenTips"]=function(...)
+		EventTipsModule:OnOpenTips(...);
+	end,
+
+
+	--关闭功能Tips
+	--ModuleManager.Instance.SendMessage(ModuleDef.EventTipsModule, "OnCloseTips", new object[] {  }); 
+	["OnCloseTips"]=function(...)
+		EventTipsModule:OnCloseTips(...);
+	end,
+
+
+}
+
+--监听打开Tips事件
+function EventTipsModule:OnOpenTips(...)
+	local tb=...
+
+	self.AsyncLoadEventTipsWidgetCb = function(ui)
+		if ui ~= nil then
+			if self.tipsWidgetView == nil then
+				self.tipsWidgetView=ui:GetLuaPanel().ScriptTable;	
+				self.tipsWidgetView:BindModule(self);
+				self.evtOnCloseTips = LuaModuleDispatcher:Event(ModuleDef.EventTipsModule, "OnCloseTipsEvt")
+			end
+			self:OnListener();
+			--刷新UI
+			self.tipsWidgetView:RefeshTips();
+		end
+		self.AsyncLoadEventTipsWidgetCb = nil;
+	end
+	UIManager.Instance:OpenWidgetAsync(EventTipsWidgetPath, nil,false,nil,nil,CS.StarProjectDef.MainPageCommond.HideNone,false,true);
+end
+
+
+--监听关闭Tips事件
+function EventTipsModule:OnCloseTips(...)
+
+	if self.tipsWidgetView~=nil and self.tipsWidgetView.IsOpen then
+		self.tipsWidgetView:CloseWidget();
+		self:OnFinishEventTipsWidget();
+
+		CS.StarProject.GlobalEvent.OnTipsCloseEvent:Invoke(true);
+	end
+
+	self:OffListener();
+end
+
+
+function EventTipsModule:OnListener()
+    --属性同步回调
+	if self.M_EntityBase==nil then
+		self.M_EntityBase = GameManager.Instance.M_MainPlayerCtrlBase;
+		self.attrLuaKey = "GVEBonus_" .. GameManager.Instance.mainPlayerId;
+		
+		self.M_EntityBase.Data:AddAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.GVEBonus, self.attrLuaKey ,function(key,value)
+			print("GVE属性同步开始")
+			if self.tipsWidgetView ~= nil then
+				--刷新
+				self.tipsWidgetView:RefeshTips();
+			end
+		end)
+	end
+
+end
+
+
+function EventTipsModule:OffListener()
+    --解绑属性同步回调
+	if self.M_EntityBase~= nil then
+		self.M_EntityBase.Data:DelAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.GVEBonus, self.attrLuaKey);
+		self.M_EntityBase=nil;
+	end
+end
+
+
+function EventTipsModule:OnCloseTipsEvt(arg)
+	self.evtOnCloseTips:Invoke()
+
+	
+end
+
+
+
+--LuaModule 创建
+function EventTipsModule:OnModuleCreate(arg)
+
+	LuaModuleDispatcher:Register(ModuleDef.EventTipsModule,self)
+
+end
+
+
+
+function EventTipsModule:OnFinishEventTipsWidget()
+
+	print("OnFinishEventTipsWidget");	
+
+end
+
+--LuaModule 消息处理
+function EventTipsModule:OnModuleMessage(msg,...)
+	self.ModuleMessages[msg](...);
+end
+
+
+--LuaModule显示
+function EventTipsModule:OnModuleShow(arg)
+
+end
+
+--LuaModule 释放
+function EventTipsModule:OnModuleRelease()
+	LuaModuleDispatcher:UnRegister(ModuleDef.EventTipsModule)
+end
+
+
+return  EventTipsModule
+

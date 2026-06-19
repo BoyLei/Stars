@@ -1,0 +1,540 @@
+-- 副本入口界面
+EctypeEntranceWindow = class("EctypeEntranceWindow", UIPanel)
+EctypeEntranceWindow.IsOpen = false;
+
+local EctypeItem = require("View/UIWindow/Ectype/EctypeItem")
+local RewardItem = require("View/UIWindow/Ectype/RewardItem")
+
+function EctypeEntranceWindow:Awake()
+
+end
+
+function EctypeEntranceWindow:BindModule(m)
+    EctypeEntranceWindow.module = m;
+end
+
+-- 默认选中可挑战的最高等级关卡
+function EctypeEntranceWindow:SetDefaultSelData()
+    if self.curSel ~= nil then return end
+
+    local dailyCopyData = nil
+    local defaultDailyCopyData = nil
+    local lv = GameManager.Instance:GetPlayerLevel();
+    local dailyCopyDifficulty = ConfigDataAccessor.DailyCopyDifficultyList;
+    for _, v in ipairs(dailyCopyDifficulty) do
+        if defaultDailyCopyData == nil then
+            defaultDailyCopyData = v
+			self.curDif = v.DifficultyType
+        end
+        -- 找到当前玩家等级最高可挑战的关卡
+        if  GameManager.Instance:IsConditionMete(v.UnlockConditions) then -- v.UnlockConditions >= lockedLevel and lv >= v.UnlockConditions then
+            dailyCopyData = v
+			self.curDif = v.DifficultyType
+        end
+    end
+
+    -- 还未解锁任意关卡默认选第一个
+    if dailyCopyData == nil then
+        dailyCopyData = defaultDailyCopyData
+    end
+
+    if dailyCopyData ~= nil then
+        self.curSel = ConfigDataAccessor.DailyCopyList[dailyCopyData.CopyID];
+        self:SetCurMode(ConfigDataAccessor.DailyCopyList[dailyCopyData.CopyID], dailyCopyData.ID);
+    end
+end
+
+function EctypeEntranceWindow:InitControls()
+    self.transform = self.prefab.transform;
+    self.gameObject = self.transform.gameObject;
+
+    -- 读取配置文件，获取当前模式
+    local dailyCopyList = ConfigDataAccessor.DailyCopyList;
+    local dailyCopyDifficulty = ConfigDataAccessor.DailyCopyDifficultyList;
+
+    self.bgImg = self.transform:Find("bg"):GetComponent(typeof(Image));
+
+    -- local itemobj = self.transform:Find("Cut4Cam90/AssemblyRatio2/ScrollView/Viewport/Content/Item").gameObject;
+    self.firstPassRewardItem = self.transform:Find("Cut4Cam90/AssemblyRatio2/Right/FirstRewards/Viewport/Content/Item")
+                                   .gameObject;
+    self.normalRewardItem = self.transform:Find("Cut4Cam90/AssemblyRatio2/Right/NormalRewards/Viewport/Content/Item")
+                                .gameObject;
+    self.leftTimes = self.transform:Find("Cut4Cam90/AssemblyRatio2/Right/LeftTimes"):GetComponent(typeof(Text));
+
+    local itemobj = self.transform:Find("Cut4Cam90/AssemblyRatio2/DifficultList/Viewport/Content/Item").gameObject;
+
+    self.Items = {}
+
+    self.curSel = nil;
+
+    self.tbEasy = {}
+	self.tbHard = {}
+    for k, v in ipairs(dailyCopyDifficulty) do
+        if v.DifficultyType == 1 then
+            table.insert(self.tbEasy,  v);
+        else
+            table.insert(self.tbHard,  v);
+        end
+    end
+	-- table.sort(self.tbEasy, function(a, b)
+	--      return a.UnlockConditions < b.UnlockConditions
+	-- end);
+	-- table.sort(self.tbHard, function(a, b)
+	-- 	return a.UnlockConditions < b.UnlockConditions
+	-- end);
+
+    for k, v in pairs(self.tbEasy) do
+        -- if self.curSel == nil then
+        --     self.curSel = dailyCopyList[v.CopyID];
+        -- end
+
+        local gob = newObject(itemobj);
+        gob:SetActive(true);
+        gob.transform:SetParent(itemobj.transform.parent);
+        gob.transform.localPosition = Vector3.zero;
+        gob.transform.localScale = Vector3.one;
+        gob.transform:SetAsLastSibling();
+
+        local leftBg1 = gob.transform:Find("Left/di"):GetComponent(typeof(Image));
+        ResourceHelper:LoadIconAsync(leftBg1, "", v.BG, false)
+
+        local leftBtn1 = gob.transform:Find("Left"):GetComponent(typeof(JButton));
+		
+       -- local levelTxt1 = gob.transform:Find("Left/Level"):GetComponent(typeof(Text));
+        local nameTxt1 = gob.transform:Find("Left/Name"):GetComponent(typeof(Text));
+        local sel1 = gob.transform:Find("Left/Sel").gameObject;
+        local lock1 = gob.transform:Find("Left/Lock").gameObject;
+        --local normalTxt = gob.transform:Find("Left/Normal"):GetComponent(typeof(Text));
+        leftBtn1.OnClick = (function()
+            --选中一个模式
+            self.curDif = 1;
+            self:SetCurMode(dailyCopyList[v.CopyID], v.ID);
+			self:SetDifficult();
+            LuaModuleDispatcher:SendMessage(ModuleDef.EctypeSettleModule, "OnSetCurDif",{ self.curDif });
+         --   local enterText = self.enterBtn.transform:Find("Text"):GetComponent(typeof(Text));
+            local firstSuc = false;
+            local key = (self.curSel.ID << 48) | (self.curDif << 16 >> 16);
+            if self.module.allDailyDatas ~= nil then
+                for k, v in pairs(self.module.allDailyDatas) do
+                    if key == k then
+                        firstSuc = true;
+                        break
+                    end
+                end
+            end
+
+            if self.timeInfo.RemainCount <= 0 and firstSuc then
+            --    enterText.text =LanguageHelp:GetLanguageByKey("Local_Str_Tips2")
+                self.entermask:SetActive(true)
+                self.enterBtn.enabled = false;
+                return;
+            end
+
+            local lvlimit = 0;
+            local dailyCopyDifficulty = ConfigDataAccessor.DailyCopyDifficultyList;
+            for _, v in pairs(dailyCopyDifficulty) do
+                if self.curSel.ID == v.CopyID and self.curDif == v.DifficultyType then
+                    lvlimit = v.UnlockConditions;
+                    break
+                end
+            end
+            if  not GameManager.Instance:IsConditionMete(v.UnlockConditions) and firstSuc then  --lv < lvlimit then
+                --enterText.text = lvlimit .. "级后解锁";
+             --   GetCMconditionByGroupID(v.UnlockConditions)
+         --       enterText.text = GetCMconditionByGroupID(v.UnlockConditions) --lvlimit .. LanguageHelp:GetLanguageByKey("Local_Str_enterText");
+				self.entermask:SetActive(true)
+                self.enterBtn.enabled = false;
+                return;
+            end
+          --  enterText.text =LanguageHelp:GetLanguageByKey("Local_Str_star_challenge")
+			self.entermask:SetActive(false)
+			self.enterBtn.enabled = true;
+			
+        end);
+      --  levelTxt1.text = tostring(v.UnlockConditions);
+        nameTxt1.text = dailyCopyList[v.CopyID].Name;
+        lock1:SetActive(not GameManager.Instance:IsConditionMete(v.UnlockConditions));
+        --normalTxt.text =LanguageHelp:GetLanguageByKey("Local_Str_Quality_1")
+        self.Items[v.ID] = {};
+		self.Items[v.ID].go = leftBtn1.gameObject;
+        self.Items[v.ID].sel = sel1;
+        self.Items[v.ID].lock = lock1;
+		
+        local rightBtn2 = gob.transform:Find("Right"):GetComponent(typeof(JButton));
+		if self.tbHard[k] == nil then
+			rightBtn2.gameObject:SetActive(false);
+		else
+			rightBtn2.OnClick = (function()
+				--选中一个模式
+				self.curDif = 2;
+				self:SetCurMode(dailyCopyList[v.CopyID], self.tbHard[k].ID);
+				self:SetDifficult();
+				LuaModuleDispatcher:SendMessage(ModuleDef.EctypeSettleModule, "OnSetCurDif",{ self.curDif });
+				
+				--local enterText = self.enterBtn.transform:Find("Text"):GetComponent(typeof(Text));
+
+				local firstSuc = false;
+				local key = (self.curSel.ID << 48) | (self.curDif << 16 >> 16);
+				if self.module.allDailyDatas ~= nil then
+					for k, v in pairs(self.module.allDailyDatas) do
+						if key == k then
+							firstSuc = true;
+							break
+						end
+					end
+				end
+
+				if self.timeInfo.RemainCount <= 0 and firstSuc then
+				--	enterText.text =LanguageHelp:GetLanguageByKey("Local_Str_Tips2")
+                    self.entermask:SetActive(true)
+					self.enterBtn.enabled = false;
+					return;
+				end
+
+				local lvlimit = 0;
+				local dailyCopyDifficulty = ConfigDataAccessor.DailyCopyDifficultyList;
+				for _, v in pairs(dailyCopyDifficulty) do
+					if self.curSel.ID == v.CopyID and self.curDif == v.DifficultyType then
+						lvlimit = v.UnlockConditions;
+						break
+					end
+				end
+				if not GameManager.Instance:IsConditionMete(lvlimit) and firstSuc then
+					--enterText.text = lvlimit .. "级后解锁";
+             --       enterText.text = --lvlimit .. LanguageHelp:GetLanguageByKey("Local_Str_enterText");
+
+					self.enterBtn.enabled = false;
+					--self.enterBtn.transform:SetGrayWithChildren(true,nil)
+                    self.entermask:SetActive(true)
+					return;
+				end
+			--	enterText.text =LanguageHelp:GetLanguageByKey("Local_Str_star_challenge")
+				self.enterBtn.enabled = true;
+                self.entermask:SetActive(false)
+			end);
+		--	local levelTxt2 = gob.transform:Find("Right/Level"):GetComponent(typeof(Text));
+			local nameTxt2 = gob.transform:Find("Right/Name"):GetComponent(typeof(Text));
+			local sel2 = gob.transform:Find("Right/Sel").gameObject;
+			local lock2 = gob.transform:Find("Right/Lock").gameObject;
+			--normalTxt = gob.transform:Find("Right/Hard"):GetComponent(typeof(Text));
+		--	levelTxt2.text = tostring(self.tbHard[k].UnlockConditions);
+			nameTxt2.text = dailyCopyList[self.tbHard[k].CopyID].Name;
+			lock2:SetActive( not GameManager.Instance:IsConditionMete(self.tbHard[k].UnlockConditions))--lv < self.tbHard[k].UnlockConditions);
+			--normalTxt.text =LanguageHelp:GetLanguageByKey("Local_Str_difficulty")
+			self.Items[self.tbHard[k].ID] = {};
+			self.Items[self.tbHard[k].ID].go = rightBtn2.gameObject;
+			self.Items[self.tbHard[k].ID].sel = sel2;
+			self.Items[self.tbHard[k].ID].lock = lock2;
+
+            local rightBg2 = gob.transform:Find("Right/di"):GetComponent(typeof(Image));
+            ResourceHelper:LoadIconAsync(rightBg2, "", self.tbHard[k].BG, false)
+		end
+    end
+
+    self.bgInfo = {
+        [1001] = {
+            pos = Vector3(-3.1, -0.8, 22.5),
+            rot = Vector3(-7.9, 58.81, -17.5)
+        },
+        [1002] = {
+            pos = Vector3(-3.1, -0.8, 22.5),
+            rot = Vector3(-7.9, 58.81, -17.5)
+        },
+        [1003] = {
+            pos = Vector3(-3.1, -0.8, 22.5),
+            rot = Vector3(-7.9, 58.81, -17.5)
+        },
+        [1004] = {
+            pos = Vector3(-3.1, -0.8, 22.5),
+            rot = Vector3(-7.9, 58.81, -17.5)
+        }
+    }
+
+    self.nameTxt = self.transform:Find("Cut4Cam90/AssemblyRatio2/Right/title/Text"):GetComponent(typeof(Text));
+    self.descTxt = self.transform:Find("Cut4Cam90/AssemblyRatio2/Right/title/Desc"):GetComponent(typeof(Text));
+
+    self.curDif = 1;
+    local leftBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/DifficultSel/LeftBtn"):GetComponent(typeof(Button));
+    local rightBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/DifficultSel/RightBtn"):GetComponent(typeof(Button));
+    local normalTxt = self.transform:Find("Cut4Cam90/AssemblyRatio2/DifficultSel/NormalTxt").gameObject;
+    local hardTxt = self.transform:Find("Cut4Cam90/AssemblyRatio2/DifficultSel/HardTxt").gameObject;
+
+    self.renderTexture = self.transform:Find("Cut4Cam90/AssemblyRatio2/RawImage"):GetComponent(typeof(RawImage));
+
+    self.difObjs = {}
+    self.difObjs[1] = normalTxt;
+    self.difObjs[2] = hardTxt;
+
+    leftBtn.onClick:AddListener(function()
+        self.curDif = self.curDif - 1;
+        if self.curDif < 1 then
+            self.curDif = 2;
+            LuaModuleDispatcher:SendMessage(ModuleDef.EctypeSettleModule, "OnSetCurDif",{ self.curDif });
+        end
+        self:SetDifficult();
+    end);
+
+    rightBtn.onClick:AddListener(function()
+        self.curDif = self.curDif + 1;
+        if self.curDif > 2 then
+            self.curDif = 1;
+            LuaModuleDispatcher:SendMessage(ModuleDef.EctypeSettleModule, "OnSetCurDif",{ self.curDif });
+        end
+        self:SetDifficult();
+    end);
+
+    self.enterBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/Right/Enter"):GetComponent(typeof(JButton));
+    self.entermask = self.transform:Find("Cut4Cam90/AssemblyRatio2/Right/Enter/black").gameObject
+    self.enterBtn.OnClick = (function()
+        -- 进入
+        local firstSuc = false;
+        local key = (self.curSel.ID << 48) | (self.curDif << 16 >> 16);
+        if self.module.allDailyDatas ~= nil then
+            for k, v in pairs(self.module.allDailyDatas) do
+                if key == k then
+                    firstSuc = true;
+                    break
+                end
+            end
+        end
+
+        if self.timeInfo.RemainCount <= 0 and firstSuc then
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Tips2"));
+            return;
+        end
+
+        local lvlimit = 0;
+        local dailyCopyDifficulty = ConfigDataAccessor.DailyCopyDifficultyList;
+        for _, v in pairs(dailyCopyDifficulty) do
+            if self.curSel.ID == v.CopyID and self.curDif == v.DifficultyType then
+                lvlimit = v.UnlockConditions;
+                break
+            end
+        end
+    --    local lv = GameManager.Instance:GetPlayerLevel();
+        if not GameManager.Instance:IsConditionMete(lvlimit) then --lv < lvlimit then
+            --Util.ShowMessage(lvlimit .. "级后解锁");
+            local groups = GetCMconditionByGroupID(lvlimit)
+            Util.ShowMessage(groups[1].Desc);
+
+            return;
+        end
+
+        local dailyInstanceEnterReq = CS.ProtoMsg.DailyInstanceEnterReq();
+        dailyInstanceEnterReq.DailyInstanceGroup = self.curSel.ID;
+        dailyInstanceEnterReq.Difficulty = self.curDif;
+        CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+            dailyInstanceEnterReq, false);
+    end);
+
+    -- 默认选中可挑战的最高等级关卡
+    self:SetDefaultSelData()
+    -- self:SetCurMode(self.curSel, 1);
+
+    self.firstPassItems = {}
+    self.normalRewardItems = {}
+    self:SetDifficult();
+
+    self:SetCount();
+end
+
+function EctypeEntranceWindow:GetUnlockCondition()
+    local lvlimit = 0;
+    local dailyCopyDifficulty = ConfigDataAccessor.DailyCopyDifficultyList;
+    for _, v in pairs(dailyCopyDifficulty) do
+        if self.curSel.ID == v.CopyID and self.curDif == v.DifficultyType then
+            lvlimit = v.UnlockConditions;
+            break
+        end
+    end
+    return lvlimit
+end
+
+function EctypeEntranceWindow:Refresh()
+    -- self.modelGo = self:SetBgModel();
+    -- UIManager.Instance:SetRawCamrea(true);
+
+    local lvlimit = self:GetUnlockCondition();
+    -- local dailyCopyDifficulty = ConfigDataAccessor.DailyCopyDifficultyList;
+    -- for _, v in pairs(dailyCopyDifficulty) do
+    --     if self.curSel.ID == v.CopyID and self.curDif == v.DifficultyType then
+    --         lvlimit = v.UnlockConditions;
+    --         break
+    --     end
+    -- end
+   -- local lv = GameManager.Instance:GetPlayerLevel();
+    --self.enterBtn.transform:SetGrayWithChildren(not GameManager.Instance:IsConditionMete(lvlimit),nil)--lv < lvlimit, nil);
+    self.entermask:SetActive(not GameManager.Instance:IsConditionMete(lvlimit))
+    self:SetDifficult();
+	
+	for k, v in pairs(self.tbEasy) do
+		self.Items[v.ID].lock:SetActive( not GameManager.Instance:IsConditionMete(v.UnlockConditions))--lv < v.UnlockConditions);
+        if self.tbHard[k] ~= nil then
+    		self.Items[self.tbHard[k].ID].lock:SetActive( not GameManager.Instance:IsConditionMete(self.tbHard[k].UnlockConditions));
+        end
+	end
+end
+
+function EctypeEntranceWindow:SetBgModel()
+    self.renderTexture.texture = ResourceManager.Instance.RenderTexture;
+
+    local sel = self.bgInfo[self.curSel.ID];
+    -- ShowBgModel先注释调了，后面要改成异步的
+    --return BusinessManager.Instance:ShowBgModel(self.curSel.BG, sel.pos, sel.rot, Vector3.one);
+end
+
+function EctypeEntranceWindow:SetCurMode(data, id)
+    for k, v in pairs(self.Items) do
+        v.sel:SetActive(k == id);
+        --v:SetSelect(k == data.ID);
+    end
+
+    self.nameTxt.text = data.Name;
+    self.descTxt.text = data.Decs;
+    self.curSel = data;
+    self:SetCount();
+
+    local dailyCopyDifficulty = ConfigDataAccessor.DailyCopyDifficultyList;
+    local dailyCopyList = ConfigDataAccessor.DailyCopyList;
+    ResourceHelper:LoadIconAsync(self.bgImg, "", dailyCopyList[dailyCopyDifficulty[id].CopyID].BG, false)
+end
+
+function EctypeEntranceWindow:SetDifficult()
+    for k, v in pairs(self.difObjs) do
+        v:SetActive(k == self.curDif);
+    end
+
+    for _, v in pairs(self.firstPassItems) do
+        GameObject.Destroy(v);
+    end
+    for _, v in pairs(self.normalRewardItems) do
+        GameObject.Destroy(v);
+    end
+    self.firstPassItems = {}
+    self.normalRewardItems = {}
+
+    local firstSuc = false;
+    local key = (self.curSel.ID << 48) | (self.curDif << 16 >> 16);
+    if self.module.allDailyDatas ~= nil then
+        for k, v in pairs(self.module.allDailyDatas) do
+            if key == k then
+                firstSuc = true;
+                break
+            end
+        end
+    end
+    local dailyCopyDifficulty = ConfigDataAccessor.DailyCopyDifficultyList;
+    for k, v in pairs(dailyCopyDifficulty) do
+        if v.CopyID == self.curSel.ID and v.DifficultyType == self.curDif then
+            local frewards = v.FirstReward;
+            for index, reward in pairs(frewards) do
+                local gob = newObject(self.firstPassRewardItem);
+                gob:SetActive(true);
+                gob.transform:SetParent(self.firstPassRewardItem.transform.parent);
+                gob.transform.localPosition = Vector3.zero;
+                gob.transform.localScale = Vector3.one;
+
+                local it = RewardItem:New(gob, reward, v.FirstRewardNum[index], firstSuc);
+				table.insert(self.firstPassItems, gob);
+                --self.firstPassItems[reward] = gob;
+            end
+
+            local nrewards = v.BaseAwardsShow;
+            for _, reward in pairs(nrewards) do
+                local gob = newObject(self.normalRewardItem);
+                gob:SetActive(true);
+                gob.transform:SetParent(self.normalRewardItem.transform.parent);
+                gob.transform.localPosition = Vector3.zero;
+                gob.transform.localScale = Vector3.one;
+                local it = RewardItem:New(gob, reward, 0);
+                self.normalRewardItems[reward] = gob;
+            end
+
+            --for _, item in pairs(self.Items) do
+                --for _, itemdata in pairs(dailyCopyDifficulty) do
+                    --if item.data.ID == itemdata.CopyID and itemdata.DifficultyType == self.curDif then
+                        --item:SetLevel(itemdata.UnlockConditions);
+                        --break
+                    --end
+                --end
+            --end
+        end
+    end
+
+    self:SetCount();
+end
+
+function EctypeEntranceWindow:SetCount()
+
+    local info = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.ComCount):GetData(8);
+
+    if info == nil then
+        return;
+    end
+
+    self.timeInfo = info;
+
+    local firstSuc = false;
+    local key = (self.curSel.ID << 48) | (self.curDif << 16 >> 16);
+    if self.module.allDailyDatas ~= nil then
+        for k, v in pairs(self.module.allDailyDatas) do
+            if key == k then
+                firstSuc = true;
+                break
+            end
+        end
+    end
+
+    local lvlimit = self:GetUnlockCondition();
+
+    if not GameManager.Instance:IsConditionMete(lvlimit) then 
+        local groups = GetCMconditionByGroupID(lvlimit)
+        self.leftTimes.text = groups[1].Desc
+    else
+        if not firstSuc then
+            --self.leftTimes.text = "<color=#D3D698>(首次挑战不消耗次数)</color>";
+            self.leftTimes.text = LanguageHelp:GetLanguageByKey("Local_Str_EctypeEntranceWindow_leftTimes");
+
+            -- "今日剩余次数：<color=#4CC9F8>" .. info.RemainCount .. "/" .. info.AddCount ..
+            --                           "</color><color=#D3D698>(首次挑战不消耗次数)</color>";
+        else
+            --self.leftTimes.text = "今日剩余次数：<color=#4CC9F8>" .. info.RemainCount .. "/" .. info.AddCount .. "</color>";
+            self.leftTimes.text = LanguageHelp:GetLanguageByKey("Local_Str_EctypeEntranceWindow_leftTimes2") .. "：<color=#4CC9F8>" .. info.RemainCount .. "/" .. info.AddCount .. "</color>";
+        end
+    end
+end
+
+function EctypeEntranceWindow:Start()
+    print("EctypeEntranceWindow:Start")
+end
+
+function EctypeEntranceWindow:OnEnable()
+
+end
+
+function EctypeEntranceWindow:OnDisable()
+
+end
+
+function EctypeEntranceWindow:OnDestroy()
+
+end
+
+function EctypeEntranceWindow:OnOpen(arg)
+    EctypeEntranceWindow.IsOpen = true;
+end
+
+function EctypeEntranceWindow:OnClose(arg)
+    EctypeEntranceWindow:CloseWindow();
+    self.module.ectypeEntranceWindow=nil;
+end
+
+function EctypeEntranceWindow:CloseWindow()
+    EctypeEntranceWindow.IsOpen = false;
+
+    BusinessManager.Instance:CloseBgModel(self.modelGo);
+    --UIManager.Instance:SetRawCamrea(false);
+    self.module.ectypeEntranceWindow=nil;
+end
+
+return EctypeEntranceWindow

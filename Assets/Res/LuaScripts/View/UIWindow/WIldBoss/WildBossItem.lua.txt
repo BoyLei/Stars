@@ -1,0 +1,73 @@
+--[[
+*文件名   :   WildBossItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/12/08 11:38:49"
+*创建人   :   "caojie"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+WildBossItem = class("PartnerHeadItem",UIPanel)
+WildBossItem.BossConfigData = nil
+
+function WildBossItem:ctor(go,atlas,callBack)
+    self.prefab=go;
+    self.AtlasPath=atlas;
+    self.CallBack=callBack;
+
+    self.Btn=go:GetComponent(typeof(JButton));
+    self.Selected = self:Find("Selected").gameObject
+    self.MonsterHeadImage = self:Find("MonsterHead/MonsterHeadImage"):GetComponent(typeof(Image))
+    self.MonsterFgImage = self:Find("MonsterFgImage"):GetComponent(typeof(Image))
+    self.BossLevelText = self:Find("BossLevel/BossLevelText"):GetComponent(typeof(Text))
+    self.Lock = self:Find("Lock").gameObject
+
+    self.Btn.OnClick=(function() self:OnClickHandler() end)
+end
+
+--点击事件
+function WildBossItem:OnClickHandler()
+    if self.BossConfigData ~= nil then
+        self.CallBack(self.BossConfigData.ID)
+    end
+end
+
+function WildBossItem:SetItem(data,selectId)
+    self.BossConfigData = data
+    self.Selected:SetActive(data.ID == selectId)
+
+    -- boss等级、头像
+    --self.BossLevelText.text = string.format(strMonsterLevel, data.BOSSLevel)
+    self.BossLevelText.text = LanguageHelp:GetLanguageByKey("Local_Str_Level")..":" .. data.BOSSLevel;
+
+    local monsterConfig = ConfigDataAccessor.Monster[data.MonID]
+    if monsterConfig ~= nil then
+        local avatarDataCell= ConfigDataAccessor.Avatar[monsterConfig.AvatarID];
+        if avatarDataCell ~= nil then
+            local headConfig = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID]
+            if headConfig ~= nil then
+                -- self:LoadIcon(self.MonsterHeadImage, headConfig.HeadAtlasName, headConfig.MinHead)
+                ResourceHelper:LoadIconByAtlasAsync(
+                    self.MonsterHeadImage,
+                    headConfig.HeadAtlasName,
+                    headConfig.MinHead,
+                    false
+                )
+            end
+        end
+    end
+
+    -- 品质框策划配置
+    self:GetSprite(data.BOSSHead,function (sprite)
+			if sprite ~= nil then
+				self.MonsterFgImage.sprite = sprite
+			end
+	end)
+   
+
+    -- boss所在场景是否解锁
+    local isUnlockMap = GameManager.Instance:CheckMapIsOpen(data.Map)
+    self.Lock:SetActive(not isUnlockMap)
+end
+
+return WildBossItem;

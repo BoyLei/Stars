@@ -1,0 +1,140 @@
+ApplyListWindow = class("ApplyListWindow", UIPanel)
+ApplyListWindow.IsOpen = false;
+
+local ApplyListItem = require("View/UIWindow/TeamWindow/ApplyListItem")
+
+function ApplyListWindow:Awake()
+
+end
+
+function ApplyListWindow:BindModule(m)
+    self.module = m;
+end
+
+function ApplyListWindow:InitControls()
+    self.transform = self.prefab.transform;
+    self.gameObject = self.transform.gameObject;
+
+    local refuseAllBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/RefuseAllBtn"):GetComponent(typeof(Button));
+    refuseAllBtn.onClick:AddListener(function()
+        -- 全部拒绝
+        if #self.module.allJoinTeamReqs > 0 then
+            local agreeJoinReq = CS.ProtoMsg.AgreeJoinReq();
+            agreeJoinReq.IsAgree = false;
+            for _, v in pairs(self.module.allJoinTeamReqs) do
+                agreeJoinReq.Join:Add(v);
+            end
+            CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(
+                CS.SGF.Network.ServerType.ServerTypeSpace, agreeJoinReq, false);
+        end
+        self.module.allJoinTeamReqs = {};
+        self:Refresh();
+    end);
+
+    local acceptAllBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/AcceptAllBtn"):GetComponent(typeof(Button));
+    acceptAllBtn.onClick:AddListener(function()
+        -- 全部接受
+        if #self.module.allJoinTeamReqs > 0 then
+            local agreeJoinReq = CS.ProtoMsg.AgreeJoinReq();
+            agreeJoinReq.IsAgree = true;
+            for _, v in pairs(self.module.allJoinTeamReqs) do
+                agreeJoinReq.Join:Add(v);
+            end
+            CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(
+                CS.SGF.Network.ServerType.ServerTypeSpace, agreeJoinReq, false);
+        end
+        self.module.allJoinTeamReqs = {};
+        self:Refresh();
+    end);
+
+    self.applyListItemGo = self.transform:Find("Cut4Cam90/AssemblyRatio2/GroupTypes/Viewport/Content/Item").gameObject;
+    self.allItems = {}
+
+    self.noApply = self.transform:Find("Cut4Cam90/AssemblyRatio2/GroupTypes/NoTeam").gameObject;
+end
+
+function ApplyListWindow:CloseAll()
+    for _, v in pairs(self.allItems) do
+        GameObject.Destroy(v.gameObject);
+    end
+    self.allItems = {};
+	self.module.allJoinTeamReqs = {};
+end
+
+function ApplyListWindow:Refresh()
+    for _, v in pairs(self.allItems) do
+        GameObject.Destroy(v.gameObject);
+    end
+    self.allItems = {};
+
+    self.tb = {};
+    for _, v in pairs(self.module.allJoinTeamReqs) do
+        if self.tb[v.UserInfo.Eid] == nil then
+            local gob = newObject(self.applyListItemGo);
+            gob:SetActive(true);
+            gob.transform:SetParent(self.applyListItemGo.transform.parent);
+            gob.transform.localPosition = Vector3.zero;
+            gob.transform.localScale = Vector3.one;
+            local applyListItem = ApplyListItem:New(gob, v, function(data, isAgree)
+                for k, item in pairs(self.module.allJoinTeamReqs) do
+                    if item == data then
+                        local agreeJoinReq = CS.ProtoMsg.AgreeJoinReq();
+                        agreeJoinReq.IsAgree = isAgree;
+                        agreeJoinReq.Join:Add(data);
+                        CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType
+                                                                                        .ServerTypeSpace, agreeJoinReq,
+                            false);
+                        table.remove(self.module.allJoinTeamReqs, k);
+                        self:Refresh();
+
+                        self.module.teamWindow:RefreshApplyNum();
+                        break
+                    end
+                end
+            end);
+
+            table.insert(self.allItems, applyListItem);
+
+            self.tb[v.UserInfo.Eid] = 1;
+        end
+    end
+
+
+    self.noApply:SetActive(#self.module.allJoinTeamReqs==0);
+	RedPointManager.Instance:RefreshRedPointCount(RedPointType.TeamGroup, #self.module.allJoinTeamReqs);
+end
+
+function ApplyListWindow:Show()
+end
+
+function ApplyListWindow:Start()
+    print("ApplyListWindow:Start")
+end
+
+function ApplyListWindow:OnEnable()
+
+end
+
+function ApplyListWindow:OnDisable()
+
+end
+
+function ApplyListWindow:OnDestroy()
+
+end
+
+function ApplyListWindow:OnOpen(arg)
+    self.IsOpen = true;
+end
+
+function ApplyListWindow:OnClose(arg)
+    self:CloseWindow();
+    self.module.applyListWindow=nil;
+end
+
+function ApplyListWindow:CloseWindow()
+    self.IsOpen = false;
+    self.module.applyListWindow=nil;
+end
+
+return ApplyListWindow

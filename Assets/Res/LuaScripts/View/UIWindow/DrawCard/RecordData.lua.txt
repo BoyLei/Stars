@@ -1,0 +1,53 @@
+local RecordData = {}
+RecordData.__index = RecordData
+
+function RecordData:New()
+    local self = {};
+    setmetatable(self, RecordData);
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.LotteryCardListRespID, function(data)
+        self:OnLotteryCardListResp(data)
+    end, nil);
+
+    self.curIndex = 0;
+    self.maxCount = 0;
+
+    return self;
+end
+
+function RecordData:RequestCardList(page, poolType)
+    if self.allRecords[poolType] ~= nil then
+        if self.allRecords[poolType][page] ~= nil then
+            return self.allRecords[poolType][page];
+        end
+    end
+
+    self.curPage = page;
+
+    local lotteryCardListReq = CS.ProtoMsg.LotteryCardListReq();
+    lotteryCardListReq.UserPID = GameManager.Instance.mainPlayerId;
+    lotteryCardListReq.PoolType = poolType;
+    local requestPagination = CS.ProtoMsg.RequestPagination();
+    requestPagination.PageNumber = self.curPage;
+    requestPagination.PageSize = 10
+    lotteryCardListReq.Page = requestPagination;
+end
+
+function RecordData:OnLotteryCardListResp(data)
+    if data == nil then
+        return;
+    end
+
+    if data.data.Count > 0 then
+        if self.detailInfoWindow ~= nil then
+            self.detailInfoWindow:SetTotalCount(data.data.Count);
+        end
+    end
+
+    local records = data.data.LotteryCardList;
+    for i = 0, records.Count - 1 do
+        self.allRecords[self.curPage][i] = records[i];
+    end
+end
+
+return RecordData

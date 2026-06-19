@@ -1,0 +1,89 @@
+EctypeSettleModule = class("EctypeSettleModule", BaseLuaModule)
+
+local EctypeSettleWindowPath = "Ectype/Prefab/EctypeSettleWindow"
+
+-- LuaModule 消息模块
+EctypeSettleModule.ModuleMessages = {
+    ["OnOpenWnd"] = function(...)
+        EctypeSettleModule:OnOpenWnd(...);
+    end,
+    ["OnSetCurDif"] = function(...)
+        EctypeSettleModule:OnSetCurDif(...);
+    end,
+    ["OnCustomLevelEctype"] = function(...)
+        EctypeSettleModule:OnCustomLevelEctype(...)
+    end
+}
+
+-- 监听打开出战界面事件
+function EctypeSettleModule:OnOpenWnd()
+    --self.settleData.Second
+    UIAPI.ShowDailySettlement(self.settleData.IsSuccess == 1, 5, self.settleData.CommonDrop,
+        function()
+            self:LeaveEctype();
+        end, self.settleData.FirstDrop);
+
+    -- local ectypeSettleWindowCS = UIManager.Instance:OpenWindow(EctypeSettleWindowPath, nil,
+    -- CS.StarProjectDef.MainPageCommond.HideBoth);
+    -- if self.ectypeSettleWindow == nil then
+    -- self.ectypeSettleWindow = ectypeSettleWindowCS:GetLuaPanel().ScriptTable;
+    -- self.ectypeSettleWindow:BindModule(self);
+    -- self.ectypeSettleWindow:InitControls();
+    -- end
+
+    -- self.ectypeSettleWindow:Refresh(self.settleData);
+end
+
+function EctypeSettleModule:LeaveEctype()
+    local mapChangeReqMsg = CS.ProtoMsg.LeaveInstanceReq();
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace,
+        mapChangeReqMsg, false);
+
+    -- 关闭窗口
+    -- UIManager.Instance:CloseWindow(EctypeSettleWindowPath);
+end
+
+function EctypeSettleModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.EctypeSettleModule, self)
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.GameEndPersonDailyRetID, function(data)
+        self:OnGameEndPersonDaily(data)
+    end, nil);
+end
+
+function EctypeSettleModule:OnGameEndPersonDaily(data)
+    if data == nil or data.data == nil then
+        return;
+    end
+
+    self.settleData = data.data;
+    if self.settleData.IsSuccess == 0 then
+        self:OnOpenWnd(data.data);
+    end
+end
+
+-- LuaModule 消息处理
+function EctypeSettleModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...);
+end
+
+-- LuaModule显示
+function EctypeSettleModule:OnModuleShow(arg)
+
+end
+
+-- LuaModule 释放
+function EctypeSettleModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.EctypeSettleModule)
+end
+
+function EctypeSettleModule:OnSetCurDif(...)
+    local tb = ...;
+    self.curDif = tb[1];
+end
+
+function EctypeSettleModule:OnCustomLevelEctype(...)
+    UIManager.Instance:CloseWindow(EctypeSettleWindowPath);
+end
+
+return EctypeSettleModule

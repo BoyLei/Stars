@@ -1,0 +1,76 @@
+local NodeBaseItem = class("NobeBaseItem")
+
+function NodeBaseItem:ShowEffect(pool,keeping)
+	if not self.bindedobject then 
+		self.bindedobject = {}		
+	end
+	if self:CheckHasBind(pool) then 
+		return	
+	end
+    local go = pool:Pop()
+    go.transform:SetAsLastSibling();
+    go.transform.position = self.transform.position
+    go:SetActive(true)
+	self.bindedobject[pool][self.transform] = go
+    if not keeping then 
+       
+    else
+        DelayInvoker.DelayInvoke(self,1,function()
+			self.bindedobject[pool][self.transform] = nil
+            pool:Push(go)
+        end)
+    end
+end
+
+function NodeBaseItem:CheckHasBind(pool)
+	local list = self.bindedobject[pool]
+	if list then 
+		for k,v in pairs(list) do 
+			if k == self.transform then 
+				return  true	
+			end	
+		end
+	else
+		self.bindedobject[pool] = {}	
+	end
+	return false
+end
+
+function NodeBaseItem:RemoveBindItem(pool)
+	if not self.bindedobject then 
+		self.bindedobject = {}		
+	end
+	local list = self.bindedobject[pool]
+	if list then
+		for k,v in pairs(list) do
+			local i = type(v)
+			if k.name == self.transform.name then
+                pool:Push(v)
+                list[k] = nil
+			end
+		end
+	end
+end
+
+function NodeBaseItem:RemoveAllbind()
+	if self.allEff then 
+		for _,v in pairs(self.allEff) do
+			self:RemoveBindItem(v);
+		end
+	end
+end
+
+function NodeBaseItem:RemoveBindByType(...)
+	if self.allEff then
+	    local tb = {...}
+	    for _,v in pairs(tb) do 
+	        self:RemoveBindItem(self.allEff[v])
+	    end
+	end
+end 
+
+function NodeBaseItem:Clear()
+	self.bindedobject = {}
+end
+
+return NodeBaseItem

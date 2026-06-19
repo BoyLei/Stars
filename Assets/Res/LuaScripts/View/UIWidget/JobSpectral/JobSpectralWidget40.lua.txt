@@ -1,0 +1,475 @@
+---------------------------------------------------------------------
+-- Stars (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-03-31 13:43:46
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class JobSpectralWidget40
+
+JobSpectralWidget40 = class("JobSpectralWidget40", UIPanel)
+
+local CureMaxLength = 2;   -- 治疗最大数 量谱一
+local AttackMaxLength = 3; -- 攻击最大数 量谱二
+
+JobSpectralWidget40.Spectral1ItemList = nil;
+JobSpectralWidget40.Spectral1AddAnimList = nil;
+JobSpectralWidget40.Spectral1DelAnimList = nil;
+JobSpectralWidget40.Spectral1BuffAnimList = nil;
+JobSpectralWidget40.Spectral1AnimStateList = nil;
+
+JobSpectralWidget40.Spectral2ItemList = nil;
+JobSpectralWidget40.Spectral2AddAnimList = nil;
+JobSpectralWidget40.Spectral2DelAnimList = nil;
+JobSpectralWidget40.Spectral2BuffAnimList = nil;
+JobSpectralWidget40.Spectral2AnimStateList = nil;
+
+----------- 量谱数值
+JobSpectralWidget40.m_TruthSpectral1 = 1;
+JobSpectralWidget40.m_TruthSpectral2 = 1;
+JobSpectralWidget40.m_CurSpectral1 = 1;
+JobSpectralWidget40.m_CurSpectral2 = 1;
+
+JobSpectralWidget40.m_Anim1State = 0;
+JobSpectralWidget40.m_Anim2State = 0;
+
+
+JobSpectralWidget40.m_IsCountdownTreat = false;
+JobSpectralWidget40.m_MaxTimeTreat = 0;
+JobSpectralWidget40.m_CountdownTreat = 0;
+
+JobSpectralWidget40.m_IsCountdownAttack = false;
+JobSpectralWidget40.m_MaxTimeAttack = 0;
+JobSpectralWidget40.m_CountdownAttack = 0;
+
+function JobSpectralWidget40:Awake()
+    self.onCloseDestroy(true)
+
+	self.Spectral1ItemList = {};
+	self.Spectral1AddAnimList = {};
+	self.Spectral1DelAnimList = {};
+	self.Spectral1BuffAnimList = {};
+	self.Spectral1AnimStateList = {};
+
+	self.Spectral2ItemList = {};
+	self.Spectral2AddAnimList = {};
+	self.Spectral2DelAnimList = {};
+	self.Spectral2BuffAnimList = {};
+	self.Spectral2AnimStateList = {};
+
+	for i = 1, CureMaxLength do
+		local itemPath = "ItemRoot1/Item" .. i .. "/Shell";
+		table.insert(self.Spectral1ItemList, self:Find(itemPath).gameObject);
+		local itemAddAnimPath = "ItemRoot1/Item" .. i .. "/AddAnim";
+		table.insert(self.Spectral1AddAnimList, self:Find(itemAddAnimPath).gameObject);
+		local itemDelAnimPath = "ItemRoot1/Item" .. i .. "/DelAnim";
+		table.insert(self.Spectral1DelAnimList, self:Find(itemDelAnimPath).gameObject);
+		local itemBuffAnimPath = "ItemRoot1/Item" .. i .. "/BuffAnim";
+		table.insert(self.Spectral1BuffAnimList, self:Find(itemBuffAnimPath).gameObject);
+
+		table.insert(self.Spectral1AnimStateList, true);
+	end
+
+	for i = 1, AttackMaxLength do
+		local itemPath = "ItemRoot2/Item" .. i .. "/Shell";
+		table.insert(self.Spectral2ItemList, self:Find(itemPath).gameObject);
+		local itemAddAnimPath = "ItemRoot2/Item" .. i .. "/AddAnim";
+		table.insert(self.Spectral2AddAnimList, self:Find(itemAddAnimPath).gameObject);
+		local itemDelAnimPath = "ItemRoot2/Item" .. i .. "/DelAnim";
+		table.insert(self.Spectral2DelAnimList, self:Find(itemDelAnimPath).gameObject);
+		local itemBuffAnimPath = "ItemRoot2/Item" .. i .. "/BuffAnim";
+		table.insert(self.Spectral2BuffAnimList, self:Find(itemBuffAnimPath).gameObject);
+
+		table.insert(self.Spectral2AnimStateList, true);
+	end
+
+	--------------------------------------------- 事件
+	-- update事件
+	self.UpdateFun = function()
+		self:UpdateData();
+	end
+	----------------- AOI修改回调
+	self.AoiTruthSpectral1Fun = function(key, value)
+		self:SetTruthSpectral1(value);
+	end
+	self.AoiTruthSpectral2Fun = function(key, value)
+		self:SetTruthSpectral2(value);
+	end
+	self.AoicurSpectral1Fun = function(key, value)
+		self:SetCurSpectral1(value);
+	end
+	self.AoicurSpectral2Fun = function(key, value)
+		self:SetCurSpectral2(value);
+	end
+end
+
+function JobSpectralWidget40:Start()
+
+end
+
+function JobSpectralWidget40:OnEnable()
+
+end
+
+function JobSpectralWidget40:OnDisable()
+
+end
+
+function JobSpectralWidget40:OnDestroy()
+	MonoHelper.RemoveUpdateListener(self.UpdateFun);
+end
+
+function JobSpectralWidget40:OnOpen(arg)
+	self.M_EntityBase = arg;
+	if self.M_EntityBase == nil then
+		print("JobSpectralWidget40:OnOpen() arg is nil error!!!");
+		return;
+	end
+
+	self.m_Anim1State = 0;
+	self.m_Anim2State = 0;
+
+	------ 量谱
+	self.m_TruthSpectral1 = self.M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Long,
+		CS.StarProjectDef.AOIAttrDefine.TruthSpectral1);
+	self.m_TruthSpectral2 = self.M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Long,
+		CS.StarProjectDef.AOIAttrDefine.TruthSpectral2);
+	self.m_CurSpectral1 = self.M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Long,
+		CS.StarProjectDef.AOIAttrDefine.curSpectral1);
+	self.m_CurSpectral2 = self.M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Long,
+		CS.StarProjectDef.AOIAttrDefine.curSpectral2);
+	self:SetUISpectral1(false);
+	self:SetUISpectral2(false);
+
+	------ 量谱
+	self:InitSpectral1State();
+	self:InitSpectral2State();
+
+	-- 绑定属性同步回调  START
+	self:InitAttribute();
+	-- 绑定属性同步回调----- END
+
+	-- 绑定BUFF回调------  START
+
+	-- 绑定BUFF回调------  END
+	MonoHelper.AddUpdateListener(self.UpdateFun);
+end
+
+function JobSpectralWidget40:OnClose(arg)
+	if self.M_EntityBase ~= nil then
+		self:ReleaseInfo();
+	end
+end
+
+function JobSpectralWidget40:InitAttribute()
+	self.M_EntityBase.Data:RegisterAttribute(CS.StarProjectDef.AOIAttrDefine.TruthSpectral1, self.AoiTruthSpectral1Fun);
+	self.M_EntityBase.Data:RegisterAttribute(CS.StarProjectDef.AOIAttrDefine.curSpectral1, self.AoicurSpectral1Fun);
+	self.M_EntityBase.Data:RegisterAttribute(CS.StarProjectDef.AOIAttrDefine.TruthSpectral2, self.AoiTruthSpectral2Fun);
+	self.M_EntityBase.Data:RegisterAttribute(CS.StarProjectDef.AOIAttrDefine.curSpectral2, self.AoicurSpectral2Fun);
+end
+
+function JobSpectralWidget40:DelAttribute()
+	self.M_EntityBase.Data:UnRegisterAttribute(CS.StarProjectDef.AOIAttrDefine.TruthSpectral1, self.AoiTruthSpectral1Fun);
+	self.M_EntityBase.Data:UnRegisterAttribute(CS.StarProjectDef.AOIAttrDefine.curSpectral1, self.AoicurSpectral1Fun);
+	self.M_EntityBase.Data:UnRegisterAttribute(CS.StarProjectDef.AOIAttrDefine.TruthSpectral2, self.AoiTruthSpectral2Fun);
+	self.M_EntityBase.Data:UnRegisterAttribute(CS.StarProjectDef.AOIAttrDefine.curSpectral2, self.AoicurSpectral2Fun);
+end
+
+function JobSpectralWidget40:InitSpectral1State()
+	for i = 1, #self.Spectral1ItemList do
+		local isShow = self.m_CurSpectral1 >= i;
+		self.Spectral1AnimStateList[i] = isShow;
+	end
+end
+
+function JobSpectralWidget40:InitSpectral2State()
+	for i = 1, #self.Spectral2ItemList do
+		local isShow = self.m_CurSpectral2 >= i;
+		self.Spectral2AnimStateList[i] = isShow;
+	end
+end
+
+function JobSpectralWidget40:UpdateData()
+	-- 治疗的BUFF动画
+	if self.m_IsCountdownTreat then
+		if self.m_CountdownTreat > 0 then
+			local fixedDeltaTime = Time.deltaTime
+			self.m_CountdownTreat = self.m_CountdownTreat - fixedDeltaTime
+			if self.m_CountdownTreat <= 0 then
+				self.m_IsCountdownTreat = false;
+				-- 关闭动画
+				self:SetTreatBuffAnim(false);
+			end
+		end
+	end
+	-- 强攻的BUFF动画
+	if self.m_IsCountdownAttack then
+		if self.m_CountdownAttack > 0 then
+			local fixedDeltaTime = Time.deltaTime
+			self.m_CountdownAttack = self.m_CountdownAttack - fixedDeltaTime
+			if self.m_CountdownAttack <= 0 then
+				self.m_IsCountdownAttack = false;
+				-- 关闭动画
+				self:SetAttackBuffAnim(false);
+			end
+		end
+	end
+end
+
+---------------- [更新/设置] [属性变化] [START]------------
+
+function JobSpectralWidget40:SetTruthSpectral1(value)
+	if self.M_EntityBase == nil or self.M_EntityBase.Data == nil then
+		return
+	end
+	self.m_TruthSpectral1 = value;
+	if self.m_CurSpectral1 > self.m_TruthSpectral1 then
+		self.m_TruthSpectral1 = self.m_CurSpectral1;
+	end
+	self:SetUISpectral1(false);
+end
+
+function JobSpectralWidget40:SetCurSpectral1(value)
+	if self.M_EntityBase == nil or self.M_EntityBase.Data == nil then
+		return
+	end
+	self.m_Anim1State = 0;
+	if value > self.m_CurSpectral1 then
+		self.m_Anim1State = 1;
+	else
+		self.m_Anim1State = -1;
+	end
+	self.m_CurSpectral1 = value;
+	if self.m_CurSpectral1 > self.m_TruthSpectral1 then
+		self.m_TruthSpectral1 = self.m_CurSpectral1;
+	end
+	self:SetUISpectral1(true);
+end
+
+function JobSpectralWidget40:SetUISpectral1(isPlayAnim)
+	local index = 1;
+	local count = #self.Spectral1ItemList;
+	local add = 1;
+	if self.m_Anim1State == -1 then
+		index = #self.Spectral1ItemList;
+		count = 1;
+		add = -1;
+	end
+	for i = index, count, add do
+		local isShow = self.m_CurSpectral1 >= i;
+		if isPlayAnim then
+			if self.m_Anim1State == -1 then
+				--delayTime = 0;
+				--delayTime = 0.1 * (#self.Spectral1ItemList - i);
+				self:SetUISpectral1ItemFun(i);
+			else
+				local delayTime = 0.1 * i;
+				DOVirtual.DelayedCall(delayTime, function()
+					self:SetUISpectral1ItemFun(i);
+				end)
+			end
+			if isShow then
+				if i == #self.Spectral1ItemList then
+					DOVirtual.DelayedCall(0.1 * i + 0.5, function()
+						self:SetMaxAnim1Show();
+					end)
+				end
+			end
+		end
+	end
+end
+
+function JobSpectralWidget40:SetUISpectral1ItemFun(idx)
+	local isShow = self.m_CurSpectral1 >= idx;
+	local lastState = self.Spectral1AnimStateList[idx];
+	if isShow == true and lastState == true then
+
+	else
+		self.Spectral1AddAnimList[idx]:SetActive(false);
+		self.Spectral1DelAnimList[idx]:SetActive(false);
+
+		if isShow == true and lastState == false then
+			self.Spectral1AddAnimList[idx]:SetActive(true);
+		elseif isShow == false and lastState == true then
+			self.Spectral1DelAnimList[idx]:SetActive(true);
+		end
+	end
+	self.Spectral1ItemList[idx]:SetActive(isShow);
+	self.Spectral1AnimStateList[idx] = isShow;
+end
+
+function JobSpectralWidget40:SetMaxAnim1Show()
+	for i = 1, #self.Spectral1ItemList do
+		self.Spectral1AddAnimList[i]:SetActive(false);
+		self.Spectral1AddAnimList[i]:SetActive(true);
+	end
+end
+
+-------------------------
+
+
+function JobSpectralWidget40:SetTruthSpectral2(value)
+	if self.M_EntityBase == nil or self.M_EntityBase.Data == nil then
+		return
+	end
+	self.m_TruthSpectral2 = value;
+	if self.m_CurSpectral2 > self.m_TruthSpectral2 then
+		self.m_TruthSpectral2 = self.m_CurSpectral2;
+	end
+	self:SetUISpectral2(false);
+end
+
+function JobSpectralWidget40:SetCurSpectral2(value)
+	if self.M_EntityBase == nil or self.M_EntityBase.Data == nil then
+		return
+	end
+	self.m_Anim2State = 0;
+	if value > self.m_CurSpectral2 then
+		self.m_Anim2State = 1;
+	else
+		self.m_Anim2State = -1;
+	end
+	self.m_CurSpectral2 = value;
+	if self.m_CurSpectral2 > self.m_TruthSpectral2 then
+		self.m_TruthSpectral2 = self.m_CurSpectral2;
+	end
+	self:SetUISpectral2(true);
+end
+
+function JobSpectralWidget40:SetUISpectral2(isPlayAnim)
+	local index = 1;
+	local count = #self.Spectral2ItemList;
+	local add = 1;
+	if self.m_Anim2State == -1 then
+		index = #self.Spectral2ItemList;
+		count = 1;
+		add = -1;
+	end
+	for i = index, count, add do
+		local isShow = self.m_CurSpectral2 >= i;
+		if isPlayAnim then
+			if self.m_Anim2State == -1 then
+				self:SetUISpectral2ItemFun(i);
+				--delayTime = 0;
+				--delayTime = 0.1 * (#self.Spectral2ItemList - i);
+			else
+				local delayTime = 0.1 * i;
+				DOVirtual.DelayedCall(delayTime, function()
+					self:SetUISpectral2ItemFun(i);
+				end)
+			end
+
+			if isShow then
+				if i == #self.Spectral2ItemList then
+					DOVirtual.DelayedCall(0.1 * i + 0.5, function()
+						self:SetMaxAnim2Show();
+					end)
+				end
+			end
+		end
+	end
+end
+
+function JobSpectralWidget40:SetUISpectral2ItemFun(idx)
+	local isShow = self.m_CurSpectral2 >= idx;
+	local lastState = self.Spectral2AnimStateList[idx];
+
+	if isShow == true and lastState == true then
+
+	else
+		self.Spectral2AddAnimList[idx]:SetActive(false);
+		self.Spectral2DelAnimList[idx]:SetActive(false);
+		self.Spectral2BuffAnimList[idx]:SetActive(false);
+
+		if isShow == true and lastState == false then
+			self.Spectral2AddAnimList[idx]:SetActive(true);
+		elseif isShow == false and lastState == true then
+			self.Spectral2DelAnimList[idx]:SetActive(true);
+		end
+	end
+	self.Spectral2ItemList[idx]:SetActive(isShow);
+	self.Spectral2AnimStateList[idx] = isShow;
+end
+
+function JobSpectralWidget40:SetMaxAnim2Show()
+	for i = 1, #self.Spectral2ItemList do
+		self.Spectral2DelAnimList[i]:SetActive(false);
+		self.Spectral2DelAnimList[i]:SetActive(true);
+
+		self.Spectral2BuffAnimList[i]:SetActive(false);
+		self.Spectral2BuffAnimList[i]:SetActive(true);
+	end
+end
+
+---------------- [更新/设置] [属性变化] [END]------------
+
+
+---------------- [更新/设置] [Buff] [START]------------
+
+
+function JobSpectralWidget40:SetTreatBuffAnim(isShow)
+	for i = 1, #self.Spectral1BuffAnimList, 1 do
+		self.Spectral1BuffAnimList[i]:SetActive(isShow);
+	end
+end
+
+function JobSpectralWidget40:SetTreatCountdown(countdown, startCountdown)
+	self.m_MaxTimeTreat = countdown;
+	self.m_CountdownTreat = startCountdown;
+end
+
+function JobSpectralWidget40:SetTreatOpenCountdown(isOpen)
+	self.m_IsCountdownTreat = isOpen;
+	self:SetTreatBuffAnim(isOpen);
+end
+
+function JobSpectralWidget40:SetAttackBuffAnim(isShow)
+	for i = 1, #self.Spectral2BuffAnimList, 1 do
+		self.Spectral2BuffAnimList[i]:SetActive(isShow);
+	end
+end
+
+function JobSpectralWidget40:SetAttackCountdown(countdown, startCountdown)
+	self.m_MaxTimeAttack = countdown;
+	self.m_CountdownAttack = startCountdown;
+end
+
+-- 2024/6/3 磊子说，牧业的量谱满了后不播放这个buff特效了，
+function JobSpectralWidget40:SetAttackOpenCountdown(isOpen)
+	-- self.m_IsCountdownAttack = isOpen;
+	-- self:SetAttackBuffAnim(isOpen);
+end
+
+---------------- [更新/设置] [Buff] [END]------------
+
+
+function JobSpectralWidget40:ReleaseInfo()
+	self.m_TruthSpectral1 = 0;
+	self.m_CurSpectral1 = 0;
+	self.m_TruthSpectral2 = 0;
+	self.m_CurSpectral2 = 0;
+
+	for i = 1, #self.Spectral2ItemList do
+		self.Spectral2AddAnimList[1]:SetActive(false);
+		self.Spectral2DelAnimList[1]:SetActive(false);
+		self.Spectral2BuffAnimList[1]:SetActive(false);
+	end
+
+	for i2 = 1, #self.Spectral1ItemList do
+		self.Spectral1AddAnimList[i2]:SetActive(false);
+		self.Spectral1DelAnimList[i2]:SetActive(false);
+		self.Spectral1BuffAnimList[i2]:SetActive(false);
+	end
+
+	if self.M_EntityBase == nil or self.M_EntityBase.Data == nil then
+		return;
+	end
+	-- 解绑属性同步回调
+	self:DelAttribute();
+
+	MonoHelper.RemoveUpdateListener(self.UpdateFun);
+end
+
+return JobSpectralWidget40;

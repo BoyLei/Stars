@@ -1,0 +1,3120 @@
+local tconcat = table.concat
+local tinsert = table.insert
+local srep = string.rep
+local type = type
+local pairs = pairs
+local tostring = tostring
+local next = next
+local UseEquips = {2, 4, 5}
+-- local UseEquips = {2}
+
+-- lua导表优化多语言通过L函数封装一层调用
+function L(key)
+    return LanguageHelp:GetLanguageByKey(key)
+end
+
+function MT(KeyMap, table)
+    local base = {
+        __index = function(table, key)
+            local keyIndex = KeyMap[key]
+            if not keyIndex then
+                print("Key not found: ", key)
+                return nil
+            end
+            return table[keyIndex]
+        end
+        --[[
+        __newindex = function()
+            local keyIndex = KeyMap[key]
+            if not keyIndex then
+                print("Key not found: ", key)
+            end
+            table[keyIndex] = val
+            error(""Attempt to modify read-only table"")
+        end
+]]
+        --
+    }
+    for k, v in pairs(table) do
+        setmetatable(v, base)
+    end
+    base.__metatable = false
+    return base
+end
+
+function IsEquip(ItemType)
+    for k, v in pairs(UseEquips) do
+        if v == ItemType then
+            return true
+        end
+    end
+    return false
+end
+
+--[[获取键值对table长度]]
+function GetTableLen(tb)
+    if tb == nil then
+        return 0
+    end
+    local l = 0
+    for _, _ in pairs(tb) do
+        l = l + 1
+    end
+    return l
+end
+
+function Log(...)
+    -- local info = debug.getinfo(2,"Sl")
+    print(
+        string.format("time:%.3f,frame:%d", Time.realtimeSinceStartup, Time.frameCount),
+        vardump(
+            {...},
+            {
+                indent = "\t"
+            }
+        ),
+        debug.traceback()
+    )
+    -- print(...,)
+end
+
+function Log2(...)
+    print(...)
+end
+
+function LogError(...)
+    printError(
+        string.format("Error time:%.3f,frame:%d", Time.realtimeSinceStartup, Time.frameCount) ..
+            vardump(
+                {...},
+                {
+                    indent = "\t"
+                }
+            ) ..
+                debug.traceback()
+    )
+    -- CS.Debug.LogError(error)
+end
+
+function LogWarning(...)
+    printWarning(
+        string.format("Error time:%.3f,frame:%d", Time.realtimeSinceStartup, Time.frameCount),
+        vardump(
+            {...},
+            {
+                indent = "\t"
+            }
+        ),
+        debug.traceback()
+    )
+end
+
+function LogErrorFormat(str, ...)
+    printError(string.format(str, ...) .. debug.traceback())
+end
+
+function printError(info)
+    CS.UnityEngine.Debug.LogError(info)
+end
+
+function print_r(root)
+    local cache = {
+        [root] = "."
+    }
+    local function _dump(t, space, name)
+        local temp = {}
+        for k, v in pairs(t) do
+            local key = tostring(k)
+            if cache[v] then
+                tinsert(temp, "+" .. key .. " {" .. cache[v] .. "}")
+            elseif type(v) == "table" then
+                local new_key = name .. "." .. key
+                cache[v] = new_key
+                tinsert(temp, "+" .. key .. _dump(v, space .. (next(t, k) and "|" or " ") .. srep(" ", #key), new_key))
+            else
+                tinsert(temp, "+" .. key .. " [" .. tostring(v) .. "]")
+            end
+        end
+        return tconcat(temp, "\n" .. space)
+    end
+    print(_dump(root, "", ""))
+end
+
+function logError(...)
+    local t = {}
+    for i = 1, select("#", ...) do
+        table.insert(t, tostring(select(i, ...)))
+        table.insert(t, "\t")
+    end
+    table.insert(t, debug.traceback(""))
+    CS.UnityEngine.Debug.LogError("error" .. table.concat(t))
+end
+
+--[[
+解析 ”a,b; c,d;e,f"格式的字符串, 结果是
+{
+{[1], [2], [3], ...},
+{[1], [2], [3], ...},
+...
+}
+]]
+function SplitString(str, paramCount)
+    paramCount = paramCount or 2
+    local result = {}
+    local arr = string.split(str, ";")
+    for _, v in pairs(arr) do
+        local tmp = string.split(v, ",")
+        if tmp then
+            local info = {}
+            for i = 1, paramCount do
+                if nil ~= tmp[i] then
+                    table.insert(info, tmp[i])
+                end
+            end
+            table.insert(result, info)
+        end
+    end
+    return result
+end
+
+function string.split(str, delimiter)
+    str = tostring(str)
+    delimiter = tostring(delimiter)
+    if (delimiter == "") then
+        return false
+    end
+    local pos, arr = 0, {}
+    -- for each divider found
+    for st, sp in function()
+        return string.find(str, delimiter, pos, true)
+    end do
+        table.insert(arr, string.sub(str, pos, st - 1))
+        pos = sp + 1
+    end
+    table.insert(arr, string.sub(str, pos))
+    return arr
+end
+
+function FormatUIString(repStr, t)
+    local txt = string.gsub(repStr, "%$(%w+)", t)
+    return txt
+end
+
+function string.trim(s)
+    return (s:gsub("^%s*(.-)%s*$", "%1"))
+end
+
+function EventHandler(obj, method)
+    return function(...)
+        return method(obj, ...)
+    end
+end
+
+function CheckNumber(value, base)
+    return tonumber(value, base) or 0
+end
+
+function CheckInt(value)
+    return math.round(CheckNumber(value))
+end
+
+function CheckBool(value)
+    return (value ~= nil and value ~= false)
+end
+
+function CheckTable(value)
+    if type(value) ~= "table" then
+        value = {}
+    end
+    return value
+end
+
+function IsSet(hashtable, key)
+    local t = type(hashtable)
+    return (t == "table" or t == "userdata") and hashtable[key] ~= nil
+end
+
+------------- IO  Start
+function io.exists(path)
+    local file = io.open(path, "r")
+    if file then
+        io.close(file)
+        return true
+    end
+    return false
+end
+
+function io.readfile(path)
+    local file = io.open(path, "r")
+    if file then
+        local content = file:read("*a")
+        io.close(file)
+        return content
+    end
+    return nil
+end
+
+function io.writefile(path, content, mode)
+    mode = mode or "w+b"
+    local file = io.open(path, mode)
+    if file then
+        if file:write(content) == nil then
+            return false
+        end
+        io.close(file)
+        return true
+    else
+        return false
+    end
+end
+
+function io.pathinfo(path)
+    local pos = string.len(path)
+    local extpos = pos + 1
+    while pos > 0 do
+        local b = string.byte(path, pos)
+        if b == 46 then -- 46 = char "."
+            extpos = pos
+        elseif b == 47 then -- 47 = char "/"
+            break
+        end
+        pos = pos - 1
+    end
+
+    local dirname = string.sub(path, 1, pos)
+    local filename = string.sub(path, pos + 1)
+    extpos = extpos - pos
+    local basename = string.sub(filename, 1, extpos - 1)
+    local extname = string.sub(filename, extpos)
+    return {
+        dirname = dirname,
+        filename = filename,
+        basename = basename,
+        extname = extname
+    }
+end
+
+function io.filesize(path)
+    local size = false
+    local file = io.open(path, "r")
+    if file then
+        local current = file:seek()
+        size = file:seek("end")
+        file:seek("set", current)
+        io.close(file)
+    end
+    return size
+end
+
+------------- IO  End
+
+----------------HTML Start
+string._htmlspecialchars_set = {}
+string._htmlspecialchars_set["&"] = "&amp;"
+string._htmlspecialchars_set['"'] = "&quot;"
+string._htmlspecialchars_set["'"] = "&#039;"
+string._htmlspecialchars_set["<"] = "&lt;"
+string._htmlspecialchars_set[">"] = "&gt;"
+
+function string.htmlspecialchars(input)
+    for k, v in pairs(string._htmlspecialchars_set) do
+        input = string.gsub(input, k, v)
+    end
+    return input
+end
+
+function string.restorehtmlspecialchars(input)
+    for k, v in pairs(string._htmlspecialchars_set) do
+        input = string.gsub(input, v, k)
+    end
+    return input
+end
+
+function string.nl2br(input)
+    return string.gsub(input, "\n", "<br />")
+end
+
+function string.text2html(input)
+    input = string.gsub(input, "\t", "    ")
+    input = string.htmlspecialchars(input)
+    input = string.gsub(input, " ", "&nbsp;")
+    input = string.nl2br(input)
+    return input
+end
+
+function string.split(input, delimiter)
+    input = tostring(input)
+    delimiter = tostring(delimiter)
+    if (delimiter == "") then
+        return false
+    end
+    local pos, arr = 0, {}
+    -- for each divider found
+    for st, sp in function()
+        return string.find(input, delimiter, pos, true)
+    end do
+        table.insert(arr, string.sub(input, pos, st - 1))
+        pos = sp + 1
+    end
+    table.insert(arr, string.sub(input, pos))
+    return arr
+end
+
+function string.ltrim(input)
+    return string.gsub(input, "^[ \t\n\r]+", "")
+end
+
+function string.rtrim(input)
+    return string.gsub(input, "[ \t\n\r]+$", "")
+end
+
+function string.trim(input)
+    input = string.gsub(input, "^[ \t\n\r]+", "")
+    return string.gsub(input, "[ \t\n\r]+$", "")
+end
+
+function string.ucfirst(input)
+    return string.upper(string.sub(input, 1, 1)) .. string.sub(input, 2)
+end
+
+local function urlencodechar(char)
+    return "%" .. string.format("%02X", string.byte(char))
+end
+function string.urlencode(input)
+    -- convert line endings
+    input = string.gsub(tostring(input), "\n", "\r\n")
+    -- escape all characters but alphanumeric, '.' and '-'
+    input = string.gsub(input, "([^%w%.%- ])", urlencodechar)
+    -- convert spaces to "+" symbols
+    return string.gsub(input, " ", "+")
+end
+
+function string.urldecode(input)
+    input = string.gsub(input, "+", " ")
+    input =
+        string.gsub(
+        input,
+        "%%(%x%x)",
+        function(h)
+            return string.char(CheckNumber(h, 16))
+        end
+    )
+    input = string.gsub(input, "\r\n", "\n")
+    return input
+end
+
+-- 计算 UTF8 字符串的长度，每一个中文算一个字符
+function string.utf8len(input)
+    local len = string.len(input)
+    local left = len
+    local cnt = 0
+    local arr = {0, 0xc0, 0xe0, 0xf0, 0xf8, 0xfc}
+    while left ~= 0 do
+        local tmp = string.byte(input, -left)
+        local i = #arr
+        while arr[i] do
+            if tmp >= arr[i] then
+                left = left - i
+                break
+            end
+            i = i - 1
+        end
+        cnt = cnt + 1
+    end
+    return cnt
+end
+
+function string.formatnumberthousands(num)
+    local formatted = tostring(CheckNumber(num))
+    local k
+    while true do
+        formatted, k = string.gsub(formatted, "^(-?%d+)(%d%d%d)", "%1,%2")
+        if k == 0 then
+            break
+        end
+    end
+    return formatted
+end
+----------------HTML End
+
+----------------Loding Start
+---
+function StartLoading(funcid, groupid, LoadingViewName, OnOpenCallback, OnCloseCallBack)
+    if LoadingViewName == nil then
+        LoadingViewName = "LoadingView"
+    end
+
+    local isOpen, view = ViewMgr:IsViewOpen(LoadingViewName)
+    if true == isOpen and nil ~= view then
+        view:ShowLoading(funcid, groupid, OnOpenCallback, OnCloseCallBack)
+    else
+        Eventer.Fire("OpenView", LoadingViewName, funcid, groupid, OnOpenCallback, OnCloseCallBack)
+    end
+end
+
+function UpdateLoading(progress, text)
+    Eventer.Fire("UpdateLoading", progress, text)
+end
+
+function HideLoading()
+    Eventer.Fire("CloseLoadingView")
+end
+
+-----------------Loading End
+---
+
+-------------------Item Start
+
+-- cb 参数返回true，表示设置成功
+function LoadAndSetItem(imgComponent, path, cb)
+    GameUtils.LoadAndSetItem(imgComponent, path, cb)
+end
+
+function GrayImage(imgComponent, gray)
+    GameUtils.GrayImage(imgComponent, gray)
+end
+----------------------Item End
+
+----------------------Animation Start
+function AnimationEventRoute(moduleName, functionName) -- 动画回调
+    local module = uiFrame:getModule(moduleName)
+    if module ~= nil then
+        module:OnAnimationEvent(functionName)
+    end
+end
+
+----------------------Animation End
+
+------------------------GM Start
+
+------------------------GM End
+
+------------------------GC Start
+function LuaGC()
+    local c = collectgarbage("count")
+    Log("Begin gc count(kb) " .. c)
+    collectgarbage("collect")
+    c = collectgarbage("count")
+    Log("End gc count(kb) " .. c)
+end
+
+function ClearMemory()
+    GameUtils.GcCollect()
+    if ResMgr then
+        ResMgr.UnloadUnusedAssets()
+    end
+    collectgarbage("collect")
+end
+------------------------GC End
+
+------------------------- 随机字符串 Start
+
+function getRandom(n)
+    local t = {
+        "0",
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "a",
+        "b",
+        "c",
+        "d",
+        "e",
+        "f",
+        "g",
+        "h",
+        "i",
+        "j",
+        "k",
+        "l",
+        "m",
+        "n",
+        "o",
+        "p",
+        "q",
+        "r",
+        "s",
+        "t",
+        "u",
+        "v",
+        "w",
+        "x",
+        "y",
+        "z",
+        "A",
+        "B",
+        "C",
+        "D",
+        "E",
+        "F",
+        "G",
+        "H",
+        "I",
+        "J",
+        "K",
+        "L",
+        "M",
+        "N",
+        "O",
+        "P",
+        "Q",
+        "R",
+        "S",
+        "T",
+        "U",
+        "V",
+        "W",
+        "X",
+        "Y",
+        "Z"
+    }
+    local s = ""
+    for i = 1, n do
+        s = s .. t[math.random(#t)]
+    end
+    return s
+end
+
+------------------------- 随机字符串 End
+
+-------------------------Test Start
+TestData = {}
+
+function PlayStory(storyid)
+    --  Log(StoryConfig:GetStoryList(storyid))
+
+    storyModule:PlayStory(storyid, true).next(
+        function()
+            Log("==================finish story:", storyid)
+        end,
+        function()
+            Log("================> playstory error", storyid)
+        end
+    )
+end
+
+function OpenPrefab()
+    TestData.assetPath = "Modules/Building/Prefabs/r_medical_chamber_lv1.prefab"
+
+    ResMgr.LoadAsset(
+        TestData.assetPath,
+        nil,
+        function(obj)
+            if obj == nil then
+                LogError("r_medical_chamber_lv1 未加载成功" .. r_medical_chamber_lv1)
+                return
+            end
+            TestData.item = obj
+            obj.name = "r_medical_chamber_lv1"
+        end
+    )
+end
+
+function ClosePrefab()
+    GameObject.Destroy(TestData.item)
+    ResMgr.UnLoad(TestData.assetPath)
+end
+
+-------------------------Test End
+
+-------------------------Camera 摄像机 Start
+function SetMainCityCameraBlur(isShow)
+    local obj = GameObject.Find(GlobalValue.MAINCITY_MAINCAMERA)
+    local obj2 = GameObject.Find(GlobalValue.MAINCITY_MAINCAMERA_2)
+    -- LogError("11111111111111111111, " .. tostring(obj) .. ", " .. tostring(obj2))
+    -- LogError("SetMainCityCameraBlur obj",obj,"   ")
+    if obj ~= nil then
+        GameUtils.SetCameraSceneBlur(obj, 0, 0, 5, isShow)
+    end
+    if obj2 ~= nil then
+        GameUtils.SetCameraSceneBlur(obj2, 0, 0, 5, isShow)
+    end
+end
+
+function SetExploreMapCameraBlur(isShow)
+    local obj = GameObject.Find(GlobalValue.EXPLOREMAP_MAINCAMERA)
+    -- LogError("SetExploreMapCameraBlur obj",obj,"   ")
+    if obj ~= nil then
+        GameUtils.SetCameraSceneBlur(obj, 0, 0, 5, isShow)
+    end
+end
+
+function WorldToScreenPointMainCamera(worldPoint)
+    local mainCam = MainCameraMgr:GetMainCamera()
+    return mainCam:WorldToScreenPoint(worldPoint)
+end
+
+function ScreenToWorldPointMainCamera(screenPoint)
+    local mainCam = MainCameraMgr:GetMainCamera()
+    return mainCam:ScreenToWorldPoint(screenPoint)
+end
+-------------------------Camera 摄像机 End
+
+-------------------------Color Start
+function ConvertHexToColor(hex)
+    hex = string.gsub(hex, "#", "")
+    local color = {}
+    for i = 1, 3 do
+        local num
+        local tmp = string.sub(hex, i * 2 - 1, i * 2)
+        num = tonumber(tmp, 16)
+        table.insert(color, num)
+    end
+    return color
+end
+
+function ConvertHexToColorWithAlpha(hex, alpha)
+    hex = string.gsub(hex, "#", "")
+    local color = {}
+    for i = 1, 3 do
+        local num
+        local tmp = string.sub(hex, i * 2 - 1, i * 2)
+        num = tonumber(tmp, 16)
+        table.insert(color, num)
+    end
+    return Color(color[1] / 255, color[2] / 255, color[3] / 255, alpha)
+end
+
+function ConvertFullHexToFullColor(fullHex) -- 把"000000,0.26"转化成Color(0/255,0/255,0/255,0.26)
+    local color = {}
+    local arry = string.split(fullHex, ",")
+    for i = 1, 3 do
+        local num
+        local tmp = string.sub(arry[1], i * 2 - 1, i * 2)
+        num = tonumber(tmp, 16)
+        table.insert(color, num)
+    end
+    return Color(color[1] / 255, color[2] / 255, color[3] / 255, tonumber(arry[2]))
+end
+
+function newObject(prefab)
+    return GameObject.Instantiate(prefab)
+end
+-------------------------Color End
+
+--------------------------Table Start
+
+function TableConcat(list1, list2)
+    local newList = {}
+
+    for i = 1, #list1 do
+        local item = list1[i]
+        table.insert(newList, item)
+    end
+
+    for i = 1, #list2 do
+        local item = list2[i]
+        table.insert(newList, item)
+    end
+
+    return newList
+end
+
+function GetQualityName(quality)
+    if quality == 1 then
+        return LanguageHelp:GetLanguageByKey("Local_Str_Quality_1")
+    elseif quality == 2 then
+        return LanguageHelp:GetLanguageByKey("Local_Str_Quality_2")
+    elseif quality == 3 then
+        return LanguageHelp:GetLanguageByKey("Local_Str_Quality_3")
+    elseif quality == 4 then
+        return LanguageHelp:GetLanguageByKey("Local_Str_Quality_4")
+    elseif quality == 5 then
+        return LanguageHelp:GetLanguageByKey("Local_Str_Quality_5")
+    else
+        return LanguageHelp:GetLanguageByKey("Local_Str_Quality_0")
+    end
+end
+
+function GetQualityColor(quality)
+    if quality == 1 then
+        return "<color=#aaaaaa>"
+    elseif quality == 2 then
+        return "<color=#78a096>"
+    elseif quality == 3 then
+        return "<color=#7d9bcd>"
+    elseif quality == 4 then
+        return "<color=#cda4de>"
+    elseif quality == 5 then
+        return "<color=#e1af8c>"
+    else
+        return "<color=#aaaaaa>"
+    end
+end
+
+function GetDonateQualityColor(quality)
+    if quality == 1 then
+        return "<color=#aaaaaa>"
+    elseif quality == 2 then
+        return "<color=#479294>"
+    elseif quality == 3 then
+        return "<color=#3d70c9>"
+    elseif quality == 4 then
+        return "<color=#8058c9>"
+    elseif quality == 5 then
+        return "<color=#b47a3c>"
+    else
+        return "<color=#aaaaaa>"
+    end
+end
+
+function GetQualityColorRGB(quality)
+    if quality == 1 then
+        -- return Color(170/255,170/255,170/255);--白色
+        return Color(255 / 255, 255 / 255, 255 / 255)
+    elseif quality == 2 then
+        return Color(120 / 255, 160 / 255, 150 / 255) -- 绿色
+    elseif quality == 3 then
+        return Color(125 / 255, 155 / 255, 205 / 255) -- 蓝色
+    elseif quality == 4 then
+        return Color(205 / 255, 164 / 255, 222 / 255) -- 紫色
+    elseif quality == 5 then
+        -- return Color(235/255,118/255,100/255);--金色
+        return Color(235 / 255, 118 / 255, 100 / 255) -- 橙色
+    else
+        return Color(255 / 255, 255 / 255, 235 / 255)
+    end
+end
+function GetQualityColorRGB_Fight(quality)
+    if quality == 1 then
+        return Color(95 / 255, 95 / 255, 95 / 255)
+    elseif quality == 2 then
+        return Color(92 / 255, 138 / 255, 85 / 255)
+    elseif quality == 3 then
+        return Color(85 / 255, 101 / 255, 138 / 255)
+    elseif quality == 4 then
+        return Color(138 / 255, 85 / 255, 135 / 255)
+    elseif quality == 5 then
+        return Color(182 / 255, 96 / 255, 79 / 255)
+    else
+        return Color(95 / 255, 95 / 255, 95 / 255)
+    end
+end
+function GetLootQualityColorRGB(quality)
+    -- do return GetQualityColorRGB(quality); end
+
+    if quality == 1 then
+        return Color(242 / 255, 238 / 255, 221 / 255)
+    elseif quality == 2 then
+        return Color(113 / 255, 1, 0)
+    elseif quality == 3 then
+        return Color(0, 40 / 255, 1)
+    elseif quality == 4 then
+        return Color(147 / 255, 0, 1)
+    elseif quality == 5 then
+        return Color(1, 22 / 255, 0)
+    else
+        return Color(242 / 255, 238 / 255, 221 / 255)
+    end
+end
+
+function GetDropQualityColorRGB(quality)
+    -- do return GetQualityColorRGB(quality); end
+
+    if quality == 1 then
+        -- return Color(231/255,232/255,214/255);
+        return Color(255 / 255, 255 / 255, 255 / 255)
+    elseif quality == 2 then
+        return Color(209 / 255, 241 / 255, 178 / 255)
+    elseif quality == 3 then
+        return Color(167 / 255, 221 / 255, 247 / 255)
+    elseif quality == 4 then
+        return Color(238 / 255, 186 / 255, 255 / 255)
+    elseif quality == 5 then
+        return Color(255 / 255, 235 / 255, 98 / 255)
+    else
+        return Color(255 / 255, 255 / 255, 235 / 255)
+    end
+end
+
+-- 得到竞拍 道具的 颜色
+function GetAuctionQualityColorRGB(quality)
+    -- do return GetQualityColorRGB(quality); end
+
+    if quality == 1 then
+        -- return Color(231/255,232/255,214/255);
+        return Color(170 / 255, 170 / 255, 170 / 255)
+    elseif quality == 2 then
+        return Color(120 / 255, 160 / 255, 150 / 255)
+    elseif quality == 3 then
+        return Color(92 / 255, 130 / 255, 192 / 255)
+    elseif quality == 4 then
+        return Color(162 / 255, 98 / 255, 178 / 255)
+    elseif quality == 5 then
+        return Color(185 / 255, 134 / 255, 80 / 255)
+    else
+        return Color(170 / 255, 170 / 255, 170 / 255)
+    end
+end
+
+function GetEquipSubTypeName(idx)
+    -- 角色装备大类型 是2
+    local key = GetSubItemID(2, idx)
+    local cfg = ConfigDataAccessor.ItemType[key]
+    if cfg ~= nil then
+        return cfg.Name
+    end
+    return ""
+end
+
+function GetSubItemID(ItemType, SubType)
+    return ItemType * 100 + SubType
+end
+
+function GetItemTypeAndSubTypeBySubType(id)
+    local ItemType = id / 100
+    local SubType = id % 100
+    return ItemType, SubType
+end
+
+function GetRomaNum(type)
+    if type == 1 then
+        return LanguageHelp:GetLanguageByKey("Local_Str_RomaNum1")
+    elseif type == 2 then
+        return LanguageHelp:GetLanguageByKey("Local_Str_RomaNum2")
+    elseif type == 3 then
+        return LanguageHelp:GetLanguageByKey("Local_Str_RomaNum3")
+    elseif type == 4 then
+        return LanguageHelp:GetLanguageByKey("Local_Str_RomaNum4")
+    elseif type == 5 then
+        return LanguageHelp:GetLanguageByKey("Local_Str_RomaNum5")
+    elseif type == 6 then
+        return LanguageHelp:GetLanguageByKey("Local_Str_RomaNum6")
+    elseif type == 7 then
+        return LanguageHelp:GetLanguageByKey("Local_Str_RomaNum7")
+    elseif type == 8 then
+        return LanguageHelp:GetLanguageByKey("Local_Str_RomaNum8")
+    elseif type == 9 then
+        return LanguageHelp:GetLanguageByKey("Local_Str_RomaNum9")
+    elseif type == 10 then
+        return LanguageHelp:GetLanguageByKey("Local_Str_RomaNum10")
+    end
+end
+
+function GetEmblemBgColorRGB(type)
+    -- do return GetQualityColorRGB(quality); end
+
+    if type == 1 then
+        -- return Color(231/255,232/255,214/255);
+        return Color(255 / 255, 255 / 255, 255 / 255)
+    elseif type == 2 then
+        return Color(209 / 255, 241 / 255, 178 / 255)
+    elseif type == 3 then
+        return Color(167 / 255, 221 / 255, 247 / 255)
+    elseif type == 4 then
+        return Color(238 / 255, 186 / 255, 255 / 255)
+    elseif type == 5 then
+        return Color(255 / 255, 235 / 255, 98 / 255)
+    elseif type == 6 then
+        return Color(25 / 255, 25 / 255, 198 / 255)
+    elseif type == 11 then
+        -- return Color(231/255,232/255,214/255);
+        return Color(255 / 255, 255 / 255, 255 / 255)
+    elseif type == 12 then
+        return Color(209 / 255, 241 / 255, 178 / 255)
+    elseif type == 13 then
+        return Color(167 / 255, 221 / 255, 247 / 255)
+    elseif type == 14 then
+        return Color(238 / 255, 186 / 255, 255 / 255)
+    elseif type == 15 then
+        return Color(255 / 255, 235 / 255, 98 / 255)
+    elseif type == 16 then
+        return Color(25 / 255, 25 / 255, 198 / 255)
+    end
+end
+
+--------------------------Table End
+
+function GetInt64High2Low8(value)
+    -- 取 最高的 8位
+    local v = ((value >> 40) & 0xff)
+    if v > 0 then
+        return v
+    end
+    -- 取 最高的 8位
+    local v = ((value >> 32) & 0xff)
+    if v > 0 then
+        return v
+    end
+    -- 取 最高的 8位
+    local v = ((value >> 24) & 0xff)
+    if v > 0 then
+        return v
+    end
+    -- 取 不到 最高 8位, 那就取高 8-16 位
+    v = ((value >> 16) & 0xff)
+    if v > 0 then
+        return v
+    end
+    -- 取 低8-16 位
+    v = ((value >> 8) & 0xff)
+    if v > 0 then
+        return v
+    end
+    -- 取低 8 位
+    v = (value & 0xff)
+    return v
+end
+
+function GetInt64LimitList(value)
+    local limit8List = {}
+
+    local v1 = (value & 0xff)
+    table.insert(limit8List, v1)
+
+    local v2 = ((value >> 8) & 0xff)
+    table.insert(limit8List, v2)
+
+    local v3 = ((value >> 16) & 0xff)
+    table.insert(limit8List, v3)
+
+    local v4 = ((value >> 24) & 0xff)
+    table.insert(limit8List, v4)
+
+    local v5 = ((value >> 32) & 0xff)
+    table.insert(limit8List, v5)
+
+    local v6 = ((value >> 40) & 0xff)
+    table.insert(limit8List, v6)
+
+    return limit8List
+end
+
+-- 查看某值是否为表tbl中的key值
+function table.kIn(tbl, key)
+    if tbl == nil then
+        return false
+    end
+    for k, v in pairs(tbl) do
+        if k == key then
+            return true
+        end
+    end
+    return false
+end
+
+-- 查看某值是否为表tbl中的value值
+function table.vIn(tbl, value)
+    if tbl == nil then
+        return false
+    end
+
+    for k, v in pairs(tbl) do
+        if v == value then
+            return true
+        end
+    end
+    return false
+end
+
+-- 计算 UTF8 字符串的长度，每一个中文算一个字符
+function utf8len(input)
+    local len = string.len(input)
+    local left = len
+    local cnt = 0
+    local arr = {0, 0xc0, 0xe0, 0xf0, 0xf8, 0xfc}
+    while left ~= 0 do
+        local tmp = string.byte(input, -left)
+        local i = #arr
+        while arr[i] do
+            if tmp >= arr[i] then
+                left = left - i
+                break
+            end
+            i = i - 1
+        end
+        cnt = cnt + 1
+    end
+    return cnt
+end
+
+-- 保留N位小数点
+function roundToDecimal(number, decimalPlaces)
+    local decimalOffset = 10 ^ decimalPlaces
+    return math.floor(number * decimalOffset) / decimalOffset
+end
+
+function roundToDecimal2(number, decimalPlaces)
+    local decimalOffset = 10 ^ decimalPlaces
+    local num = math.floor(number * decimalOffset) / decimalOffset
+    return FormatNum(num)
+end
+
+---如果小数位数为0，则只保留整数
+function FormatNum(num)
+    if num <= 0 then
+        return 0
+    else
+        local t1, t2 = math.modf(num)
+        ---小数如果为0，则去掉
+        if t2 > 0 then
+            return num
+        else
+            return t1
+        end
+    end
+end
+
+function GetChatChannelToStr(channel)
+    local str = ""
+    if channel == CS.ProtoMsg.ChatChannel.ChannelNull then
+        str = E_ChatChannelStrType[0]
+    elseif channel == CS.ProtoMsg.ChatChannel.ChannelSystem then
+        str = E_ChatChannelStrType[1]
+    elseif channel == CS.ProtoMsg.ChatChannel.ChannelSpace then
+        str = E_ChatChannelStrType[2]
+    elseif channel == CS.ProtoMsg.ChatChannel.ChannelWorld then
+        str = E_ChatChannelStrType[3]
+    elseif channel == CS.ProtoMsg.ChatChannel.ChannelUnion then
+        str = E_ChatChannelStrType[4]
+    elseif channel == CS.ProtoMsg.ChatChannel.ChannelJob then
+        str = E_ChatChannelStrType[5]
+    elseif channel == CS.ProtoMsg.ChatChannel.ChannelTeam then
+        str = E_ChatChannelStrType[6]
+    elseif channel == CS.ProtoMsg.ChatChannel.ChannelCall then
+        str = E_ChatChannelStrType[7]
+    elseif channel == CS.ProtoMsg.ChatChannel.ChannelPrivate then
+        str = E_ChatChannelStrType[8]
+    elseif channel == CS.ProtoMsg.ChatChannel.ChannelSetting then
+        str = E_ChatChannelStrType[100]
+    end
+    return str
+end
+
+-- 频道背景颜色
+function GetChatChannelColorToStr(channel)
+    local str = ""
+    if channel == CS.ProtoMsg.ChatChannel.ChannelNull then
+        str = "#8A8A8A"
+    elseif channel == CS.ProtoMsg.ChatChannel.ChannelSystem then
+        str = "#B33A3A"
+    elseif channel == CS.ProtoMsg.ChatChannel.ChannelSpace then
+        str = "#8A8A8A"
+    elseif channel == CS.ProtoMsg.ChatChannel.ChannelWorld then
+        str = "#4E69AE"
+    elseif channel == CS.ProtoMsg.ChatChannel.ChannelUnion then
+        str = "#3C9858"
+    elseif channel == CS.ProtoMsg.ChatChannel.ChannelJob then
+        str = "#2C8CA4"
+    elseif channel == CS.ProtoMsg.ChatChannel.ChannelTeam then
+        str = "#8761B2"
+    elseif channel == CS.ProtoMsg.ChatChannel.ChannelCall then
+        str = "#B98A41"
+    elseif channel == CS.ProtoMsg.ChatChannel.ChannelPrivate then
+        str = "#8A8A8A"
+    elseif channel == CS.ProtoMsg.ChatChannel.ChannelSetting then
+        str = "#8A8A8A"
+    end
+    return str
+end
+
+function GetChatChannelToIndex(channel)
+    local index = 0
+    if channel == CS.ProtoMsg.ChatChannel.ChannelNull then
+        index = 0
+    elseif channel == CS.ProtoMsg.ChatChannel.ChannelSystem then
+        index = 1
+    elseif channel == CS.ProtoMsg.ChatChannel.ChannelSpace then
+        index = 2
+    elseif channel == CS.ProtoMsg.ChatChannel.ChannelWorld then
+        index = 3
+    elseif channel == CS.ProtoMsg.ChatChannel.ChannelUnion then
+        index = 4
+    elseif channel == CS.ProtoMsg.ChatChannel.ChannelJob then
+        index = 5
+    elseif channel == CS.ProtoMsg.ChatChannel.ChannelTeam then
+        index = 6
+    elseif channel == CS.ProtoMsg.ChatChannel.ChannelCall then
+        index = 7
+    elseif channel == CS.ProtoMsg.ChatChannel.ChannelPrivate then
+        index = 8
+    elseif channel == CS.ProtoMsg.ChatChannel.ChannelSetting then
+        index = 100
+    end
+    return index
+end
+
+-- TODO DL
+-- 语法暂时不熟, 后面要封装一层 自定义的 map, 包含 Count
+-- 返回一个 默认的 map 包含 , 后面 要取拓展 它的 元素添加接口
+function GetDefaultMapData()
+    return {
+        Count = 0
+    }
+end
+
+function AddMapData(mapData, key, value)
+    if mapData[key] ~= nil then
+        UpdateMapData(mapData, key, value)
+        return
+    end
+
+    mapData[key] = value
+    mapData.Count = mapData.Count + 1
+end
+
+function UpdateMapData(mapData, key, value)
+    -- 如果 value 为nil, 那就删除这个元素
+    if value == nil then
+        RemoveMapDataKey(mapData, key)
+        return
+    end
+
+    -- 不为空, 就去判断 是否存在这个 key, 如果都不存在,那就是 添加这个属性值
+    if mapData[key] == nil then
+        AddMapData(mapData, key, value)
+        return
+    end
+
+    -- 如果 属性key 存在, 就去更新 它的值
+    mapData[key] = value
+end
+
+function RemoveMapDataKey(mapData, key)
+    -- 如果本来 就不存在这个 属性 值, 那就直接 return
+    if mapData[key] == nil then
+        return
+    end
+
+    -- 删除这个 元素的 值, 但是需要注意, 由于 key 的不确定性，所以 只能通过 设置nil 来约定 nil 为元素删除
+    -- table.remove 必须 传入元素的 整数位置
+    mapData[key] = nil
+    mapData.Count = mapData.Count - 1
+    mapData.Count = mapData.Count < 0 and 0 or mapData.Count
+end
+---------------------------------
+
+-- 设置 UI 节点的 position
+function SetUINodePosition(uiNode, v2)
+    local rect = uiNode.transform:GetComponent(typeof(RectTransform))
+    rect.anchoredPosition = v2
+end
+
+function V3To2DXY(v3)
+    local v2 = Vector2.zero
+    v2.x = v3.x
+    v2.y = v3.y
+
+    return v2
+end
+
+function ParseParameters(param)
+    if param == nil then
+        return nil
+    end
+
+    local tb = {}
+    if type(param) == "table" then
+        -- Lua调用
+        return param
+    else
+        -- C#调用
+        for i = 0, param.Length - 1 do
+            tb[i] = param[i]
+        end
+    end
+    return tb
+end
+
+function Byte2binToNum(n)
+    -- print("_byte2bin"..n);
+
+    local t = {}
+    for i = 32, 0, -1 do
+        t[#t + 1] = math.floor(n / 2 ^ i)
+        n = n % 2 ^ i
+    end
+
+    -- 点的数量
+    local num = 0
+
+    for i = 1, 20 do
+        if t[33 - i] > 0 then
+            num = num + 1
+        end
+    end
+
+    -- print(table.concat(t));
+
+    return num
+    -- return table.concat(t)
+end
+
+function SendClient2CenterReq(message)
+    local gameSocket = NetworkManager.Instance.gameSocket
+    gameSocket:SendClient2CenterMsg(message)
+end
+
+function GetCharStrLen(str)
+    local bytes = {str:byte(1, #str)}
+    local length, begin = 0, false
+    for _, byte in ipairs(bytes) do
+        if byte < 128 or byte >= 192 then
+            begin = false
+            length = length + 1
+        elseif not begin then
+            begin = true
+            length = length + 1
+        end
+    end
+    return length
+end
+
+-- 清除 一个 datas 数组
+function TableClear(datas)
+    for i = #datas, 1, -1 do
+        table.remove(datas, i)
+    end
+end
+
+function CheckItemIsBind(itemData)
+    local info = {}
+    info.LeftTimes = 0
+    info.Isbind = false
+
+    if itemData ~= nil then
+        -- 是否是已绑定
+        if itemData.IsBind then
+            info.Isbind = true
+        else
+            local cfg = ConfigDataAccessor.Item(itemData.BaseID)
+            if cfg.MaxTradeCount > 0 then
+                info.LeftTimes = cfg.MaxTradeCount - itemData.TradedCount
+            end
+        end
+    end
+
+    --[[
+    local bindInfo=CheckItemIsBind(itemData);
+    if bindInfo.LeftTimes>0 then
+        self.go_isbind:SetActive(false)
+        self.go_notbind:SetActive(false)
+        self.go_leftTimes:SetActive(true)
+        self.tex_leftTimes.text="可交易"..bindInfo.LeftTimes.."次";
+    else
+        self.go_isbind:SetActive(itemData.IsBind)
+        self.go_notbind:SetActive(not(itemData.IsBind));
+        self.go_leftTimes:SetActive(false)
+    end
+    ]]
+    return info
+end
+
+local strLocked = ""
+function CheckPlayerGuidanceOpen(playerGuidance, playName, needMsg, needLockedStr)
+    local cfg = ConfigDataAccessor.GuidSysOpen[playerGuidance]
+
+    if cfg ~= nil then
+        -- 玩家等级
+        local playerLevel = GameManager.Instance:GetPlayerLevel()
+        if cfg.NeedLv > playerLevel then
+            if needMsg or needLockedStr then
+                if playName == "" then
+                    strLocked = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Tips64"), {cfg.NeedLv})
+                else
+                    strLocked = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Tips65"), {cfg.NeedLv, playName})
+                end
+                if needMsg then
+                    Util.ShowMessage(strLocked)
+                end
+            end
+            return false, strLocked
+        end
+
+        -- 冒险等级
+        local mainPlayerBase = GameManager.Instance.M_MainPlayerCtrlBase
+        if mainPlayerBase ~= nil then
+            local RiskInfo = GameManager.Instance.M_MainPlayerCtrlBase.Data.Attrs:GetProtoValue(CS.StarProjectDef.AOIAttrDefine.RiskInfo)
+            if RiskInfo ~= nil then
+                local curRiskLevel = RiskInfo.CurRiskLevel
+                if cfg.NeedAdvLv > curRiskLevel then
+                    if needMsg or needLockedStr then
+                        local cfg = ConfigDataAccessor.AdvGradeExp[cfg.NeedAdvLv]
+
+                        if cfg == nil then
+                            return false, ""
+                        end
+
+                        if playName == "" then
+                            -- Util.ShowMessage("冒险等级达到"..cfg.AdvClass..GetRomaNum(cfg.AdvOrder).."开放");
+                            strLocked = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Tips66"), {cfg.AdvClass .. GetRomaNum(cfg.AdvOrder)})
+                        else
+                            -- Util.ShowMessage("冒险等级达到"..cfg.AdvClass..GetRomaNum(cfg.AdvOrder).."后开放"..playName.."玩法");
+                            strLocked = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Tips67"), {cfg.AdvClass .. GetRomaNum(cfg.AdvOrder), playName})
+                        end
+
+                        if needMsg then
+                            Util.ShowMessage(strLocked)
+                        end
+                    end
+                    return false, strLocked
+                end
+            end
+        end
+
+        -- 任务完成情况
+        if cfg.NeedQuestCom > 0 then
+            if not TaskHelper.IsTaskFinsh(cfg.NeedQuestCom) then
+                if needMsg or needLockedStr then
+                    local task = TaskHelper.GetTaskConfig(cfg.NeedQuestCom)
+                    if task ~= nil then
+                        local taskName = task.Base.TaskName
+                        local taskType = TaskHelper.TaskTypeToName(task.Base.TaskType)
+                        -- Util.ShowMessage("完成"..taskType.."任务“"..taskName.."”后开放");
+                        strLocked = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Tips68"), {taskType, taskName})
+
+                        if needMsg then
+                            Util.ShowMessage(strLocked)
+                        end
+                    end
+                end
+                return false, strLocked
+            end
+        end
+    end
+
+    return true, strLocked
+end
+
+function CheckSysOpen(cfgID, needMsg)
+    local config = ConfigDataAccessor.PlayOpenConditions[cfgID]
+    if config ~= nil then
+        if config.PlayerGuidance ~= 0 then
+            return CheckPlayerGuidanceOpen(config.PlayerGuidance, config.PlayName, needMsg)
+        else
+            return true
+        end
+    end
+
+    return true
+end
+
+-- 通过跳转表枚举来跳转
+function CheckCanSystemJumpById(itemGetID)
+    local cfg = ConfigDataAccessor.SystemJump[itemGetID]
+
+    if cfg == nil then
+        return false
+    end
+
+    -- 判断是否系统开启
+    local sysOpen = cfg.SysOpen
+    if sysOpen > 0 then
+        if not (CheckPlayerGuidanceOpen(sysOpen, "", false)) then
+            -- 不满足开放条件
+            return false
+        end
+    end
+
+    return true
+end
+
+function JumpBySystemJumpById(id, fromModule, fromArgs, itemBaseID, tr)
+    local JumpEnum = ConfigDataAccessor.SystemJump[id].WayString
+
+    JumpBySystemJumpEnum(JumpEnum, fromModule, fromArgs, itemBaseID, tr)
+end
+
+function CheckCanJumpByJumpEnum(JumpEnum)
+    for k, v in pairs(ConfigDataAccessor.SystemJump) do
+        if v.WayString == JumpEnum then
+            -- 判断是否系统开启
+            local sysOpen = v.SysOpen
+            if sysOpen > 0 then
+                if not (CheckPlayerGuidanceOpen(sysOpen, "", true)) then
+                    -- 不满足开放条件
+                    return false
+                end
+            end
+        end
+    end
+
+    return true
+end
+
+-- 系统跳转表跳转
+function JumpBySystemJumpEnum(JumpEnum, fromModule, fromArgs, itemBaseID, tr)
+    --不满足条件
+    if not (CheckCanJumpByJumpEnum(JumpEnum)) then
+        return
+    end
+
+    if JumpEnum == "Buy_Trade" then -- 1001
+        if itemBaseID == nil then
+            itemBaseID = 0
+        end
+
+        local aimId = itemBaseID
+        if itemBaseID > 0 then
+            local Dealid = ConfigDataAccessor.Item[itemBaseID].Dealid
+            if Dealid > 0 then
+                aimId = Dealid
+            end
+        end
+
+        -- "系统-交易行购买"
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        if fromModule ~= nil then
+            ModuleManager.Instance:SendMessage_Stack_Internal(fromModule, ModuleDef.RechargeModule, fromArgs, {nil, nil, aimId}, "Show")
+        else
+            LuaModuleDispatcher:SendMessage(ModuleDef.RechargeModule, "OnOpen", {nil, nil, aimId})
+        end
+    elseif JumpEnum == "Sys_Power" then -- 1020
+        -- 前往战力
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        LuaModuleDispatcher:SendMessage(ModuleDef.FightPowerModule, "OnOpen", {1})
+    elseif JumpEnum == "Sys_Activity_PartnerTarget" then -- 1020
+        -- 前往伙伴目标
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        LuaModuleDispatcher:SendMessage(ModuleDef.ActivityModule, "OnOpenPartnerTargetWindow", {})
+    elseif JumpEnum == "Sys_Bag_All" then -- 1014
+        -- "背包全部"
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        LuaModuleDispatcher:SendMessage(ModuleDef.BagModule, "OnOpenBag", {})
+        LuaModuleDispatcher:SendMessage(ModuleDef.BagModule, "OnOpenBagTag", {1})
+    elseif JumpEnum == "Sys_Bag_Item" then -- 1015
+        -- "背包道具"
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        LuaModuleDispatcher:SendMessage(ModuleDef.BagModule, "OnOpenBag", {})
+        LuaModuleDispatcher:SendMessage(ModuleDef.BagModule, "OnOpenBagTag", {2})
+    elseif JumpEnum == "Sys_Bag_Equip" then -- 1016
+        -- "背包装备"
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        LuaModuleDispatcher:SendMessage(ModuleDef.BagModule, "OnOpenBag", {})
+        LuaModuleDispatcher:SendMessage(ModuleDef.BagModule, "OnOpenBagTag", {3})
+    elseif JumpEnum == "Sys_Bag_Partner" then -- 1017
+        -- "背包伙伴"
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        LuaModuleDispatcher:SendMessage(ModuleDef.BagModule, "OnOpenBag", {})
+        LuaModuleDispatcher:SendMessage(ModuleDef.BagModule, "OnOpenBagTag", {4})
+    elseif JumpEnum == "Sys_Bag_Amulet" then -- 1018
+        -- "背包纹章"
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        LuaModuleDispatcher:SendMessage(ModuleDef.BagModule, "OnOpenBag", {})
+        LuaModuleDispatcher:SendMessage(ModuleDef.BagModule, "OnOpenBagTag", {5})
+    elseif JumpEnum == "Sys_Bag_Other" then -- 1019
+        -- "背包其他"
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        LuaModuleDispatcher:SendMessage(ModuleDef.BagModule, "OnOpenBag", {})
+        LuaModuleDispatcher:SendMessage(ModuleDef.BagModule, "OnOpenBagTag", {6})
+    elseif JumpEnum == "Sys_Talk" then
+        -- 聊天
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        LuaModuleDispatcher:SendMessage(ModuleDef.ChatModule, "OnOpenChatWindowShow", {true})
+    elseif JumpEnum == "Sys_Friends" then
+        -- 好友
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnOpenFriendWindow", {})
+    elseif JumpEnum == "Sys_WorldLine" then
+        -- 梦之镜
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        LuaModuleDispatcher:SendMessage(ModuleDef.WorldLineModule, "OnOpenWorldLine", {})
+    elseif JumpEnum == "Sys_ATTTree" then
+        -- 被动天赋（星灵加点）
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        LuaModuleDispatcher:SendMessage(
+            ModuleDef.TalentModule,
+            "OnOpenTalentWindow",
+            function()
+            end
+        )
+    elseif JumpEnum == "Sys_Skill" then
+        -- 技能升级
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        LuaModuleDispatcher:SendMessage(
+            ModuleDef.SkillWindowModule,
+            "OnOpenSkill",
+            {
+                -- 标识是否是从外部进入
+                isEnter = true
+            }
+        )
+    elseif JumpEnum == "Sys_AdventureLV" then
+        -- 冒险等级
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        LuaModuleDispatcher:SendMessage(ModuleDef.AdventureLevelModule, "OnOpenAdventureLevel", {})
+    elseif JumpEnum == "Buy_Trade_GoldToBindDiamond" then
+        -- "系统-银行兑换 钻石"
+        LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips", {})
+        LuaModuleDispatcher:SendMessage(ModuleDef.BankModule, "OnOpenBankWindow", {1})
+    elseif JumpEnum == "Buy_Trade_DiamondToGold" then
+        -- "系统-银行兑换 金币"
+        LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips", {})
+        LuaModuleDispatcher:SendMessage(ModuleDef.BankModule, "OnOpenBankWindow", {2})
+    elseif JumpEnum == "Sys_WarSkill" then
+        --跳转到战技
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        LuaModuleDispatcher:SendMessage(ModuleDef.InscriptionModule, "OnOpenInscription", {})
+    elseif JumpEnum == "Sys_LifeSkill_Mine" then -- 1006
+        if itemBaseID == nil then
+            itemBaseID = 0
+        end
+
+        -- "系统-采集获取"
+        if itemBaseID == 0 then
+            UIManager.Instance:CloseAllLoadedWindowNWidget()
+            if fromModule ~= nil then
+                ModuleManager.Instance:SendMessage_Stack_Internal(fromModule, ModuleDef.LivingSkillsModule, fromArgs, {0, 1, 1}, "Show")
+            else
+                LuaModuleDispatcher:SendMessage(ModuleDef.LivingSkillsModule, "OpenLivingSkillsWindow", {0, 1, 1})
+            end
+        else
+            local lifeSkillMineId = 0
+            local jobID = 0
+            local skillLv = 0
+            local cfgs = ConfigDataAccessor.LifeSkillMineList
+            for k, v in pairs(cfgs) do
+                if v.BasicOutput == itemBaseID or v.RareOutput == itemBaseID then
+                    jobID = v.SkillID
+                    lifeSkillMineId = v.ID
+                    skillLv = v.Level
+                    break
+                end
+            end
+
+            local lifeSkillMgr = BusinessManager.Instance.M_LifeSkillUserDataMDMgr
+            local jobInfo = lifeSkillMgr:GetData(jobID)
+
+            local isUnlock = jobInfo.SkillLevel >= skillLv
+
+            if not (isUnlock) then
+                Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_229"))
+            else
+                UIManager.Instance:CloseAllLoadedWindowNWidget()
+                if fromModule ~= nil then
+                    ModuleManager.Instance:SendMessage_Stack_Internal(fromModule, ModuleDef.LivingSkillsModule, fromArgs, {lifeSkillMineId, jobID, 1}, "Show")
+                else
+                    LuaModuleDispatcher:SendMessage(ModuleDef.LivingSkillsModule, "OpenLivingSkillsWindow", {lifeSkillMineId, jobID, 1})
+                end
+            end
+        end
+    elseif JumpEnum == "Sys_LifeSkill_Create" then -- 1007
+        if itemBaseID == nil then
+            itemBaseID = 0
+        end
+
+        local aimId = itemBaseID
+        if itemBaseID > 0 then
+            local Dealid = ConfigDataAccessor.Item[itemBaseID].Dealid
+            if Dealid > 0 then
+                aimId = Dealid
+            end
+        end
+
+        local aimId2 = itemBaseID
+        for k, v in pairs(ConfigDataAccessor.Item) do
+            if v.Dealid == itemBaseID then
+                aimId2 = k
+                break
+            end
+        end
+
+        -- "系统-制造获取"
+
+        if itemBaseID == 0 then
+            UIManager.Instance:CloseAllLoadedWindowNWidget()
+            if fromModule ~= nil then
+                ModuleManager.Instance:SendMessage_Stack_Internal(fromModule, ModuleDef.LivingSkillsModule, fromArgs, {0, 1, 2}, "Show")
+            else
+                LuaModuleDispatcher:SendMessage(ModuleDef.LivingSkillsModule, "OpenLivingSkillsWindow", {0, 1, 2})
+            end
+        else
+            local lifeSkillCreateId = 0
+            local jobID = 0
+            local isReciple = false
+            --是否是配方
+            local cfgs = ConfigDataAccessor.LifeSkillCreateList
+            for k, v in pairs(cfgs) do
+                if
+                    v.BasicOutput == itemBaseID or v.UnlockItem == itemBaseID or v.RareOutput == itemBaseID or v.BasicOutput == aimId or v.RareOutput == aimId or v.BasicOutput == aimId2 or
+                        v.RareOutput == aimId2
+                 then
+                    jobID = v.SkillID
+                    lifeSkillCreateId = v.ID
+                    if v.UnlockItem == itemBaseID then
+                        isReciple = true
+                    end
+                    break
+                end
+            end
+
+            local isUnlock = CheckIsUnlockLifeSkillCreate(lifeSkillCreateId)
+            local isMarchLevel = true
+            if isReciple then
+                isMarchLevel = CheckIsUnlockLifeSkillLevel(lifeSkillCreateId)
+                isUnlock = true
+            end
+
+            if not (isMarchLevel) then
+                Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_290"))
+            else
+                if not (isUnlock) then
+                    Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_230"))
+                else
+                    UIManager.Instance:CloseAllLoadedWindowNWidget()
+                    if fromModule ~= nil then
+                        ModuleManager.Instance:SendMessage_Stack_Internal(fromModule, ModuleDef.LivingSkillsModule, fromArgs, {lifeSkillCreateId, jobID, 2}, "Show")
+                    else
+                        LuaModuleDispatcher:SendMessage(ModuleDef.LivingSkillsModule, "OpenLivingSkillsWindow", {lifeSkillCreateId, jobID, 2})
+                    end
+                end
+            end
+        end
+    elseif JumpEnum == "Buy_Shop_Diamond" then -- 3001
+        if itemBaseID == nil then
+            itemBaseID = 0
+        end
+
+        -- "商店-星海珍馈"
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        if fromModule ~= nil then
+            ModuleManager.Instance:SendMessage_Stack_Internal(fromModule, ModuleDef.ShopModule, fromArgs, {1, itemBaseID}, "Show")
+        else
+            LuaModuleDispatcher:SendMessage(ModuleDef.ShopModule, "OnOpenShop", {1, itemBaseID})
+        end
+    elseif JumpEnum == "Buy_Shop_BindDiamond" then -- 3002
+        if itemBaseID == nil then
+            itemBaseID = 0
+        end
+
+        -- "商店-星海拾遗"
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        if fromModule ~= nil then
+            ModuleManager.Instance:SendMessage_Stack_Internal(fromModule, ModuleDef.ShopModule, fromArgs, {2, itemBaseID}, "Show")
+        else
+            LuaModuleDispatcher:SendMessage(ModuleDef.ShopModule, "OnOpenShop", {2, itemBaseID})
+        end
+    elseif JumpEnum == "Buy_Shop_Sliver" then -- 3003
+        if itemBaseID == nil then
+            itemBaseID = 0
+        end
+
+        -- "商店-肖罗德小店"
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        if fromModule ~= nil then
+            ModuleManager.Instance:SendMessage_Stack_Internal(fromModule, ModuleDef.ShopModule, fromArgs, {3, itemBaseID}, "Show")
+        else
+            LuaModuleDispatcher:SendMessage(ModuleDef.ShopModule, "OnOpenShop", {3, itemBaseID})
+        end
+    elseif JumpEnum == "Buy_Shop_Guild" then -- 3004
+        if itemBaseID == nil then
+            itemBaseID = 0
+        end
+
+        --判断是否有公会
+        if BusinessManager.Instance:GetGuildID() > 0 then
+            -- "商店-协会贸易站"
+            UIManager.Instance:CloseAllLoadedWindowNWidget()
+            if fromModule ~= nil then
+                ModuleManager.Instance:SendMessage_Stack_Internal(fromModule, ModuleDef.ShopModule, fromArgs, {4, itemBaseID}, "Show")
+            else
+                LuaModuleDispatcher:SendMessage(ModuleDef.ShopModule, "OnOpenShop", {4, itemBaseID})
+            end
+        else
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_262"))
+        end
+    elseif JumpEnum == "Buy_Shop_Arena" then -- 3005
+        if itemBaseID == nil then
+            itemBaseID = 0
+        end
+
+        -- "商店-角斗士商铺"
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        if fromModule ~= nil then
+            ModuleManager.Instance:SendMessage_Stack_Internal(fromModule, ModuleDef.ShopModule, fromArgs, {5, itemBaseID}, "Show")
+        else
+            LuaModuleDispatcher:SendMessage(ModuleDef.ShopModule, "OnOpenShop", {5, itemBaseID})
+        end
+    elseif JumpEnum == "Buy_Shop_Partner" then -- 3006
+        if itemBaseID == nil then
+            itemBaseID = 0
+        end
+
+        -- "商店-伙伴商店"
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        if fromModule ~= nil then
+            ModuleManager.Instance:SendMessage_Stack_Internal(fromModule, ModuleDef.ShopModule, fromArgs, {7, itemBaseID}, "Show")
+        else
+            LuaModuleDispatcher:SendMessage(ModuleDef.ShopModule, "OnOpenShop", {7, itemBaseID})
+        end
+    elseif JumpEnum == "Sys_Equip_Upgrade" then
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+
+        -- 打开装备强化UI
+        if fromModule ~= nil then
+            ModuleManager.Instance:SendMessage_Stack_Internal(fromModule, ModuleDef.EquipUpgradeModule, fromArgs, {1, 0}, "Show")
+        else
+            LuaModuleDispatcher:SendMessage(ModuleDef.EquipUpgradeModule, "OnOpenEquipUpgrade", {1, 0})
+        end
+    elseif JumpEnum == "Sys_EquipRecast" then
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+
+        -- 打开装备重构UI
+        if fromModule ~= nil then
+            ModuleManager.Instance:SendMessage_Stack_Internal(fromModule, ModuleDef.EquipUpgradeModule, fromArgs, {3, 0}, "Show")
+        else
+            LuaModuleDispatcher:SendMessage(ModuleDef.EquipUpgradeModule, "OnOpenEquipUpgrade", {3, 0})
+        end
+    elseif JumpEnum == "Play_Daily_HP" then -- 2099
+        -- "常驻玩法主页"
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        if fromModule ~= nil then
+            ModuleManager.Instance:SendMessage_Stack_Internal(fromModule, ModuleDef.GamePlayChoiceModule, fromArgs, {}, "Show")
+        else
+            LuaModuleDispatcher:SendMessage(ModuleDef.GamePlayChoiceModule, "OnOpenGamePlayChoice", {})
+        end
+    elseif JumpEnum == "Play_Weekly_HP" then -- 2199
+        -- "限时玩法主页"
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        if fromModule ~= nil then
+            ModuleManager.Instance:SendMessage_Stack_Internal(fromModule, ModuleDef.EventModule, fromArgs, {}, "Show")
+        else
+            LuaModuleDispatcher:SendMessage(ModuleDef.EventModule, "OnOpenEvent", {})
+        end
+    elseif JumpEnum == "Buy_Token_HP" then -- 3098
+        -- "商店主页"
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        if fromModule ~= nil then
+            ModuleManager.Instance:SendMessage_Stack_Internal(fromModule, ModuleDef.ShopModule, fromArgs, {1}, "Show")
+        else
+            LuaModuleDispatcher:SendMessage(ModuleDef.ShopModule, "OnOpenShop", {1})
+        end
+    elseif JumpEnum == "Buy_RealMoney_HP" then -- 3099
+        LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips", {})
+        -- "商业化主页"
+        if GameManager.Instance.FirstPaySignInfo ~= nil then
+            local isGetAllFirstChargeItem = GameManager.Instance.FirstPaySignInfo.GetFirstPayAwardNum >= 3
+
+            if isGetAllFirstChargeItem then
+                -- UIManager.Instance.OpenWidgetAsync(CS.StarProjectDef.UIDef.MoonCardWidget, nil, false, 0, nil, MainPageCommond.HideNone, false, false);
+                LuaModuleDispatcher:SendMessage(ModuleDef.CommercializationModule, "OnOpenCommercialization", {2})
+            else
+                -- UIManager.Instance.OpenWidgetAsync(CS.StarProjectDef.UIDef.FirstPayWidget, nil, false, 0, nil, MainPageCommond.HideNone, false, false);
+                LuaModuleDispatcher:SendMessage(ModuleDef.CommercializationModule, "OnOpenCommercialization", {1})
+            end
+        else
+            -- UIManager.Instance:OpenWidgetAsync(CS.StarProjectDef.UIDef.MoonCardWidget, nil, false, 0, nil, MainPageCommond.HideNone, false, false);
+            LuaModuleDispatcher:SendMessage(ModuleDef.CommercializationModule, "OnOpenCommercialization", {2})
+        end
+    elseif JumpEnum == "Sys_Equip_Refine" then
+        -- 打开装备精炼UI
+        if BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.Equip_Refine) then
+            UIManager.Instance:CloseAllLoadedWindowNWidget()
+            if fromModule ~= nil then
+                ModuleManager.Instance:SendMessage_Stack_Internal(fromModule, ModuleDef.EquipUpgradeModule, fromArgs, {2, 0}, "Show")
+            else
+                LuaModuleDispatcher:SendMessage(ModuleDef.EquipUpgradeModule, "OnOpenEquipUpgrade", {2, 0})
+            end
+        else
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_70"))
+        end
+    elseif JumpEnum == "Sys_Partner_Ablution" then
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        -- 打开伙伴洗礼
+        LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "ItemUseJump", {2})
+    elseif JumpEnum == "Sys_Partner_Common" then
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        -- 打开伙伴升级
+        LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "ItemUseJump", {1})
+    elseif JumpEnum == "Sys_Partner_StarUP" then
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        --伙伴碎片id
+        local partnerID = 0
+        if itemBaseID ~= nil and itemBaseID > 0 then
+            local partnerMgr = BusinessManager.Instance:GetPartnerMDMgr()
+            partnerID = partnerMgr:GetPartnerIDByUpStarItem(itemBaseID)
+        end
+        -- 打开伙伴觉醒
+        LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "ItemUseJump", {3, partnerID})
+    elseif JumpEnum == "Sys_Amulet_Emblem" then
+        -- 打开星次石镶嵌
+        if BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.Emblem) then
+            UIManager.Instance:CloseAllLoadedWindowNWidget()
+            LuaModuleDispatcher:SendMessage(ModuleDef.AmuletModule, "OnOpenAmulet", {2, 0, nil})
+        else
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_70"))
+        end
+    elseif JumpEnum == "Sys_Medicine" then
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        -- 跳转到药品
+        LuaModuleDispatcher:SendMessage(ModuleDef.MedicineModule, "OnOpenMedicine", {nil, itemBaseID})
+    elseif JumpEnum == "Sys_Amulet_Polish" then
+        -- 纹章铭刻
+        if BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.Amulet_Common) then
+            UIManager.Instance:CloseAllLoadedWindowNWidget()
+            LuaModuleDispatcher:SendMessage(ModuleDef.AmuletModule, "OnOpenAmulet", {3, 0, nil})
+        else
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_70"))
+        end
+    elseif JumpEnum == "Sys_Amulet_Extract" then
+        -- 纹章定轨
+        if BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.Amulet_Extract) then
+            UIManager.Instance:CloseAllLoadedWindowNWidget()
+            LuaModuleDispatcher:SendMessage(ModuleDef.AmuletModule, "OnOpenAmulet", {4, 0, nil})
+        else
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_70"))
+        end
+    elseif JumpEnum == "Sys_Amulet_RandHeraldry" then
+        -- 纹章重铸
+        if BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.Emblem) then
+            UIManager.Instance:CloseAllLoadedWindowNWidget()
+            LuaModuleDispatcher:SendMessage(ModuleDef.AmuletModule, "OnOpenAmulet", {2, 0, nil})
+        else
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_70"))
+        end
+    elseif JumpEnum == "Sys_Etch" then
+        -- 技能书升级
+        if BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.Etch) then
+            UIManager.Instance:CloseAllLoadedWindowNWidget()
+            if itemBaseID == nil then
+                itemBaseID = 0
+            end
+            local EtchId = 0
+            if itemBaseID > 0 then
+                local isFind = false
+                for k, v in pairs(ConfigDataAccessor.Etch) do
+                    if not (isFind) then
+                        for i = 1, #v.ItemID do
+                            if v.ItemID[i] == itemBaseID then
+                                isFind = true
+                                EtchId = k
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+
+            LuaModuleDispatcher:SendMessage(ModuleDef.InscriptionModule, "OnOpenInscription", {2, EtchId})
+        else
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_70"))
+        end
+    elseif JumpEnum == "Sys_Gacha" then
+        -- 抽卡券
+        if BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.Gacha) then
+            UIManager.Instance:CloseAllLoadedWindowNWidget()
+            if fromModule ~= nil then
+                ModuleManager.Instance:SendMessage_Stack_Internal(fromModule, ModuleDef.DrawCardModule, fromArgs, {}, "Show")
+            else
+                LuaModuleDispatcher:SendMessage(ModuleDef.DrawCardModule, "OnOpenDrawCard", {})
+            end
+        else
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_70"))
+        end
+    elseif JumpEnum == "Sys_Item_Resolve" then
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+
+        -- 分解
+        LuaModuleDispatcher:SendMessage(ModuleDef.ItemResolveModule, "OnOpenItemResolve", {})
+    elseif JumpEnum == "Play_Day_PersonSecret" then -- 2001
+        -- "常驻玩法-拟态梦境"
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        if fromModule ~= nil then
+            ModuleManager.Instance:SendMessage_Stack_Internal(fromModule, ModuleDef.GamePlayChoiceModule, fromArgs, {3}, "Show")
+        else
+            LuaModuleDispatcher:SendMessage(ModuleDef.GamePlayChoiceModule, "OnOpenGamePlayChoice", {3})
+        end
+    elseif JumpEnum == "Play_Day_TeamDailyCopy" then -- 2002
+        -- "常驻玩法-蚀梦之影"
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        if fromModule ~= nil then
+            ModuleManager.Instance:SendMessage_Stack_Internal(fromModule, ModuleDef.GamePlayChoiceModule, fromArgs, {4}, "Show")
+        else
+            LuaModuleDispatcher:SendMessage(ModuleDef.GamePlayChoiceModule, "OnOpenGamePlayChoice", {4})
+        end
+    elseif JumpEnum == "Play_Day_Arena" then -- 2003
+        -- "常驻玩法-胜者为王"
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        if fromModule ~= nil then
+            ModuleManager.Instance:SendMessage_Stack_Internal(fromModule, ModuleDef.GamePlayChoiceModule, fromArgs, {7}, "Show")
+        else
+            LuaModuleDispatcher:SendMessage(ModuleDef.GamePlayChoiceModule, "OnOpenGamePlayChoice", {7})
+        end
+    elseif JumpEnum == "Play_Day_RingTask" then -- 2004
+        -- "常驻玩法-研究手册"
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        if fromModule ~= nil then
+            ModuleManager.Instance:SendMessage_Stack_Internal(fromModule, ModuleDef.GamePlayChoiceModule, fromArgs, {2}, "Show")
+        else
+            LuaModuleDispatcher:SendMessage(ModuleDef.GamePlayChoiceModule, "OnOpenGamePlayChoice", {2})
+        end
+    elseif JumpEnum == "Play_Day_DailyCopy" then -- 2005
+        -- "常驻玩法-时序残响"
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        if fromModule ~= nil then
+            ModuleManager.Instance:SendMessage_Stack_Internal(fromModule, ModuleDef.GamePlayChoiceModule, fromArgs, {1}, "Show")
+        else
+            LuaModuleDispatcher:SendMessage(ModuleDef.GamePlayChoiceModule, "OnOpenGamePlayChoice", {1})
+        end
+    elseif JumpEnum == "Play_Day_GuildDonate" then -- 2006
+        -- "常驻玩法-协会募集"
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        if fromModule ~= nil then
+            ModuleManager.Instance:SendMessage_Stack_Internal(fromModule, ModuleDef.GamePlayChoiceModule, fromArgs, {6}, "Show")
+        else
+            LuaModuleDispatcher:SendMessage(ModuleDef.GamePlayChoiceModule, "OnOpenGamePlayChoice", {6})
+        end
+    elseif JumpEnum == "Play_Day_PersonalTower" then -- 2007
+        -- "常驻玩法-空想之环"
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        if fromModule ~= nil then
+            ModuleManager.Instance:SendMessage_Stack_Internal(fromModule, ModuleDef.GamePlayChoiceModule, fromArgs, {8}, "Show")
+        else
+            LuaModuleDispatcher:SendMessage(ModuleDef.GamePlayChoiceModule, "OnOpenGamePlayChoice", {8})
+        end
+    elseif JumpEnum == "Play_Week_PlayModeGVE" then -- 2101
+        if not CheckRecyclePlayIsOpen(1) then
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_77"))
+            return
+        end
+
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        -- "限时玩法-梦境入侵 --GVE"
+        if fromModule ~= nil then
+            ModuleManager.Instance:SendMessage_Stack_Internal(fromModule, ModuleDef.EventModule, fromArgs, {1}, "Show")
+        else
+            LuaModuleDispatcher:SendMessage(ModuleDef.EventModule, "OnOpenEvent", {1})
+        end
+    elseif JumpEnum == "Play_Week_PartyTime" then
+        if not CheckRecyclePlayIsOpen(5) then
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_77"))
+            return
+        end
+
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        -- "限时玩法-派对时刻 --"
+        if fromModule ~= nil then
+            ModuleManager.Instance:SendMessage_Stack_Internal(fromModule, ModuleDef.EventModule, fromArgs, {5}, "Show")
+        else
+            LuaModuleDispatcher:SendMessage(ModuleDef.EventModule, "OnOpenEvent", {5})
+        end
+    elseif JumpEnum == "Play_Week_GuildNoonActiv" then -- 2102
+        if not CheckRecyclePlayIsOpen(2) then
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_77"))
+            return
+        end
+
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        -- "限时玩法-无畏之战 --GNG"
+        if fromModule ~= nil then
+            ModuleManager.Instance:SendMessage_Stack_Internal(fromModule, ModuleDef.EventModule, fromArgs, {2}, "Show")
+        else
+            LuaModuleDispatcher:SendMessage(ModuleDef.EventModule, "OnOpenEvent", {2})
+        end
+    elseif JumpEnum == "Play_Week_BattleField" then -- 2103
+        if not CheckRecyclePlayIsOpen(3) then
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_77"))
+            return
+        end
+
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        -- "限时玩法-风暴对抗 --PVP"
+        if fromModule ~= nil then
+            ModuleManager.Instance:SendMessage_Stack_Internal(fromModule, ModuleDef.EventModule, fromArgs, {3}, "Show")
+        else
+            LuaModuleDispatcher:SendMessage(ModuleDef.EventModule, "OnOpenEvent", {3})
+        end
+    elseif JumpEnum == "Play_Week_TeamWanted" then -- 2104
+        -- "限时玩法-侵蚀裂隙"
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        if fromModule ~= nil then
+            ModuleManager.Instance:SendMessage_Stack_Internal(fromModule, ModuleDef.GamePlayChoiceModule, fromArgs, {5}, "Show")
+        else
+            LuaModuleDispatcher:SendMessage(ModuleDef.GamePlayChoiceModule, "OnOpenGamePlayChoice", {5})
+        end
+    elseif JumpEnum == "Play_Week_FieldBoss" then -- 2105
+        if not CheckRecyclePlayIsOpen(4) then
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_77"))
+            return
+        end
+
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        -- "限时玩法-协会讨伐 --Wild"
+        if fromModule ~= nil then
+            ModuleManager.Instance:SendMessage_Stack_Internal(fromModule, ModuleDef.EventModule, fromArgs, {4}, "Show")
+        else
+            LuaModuleDispatcher:SendMessage(ModuleDef.EventModule, "OnOpenEvent", {4})
+        end
+    elseif JumpEnum == "Sys_Partner_Equip" then
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        -- 背包道具点击：前往伙伴装备页面
+        LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "ItemUseJump", {4})
+    elseif JumpEnum == "Play_Activ" then
+        -- 跳转日常活跃度页
+        -- 先进常驻玩法主页 再进日常活跃度
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        if fromModule ~= nil then
+            ModuleManager.Instance:SendMessage_Stack_Internal(fromModule, ModuleDef.GamePlayChoiceModule, fromArgs, {999}, "Show")
+        else
+            LuaModuleDispatcher:SendMessage(ModuleDef.GamePlayChoiceModule, "OnOpenGamePlayChoice", {999})
+        end
+    elseif JumpEnum == "Play_Day_RingTaskUI" then
+        -- 直接打开环任务
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        local allRingTasks = BusinessManager.Instance:GetAllRingTaskIDs()
+        -- 领取了第一个环任务
+        if allRingTasks ~= nil and allRingTasks.Count > 0 then
+            local isContain = TaskHelper.ContainTask(allRingTasks[0])
+            local isFinish = TaskHelper.IsTaskFinsh(allRingTasks[0])
+
+            if (TaskHelper.ContainTask(allRingTasks[0]) or TaskHelper.IsTaskFinsh(allRingTasks[0])) then
+                -- 打开UI
+                --UIManager.Instance:OpenWindowAsync("RingTask/RingTaskWindow", nil, nil)
+                LuaModuleDispatcher:SendMessage(ModuleDef.RingTaskModule, "OnCkeckAndOpenRingTaskWindow", {})
+            else
+                --LuaModuleDispatcher:SendMessage(ModuleDef.SecretAreaModule, "OpenSecretAreaOpenTipsWidget", {});
+                local config = ConfigDataAccessor.PlayOpenConditions[5]
+                if not (CheckSysOpen(5, true)) then
+                    return
+                end
+
+                local mapID = config.MapID
+                local npcID = config.NPCID
+                local mete = GameManager.Instance:IsConditionMete(config.IndexChangeCondition)
+                if mete then
+                    mapID = config.MapID2
+                    npcID = config.NPCID2
+                end
+
+                TaskHelper.FindPathByNpc(
+                    mapID,
+                    npcID,
+                    1,
+                    function(result)
+                        if result then
+                            LuaModuleDispatcher:SendMessage(ModuleDef.RingTaskModule, "OnCkeckAndOpenRingTaskWindow", {})
+                        end
+                    end
+                )
+            end
+        else
+            local config = ConfigDataAccessor.PlayOpenConditions[5]
+            if not (CheckSysOpen(5, true)) then
+                return
+            end
+        end
+    elseif JumpEnum == "Sys_Open_ItemTips" then
+        if itemBaseID == nil then
+            itemBaseID = 0
+        end
+        -- 打开ItemTips
+        LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", {itemBaseID, false, 0, tr, 0})
+    elseif JumpEnum == "Sys_Activity_BeginnerTarget" then
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        LuaModuleDispatcher:SendMessage(ModuleDef.ActivityModule, "OnShowSignInWindow", {TabIndex = 6})
+    elseif JumpEnum == "Sys_Guild" then
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        LuaModuleDispatcher:SendMessage(ModuleDef.GuildModule, "OnOpenGuild", {})
+    elseif JumpEnum == "Sys_Task" then
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        UIManager.Instance:OpenWindow("TaskWindow/Prefab/TaskWindow", TaskHelper.GetAllWindow(true), CS.StarProjectDef.MainPageCommond.HideBoth)
+    elseif JumpEnum == "Sys_Auction" then
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        LuaModuleDispatcher:SendMessage(ModuleDef.RechargeModule, "OnOpen", {CS.ProtoMsg.AuctionType.AtDefault, AuctionOtherSelectType.UnionWarehouse, nil})
+    elseif JumpEnum == "Sys_TransferJob" then
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        UIManager.Instance:OpenWindowAsync(UIDef.TransJobWindow, nil, nil, CS.StarProjectDef.MainPageCommond.HideBoth, false, true)
+    elseif JumpEnum == "Sys_Partner_Fight" then
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        UIManager.Instance:OpenWindowAsync("Partner/Prefab/PartnerWindow", nil, nil, CS.StarProjectDef.MainPageCommond.HideBoth, false, true)
+    end
+end
+
+-- 通过跳转表枚举来跳转
+function JumpByJumpType(itemGetID, itemBaseID, fromModule, fromArgs, tr)
+    local cfg = ConfigDataAccessor.ItemGetJump[itemGetID]
+
+    if cfg == nil then
+        return
+    end
+
+    -- 判断是否系统开启
+    local sysOpen = cfg.SysOpen
+    if sysOpen > 0 then
+        if not (CheckPlayerGuidanceOpen(sysOpen, "", true)) then
+            -- 不满足开放条件
+            return
+        end
+    end
+
+    -- 跳转枚举
+    local enumName = cfg.WayString
+
+    if enumName == "Buy_Trade" then -- 1001
+        -- "系统-交易行购买"
+
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs, itemBaseID)
+    elseif enumName == "Sys_Activity_PartnerTarget" then -- 1014
+        -- "伙伴目标"
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs)
+    elseif enumName == "Sys_Bag_All" then -- 1014
+        -- "背包全部"
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs)
+    elseif enumName == "Sys_Power" then -- 1020
+        -- 前往战力
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs)
+    elseif enumName == "Sys_Bag_Item" then -- 1015
+        -- "背包道具"
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs)
+    elseif enumName == "Sys_Bag_Equip" then -- 1016
+        -- "背包装备"
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs)
+    elseif enumName == "Sys_EquipRecast" then
+        -- "装备重构"
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs)
+    elseif enumName == "Sys_Bag_Partner" then -- 1017
+        -- "背包伙伴"
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs)
+    elseif enumName == "Sys_Bag_Amulet" then -- 1018
+        -- "背包纹章"
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs)
+    elseif enumName == "Sys_Bag_Other" then -- 1019
+        -- "背包其他"
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs)
+    elseif enumName == "Sys_Gacha" then -- 1002
+        -- "系统-启梦获取"
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs)
+        LuaModuleDispatcher:SendMessage(ModuleDef.DrawCardModule, "CloseTenTimesWindow", {})
+        MutiScenesMergeManager.Instance:UnloadScene()
+    elseif enumName == "Sys_Item_Resolve" then
+        -- 分解
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs)
+    elseif enumName == "Sys_WorldLine" then
+        -- 梦之镜
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs)
+    elseif enumName == "Sys_Talk" then
+        -- 聊天
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs)
+    elseif enumName == "Sys_Friends" then
+        -- 好友
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs)
+    elseif enumName == "Buy_Trade_GoldToBindDiamond" then -- 1003
+        -- "系统-银行兑换 钻石"
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs)
+    elseif enumName == "Buy_Trade_DiamondToGold" then -- 1004
+        -- "系统-银行兑换 金币"
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs)
+    elseif enumName == "Play_Day_RingTaskUI" then
+        --直接跳转环任务
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs)
+    elseif enumName == "Sys_ItemCompose" then -- 1005
+        local cfg2 = ConfigDataAccessor.Item[itemBaseID]
+
+        -- 判断藏宝图
+        if cfg2.ItemType == 20 then
+            UIManager.Instance:CloseAllLoadedWindowNWidget()
+
+            ---藏宝图碎片
+            LuaModuleDispatcher:SendMessage(ModuleDef.TreasureModule, "OnOpenTreasureCrating")
+        else
+            -- "系统-合成获取"
+            LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips", {})
+            local data = {}
+            data.EntityID = 0
+            data.AimBaseID = itemBaseID
+            UIManager.Instance:OpenWidget("Common/ItemCombineWidget", false, data, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, false)
+        end
+    elseif enumName == "Sys_LifeSkill_Mine" then -- 1006
+        -- "系统-采集获取"
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs, itemBaseID)
+    elseif enumName == "Sys_LifeSkill_Create" then -- 1007
+        -- "系统-制造获取"
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs, itemBaseID)
+    elseif enumName == "Buy_Shop_Diamond" then -- 3001
+        -- "商店-星海珍馈"
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs, itemBaseID)
+    elseif enumName == "Buy_Shop_BindDiamond" then -- 3002
+        -- "商店-星海拾遗"
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs, itemBaseID)
+    elseif enumName == "Buy_Shop_Sliver" then -- 3003
+        -- "商店-肖罗德小店"
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs, itemBaseID)
+    elseif enumName == "Buy_Shop_Guild" then -- 3004
+        -- "商店-协会贸易站"
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs, itemBaseID)
+    elseif enumName == "Buy_Shop_Arena" then -- 3005
+        -- "商店-角斗士商铺"
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs, itemBaseID)
+    elseif enumName == "Buy_Shop_Partner" then -- 3006
+        -- "商店-伙伴商店"
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs, itemBaseID)
+    elseif enumName == "Play_Daily_HP" then -- 2099
+        -- "常驻玩法主页"
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs)
+    elseif enumName == "Play_Weekly_HP" then -- 2199
+        -- "限时玩法主页"
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs)
+    elseif enumName == "Buy_Token_HP" then -- 3098
+        -- "商店主页"
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs)
+    elseif enumName == "Buy_RealMoney_HP" then -- 3099
+        -- "商业化主页"
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs)
+    elseif enumName == "Play_Day_PersonSecret" then -- 2001
+        -- "常驻玩法-拟态梦境"
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs)
+    elseif enumName == "Play_Day_TeamDailyCopy" then -- 2002
+        -- "常驻玩法-蚀梦之影"
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs)
+    elseif enumName == "Play_Day_Arena" then -- 2003
+        -- "常驻玩法-胜者为王"
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs)
+    elseif enumName == "Play_Day_RingTask" then -- 2004
+        -- "常驻玩法-研究手册"
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs)
+    elseif enumName == "Play_Day_DailyCopy" then -- 2005
+        -- "常驻玩法-时序残响"
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs)
+    elseif enumName == "Play_Day_GuildDonate" then -- 2006
+        -- "常驻玩法-协会募集"
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs)
+    elseif enumName == "Play_Day_PersonalTower" then -- 2007
+        -- "常驻玩法-空想之环"
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs)
+    elseif enumName == "Play_Week_PlayModeGVE" then -- 2101
+        -- "限时玩法-梦境入侵 --GVE"
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs)
+    elseif enumName == "Play_Week_GuildNoonActiv" then -- 2102
+        -- "限时玩法-无畏之战 --GNG"
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs)
+    elseif enumName == "Play_Week_BattleField" then -- 2103
+        -- "限时玩法-风暴对抗 --PVP"
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs)
+    elseif enumName == "Play_Week_TeamWanted" then -- 2104
+        -- "限时玩法-侵蚀裂隙"
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs)
+    elseif enumName == "Play_Week_FieldBoss" then -- 2105
+        -- "限时玩法-协会讨伐 --Wild"
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs)
+    elseif enumName == "Play_Activ" then -- 2098
+        -- "日常活跃度"
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs)
+    elseif enumName == "Sys_Open_ItemTips" then -- 4000
+        -- "日常活跃度"
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs, tr)
+    elseif enumName == "Sys_WarSkill" then
+        --跳转到战技
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs, tr)
+    elseif enumName == "Play_Week_PartyTime" then
+        --跳转到派对时刻
+        JumpBySystemJumpEnum(enumName, fromModule, fromArgs, tr)
+    end
+end
+
+function CheckIsUnlockLifeSkillCreate(id)
+    local lifeSkillCreateCfg = ConfigDataAccessor.LifeSkillCreateList[id]
+    local jobID = lifeSkillCreateCfg.SkillID
+    local jobInfo = BusinessManager.Instance:GetLifeJobSkill(jobID)
+    if jobInfo ~= nil then
+        if jobInfo.SkillLevel >= lifeSkillCreateCfg.Level then
+            if jobInfo.Formulation ~= nil and jobInfo.Formulation.CreateIdMap ~= nil then
+                if jobInfo.Formulation.CreateIdMap:ContainsKey(id) then
+                    return jobInfo.Formulation.CreateIdMap[id]
+                end
+            end
+        end
+    end
+    return false
+end
+
+function CheckIsUnlockLifeSkillLevel(id)
+    local lifeSkillCreateCfg = ConfigDataAccessor.LifeSkillCreateList[id]
+    local jobID = lifeSkillCreateCfg.SkillID
+    local jobInfo = BusinessManager.Instance:GetLifeJobSkill(jobID)
+    if jobInfo ~= nil then
+        if jobInfo.SkillLevel >= lifeSkillCreateCfg.Level then
+            return true
+        end
+    end
+    return false
+end
+
+-- 判断玩法今天是否开启
+function CheckRecyclePlayIsOpen(playID)
+    --[[
+	1.搜索出当天的
+	2.按照时间排序
+	3.要开的放在左
+	4.最后面补三个空的
+	]]
+    local tt = GameManager.Instance:GetServerTimeStamp()
+    local serverNowTime = math.floor(tt / 1000)
+
+    local v = ConfigDataAccessor.RecyclePlay[playID]
+
+    local DateList = v.DateList -- 开放日期，暂时不知道干啥(暂时不管)
+
+    local LoopType = v.LoopType -- 开放循环类型 0 不循环(暂时不管) 1 日循环 2 周循环 3 半月循环
+
+    local LoopParam = v.LoopParam -- 循环时间参数  0/1 不填； 2 填对应的周几；周日需填0；3 填半月对应的第几天；
+
+    -- 周循环
+    if LoopType == 2 then
+        -- 半月循环
+        -- 获得当前是周几
+        local weekDay = GetWeekDay(serverNowTime)
+        for i = 1, #LoopParam do
+            if weekDay == LoopParam[i] then
+                return true
+            end
+        end
+    elseif LoopType == 3 then
+        -- 日循环
+        -- 获得当前是几号
+        local day = GetDay(serverNowTime)
+
+        for i = 1, #LoopParam do
+            if day == LoopParam[i] or day + 15 == LoopParam[i] then
+                return true
+            end
+        end
+    elseif LoopType == 1 then
+        return true
+    end
+
+    return false
+end
+
+--判断是否是今天
+function CheckIsToday(timestamp)
+    local System_DailyReset = ConfigDataAccessor.SystemList[63].Value --0点之后的多少秒
+
+    local tt = GameManager.Instance:GetServerTimeStamp()
+    local serverNowTime = math.floor(tt / 1000) - System_DailyReset
+    local serverDay = GetDay(serverNowTime)
+    local serverWeekDay = GetWeekDay(serverNowTime)
+
+    local timeDay = GetDay(timestamp - System_DailyReset)
+    local timeWeekDay = GetWeekDay(timestamp)
+
+    if serverDay == timeDay and serverWeekDay == timeWeekDay then
+        return true
+    end
+
+    return false
+end
+
+-- 获取几号
+function GetDay(timestamp)
+    local day = tonumber(os.date("%d", timestamp))
+
+    return day
+end
+
+-- 获取周几
+function GetWeekDay(timestamp)
+    local weekday = tonumber(os.date("%w", timestamp))
+
+    if weekday == 0 then
+        weekday = 7
+    end
+
+    return weekday
+end
+
+-- 创建单个本地实体
+-- realDropData 奖励数据 type(DropNotify) 必传
+-- boxType 宝箱类型 E_LocalEntityType.XXX 必传
+-- boxTypeSource 宝箱创建来源 E_LocalEntitySource.XXX 必传
+-- pos 宝箱创建位置，默认为玩家当前位置
+-- boxId 宝箱id, 默认为9999991
+-- isAllOpen 宝箱是否全部打开，默认为true
+-- canOpen 宝箱是否可以被打开，默认为可打开
+-- openCallBackFunc 点击开启宝箱交互后的执行的callBackFunc<bool> 无需求可不传
+function CreateSingleLocalEntity(realDropData, boxType, boxTypeSource, pos, boxId, isAllOpen, canOpen, openCallBackFunc)
+    if realDropData == nil or realDropData.Infos == nil or realDropData.Infos.Count <= 0 then
+        return
+    end
+    if boxType == nil then
+        return
+    end
+    if boxTypeSource == nil then
+        return
+    end
+
+    if pos == nil then
+        pos = GameManager.Instance:GetEntityPosById(GameManager.Instance.mainPlayerId)
+    end
+    if canOpen == nil then
+        canOpen = true
+    end
+    if isAllOpen == nil then
+        isAllOpen = true
+    end
+    if boxId == nil then
+        if boxTypeSource == E_LocalEntitySource.WildBoss then
+            boxId = 9999998 --宝箱高
+        else
+            boxId = 9999991
+        end
+    end
+
+    -- 构建奖励数据
+    local localDropData = LocalDropList()
+    for i = 0, realDropData.Infos.Count - 1 do
+        local data = realDropData.Infos[i]
+        localDropData:AddData(data.Itemid, data.ItemNum, data.EntityID)
+    end
+    localDropData.CanOpen = canOpen
+    localDropData.OpenCallBackFunc = openCallBackFunc
+
+    pos = BusinessManager.Instance:GetRandomPos(pos, 2.5)
+    CS.StarProject.GlobalEvent.onCreateLocalEntity:Invoke(boxType, boxId, boxTypeSource, pos, localDropData, isAllOpen, -1)
+end
+
+-- 通过道具组ID筛选道具
+function GetItemEntityIDsByItemSet(itemSetId)
+    local allEntityIds = {}
+
+    local itemSetCfg = ConfigDataAccessor.DonateItemSet[itemSetId]
+
+    for i = 1, #itemSetCfg.ItemType do
+        local itemType = itemSetCfg.ItemType[i]
+
+        local datas = nil
+
+        if #itemSetCfg.SubType == 0 then
+            datas = BusinessManager.Instance:GetItemsByItemType(itemType, 0)
+        else
+            for j = 1, #itemSetCfg.SubType do
+                local itemSubType = itemSetCfg.SubType[j]
+                if datas == nil then
+                    datas = BusinessManager.Instance:GetItemsByItemType(itemType, itemSubType)
+                else
+                    local dd = BusinessManager.Instance:GetItemsByItemType(itemType, itemSubType)
+                    for p = 0, dd.Count - 1 do
+                        datas:Add(dd[p])
+                    end
+                end
+            end
+        end
+
+        for j = datas.Count - 1, 0, -1 do
+            local itemMD = datas[j]
+            local itemCfg = ConfigDataAccessor.Item[itemMD.BaseID]
+
+            local isRemoved = false
+
+            -- 品质
+            local isPassQuality = false
+            if #itemSetCfg.Quality == 0 or itemSetCfg.Quality[1] == 0 then
+                isPassQuality = true
+            else
+                for k = 1, #itemSetCfg.Quality do
+                    if itemCfg.Quality == itemSetCfg.Quality[k] then
+                        isPassQuality = true
+                        break
+                    end
+                end
+            end
+
+            if not (isPassQuality) then
+                datas:RemoveAt(j)
+                isRemoved = true
+            end
+
+            -- 其他继续需要筛选的
+        end
+
+        if itemType == 2 then
+            -- 玩家装备
+
+            for j = datas.Count - 1, 0, -1 do
+                local itemMD = datas[j]
+                local equipCfg = ConfigDataAccessor.Equip[itemMD.BaseID]
+
+                local isRemoved = false
+
+                -- 装备等级
+                local isPassLevel = false
+                if #itemSetCfg.Level == 0 or itemSetCfg.Level[1] == 0 then
+                    isPassLevel = true
+                else
+                    for k = 1, #itemSetCfg.Level do
+                        if equipCfg.Equip_Level == itemSetCfg.Level[k] then
+                            isPassLevel = true
+                            break
+                        end
+                    end
+                end
+
+                if not (isPassLevel) then
+                    datas:RemoveAt(j)
+                    isRemoved = true
+                end
+
+                -- 穿戴职业
+                if not (isRemoved) then
+                    local aimJob = equipCfg.JobBaseType
+
+                    local isPassJobType = false
+                    if #itemSetCfg.JobType == 0 or aimJob == 0 or itemSetCfg.JobType[1] == 0 then
+                        isPassJobType = true
+                    else
+                        for k = 1, #itemSetCfg.JobType do
+                            if aimJob == itemSetCfg.JobType[k] then
+                                isPassJobType = true
+                                break
+                            end
+                        end
+                    end
+
+                    if not (isPassJobType) then
+                        datas:RemoveAt(j)
+                        isRemoved = true
+                    end
+                end
+            end
+        elseif itemType == 5 then
+            -- 纹章
+
+            for j = datas.Count - 1, 0, -1 do
+                local itemMD = datas[j]
+                local amuletEquipCfg = ConfigDataAccessor.AmuletEquip[itemMD.BaseID]
+
+                local isRemoved = false
+
+                -- 装备等级
+                local isPassLevel = false
+                if #itemSetCfg.Level == 0 or itemSetCfg.Level[1] == 0 then
+                    isPassLevel = true
+                else
+                    for k = 1, #itemSetCfg.Level do
+                        if amuletEquipCfg.Level == itemSetCfg.Level[k] then
+                            isPassLevel = true
+                            break
+                        end
+                    end
+                end
+
+                if not (isPassLevel) then
+                    datas:RemoveAt(j)
+                    isRemoved = true
+                end
+
+                -- 纹章阶数
+                if not (isRemoved) then
+                    local isPassEquipLevel = false
+                    if #itemSetCfg.EquipLevel == 0 or itemSetCfg.EquipLevel[1] == 0 then
+                        isPassEquipLevel = true
+                    else
+                        for k = 1, #itemSetCfg.EquipLevel do
+                            if amuletEquipCfg.EquipLevel == itemSetCfg.EquipLevel[k] then
+                                isPassEquipLevel = true
+                                break
+                            end
+                        end
+                    end
+
+                    if not (isPassEquipLevel) then
+                        datas:RemoveAt(j)
+                        isRemoved = true
+                    end
+                end
+            end
+        end
+
+        for j = datas.Count - 1, 0, -1 do
+            -- 排除玩家身上的
+            if datas[j].SpaceId ~= 1 and datas[j].SpaceId ~= 13 and datas[j].SpaceId ~= 20 then
+                table.insert(allEntityIds, datas[j].EntityID)
+            end
+        end
+    end
+
+    return allEntityIds
+end
+
+local CurrentSelectPartner = 0
+
+function GetSelectPartner()
+    return CurrentSelectPartner
+end
+
+function SetSelectPartner(id)
+    CurrentSelectPartner = id
+end
+
+-- 刷新gameObject对象数量
+function RefreshGoCachePool(prefabGo, parentRoot, showCount)
+    local curCount = parentRoot.childCount
+    -- 需要创建
+    if (showCount > curCount) then
+        local needAddCount = showCount - curCount
+        for i = 1, needAddCount do
+            local item = GameObject.Instantiate(prefabGo, parentRoot)
+            item:SetActive(true)
+        end
+    else
+        -- 不需要显示的时候，防止prefab不在root子节点导致显隐异常
+        if showCount == 0 then
+            prefabGo:SetActive(false)
+        end
+        -- 所需的显示 多余的隐藏
+        for i = 0, curCount - 1 do
+            local item = parentRoot.transform:GetChild(i)
+            if (i >= showCount) then
+                item.gameObject:SetActive(false)
+            else
+                item.gameObject:SetActive(true)
+            end
+        end
+    end
+end
+
+function GetTaskState(taskID)
+    local state = 0
+
+    -- 任务状态
+    if TaskHelper.ContainTask(taskID) then
+        -- 正在进行
+        local TaskInfo = TaskHelper.GetRunningTask(taskID)
+        if TaskInfo ~= nil then
+            if TaskInfo.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStageRunning then
+                -- 任务进行中
+                state = 1
+            elseif TaskInfo.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStageFinished then
+                -- 任务已完成未提交
+                state = 2
+            end
+        end
+    elseif TaskHelper.IsTaskFinsh(taskID) then
+        -- 已经完成
+        state = 2
+    else
+        -- 未接取
+        state = 0
+    end
+
+    return state
+end
+
+function GetShowItemIDByJob(RewardMarks)
+    if RewardMarks == nil then
+        return 0
+    end
+
+    if #RewardMarks <= 1 then
+        return 0
+    end
+
+    -- 如果是全职业就不用读取其他职业的
+    if RewardMarks[1] == 0 then
+        return RewardMarks[2]
+    end
+
+    local baseJob = GameManager.Instance:GetPlayJobBaseID()
+
+    local idx = 1
+    local tempJob = RewardMarks[idx]
+
+    -- 如果找到职业的就返回职业的
+    while tempJob ~= nil do
+        if tempJob == baseJob then
+            if RewardMarks[idx + 1] == nil then
+                return 0
+            end
+            return RewardMarks[idx + 1]
+        end
+        idx = idx + 2
+        tempJob = RewardMarks[idx]
+    end
+
+    -- 什么都没找到就不显示
+    return 0
+end
+
+-- 得到玩家自己总站力评级
+function GetPlayerTotalPowerRankLevel(isHistoryMaxPower)
+    if isHistoryMaxPower == nil then
+        isHistoryMaxPower = false
+    end
+
+    -- 得到 主角自己的 战力
+    local power = FightPowerManager.Instance:GetSeverPowerByModuleType(0, isHistoryMaxPower)
+
+    return GetTotalPowerRankLevel(power)
+end
+
+-- 得到玩家自己总站力所对应 等级配置
+function GetPlayerCurRankLevelCfg(isHistoryMaxPower)
+    if isHistoryMaxPower == nil then
+        isHistoryMaxPower = false
+    end
+
+    -- 得到 主角自己的 战力
+    local power = FightPowerManager.Instance:GetSeverPowerByModuleType(0, isHistoryMaxPower)
+
+    local openDay = GameManager.Instance:OpenServerDay()
+    local Cfg_PowerRankDataCell, Cfg_RankResDataCell = LocalDataManager.Instance:GetPowerRankLevelCfg(power, openDay)
+
+    return Cfg_PowerRankDataCell
+end
+
+-- 得到玩家 推荐战力 的 提示,  参数是 策划配置的 推荐战力(副本通关推荐战力)
+function GetRecommonPowerTips(recommonPower)
+    local power = GetPlayerTotalPowerRankLevel(false)
+
+    -- 战力达标, 则什么 都不需要提示
+    if power >= recommonPower then
+        return ""
+    end
+
+    -- 战力不达标, 提示难度过高
+    return LanguageHelp:GetLanguageByKey("Local_Str_Score_Not_Enough")
+end
+
+-- 得到一个总战力 对应的 排位评价
+function GetTotalPowerRankLevel(power)
+    local openDay = GameManager.Instance:OpenServerDay()
+
+    --  计算当前战力对应的 段位等级以及 下一段位等级对应的配置
+
+    local Cfg_PowerRankDataCell, Cfg_RankResDataCell = LocalDataManager.Instance:GetPowerRankLevelCfg(power, openDay)
+
+    return GetRankLevelStr(Cfg_PowerRankDataCell, Cfg_RankResDataCell)
+end
+
+function GetRankLevelStr(powerRankDataCell, rankResDataCell)
+    local rankLevelStr = rankResDataCell.RankName .. " " .. GetRomaNum(powerRankDataCell.SubRank)
+
+    return rankLevelStr
+end
+
+function GetPowerLevelColor(level)
+    if level == 1 then
+        return "#d4d4d4"
+    elseif level == 2 then
+        return "#54bf6b"
+    elseif level == 3 then
+        return "#7a83ff"
+    elseif level == 4 then
+        return "#cf6fe0"
+    elseif level == 5 then
+        return "#ffbf7a"
+    else
+        return "#ffbf7a"
+    end
+end
+
+-- 获得当前开服天数下 战力等级配置
+function GetRankLevelCfgs()
+    local openDay = GameManager.Instance:OpenServerDay()
+
+    local listCfgs = LocalDataManager.Instance:GetTotalPowerRankDataCells(openDay)
+
+    return listCfgs
+end
+function DeepCopyTable(orig)
+    local copy
+    if type(orig) == "table" then
+        copy = {}
+        for orig_key, orig_value in next, orig, nil do
+            copy[DeepCopyTable(orig_key)] = DeepCopyTable(orig_value)
+        end
+        setmetatable(copy, DeepCopyTable(getmetatable(orig)))
+    else -- 值类型直接复制
+        copy = orig
+    end
+    return copy
+end
+
+-- 检查装备强化红点
+
+-- 检查装备红点
+function CheckAllEquipsRedPoint()
+    -- 如果装备系统没开放
+
+    local EquipSlotUpgradeRedPoint = 0
+    for i = 1, 8 do
+        local itemData = BusinessManager.Instance:GetHeroEquipedEquip(i)
+        if itemData ~= nil then
+            if CheckEquipSlotUpgradeRedPoint(i) then
+                EquipSlotUpgradeRedPoint = 1
+                break
+            end
+        end
+    end
+
+    if BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.Equip_Common) then
+        RedPointManager.Instance:RefreshRedPointCount(RedPointType.PlayRedPointEquipCanUpgrade, EquipSlotUpgradeRedPoint)
+    else
+        RedPointManager.Instance:RefreshRedPointCount(RedPointType.PlayRedPointEquipCanUpgrade, 0)
+    end
+
+    local EquipRefineRedPoint = 0
+    for i = 1, 8 do
+        local itemData = BusinessManager.Instance:GetHeroEquipedEquip(i)
+        if itemData ~= nil then
+            if CheckEquipRefineRedPoint(i) then
+                EquipRefineRedPoint = 1
+                break
+            end
+        end
+    end
+
+    if BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.Equip_Refine) then
+        RedPointManager.Instance:RefreshRedPointCount(RedPointType.PlayRedPointEquipCanRefine, EquipRefineRedPoint)
+    else
+        RedPointManager.Instance:RefreshRedPointCount(RedPointType.PlayRedPointEquipCanRefine, 0)
+    end
+end
+
+-- 检查装备强化红点
+function CheckEquipSlotUpgradeRedPoint(SlotID)
+    local equipSlotData = GameManager.Instance:GetEquipSlotData(SlotID)
+
+    local UpLv = 0
+    if equipSlotData == nil then
+        UpLv = 0
+    else
+        UpLv = equipSlotData.UpLv -- 强化等级
+    end
+
+    -- 配置表最大等级
+    local SlotCfgMaxLv = ConfigDataAccessor.GetMaxEquipSlotLv()
+    local SlotResonateLvMax = 0
+
+    local SlotResonateLv = 0
+    local minLv = GameManager.Instance:GetEquipSlotResonateLv() -- 共鸣等级（的最低等级）
+    local maxResonateLv = ConfigDataAccessor.GetMaxEquipSlotResonanceLv(GameManager.Instance:GetPlayJobBaseID())
+    for i = 1, maxResonateLv do
+        local esr = ConfigDataAccessor.GetEquipSlotResonance(i, GameManager.Instance:GetPlayJobBaseID())
+        if minLv >= esr.Level then
+            SlotResonateLv = i
+        --SlotResonateLvMax = esr.Level
+        end
+    end
+    SlotResonateLvMax = minLv
+    -- 当前最大平均等级
+    if SlotResonateLv > 0 then
+        -- SlotResonateLvMax = ConfigDataAccessor.EquipSlotUpLimit[SlotResonateLv].Max;
+    else
+        --SlotResonateLvMax = 0
+    end
+
+    -- 当前最大等级
+    local SlotMaxLv = ConfigDataAccessor.EquipSlotUpLimit[1].Max
+    for i = 2, #ConfigDataAccessor.EquipSlotUpLimit do
+        local equipSlotUpLimit = ConfigDataAccessor.EquipSlotUpLimit[i]
+        if equipSlotUpLimit.Condition > 0 then
+            --[[
+            --冒险等级
+            local RiskInfo = GameManager.Instance.M_MainPlayerCtrlBase.Data.Attrs:GetProtoValue(CS.StarProjectDef.AOIAttrDefine.RiskInfo)
+            if RiskInfo ~= nil then
+                local curRiskLevel = RiskInfo.CurRiskLevel
+                if equipSlotUpLimit.Condition > curRiskLevel then
+                    -- 不满足
+                    break
+                end
+            end
+            ]]
+            --玩家等级
+            local playerLv = GameManager.Instance:GetPlayerLevel()
+            if equipSlotUpLimit.Condition > playerLv then
+                -- 不满足
+                break
+            end
+        end
+        if equipSlotUpLimit.ConditionNum > SlotResonateLvMax then
+            -- 不满足
+            break
+        end
+        SlotMaxLv = equipSlotUpLimit.Max
+    end
+
+    local isNeedCalculate = true
+
+    if SlotCfgMaxLv == UpLv then
+        -- 已经不需要强化了
+        isNeedCalculate = false
+    end
+    if SlotMaxLv == UpLv then
+        -- 已经不需要强化了
+        isNeedCalculate = false
+    end
+
+    local IsMoneyEnough = true
+    if isNeedCalculate then
+        -- 强化需要的资源
+        local expend = ConfigDataAccessor.GetEquipSlotUpExpend(SlotID, UpLv + 1)
+
+        -- 道具消耗（货币）暂时不用，但是先不删
+        local cfgM = ConfigDataAccessor.Item[expend.Money[1]]
+        local haveMoneyNum = BusinessManager.Instance:GetCurrencyNum(expend.Money[1])
+        if haveMoneyNum < expend.Money[2] then
+            IsMoneyEnough = false
+        end
+
+        -- 消耗道具
+        for i = 1, #expend.Item_id do
+            local haveMoneyNum2 = BusinessManager.Instance:GetCurrencyNum(expend.Item_id[i])
+            if haveMoneyNum2 < expend.Item_num[i] then
+                IsMoneyEnough = false
+                break
+            end
+        end
+    else
+        -- 显示强化到最高的UI
+        IsMoneyEnough = false
+    end
+
+    return IsMoneyEnough
+end
+
+-- 检查装备洗练红点
+function CheckEquipRefineRedPoint(SlotID)
+    local itemData = BusinessManager.Instance:GetHeroEquipedEquip(SlotID)
+
+    local isAllPerfect = true -- 是否完美度全部满了？
+
+    local perfectAllValue = 0
+
+    local eCfg = ConfigDataAccessor.Equip[itemData.BaseID]
+    -- 主属性
+    local MainProps = itemData.EquipProps.MainPropList
+
+    for i = 0, MainProps.Count - 1 do
+        local maxAttr = eCfg.NumMax[i + 1]
+        perfectAllValue = perfectAllValue + (MainProps[i].Value / maxAttr)
+    end
+
+    -- 这里要计算平均完美度（不完美的话上面就变成false）
+    local Perfection = math.floor(perfectAllValue / MainProps.Count * 100)
+
+    isAllPerfect = (Perfection == 100)
+
+    local IsMoneyEnough = true
+
+    if not (isAllPerfect) then
+        -- 强化需要的资源
+        local expend = ConfigDataAccessor.GetEquipResetExpend(SlotID, eCfg.Equip_Level)
+
+        -- 道具消耗（货币）暂时不用，但是先不删
+        local cfgM = ConfigDataAccessor.Item[expend.Money[1]]
+        local haveMoneyNum = BusinessManager.Instance:GetCurrencyNum(expend.Money[1])
+        if haveMoneyNum < (expend.Money[2]) then
+            IsMoneyEnough = false
+        end
+
+        -- 消耗道具
+        for i = 1, #expend.Item_id do
+            local haveMoneyNum2 = BusinessManager.Instance:GetCurrencyNum(expend.Item_id[i])
+            if haveMoneyNum2 < expend.Item_num[i] then
+                IsMoneyEnough = false
+                break
+            end
+        end
+    else
+        IsMoneyEnough = false
+    end
+
+    return IsMoneyEnough
+end
+
+--是否开启冒险等级
+function IsOpenAdvLv()
+    return false
+end
+
+function GetEtchIdBySkillId(skillId)
+    for k, v in pairs(ConfigDataAccessor.Etch) do
+        if v.BattleSkillID == skillId then
+            return v.EtchID
+        end
+    end
+
+    return 0
+end
+function GetSkillIdByEtchId(etchId)
+    local cfg = ConfigDataAccessor.Etch[etchId]
+
+    if cfg ~= nil then
+        return cfg.BattleSkillID
+    end
+
+    return 0
+end
+
+-- GlobalVector3表，用于存储Vector3实例和操作方法
+GlobalVector3 = {}
+
+local vector3Instance = Vector3(0, 0, 0)
+
+-- 公共方法，用于设置Vector3的值
+function GlobalVector3:Set(newX, newY, newZ)
+    vector3Instance.x = newX
+    vector3Instance.y = newY
+    vector3Instance.z = newZ
+    return vector3Instance
+end
+
+-- 公共方法，用于获取Vector3的值（可选）
+function GlobalVector3:Get()
+    return vector3Instance
+end
+GlobalVector2 = {}
+
+-- 私有变量，存储Vector3实例
+local vector2Instance = Vector2(0, 0)
+
+-- 公共方法，用于设置Vector3的值
+function GlobalVector2:Set(newX, newY)
+    vector2Instance.x = newX
+    vector2Instance.y = newY
+    return vector2Instance
+end
+
+-- 公共方法，用于获取Vector3的值（可选）
+function GlobalVector2:Get()
+    return vector2Instance
+end
+-- GlobalColor表，用于存储Color实例和操作方法
+GlobalColor = {}
+
+local colorInstance = Color(0, 0, 0)
+
+-- 公共方法，用于设置Vector3的值
+function GlobalColor:Set(newR, newG, newB, newA)
+    colorInstance.r = newR or 0 -- 使用or操作符提供默认值
+    colorInstance.g = newG or 0
+    colorInstance.b = newB or 0
+    colorInstance.a = newA or 1 -- 透明度默认为1（不透明）
+    return colorInstance
+end
+
+-- 公共方法，用于获取Vector3的值（可选）
+function GlobalColor:Get()
+    return colorInstance
+end
+function FormatShowTime(timeInSec)
+    local day = 0
+    local hour = 0
+    local min = 0
+    if (timeInSec / 86400) > 0 then
+        day = math.floor(timeInSec / 86400)
+    --_text = showTime.ToString() + "天";
+    end
+
+    timeInSec = timeInSec - 86400 * day
+    if (timeInSec / 3600) > 0 then
+        hour = math.floor(timeInSec / 3600)
+    --_text = showTime.ToString() + "小时";
+    end
+
+    timeInSec = timeInSec - 3600 * hour
+
+    if (timeInSec / 60) > 0 then
+        min = math.ceil(timeInSec / 60)
+    --_text = showTime.ToString() + "分钟";
+    end
+
+    --return string.format("%d天%d小时%d分钟", day, hour, min);
+    return StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Time"), {day, hour, min})
+end

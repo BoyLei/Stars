@@ -1,0 +1,59 @@
+--[[
+*文件名   :   AfternoonGveRewardInfo
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local AfternoonGveRewardInfo = {}
+
+AfternoonGveRewardInfo.__index = AfternoonGveRewardInfo
+
+local ItemGrid = require("View/Item/ItemGrid")
+
+function AfternoonGveRewardInfo:New(_go)
+    local self = {}
+    setmetatable(self, AfternoonGveRewardInfo)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.Rank = self.transform:Find("score1"):GetComponent(typeof(Text))
+    self.Score = self.transform:Find("score2"):GetComponent(typeof(Text))
+
+    --道具
+    self.m_NormalItemPreviewGo = self.transform:Find("ItemPreview").gameObject
+    self.m_NormalItemPreview = StructAccessor.ItemPreview.new(self.m_NormalItemPreviewGo)
+    self.m_NormalItemPreview:SetSize(400, 90, 5)
+
+    return self --返回自身
+end
+
+function AfternoonGveRewardInfo:OnItemClick(ritem)
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", {ritem.BaseID, false, 0, ritem.transform, 0})
+end
+
+function AfternoonGveRewardInfo:Reset(data)
+    --道具
+    if data ~= nil then
+        self.Rank.text = data.Rank
+        self.Score.text = data.Score
+
+        local rewards = data.Reward.Data
+
+        local CostItems = {}
+        for k, v in pairs(rewards) do
+            local temp = {}
+            temp.ItemID = k
+            temp.ItemNum = v
+            table.insert(CostItems, temp)
+        end
+        self.m_NormalItemPreview:SetItems(CostItems)
+    else
+        self.Rank.text = LanguageHelp:GetLanguageByKey("Local_Str_Unranked")
+        self.Score.text = 0
+    end
+end
+
+return AfternoonGveRewardInfo

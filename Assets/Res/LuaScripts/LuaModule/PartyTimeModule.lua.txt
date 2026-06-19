@@ -1,0 +1,597 @@
+--[[allTaskItems
+*文件名   :   PartyTimeModule
+*内  容   :
+*说  明   :	  午间GVE
+*创建日期 :   ""
+*创建人   :   ""
+*版权所有 :   游卡网络科技技术有限公司
+]] PartyTimeModule = class("PartyTimeModule", BaseLuaModule)
+
+local PartyTimeQuestionWidgetPath = "PartyTime/PartyTimeQuestionWidget"
+local PartyTimeWidgetPath = "PartyTime/PartyTimeWidget"
+
+local TaskRoot = nil
+
+-- LuaModule 消息模块
+PartyTimeModule.ModuleMessages = {
+    ["OnPartyTimeEnter"] = function(...)
+        PartyTimeModule:OnPartyTimeEnter(...)
+    end,
+    ["OnPartyTimeLeave"] = function(...)
+        PartyTimeModule:OnPartyTimeLeave(...)
+    end,
+    -- 切换场景判断是是否显示左边
+    ["OnCkeckAndOpenPartyTimeWidget"] = function(...)
+        PartyTimeModule:OnCkeckAndOpenPartyTimeWidget(...)
+    end,
+    ["OnDisable"] = function(...)
+        PartyTimeModule:OnDisable(...)
+    end,
+    ["OnDeleteHud"] = function(...)
+        PartyTimeModule:OnDeleteHud(...)
+    end
+}
+
+-- LuaModule显示
+function PartyTimeModule:OnModuleShow(arg)
+    TaskRoot = arg
+
+    -- 挂载公会篝火面板 左边
+    self.AsyncLoadPartyTimeWidgetCb = function(ui)
+        if ui ~= nil then
+            if self.PartyTimeWidget == nil then
+                self.PartyTimeWidget = ui:GetLuaPanel().ScriptTable
+                self.PartyTimeWidget:BindModule(self)
+            end
+        end
+        self.AsyncLoadPartyTimeWidgetCb = nil
+    end
+    UIManager.Instance:OpenWidgetAsync(PartyTimeWidgetPath, self.AsyncLoadPartyTimeWidgetCb, false, nil, TaskRoot.transform, CS.StarProjectDef.MainPageCommond.HideNone, true)
+
+    -- 挂载公会答题面板 中间
+    self.AsyncLoadPartyTimeQuestionWidgetCb = function(ui)
+        if ui ~= nil then
+            if self.PartyTimeQuestionWidget == nil then
+                self.PartyTimeQuestionWidget = ui:GetLuaPanel().ScriptTable
+                self.PartyTimeQuestionWidget:BindModule(self)
+            end
+        end
+        self.AsyncLoadPartyTimeQuestionWidgetCb = nil
+    end
+    UIManager.Instance:OpenWidgetAsync(
+        PartyTimeQuestionWidgetPath,
+        self.AsyncLoadPartyTimeQuestionWidgetCb,
+        false,
+        nil,
+        UIRoot.SceneWidgetRoot.transform,
+        CS.StarProjectDef.MainPageCommond.HideNone,
+        true,
+        false,
+        true
+    )
+
+    -- 选项特效
+    if self.AreaEffList == nil then
+        self.AreaEffList = {}
+    else
+        for k, _ in pairs(self.AreaEffList) do
+            self.AreaEffList[k] = nil
+        end
+    end
+end
+
+function PartyTimeModule:OnCkeckAndOpenPartyTimeWidget(...)
+    local QAPlayStartNtf = GameManager.Instance.QAPlayStartNtf -- 公会篝火活动属性
+
+    if QAPlayStartNtf ~= nil then
+        self.StartTime = QAPlayStartNtf.StartTime -- 开始时间
+        self.Duration = QAPlayStartNtf.Duration -- 持续时间
+        self.EndTime = QAPlayStartNtf.EndTime -- 结束时间
+        self.Stage = QAPlayStartNtf.Stage -- 阶段 1:预告 2:准备 3:答题 4:尾声
+
+        local serverNowTime = GameManager.Instance:GetServerTimeStamp()
+        if serverNowTime < self.EndTime then
+            self:RefeshParty()
+        end
+    end
+end
+
+function PartyTimeModule:RefeshParty()
+    if self.Stage >= 2 then
+        -- 计算左边的结束时间
+        if self.Stage == 2 then
+            local t1 = ConfigDataAccessor.SystemList[234].Value -- 派对时刻玩法阶段时间
+            local t2 = ConfigDataAccessor.SystemList[235].Value -- 派对时刻结束阶段时间
+            self.EventEndTime = self.EndTime + t1 * 1000 + t2 * 1000
+        elseif self.Stage == 3 then
+            local t1 = ConfigDataAccessor.SystemList[235].Value -- 派对时刻结束阶段时间
+            self.EventEndTime = self.EndTime + t1 * 1000
+        elseif self.Stage == 4 then
+            self.EventEndTime = self.EndTime
+        end
+
+        -- 判断是否在开启时间
+        if self.PartyTimeWidget ~= nil then
+            self.PartyTimeWidget:OnActiveSelf(true)
+            self.PartyTimeWidget:SetIsInArea(GameManager.Instance.IsInPartyArea)
+            self.PartyTimeWidget:Refesh()
+        end
+
+        -- 中间答题是 2 3阶段 (第二阶段出倒计时)
+        if self.Stage == 2 then
+            if self.PartyTimeQuestionWidget ~= nil then
+                local readyTime = self.StartTime
+                self.PartyTimeQuestionWidget:OnActiveSelf(GameManager.Instance.IsInPartyArea)
+                self.PartyTimeQuestionWidget:SetToState1(readyTime)
+            end
+            if self.PartyTimeWidget ~= nil then
+                self.PartyTimeWidget:SetIfShowIsPlaying(true)
+            end
+        end
+        -- 3阶段不隐藏UI
+        if self.Stage == 3 then
+            if self.PartyTimeQuestionWidget ~= nil then
+                self.PartyTimeQuestionWidget:OnActiveSelf(GameManager.Instance.IsInPartyArea)
+            end
+            if self.PartyTimeWidget ~= nil then
+                self.PartyTimeWidget:SetIfShowIsPlaying(true)
+            end
+        end
+
+        -- 关闭中间答题（但是还可以继续挂机）
+        if self.Stage == 4 then
+            if self.PartyTimeQuestionWidget ~= nil then
+                local endTime = self.StartTime + 30 * 1000 -- 等30秒;
+                local serverTime = GameManager.Instance:GetServerTimeStamp()
+
+                if serverTime < endTime then
+                    self.PartyTimeQuestionWidget:OnActiveSelf(GameManager.Instance.IsInPartyArea)
+                    self.PartyTimeQuestionWidget:SetToState4(endTime)
+                end
+            end
+            if self.PartyTimeWidget ~= nil then
+                self.PartyTimeWidget:SetIfShowIsPlaying(false)
+            end
+        end
+    end
+end
+
+-- 显示侧边栏
+function PartyTimeModule:OnPartyTimeEnter(...)
+    -- 进入篝火活动区域（显示侧边栏）
+    if self.PartyTimeWidget ~= nil then
+        self.PartyTimeWidget:OnActiveSelf(true)
+    end
+end
+
+-- 隐藏侧边栏
+function PartyTimeModule:OnPartyTimeLeave(...)
+    GameManager.Instance.IsInPartyArea = false
+    -- 离开篝火活动区域（隐藏侧边栏）
+    if self.PartyTimeWidget ~= nil then
+        self.PartyTimeWidget:OnActiveSelf(false)
+        self:RemoveAllAreaEff()
+    end
+    -- 隐藏中间
+    if self.PartyTimeQuestionWidget ~= nil then
+        self.PartyTimeQuestionWidget:OnActiveSelf(false)
+    end
+end
+
+-- 进出活动区域的触发器
+function PartyTimeModule:CheckEnterGuildArea(isEnter)
+    if isEnter then
+        -- Util.ShowMessage("进入公会活动区域");
+    else
+        -- Util.ShowMessage("离开公会活动区域");
+    end
+
+    -- 判断是否在活动期间
+
+    if self.Stage == nil then
+        return
+    end
+
+    -- 阶段 1:预告 2:准备 3:答题 4:尾声
+
+    -- 中间的只存在于2 3阶段
+    if self.Stage >= 2 and self.Stage <= 3 then
+        if self.PartyTimeQuestionWidget ~= nil then
+            self.PartyTimeQuestionWidget:OnActiveSelf(isEnter)
+        end
+    end
+
+    -- 以及4阶段的30秒内
+    if self.Stage == 4 then
+        if self.PartyTimeQuestionWidget ~= nil then
+            local endTime = self.StartTime + 30 * 1000 -- 等30秒;
+            local serverTime = GameManager.Instance:GetServerTimeStamp()
+            if serverTime < endTime then
+                self.PartyTimeQuestionWidget:OnActiveSelf(isEnter)
+            end
+        end
+    end
+
+    -- 进入区域开始倒计时2 3 4阶段都在
+    if self.Stage >= 2 then
+        if self.PartyTimeWidget ~= nil then
+            local canGetDuration = ConfigDataAccessor.SystemList[226].Value -- 派对时刻挂机奖励间隔(秒)
+            self.InAreaEndTime = GameManager.Instance:GetServerTimeStamp() + canGetDuration * 1000 -- 挂机倒计时结束时间戳
+            self.PartyTimeWidget:SetIsInArea(isEnter)
+        end
+    end
+
+    GameManager.Instance.IsInPartyArea = isEnter
+end
+
+-- 监听通用次数变化
+function PartyTimeModule:OnAllComCountInfos(data)
+    for i = 0, data.Changes.Count - 1 do
+        -- 派对时刻挂机奖励上限
+        if data.Changes[i].BaseId == 20 then
+            -- 刷新数据
+            if self.PartyTimeWidget ~= nil then
+                self.PartyTimeWidget:SetNextGetTime()
+            end
+        end
+
+        -- 派对时刻公会奖励1 2 3(上面的小宝箱)
+        if data.Changes[i].BaseId == 21 or data.Changes[i].BaseId == 22 or data.Changes[i].BaseId == 23 then
+            -- 刷新数据
+            if self.PartyTimeQuestionWidget ~= nil then
+                self.PartyTimeQuestionWidget:RefeshChest()
+            end
+        end
+    end
+end
+
+-- 篝火:派对时刻 问答活动 预开启
+function PartyTimeModule:OnQAPlayStartNtf(data)
+    -- print("篝火:派对时刻 问答活动 预开启")
+
+    local ret = data.data
+
+    self.StartTime = ret.StartTime
+    self.EndTime = ret.EndTime
+    self.Duration = ret.Duration
+    self.Stage = ret.Stage
+
+    local serverNowTime = GameManager.Instance:GetServerTimeStamp()
+    if serverNowTime < self.EndTime then
+        self:RefeshParty()
+
+    --[[
+		
+		--派对时刻主界面测试代码
+		local prepareTime=math.floor(self.StartTime/1000)
+		local startTime=prepareTime+5*60;
+		local endTime=math.floor(self.EndTime/1000)
+		CS.StarProject.GlobalEvent.OnSetEventTime:Invoke(5,4,startTime,endTime,prepareTime);
+
+		]]
+    end
+end
+
+-- 篝火:派对时刻 问答活动 结束
+function PartyTimeModule:OnQAPlayEndNtf(data)
+    -- print("篝火:派对时刻 问答活动 结束")
+
+    -- 关闭侧边栏
+    self:OnPartyTimeLeave()
+
+    -- 关闭pop
+    if self.PartyTimeQuestionWidget ~= nil then
+        self.PartyTimeQuestionWidget:OnActiveSelf(false)
+    end
+end
+
+-- 篝火: 问答游戏 一轮答题开始 推送题目
+function PartyTimeModule:QAQestionToUserNtf(data)
+    -- print("篝火: 问答游戏 一轮答题开始 推送题目")
+
+    local ret = data.data
+
+    if self.PartyTimeQuestionWidget ~= nil then
+        local startTime = GameManager.Instance:GetServerTimeStamp()
+        self.PartyTimeQuestionWidget:SetToState2(startTime, ret)
+    end
+end
+
+-- 篝火:  问答游戏 答题过程中 玩家选择选项通知
+function PartyTimeModule:QAUserSelectNtf(data)
+    -- print("篝火:  问答游戏 答题过程中 玩家选择选项通知")
+
+    local ret = data.data
+
+    if self.PartyTimeQuestionWidget ~= nil then
+        self.PartyTimeQuestionWidget:PlayerChoice(ret.Select)
+    end
+end
+
+-- 篝火:  问答游戏 一轮答题结束推送成功失败通知
+function PartyTimeModule:QAAnswerToUserNtf(data)
+    -- print("篝火:  问答游戏 一轮答题结束推送成功失败通知")
+
+    local ret = data.data
+
+    if self.PartyTimeQuestionWidget ~= nil then
+        local startTime = GameManager.Instance:GetServerTimeStamp()
+        self.PartyTimeQuestionWidget:SetToState3(startTime, ret.TrueSelect)
+    end
+end
+
+-- 篝火: 答题奖励通知
+function PartyTimeModule:QARewardNtf(data)
+    -- print("篝火: 答题奖励通知")
+
+    local ret = data.data
+
+    local rewardsList = ret.List
+
+    for k, v in pairs(rewardsList) do
+        local dropinfo = {}
+        dropinfo.Itemid = k -- baseID
+        dropinfo.ItemNum = v -- 数量
+        LuaModuleDispatcher:SendMessage(ModuleDef.DropInfoListModule, "OnAddDrop", {dropinfo})
+    end
+
+    -- BaseData List = 1;
+end
+
+-- 篝火: 公会积分变化通知
+function PartyTimeModule:PartyTimeGuildScoreSrvRet(data)
+    -- print("篝火: 公会积分变化通知")
+
+    local ret = data.data
+
+    if self.PartyTimeQuestionWidget ~= nil then
+        self.PartyTimeQuestionWidget:UpdateScore(ret.Score)
+    end
+end
+
+-- 篝火: 答题情况
+function PartyTimeModule:PartyTimeQADataNtf(data)
+    -- print("篝火: 答题情况")
+
+    local ret = data.data.Data
+
+    if self.PartyTimeQuestionWidget ~= nil then
+        self.PartyTimeQuestionWidget:UpdatePeople(ret.List)
+    end
+end
+
+function PartyTimeModule:AddAreaEff(areaid)
+    if self.AreaEffList[areaid] ~= nil then
+        self.AreaEffList[areaid]:SetActive(true)
+    else
+        local pos = GameManager.Instance:GetGameMapAreaPos(areaid)
+        local _go = ResourceManager.Instance:LoadGameObject("UI/Common/Prefab/PartyTimeArea" .. areaid)
+        _go.transform:SetParent(CS.EntityRoot.Instance.DotRemoveRoot.transform)
+        _go.transform.position = pos
+        GameObject.DontDestroyOnLoad(_go)
+        self.AreaEffList[areaid] = _go
+    end
+end
+
+function PartyTimeModule:HideAllAreaEff()
+    for k, v in pairs(self.AreaEffList) do
+        v:SetActive(false)
+    end
+end
+
+function PartyTimeModule:RemoveAllAreaEff()
+    for k, v in pairs(self.AreaEffList) do
+        GameObject.Destroy(v)
+    end
+
+    if self.AreaEffList == nil then
+        self.AreaEffList = {}
+    else
+        for k, _ in pairs(self.AreaEffList) do
+            self.AreaEffList[k] = nil
+        end
+    end
+end
+
+-- LuaModule 消息处理
+function PartyTimeModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...)
+end
+
+-- LuaModule 创建
+function PartyTimeModule:OnModuleCreate(arg)
+    self.InAreaEndTime = 0
+
+    LuaModuleDispatcher:Register(ModuleDef.PartyTimeModule, self)
+
+    ---// 派对时刻 问答活动 预开启
+    NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.QAPlayStartNtfID,
+        function(data)
+            self:OnQAPlayStartNtf(data)
+        end,
+        nil
+    )
+
+    ---// 派对时刻 问答活动 结束
+    NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.QAPlayEndNtfID,
+        function(data)
+            self:OnQAPlayEndNtf(data)
+        end,
+        nil
+    )
+
+    ---// 问答游戏 一轮答题开始 推送题目
+    NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.QAQestionToUserNtfID,
+        function(data)
+            self:QAQestionToUserNtf(data)
+        end,
+        nil
+    )
+
+    ---// 问答游戏 答题过程中 玩家选择选项通知
+    NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.QAUserSelectNtfID,
+        function(data)
+            self:QAUserSelectNtf(data)
+        end,
+        nil
+    )
+
+    ---// 问答游戏 一轮答题结束推送成功失败通知
+    NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.QAAnswerToUserNtfID,
+        function(data)
+            self:QAAnswerToUserNtf(data)
+        end,
+        nil
+    )
+
+    ---// 答题奖励通知
+    NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.QARewardNtfID,
+        function(data)
+            self:QARewardNtf(data)
+        end,
+        nil
+    )
+
+    ---// 公会积分变化通知
+    NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.PartyTimeGuildScoreSrvRetID,
+        function(data)
+            self:PartyTimeGuildScoreSrvRet(data)
+        end,
+        nil
+    )
+
+    ---// 答题情况
+    NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.PartyTimeQADataNtfID,
+        function(data)
+            self:PartyTimeQADataNtf(data)
+        end,
+        nil
+    )
+
+    -- 是否进出公会活动区域
+    CS.StarProject.GlobalEvent.OnEnterPartyArea:AddListener(
+        function(isEnter)
+            self:CheckEnterGuildArea(isEnter)
+        end
+    )
+
+    self.message1 = function(data)
+        self:OnAllComCountInfos(data)
+    end
+    -- 监听差量更新变化
+    FixMessageManager.Instance:OnMessage(FixUpdateDef.ComCount, self.message1, nil)
+
+    CS.StarProject.GlobalEvent.OnBackLogin:AddListener(
+        function(againLoginType)
+            -- 关闭侧边栏
+            self:OnPartyTimeLeave()
+        end
+    )
+end
+
+-- LuaModule 释放
+function PartyTimeModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.PartyTimeModule)
+
+    ---玩法开启通知
+    NetworkManager.Instance:OffMessageEnum(
+        CS.MsgIDEnum.QAPlayStartNtfID,
+        function(data)
+            self:OnQAPlayStartNtf(data)
+        end,
+        nil
+    )
+
+    ---玩法结束通知
+    NetworkManager.Instance:OffMessageEnum(
+        CS.MsgIDEnum.QAPlayEndNtfID,
+        function(data)
+            self:OnQAPlayEndNtf(data)
+        end,
+        nil
+    )
+
+    ---// 问答游戏 一轮答题开始 推送题目
+    NetworkManager.Instance:OffMessageEnum(
+        CS.MsgIDEnum.QAQestionToUserNtfID,
+        function(data)
+            self:QAQestionToUserNtf(data)
+        end,
+        nil
+    )
+
+    ---// 问答游戏 答题过程中 玩家选择选项通知
+    NetworkManager.Instance:OffMessageEnum(
+        CS.MsgIDEnum.QAUserSelectNtfID,
+        function(data)
+            self:QAUserSelectNtf(data)
+        end,
+        nil
+    )
+
+    ---// 问答游戏 一轮答题结束推送成功失败通知
+    NetworkManager.Instance:OffMessageEnum(
+        CS.MsgIDEnum.QAAnswerToUserNtfID,
+        function(data)
+            self:QAAnswerToUserNtf(data)
+        end,
+        nil
+    )
+
+    ---// 答题奖励通知
+    NetworkManager.Instance:OffMessageEnum(
+        CS.MsgIDEnum.QARewardNtfID,
+        function(data)
+            self:QARewardNtf(data)
+        end,
+        nil
+    )
+
+    ---// 公会积分变化通知
+    NetworkManager.Instance:OffMessageEnum(
+        CS.MsgIDEnum.PartyTimeGuildScoreSrvRetID,
+        function(data)
+            self:PartyTimeGuildScoreSrvRet(data)
+        end,
+        nil
+    )
+
+    ---// 答题情况
+    NetworkManager.Instance:OffMessageEnum(
+        CS.MsgIDEnum.PartyTimeQADataNtfID,
+        function(data)
+            self:PartyTimeQADataNtf(data)
+        end,
+        nil
+    )
+
+    -- 是否进出公会活动区域
+    CS.StarProject.GlobalEvent.OnEnterPartyArea:RemoveListener(
+        function(isEnter)
+            self:CheckEnterGuildArea(isEnter)
+        end
+    )
+
+    -- 监听差量更新变化
+    FixMessageManager.Instance:OffMessage(FixUpdateDef.ComCount, self.message1, nil)
+
+    self.PartyTimeQuestionWidget = nil
+end
+
+function PartyTimeModule:OnDisable(...)
+end
+
+function PartyTimeModule:OnDeleteHud(...)
+    self.PartyTimeWidget = nil
+end
+
+------------------------------ 发送协议
+return PartyTimeModule

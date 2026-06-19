@@ -1,0 +1,144 @@
+---------------------------------------------------------------------
+-- StarsPublish (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-02-21 17:06:49
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class CertificationToppedWidget
+CertificationToppedWidget = class("CertificationToppedWidget",UIPanel)
+CertificationToppedWidget.m_ItemGrid=nil;
+CertificationToppedWidget.m_PropScrollView=nil;
+CertificationToppedWidget.Props={}
+CertificationToppedWidget.PropItems={}
+CertificationToppedWidget.m_HeadIcon=nil;
+
+function CertificationToppedWidget:Awake()
+
+	self.m_PropScrollView=self:Find("PropScrollView"):GetComponent(typeof(SuperScrollViewController));
+	self.m_ItemGrid=self:Find("ItemGrid").gameObject
+	self.m_ItemGrid:SetActive(false);
+
+	self.m_PropScrollView:NewScroll(self.m_ItemGrid, 0, function (tr,idx)
+			self:OnPropItemRefesh(tr,idx);
+		end);
+	self.m_Close=self:Find("Close"):GetComponent(typeof(Button));
+	self.m_HeadIcon=self:Find("Head/HeadIcon"):GetComponent(typeof(Image));
+
+end
+function CertificationToppedWidget:OnEnable()
+	self.m_Close.onClick:AddListener(function()
+			self:OnHide();
+		end);
+end
+
+function CertificationToppedWidget:OnDisable()
+	self.m_Close.onClick:RemoveListener(function()
+			self:OnHide();
+		end);
+end
+
+function CertificationToppedWidget:OnPropItemRefesh(tr,idx)
+	if self.PropItems==nil then
+		return;
+	end
+	for i=1,#self.PropItems do
+		if self.PropItems[i].transform == tr then
+			local data= self.Props[idx+1]
+			local PropName=tr:Find("PropName"):GetComponent(typeof(Text));
+			local ProptCurrent=tr:Find("Current"):GetComponent(typeof(Text));
+			local ProptMax=tr:Find("Next"):GetComponent(typeof(Text));
+
+			PropName.text=data.PropName
+			ProptCurrent.text=data.OldMax
+			ProptMax.text=data.PropMax
+
+			return
+		end
+	end
+
+	tr.gameObject:SetActive(true);
+	local data= self.Props[idx+1]
+	local PropName=tr:Find("PropName"):GetComponent(typeof(Text));
+	local ProptCurrent=tr:Find("Current"):GetComponent(typeof(Text));
+	local ProptMax=tr:Find("Next"):GetComponent(typeof(Text));
+
+	PropName.text=data.PropName
+	ProptCurrent.text=data.OldMax
+	ProptMax.text=data.PropMax
+	table.insert(self.PropItems, bi);
+end
+
+function CertificationToppedWidget:GetParSkillDataCell(parId,starId)
+	for k, v in pairs(ConfigDataAccessor.ParSkill) do
+		if v.Par == parId and v.Star == starId then
+			return v;
+		end
+	end
+	return nil;
+end
+
+--数据更新
+function CertificationToppedWidget:OnOpen(data)
+	local config=ConfigDataAccessor.Partner[data.Index];
+	if config~=nil then
+		self.Props={}
+
+		local temp={}
+		local qualificate=ConfigDataAccessor.Qualifications[config.QualificationID][data.AptitudeBreakStep-1]
+		if qualificate~=nil then
+
+			for i = 1, #qualificate.QualiFications do
+				local AoiAttr= ConfigDataAccessor.ParConversion[qualificate.QualiFications[i]]
+				if AoiAttr~=nil then
+					temp[qualificate.QualiFications[i]]={PropName=AoiAttr.Name,PropMax=qualificate.Value_max[i],OldMax=qualificate.Value_max[i]}
+				end
+			end
+		end
+
+		local qualificatenow=ConfigDataAccessor.Qualifications[config.QualificationID][data.AptitudeBreakStep]
+		if qualificatenow~=nil then
+
+			for i = 1, #qualificatenow.QualiFications do
+				if temp[qualificatenow.QualiFications[i]]~=nil then
+					temp[qualificatenow.QualiFications[i]].PropMax=qualificatenow.Value_max[i]
+				end
+			end
+		end
+
+		for k, v in pairs(temp) do
+			v.id=k
+			table.insert(self.Props,v)
+		end
+		table.sort(self.Props,function (p1,p2)
+				return p1.id<p2.id;
+			end);
+		self.m_PropScrollView:ContinueScroll(#self.Props);
+
+		local avatarDataCell= ConfigDataAccessor.Avatar[config.AvatarID];
+		if avatarDataCell ~= nil then
+			local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID];
+			if headCfg ~= nil then
+				self:GetSpriteByAtlas(headCfg.HeadAtlasName,headCfg.MinHead,function (sp)
+						self.m_HeadIcon.sprite=sp
+						self.m_HeadIcon:SetNativeSize()
+				end);
+	
+			end
+		end
+	end
+
+
+
+
+
+	self.prefab:SetActive(true)
+end
+
+function CertificationToppedWidget:OnHide()
+	LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OnCloseCertificationToppedWidget");
+end
+
+return  CertificationToppedWidget

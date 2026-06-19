@@ -1,0 +1,165 @@
+--[[
+*文件名   :   PartnerInfoPart
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] local PartnerInfoPart = {}
+
+PartnerInfoPart.__index = PartnerInfoPart
+
+local EquipItem = require("View.Item.EquipItemSlot");
+
+function PartnerInfoPart:New(_go, partnerEquipWidget)
+    local self = {};
+    setmetatable(self, PartnerInfoPart);
+
+    self.partnerEquipWidget = partnerEquipWidget;
+
+    self.gameObject = _go;
+    self.transform = _go.transform;
+
+    self.m_PartnerRawImage = self.transform:Find("Left/PartnerRawImage"):GetComponent(typeof(RawImage));
+    self.m_DisplayRawimg = self.transform:Find("Left/DisplayRawimg"):GetComponent(typeof(DisplayRawimg));
+
+    -- self.m_Quality=self.transform:Find("Left/Quality"):GetComponent(typeof(Image));
+    self.PartnerName = self.transform:Find("Right/Info/PartnerInfo/PartnerName"):GetComponent(typeof(Text));
+    self.Stars = {}
+    table.insert(self.Stars, self.transform:Find("Right/Info/PartnerInfo/Stars/Star1").gameObject)
+    table.insert(self.Stars, self.transform:Find("Right/Info/PartnerInfo/Stars/Star2").gameObject)
+    table.insert(self.Stars, self.transform:Find("Right/Info/PartnerInfo/Stars/Star3").gameObject)
+    table.insert(self.Stars, self.transform:Find("Right/Info/PartnerInfo/Stars/Star4").gameObject)
+    table.insert(self.Stars, self.transform:Find("Right/Info/PartnerInfo/Stars/Star5").gameObject)
+    table.insert(self.Stars, self.transform:Find("Right/Info/PartnerInfo/Stars/Star6").gameObject)
+
+    self.equips = {};
+    -- for i=1,10 do
+    for i = 1, 3 do
+        local _go = self.transform:Find("Left/EquipGrid" .. i);
+        local equip = EquipItem:New(_go);
+
+        equip:InitItem(true, function(it, idx)
+            self:OnEquipItemClick(it, idx);
+        end)
+
+        table.insert(self.equips, equip);
+    end
+
+    self:Show(false);
+
+    return self; -- 返回自身
+end
+
+function PartnerInfoPart:Show(b)
+    self.gameObject:SetActive(b);
+    if b then
+
+    end
+end
+
+function PartnerInfoPart:OnEquipItemClick(it, idx)
+
+    self.partnerEquipWidget:SetPartnerEquip(idx);
+
+end
+
+function PartnerInfoPart:GetQualityName(quality)
+    if quality == 1 then
+        return "Partner_quality_n"
+    elseif quality == 2 then
+        return "Partner_quality_r"
+    elseif quality == 3 then
+        return "Partner_quality_sr"
+    elseif quality == 4 then
+        return "Partner_quality_ssr"
+    end
+end
+
+function PartnerInfoPart:SetPartnerInfo(data)
+
+    if data == nil then
+        return
+    end
+
+    local config = ConfigDataAccessor.Partner[data.Index];
+
+    for i = 1, #self.Stars do
+        if i <= data.CurStar then
+            self.Stars[i]:SetActive(true)
+        else
+            self.Stars[i]:SetActive(false)
+        end
+    end
+
+    if config ~= nil then
+        self.PartnerName.text = config.Name
+        -- self.m_Quality.sprite=self.partnerEquipWidget:GetSprite(self:GetQualityName(config.Quality))
+
+        local avatarDataCell = ConfigDataAccessor.Avatar[config.AvatarID];
+        if avatarDataCell ~= nil then
+            self:SetModel(avatarDataCell, String2Vector3(config.ModelScale), String2Vector3(config.ModelRot),
+                String2Vector3(config.ModelPos), config.ModelAnima);
+        end
+
+    end
+
+    -- 装备
+    for i = 1, #self.equips do
+        local data = BusinessManager.Instance:GetPartnerEquipedEquip(self.partnerEquipWidget:GetSelectPartner().ID, i);
+        if data == nil then
+            local temp = {};
+            temp.BaseID = 0;
+            self.equips[i]:SetItem(temp, i, false);
+        else
+            self.equips[i]:SetItem(data, i, false);
+        end
+    end
+
+end
+
+function PartnerInfoPart:SetModel(avatarDataCell, scale, localRotate, localPos, animName)
+    if self.m_avatarDataCell ~= avatarDataCell then
+        ------- 设置模型
+        self:PushDisplayGob();
+        self.m_avatarDataCell = avatarDataCell;
+        ResourceManager.Instance:PopGameObject("Roles/Template/Display_Model", function(go)
+            if go == nil then
+                return;
+            end
+
+            UIManager.Instance:SetModel2UI2(go, self.m_avatarDataCell.AvatarID, CS.StarProjectDef.ThreeDModelPos.Raw, scale,
+                Vector3.zero, localRotate, localPos, animName);
+            go:SetActive(true);
+            self.m_ModelViewDisplay = go:GetComponent(typeof(RoleViewDisplay));
+            -- self.m_DisplayRawing:SetModelView(self.m_ModelViewDisplay);
+
+            if self.m_ModelViewDisplay ~= nil then
+                local rotation = Quaternion.Euler(0, 0, 0);
+                self.m_ModelViewDisplay:SetRotation(rotation);
+                self.m_DisplayRawimg:SetState(true);
+            end
+
+            ------- 设置模型
+            self.m_PartnerRawImage.texture = ResourceManager.Instance.RenderTexture;
+
+        end);
+
+    end
+    if self.m_ModelViewDisplay ~= nil then
+        local rotation = Quaternion.Euler(0, 0, 0);
+        self.m_ModelViewDisplay:SetRotation(rotation);
+        self.m_DisplayRawimg:SetState(true);
+    end
+end
+
+function PartnerInfoPart:PushDisplayGob()
+    if self.m_ModelViewDisplay ~= nil then
+        ResourceManager.Instance:PushGameObject("Roles/Template/Display_Model", self.m_ModelViewDisplay.gameObject);
+        -- GameObject.Destroy(self.m_ModelViewDisplay.gameObject);
+        self.m_ModelViewDisplay = nil;
+        self.m_DisplayRawimg:SetModelView(self.m_ModelViewDisplay);
+    end
+end
+
+return PartnerInfoPart;

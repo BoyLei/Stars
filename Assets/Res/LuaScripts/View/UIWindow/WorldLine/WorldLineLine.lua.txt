@@ -1,0 +1,62 @@
+--[[
+*文件名   :   WorldLineLine
+*内  容   :   世界线中的item
+*说  明   :
+*创建日期 :   "2024/04/28 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local WorldLineLine = {}
+
+WorldLineLine.__index = WorldLineLine
+
+
+function WorldLineLine:New(_go) 
+    local self = {};    
+    setmetatable(self, WorldLineLine); 
+    
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+	self.Rect=self.transform:GetComponent(typeof(RectTransform));
+	
+    return self;    --返回自身
+end
+
+
+function WorldLineLine:InitItem()
+    self.IsUsed=false;
+    self.gameObject:SetActive(false);
+end
+
+
+function WorldLineLine:SetItem(pos,dir,length)
+
+	self.Rect.anchoredPosition=pos;
+
+	--[[
+	if dir==1 then --横
+		self.Rect.sizeDelta=Vector2(length,5);
+	else --竖
+		self.Rect.sizeDelta=Vector2(5,length);
+	end
+	]]
+	self.Rect.sizeDelta=Vector2(length,2);
+	if dir==1 then --横
+		self.transform.eulerAngles=Vector3(0,0,0);
+	else --竖
+		self.transform.eulerAngles=Vector3(0,0,-90);
+	end
+
+
+	self.IsUsed=true;
+    self.gameObject:SetActive(true);
+end
+
+function WorldLineLine:SetUse(b)
+    self.IsUsed=b;
+    self.gameObject:SetActive(b);
+end
+
+return WorldLineLine;

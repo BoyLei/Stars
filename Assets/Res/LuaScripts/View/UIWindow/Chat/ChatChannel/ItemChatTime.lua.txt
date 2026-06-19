@@ -1,0 +1,39 @@
+---------------------------------------------------------------------
+-- Stars (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-04-19 10:54:31
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class ItemChatTime
+
+local ItemChatTime = {}
+ItemChatTime.__index = ItemChatTime
+
+function ItemChatTime:New(obj)
+	local self = {};
+	setmetatable(self, ItemChatTime);
+
+	self:InitControls(obj)
+
+	return self;
+end
+
+function ItemChatTime:InitControls(obj)
+	self.GameObject = obj;
+	self.Transform = obj.transform;
+
+	--聊天内容
+	self.TimeText = self.Transform:Find("TimeText"):GetComponent(typeof(Text));
+
+end
+
+function ItemChatTime:SetItem(time)
+	
+	self.TimeText.text = TimeUtils.FormatShowTimeHM(time,":");
+
+end
+
+return ItemChatTime

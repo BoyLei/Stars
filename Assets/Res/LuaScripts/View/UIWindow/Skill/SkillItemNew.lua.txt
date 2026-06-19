@@ -1,0 +1,423 @@
+-- 技能条目
+local SkillItemNew = {}
+SkillItemNew.__index = SkillItemNew
+
+function SkillItemNew:New(obj, w, _parent)
+    local self = {};
+    setmetatable(self, SkillItemNew);
+
+    self.gameObject = obj;
+    self.transform = obj.transform;
+
+    if _parent ~= nil then
+        self.transform:SetParent(_parent, false);
+        self.transform.localPosition = Vector3.zero
+        self.transform.localScale = Vector3.one
+    end
+
+    self:Init()
+
+    self.skillNew = w;
+
+    return self;
+end
+
+function SkillItemNew:Init()
+
+    self.normalGo = self.transform:Find("Normal").gameObject;
+
+    self.skillIcon = self.transform:Find("Icon"):GetComponent(typeof(Image));
+    -- self.usedGo = self.transform:Find("Used").gameObject;
+    -- self.usedGo:SetActive(false);
+
+    -- 天赋节点
+    self.talentLevel = {};
+    -- 选中了天赋 的 节点
+    self.talentSelLevel = {};
+    -- 未选中天赋的 节点
+    self.talentNoSelectLevel = {};
+
+    -- self.talentSelectNumLevel = {};
+    -- self.talentNoSelectNumLevel = {};
+
+    for i = 1, 3, 1 do
+        local levelItem = self.transform:Find("Level" .. i).gameObject;
+        self.talentLevel[i] = levelItem;
+
+        levelItem.transform:GetComponent(typeof(JButton)).OnClick = function(go)
+            print("[Click ] i: " .. tostring(i));
+            self.skillNew:OnTalentClick(self.skillId, self);
+        end
+
+        -- self.talentSelLevel[i] = levelItem.transform:Find("Sel").gameObject;
+        -- self.talentNoSelectLevel[i] = levelItem.transform:Find("Nom").gameObject;
+
+    end
+
+    self.upgradeGo = self.transform:Find("Upgrade").gameObject;
+    self.upgradeGo:SetActive(false);
+    self.percentText = self.transform:Find("Percent"):GetComponent(typeof(Text));
+    self.nameText = self.transform:Find("Name"):GetComponent(typeof(Text));
+
+    self.selGo = self.transform:Find("Sel").gameObject;
+    -- self.levelSelGo = self.transform:Find("LevelSel").gameObject;
+
+    self.SkillJb = self.transform:Find("Icon"):GetComponent(typeof(JButton));
+    self.SkillJb.OnClick = function()
+        self.skillNew:OnSkillClick(self.skillId, self);
+    end
+
+    -- “新” 的图标
+    self.NewTrans = self.transform:Find("New");
+
+end
+
+function SkillItemNew:New1(obj, w, _parent)
+    local self = {};
+    setmetatable(self, SkillItemNew);
+
+    self.gameObject = obj;
+    self.transform = obj.transform;
+
+    if _parent ~= nil then
+        self.transform:SetParent(_parent, false);
+        self.transform.localPosition = Vector3.zero
+        self.transform.localScale = Vector3.one
+    end
+
+    self:Init1()
+
+    self.skillNew = w;
+
+    return self;
+end
+
+function SkillItemNew:Init1()
+
+    self.normalGo = self.transform:Find("Normal").gameObject;
+
+    self.skillIcon = self.transform:Find("Icon"):GetComponent(typeof(Image));
+
+    self.SkillJb = self.skillIcon:GetComponent(typeof(JButton));
+    self.SkillJb.OnClick = function()
+        self:OnClick();
+    end
+
+    self.content = self.transform:Find("Content");
+    self.usedGo = self.content:Find("Used").gameObject;
+    self.usedGo:SetActive(false);
+
+    -- 天赋节点
+    self.talentLevel = {};
+    -- 选中了天赋 的 节点
+    self.talentSelLevel = {};
+    -- 未选中天赋的 节点
+    self.talentNoSelectLevel = {};
+
+    self.talentSelectNumLevel = {};
+    self.talentNoSelectNumLevel = {};
+
+    -- 锁的节点
+    self.talentLockLevel = {};
+
+    for i = 1, 3, 1 do
+        local levelItem = self.content:Find("Level" .. i).gameObject;
+        self.talentLevel[i] = levelItem;
+
+        levelItem.transform:GetComponent(typeof(JButton)).OnClick = function(go)
+            print("[Click ] i: " .. tostring(i));
+            self.skillNew:OnTalentClick(self.skillId, self);
+        end
+
+        self.talentSelLevel[i] = levelItem.transform:Find("Sel").gameObject;
+        self.talentNoSelectLevel[i] = levelItem.transform:Find("Nom").gameObject;
+
+        self.talentSelectNumLevel[i] = levelItem.transform:Find("Sel/1").gameObject;
+        self.talentNoSelectNumLevel[i] = levelItem.transform:Find("Nom/1").gameObject;
+
+        self.talentLockLevel[i] = levelItem.transform:Find("Lock").gameObject;
+
+    end
+
+    self.upgradeGo = self.content:Find("Upgrade").gameObject;
+    self.upgradeGo:SetActive(false);
+    self.percentText = self.content:Find("Percent"):GetComponent(typeof(Text));
+    self.nameText = self.transform:Find("Name"):GetComponent(typeof(Text));
+
+    self.selGo = self.content:Find("Sel").gameObject;
+    -- self.levelSelGo = self.content:Find("LevelSel").gameObject;
+
+    -- “新” 的图标
+    self.NewTrans = self.content:Find("New");
+
+    self.LockRoot = self.transform:Find("LockRoot");
+
+    local lockBtn = self.LockRoot:GetComponent(typeof(JButton));
+    lockBtn.OnClick = function()
+        self:OnClickLock();
+    end
+
+    self.LockRoot.gameObject:SetActive(false);
+
+    self.selLockGo = self.LockRoot:Find("Sel").gameObject;
+
+end
+
+function SkillItemNew:OnClick()
+    self.skillNew:OnSkillClick(self.skillId, self);
+end
+
+function SkillItemNew:Refresh(jobSkillId, open, talentId, lv, curSel, idx)
+    self.skillId = jobSkillId;
+    self:Show(true);
+    -- 这个表示 是否已经装备,但是 技能展示界面并不需要显示
+
+    if self.usedGo ~= nil then
+        self.usedGo:SetActive(open);
+    end
+    -- 
+
+    -- 当前技能槽icon 所在的 位置是 几号位。目前 策划要求 点击不同技能，显示不同 位置.
+    self.idx = idx;
+
+    local skillName = nil;
+    self.curTalentId = talentId;
+    -- 如果没有天赋, 那就用默认天赋
+    if talentId == 0 then
+        local talentCfgs = GetJobSkillTalents(jobSkillID);
+
+        -- 天赋显示的 ID 采用 默认的天赋ID
+        if talentCfgs ~= nil and #talentCfgs > 0 then
+            talentId = talentCfgs[1].ID;
+        end
+    end
+    local id = ConfigDataAccessor.TalentList[talentId].BattleActive[1];
+    for _, v in pairs(ConfigDataAccessor.SkillDescList) do
+        if v.SkillID == id and v.Level == lv then
+            ResourceHelper:LoadIconByAtlasAsync(self.skillIcon, ResourceHelper.AtlasPathSkill, v.IconPath, false)
+            skillName = v.SkillName;
+            break
+        end
+    end
+
+    -- 设置天赋
+    self:RefreshTalent(-1);
+    for _, v in pairs(ConfigDataAccessor.TalentList) do
+        if self.curTalentId == v.ID then
+
+            self:RefreshTalent(v.TalentType);
+            break
+        end
+    end
+
+    local talentCfgs = GetJobSkillTalents(jobSkillId);
+    local count = #talentCfgs;
+    local playerLevel = GameManager.Instance:GetPlayerLevel();
+
+    -- 没有天赋开启的时候, 就是锁定状态. 锁定的时候, 需要能够点击 显示 技能详情
+    self.isLock = true;
+
+    local unLockLevel = 1;
+
+    for i = 1, 3, 1 do
+        if i <= count then
+
+            if i == 1 then
+                unLockLevel = talentCfgs[i].LimitLv;
+            end
+
+            self.talentLevel[i]:SetActive(true);
+
+            if playerLevel >= talentCfgs[i].LimitLv then
+
+                if self.talentLockLevel ~= nil then
+                    self.talentLockLevel[i]:SetActive(false);
+                end
+
+                -- 只要有一个天赋 解锁了, 那这个技能就 解锁了
+                self.isLock = false;
+            else
+
+                if self.talentLockLevel ~= nil then
+                    self.talentLockLevel[i]:SetActive(true);
+                end
+
+            end
+
+        else
+            self.talentLevel[i]:SetActive(false);
+        end
+    end
+
+    self.curLv = lv;
+    self.maxLevel = 0;
+
+    for k, v in pairs(ConfigDataAccessor.SkillLevelList) do
+        if v.SkillID == jobSkillId then
+            if v.Skill_Level > self.maxLevel then
+                self.maxLevel = v.Skill_Level;
+            end
+        end
+    end
+    self.percentText.text = lv --[[..'/'..maxLevel]] -- ;
+    self.nameText.text = skillName;
+
+    self:SetSel(self.skillId == curSel);
+
+    self:RefreshCanUpGrade();
+
+    self:RefreshIsLock(self.isLock);
+
+    -- 刷新 锁定的 显示
+    if self.isLock then
+        local lockTips = StringFormat(LanguageHelp:GetLanguageByKey("SkillNew_35"), {unLockLevel});
+        self:SetLockTips(skillName, lockTips);
+    end
+
+end
+
+function SkillItemNew:RefreshTalent(talentType)
+
+    local allClose = false;
+    if talentType == -1 then
+        allClose = true;
+    end
+    local isLevel = false;
+    for k, v in pairs(self.talentSelLevel) do
+        if not allClose then
+            isLevel = k == talentType + 1;
+        end
+
+        self.talentSelLevel[k]:SetActive(isLevel and not self.talentLockLevel[k].activeSelf);
+        self.talentNoSelectLevel[k]:SetActive(not isLevel and not self.talentLockLevel[k].activeSelf);
+    end
+
+end
+
+function SkillItemNew:RefreshCanUpGrade()
+
+    if self.curLv >= self.maxLevel then
+        self.upgradeGo:SetActive(false);
+        return;
+    end
+
+    local skillPoint = GameManager.Instance:GetSkillPoint();
+    local skillUsedPoint = GameManager.Instance:GetSkillPointUsed();
+    local requirePoints = GetJobSkillLevelUpPoint(self.skillId, self.curLv);
+
+    -- 如果 技能点不足, 那也显示可升级
+    if skillPoint < requirePoints then
+        self.upgradeGo:SetActive(false);
+        return;
+    end
+
+    local isUnLock = self:CheckSkillLevelCondition(GetJobSkillLevelUpCondition(self.skillId, self.curLv));
+
+    if not isUnLock then
+        self.upgradeGo:SetActive(false);
+        return;
+    end
+
+    self.upgradeGo:SetActive(true);
+
+end
+
+function SkillItemNew:CheckSkillLevelCondition(conditionID)
+    local isUnLock = GlobalFunctionManager.Instance:ConditionGroupMete(GameManager.Instance.mainPlayerId, conditionID,
+        nil);
+    return isUnLock;
+end
+
+function SkillItemNew:SetSel(isSel)
+    self.selGo:SetActive(isSel);
+
+    if self.selLockGo ~= nil then
+
+        self.selLockGo:SetActive(isSel);
+    end
+end
+
+-- 刷新 选中状态的接口
+function SkillItemNew:UpdateSelect(isSelect, isTalent)
+    -- body
+    self:SetSel(isSelect and not isTalent);
+    -- self.levelSelGo:SetActive(isSelect and isTalent);
+end
+
+function SkillItemNew:Show(b)
+    self.gameObject:SetActive(b);
+end
+
+-- 显示升级特效
+function SkillItemNew:ShowLevelUpFx()
+    -- body
+end
+
+-- 刷新是否有新的天赋
+function SkillItemNew:RefreshTalentIsNew(isNew)
+
+    if self.NewTrans == nil then
+        return;
+    end
+
+    self.NewTrans.gameObject:SetActive(isNew);
+
+end
+
+function SkillItemNew:RefreshIsLock(isLock)
+
+    if self.LockRoot == nil then
+        return;
+    end
+
+    self.LockRoot.gameObject:SetActive(isLock);
+    self.content.gameObject:SetActive(not isLock);
+end
+
+-- 设置 锁定状态下的 文本显示 和点击的 提示
+function SkillItemNew:SetLockTips(lockName, lockTips)
+
+    self.nameText.text = lockName;
+    self.lockTips = lockTips;
+end
+
+function SkillItemNew:SetNoneSkillLock()
+
+    self.skillId = 0;
+
+    local lockStr = LanguageHelp:GetLanguageByKey("SkillNew_45");
+
+    self:SetLockTips(lockStr, lockStr);
+
+    self:RefreshIsLock(true);
+
+    -- 未觉醒把 icon 关闭
+    self.skillIcon.gameObject:SetActive(false);
+end
+
+function SkillItemNew:OnClickLock()
+    Util.ShowMessage(self.lockTips);
+
+    -- 如果是 空技能, 那就是 大招这种 未觉醒的节能, 点击 不显示技能详情, 只弹tips
+    if self.skillId == 0 then
+
+        return;
+    end
+
+    -- 普通的技能,哪怕未 解锁,也显示 它的 技能详情界面
+    self:OnClick();
+end
+
+-- 设置技能类型 
+-- 1 被动
+-- 2 普攻
+-- 3 大招
+-- 4 普通职业技能
+-- 5 觉醒职业技能
+function SkillItemNew:SetSkillType(skillType)
+
+    self.SkillType = skillType;
+
+end
+
+return SkillItemNew

@@ -1,0 +1,476 @@
+--[[
+*文件名   :   TutorialWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/11/08 18:13:23"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+TutorialWidget=class("TutorialWidget",UIPanel)
+
+local GuideImage=require("View/UIWidget/Tutorial/GuideImage")
+local Guidance_ForceGuideMaskFadeEndTime=8;
+local Guidance_ForceGuideMaskFadeStaTime=3;
+local Guidance_ForceGuideMaskFadeAlpha=0.13;
+
+TutorialWidget.m_Mask=nil;
+TutorialWidget.m_Square=nil;
+TutorialWidget.m_Circle=nil;
+TutorialWidget.m_SidePop=nil;
+TutorialWidget.m_FloatingText=nil;
+TutorialWidget.m_Frame=nil;
+TutorialWidget.m_SidePopText=nil;
+TutorialWidget.m_Title=nil;
+TutorialWidget.m_ArrowText=nil;
+TutorialWidget.m_Arrow=nil;
+TutorialWidget.Shape=0;
+TutorialWidget.GuideMap={}
+TutorialWidget.m_GuideImage=nil;
+--TutorialWidget.m_SkipBtn=nil;
+--存储长度始终是5
+--TutorialWidget.m_LastClickTime={}
+--TutorialWidget.m_ClickIndex=0;
+TutorialWidget.m_CurrentGuideID=0;
+TutorialWidget.m_MaskBtn=nil;
+TutorialWidget.ClickCnt=0;
+TutorialWidget.FxList={}
+TutorialWidget.FrameList={}
+
+local OnBtnClick=nil;
+
+function TutorialWidget:Awake()
+	self.m_Mask=self:Find("Mask"):GetComponent(typeof(Image));
+	self.m_MaskBtn=self:Find("Mask"):GetComponent(typeof(JButton));
+	self.m_Square=self:Find("Square").gameObject;
+	self.m_Circle=self:Find("Circle").gameObject;
+	self.m_SidePop=self:Find("SidePop").gameObject;
+	self.m_FloatingText=self:Find("FloatingText"):GetComponent(typeof(Text));
+	self.m_Frame=self:Find("Frame").gameObject;
+	self.m_SidePopText=self:Find("SidePop/SidePop"):GetComponent(typeof(Text));
+	self.m_Title=self:Find("SidePop/Title"):GetComponent(typeof(Text));
+	self.m_ArrowText=self:Find("Frame/ArrowText"):GetComponent(typeof(Text));
+	--self.m_SkipBtn=self:Find("SkipBtn"):GetComponent(typeof(JButton));
+	self.m_Arrow=self:Find("Frame/Arrow"):GetComponent(typeof(RectTransform));
+	local im=self:Find("GuideImage").gameObject;
+	im:SetActive(false)
+	self.m_GuideImage=GuideImage.new(im)
+	self.GuideMap={}
+	self.ClickCnt=0;
+	self.FxList={}
+	self.FrameList={}
+	self.m_Square:SetActive(false);
+	self.m_Circle:SetActive(false);
+	Guidance_ForceGuideMaskFadeEndTime=SystemConstConfigs.Guidance_ForceGuideMaskFadeEndTime
+	Guidance_ForceGuideMaskFadeStaTime=SystemConstConfigs.Guidance_ForceGuideMaskFadeStaTime
+	Guidance_ForceGuideMaskFadeAlpha=SystemConstConfigs.Guidance_ForceGuideMaskFadeAlpha*0.01
+	self:OnEndGuide();
+	--self.m_SkipBtn.OnClick = (function()
+			--if self.GuideMap~=nil then
+				--for k, v in pairs(self.GuideMap) do
+					--if v.IsForeceGuide then
+						--v:FinishCurrent(true);
+						--self.GuideMap[k]=nil;
+					--end
+				--end
+				----self.GuideMap={}
+				--self:SetMask(false);
+			--end
+			--self.m_CurrentGuideID=0;
+			--self.m_SkipBtn.gameObject:SetActive(false)
+		--end)
+	
+	self.m_MaskBtn.OnClick = (function()
+			if self.ClickCnt<Guidance_ForceGuideMaskFadeStaTime then
+				if self.ClickCnt >1 then
+					Util.ShowMessageByCode(CRetMsgEnum.Tips_Guidance_MaskClick)
+				end
+			else
+				if self.ClickCnt>=Guidance_ForceGuideMaskFadeEndTime then
+
+					if self.GuideMap~=nil then
+						for k, v in pairs(self.GuideMap) do
+							if v.IsForeceGuide then
+								v:FinishCurrent(true);
+								self.GuideMap[k]=nil;
+							end
+						end
+						self:SetMask(false);
+					end
+					self.m_CurrentGuideID=0;
+				else
+					if self.ClickCnt >1 then
+						Util.ShowMessageByCode(CRetMsgEnum.Tips_Guidance_MaskClick)
+					end
+					local aplha=self.m_Mask.color.a-Guidance_ForceGuideMaskFadeAlpha
+					self.m_Mask.color=Color(0,0,0,aplha)
+				end
+			end
+			
+
+			self.ClickCnt=self.ClickCnt+1;
+	 end)
+
+		CS.StarProject.GlobalEvent.OnBackLogin:AddListener(function (againLoginType)
+				self:OnReLogin();
+			end)
+
+		CS.StarProject.GlobalEvent.SettoTutorial:AddListener(function (go)
+				self:OnSettoTutorial(go);
+			end)
+end
+		
+
+	
+
+function TutorialWidget:OnSettoTutorial(go)
+	if go~=nil then
+		go.transform:SetParent(self.prefab.transform)
+	end
+end
+
+function TutorialWidget:OnReLogin()
+	if self.GuideMap~=nil then
+		for k, v in pairs(self.GuideMap) do
+			v:FinishCurrent(true);
+		end
+		self.GuideMap={}
+		self:SetMask(false);
+	end
+	
+	if self.FxList~=nil then
+		for k, v in pairs(self.FxList) do
+			if v~=nil then
+				GameObject.Destroy(v)
+			end
+		end
+	end
+	if self.FrameList~=nil then
+		for k, v in pairs(self.FrameList) do
+			if v~=nil then
+				GameObject.Destroy(v)
+			end
+		end
+	end
+	self.FxList={}
+	self.FrameList={}
+end
+
+--获取当前进行的引导
+function TutorialWidget:GetCurrentRunnigGuide()
+	return  self.GuideMap;
+end
+
+function TutorialWidget:OnEndGuide()
+	self:SetMask(false);
+	self.m_SidePop:SetActive(false);
+	self.m_Frame:SetActive(false);
+	self.ClickCnt=0;
+	--self.m_SkipBtn.gameObject:SetActive(false);
+	self.m_FloatingText.gameObject:SetActive(false);
+end
+
+
+
+function TutorialWidget:Start()
+
+end
+
+function TutorialWidget:OnEnable()
+
+end
+
+function TutorialWidget:OnDisable()
+
+end
+
+function TutorialWidget:OnDestroy()
+
+end
+
+function TutorialWidget:OnOpen(arg)
+
+end
+
+function TutorialWidget:OnClose(arg)
+
+end
+
+
+function TutorialWidget:SetArrow(direction,m_Arrow)
+
+	if direction==Vector2Int(0,0) then
+		m_Arrow.anchorMin=Vector2(0,0)
+		m_Arrow.anchorMax=Vector2(1,1)
+	elseif direction==Vector2Int(1,0) then
+		m_Arrow.anchorMin=Vector2(1,0.5)
+		m_Arrow.anchorMax=Vector2(1,0.5)
+	elseif direction==Vector2Int(1,-1) then
+		m_Arrow.anchorMin=Vector2(1,0)
+		m_Arrow.anchorMax=Vector2(1,0)
+	elseif direction==Vector2Int(0,-1) then
+		m_Arrow.anchorMin=Vector2(0.5,0)
+		m_Arrow.anchorMax=Vector2(0.5,0)
+	elseif direction==Vector2Int(-1,-1) then
+		m_Arrow.anchorMin=Vector2(0,0)
+		m_Arrow.anchorMax=Vector2(0,0)
+	elseif direction==Vector2Int(-1,0) then
+		m_Arrow.anchorMin=Vector2(0,0.5)
+		m_Arrow.anchorMax=Vector2(0,0.5)
+	elseif direction==Vector2Int(-1,1) then
+		m_Arrow.anchorMin=Vector2(0,1)
+		m_Arrow.anchorMax=Vector2(0,1)
+	elseif direction==Vector2Int(0,1) then
+		m_Arrow.anchorMin=Vector2(0.5,1)
+		m_Arrow.anchorMax=Vector2(0.5,1)
+	elseif direction==Vector2Int(1,1) then
+		m_Arrow.anchorMin=Vector2(1,1)
+		m_Arrow.anchorMax=Vector2(1,1)
+	end
+
+	local Radians= Mathf.Atan2(direction.y, direction.x);
+	local degrees= Radians*Mathf.Rad2Deg
+	m_Arrow.localRotation=Quaternion.Euler(Vector3(0,0,degrees))
+	m_Arrow.anchoredPosition = Vector2(direction.x,direction.y);
+end
+
+function TutorialWidget:SetMask(v)
+	if v==nil then
+		v=false
+	end
+	local IsForeceGuide=false;
+	local aplha=0;
+	if self.GuideMap~=nil then
+		for k, v in pairs(self.GuideMap) do
+			if v.IsForeceGuide then
+				IsForeceGuide=true;
+				break
+			end
+		end
+	end
+
+	IsForeceGuide=v or IsForeceGuide;
+	if IsForeceGuide then
+		aplha=SystemConstConfigs.Guidance_ForceGuideMaskAlpha*0.01
+	end
+	self.m_Mask.color=Color(0,0,0,aplha);
+	self.m_Mask.raycastTarget=IsForeceGuide;
+end
+
+--[[
+isMask 是否使用遮罩
+apha 遮罩的透明度0-255
+raycast 是否接收射线,仅 强制引导需要
+]]
+
+function TutorialWidget:OnBeigen(Config)
+
+	local path="";
+
+	local shape=Config.MaskShapeType;
+	self.ClickCnt=0;
+	local mTemp_Frame=nil;
+	local NotFindCnt=0;
+	if not self.prefab.activeInHierarchy then
+		self.prefab:SetActive(true)
+	end
+
+	self.m_SidePop:SetActive(false);
+	self.m_Frame:SetActive(false);
+	self.m_FloatingText.gameObject:SetActive(false);
+
+	if Config.TextStyle==CS.E_TextStyle.WithArrow then
+		mTemp_Frame=GameObject.Instantiate(self.m_Frame);
+		local m_Arrow=mTemp_Frame.transform:Find("Arrow"):GetComponent(typeof(RectTransform));
+		local m_ArrowText=mTemp_Frame.transform:Find("ArrowText"):GetComponent(typeof(Text));
+		m_Arrow.gameObject:SetActive(Config.ShowArrow)
+		mTemp_Frame.gameObject:SetActive(true);
+		m_ArrowText.text=Config:GetText()
+		self:SetArrow(Config.ArrowDirection,m_Arrow)
+
+	elseif Config.TextStyle==CS.E_TextStyle.SidePop then
+		self.m_SidePop:SetActive(true);
+		self.m_SidePopText.text=Config:GetText()
+		self.m_Title.text=Config.TipTitleText
+
+	elseif Config.TextStyle==CS.E_TextStyle.FloatingText then
+		self.m_FloatingText.gameObject:SetActive(true);
+		self.m_FloatingText.text=Config:GetText()
+	end
+
+	local fx=nil;
+	if shape==CS.E_MaskShapeType.Square then
+		fx=GameObject.Instantiate(self.m_Square);
+		fx.name="Square"..Config.ID
+	elseif shape==CS.E_MaskShapeType.Circle then
+		fx=GameObject.Instantiate(self.m_Circle);
+		fx.name="Circle"..Config.ID
+	end
+	self.FxList[Config.ID]=fx
+	self.FrameList[Config.ID]=mTemp_Frame
+
+	if Config.TutorialTargets ~=nil and Config.TutorialTargets.Count > 0 then
+		path = Config.TutorialTargets[0].Params;
+	end
+
+	if path~=nil and path~="" then
+
+		if self.GuideMap[path]~=nil then
+			if mTemp_Frame~=nil then
+				GameObject.Destroy(mTemp_Frame)
+			end
+
+			if fx~=nil then
+				GameObject.Destroy(fx)
+			end
+			self.m_SidePop:SetActive(false);
+			self.m_Frame:SetActive(false);
+			self.m_FloatingText.gameObject:SetActive(false);
+		else
+			DelayInvoker.DelayInvoke(self, 0.25, function()
+					local isFind=self:FindTarget(Config,mTemp_Frame,fx,path,shape)
+					if not isFind then
+						NotFindCnt=1;
+						local isfind=false;
+						DelayInvoker.DelayInvoke(path..NotFindCnt, 0.25, function()
+
+								isfind=self:FindTarget(Config,mTemp_Frame,fx,path,shape)
+								NotFindCnt=NotFindCnt+1;
+
+								if not isfind then
+									DelayInvoker.DelayInvoke(path..NotFindCnt, 0.25, function()
+											isfind=self:FindTarget(Config,mTemp_Frame,fx,path,shape)
+											NotFindCnt=NotFindCnt+1;
+
+											if NotFindCnt>=3 or isfind then
+												if mTemp_Frame~=nil then
+													GameObject.Destroy(mTemp_Frame)
+												end
+
+												if fx~=nil then
+													GameObject.Destroy(fx)
+												end
+												self.m_SidePop:SetActive(false);
+												self.m_Frame:SetActive(false);
+												self.m_FloatingText.gameObject:SetActive(false);
+											end
+										end)
+								end
+							end )
+					end
+				end);
+		end
+	else
+		if Config.CompleteConfig.CompleteTypeType == CS.E_TutorialCompleteTypeType.Delay then
+			local time=tonumber(Config.CompleteConfig.Prams[0])/1000
+			self.DelayFunc=function()
+				self:FinishCurrent("",Config.ID,false);
+				self.DelayFunc=nil;
+			end
+			DelayInvoker.DelayInvoke(self, time, self.DelayFunc);
+		end
+	end
+	--self.m_SkipBtn.gameObject:SetActive(false)
+	self:SetMask(Config.IsForceGuide);
+	self.m_CurrentGuideID=Config.ID
+	--DelayInvoker.DelayInvoke(self, 3, function()
+			--if self.m_CurrentGuideID==Config.ID and Config.IsForceGuide then
+				--self.m_SkipBtn.gameObject:SetActive(self.m_Mask.raycastTarget)
+			--end
+		--end);
+	
+	if Config.ImageGroup>0 then
+		self.m_GuideImage:OnOpen({GroupID=Config.ImageGroup,Mask=self.m_Mask.raycastTarget,Cb=function(p,guideID)
+					self:FinishCurrent(p,guideID,false);
+				end,GuideID=Config.ID})
+	end
+end
+
+
+function TutorialWidget:FindTarget(Config,mTemp_Frame,fx,path,shape)
+	local go=UIManager.Instance:GetPlaneNodeFromOfflineData(path);
+	if go~=nil then
+		local oldparent=go.parent;
+		local oldIndex=go:GetSiblingIndex();
+		local nowParent=oldparent;
+		if Config.IsForceGuide then
+			nowParent=self.prefab.transform;
+		end
+
+		local item= StructAccessor.TutorialItem.new(path,go,oldparent,oldIndex,shape,Config.IsForceGuide,fx,nowParent,mTemp_Frame,Config.ArrowDirection,Config,function(p,guideID,stop)
+				self:FinishCurrent(p,guideID,stop);
+			end)
+		self.GuideMap[path]=item;
+		item:OnBegine();
+		if mTemp_Frame~=nil then
+			mTemp_Frame.transform:SetParent(self.prefab.transform);
+		end
+		return true
+	else
+		LogError("Not Find GameObject By Path "..path);
+
+		return false
+
+
+	end
+end
+
+
+function TutorialWidget:FinishTutorial(path,guideID,stop)
+	if self.GuideMap[path]~=nil then
+		self.GuideMap[path]:FinishCurrent(stop)
+	end
+	self:FinishCurrent();
+end
+
+
+function TutorialWidget:FinishCurrent(path,guideID,stop)
+	if self.m_CurrentGuideID==guideID then
+		self.m_CurrentGuideID=0;
+	end
+	local delayTime = 0.05;
+	-- 判断字符串是否包含某个子字符串
+	local substring = "JBtnMenu"
+	if path~=nil and path~="" and path~='' and  string.find(path, substring) then
+		delayTime = 0.35;
+	end
+	if self.FxList[guideID]~=nil then
+		GameObject.Destroy(self.FxList[guideID])
+		self.FxList[guideID]=nil;
+	end
+	
+	if self.FrameList[guideID]~=nil then
+		GameObject.Destroy(self.FrameList[guideID])
+		self.FrameList[guideID]=nil;
+	end
+
+	DelayInvoker.DelayInvoke(self, delayTime, function()
+			if path~=nil and path~="" then
+				self.GuideMap[path]=nil;
+			end
+
+			self.SetMarkFlag(guideID);
+			if stop then
+				self:OnEndGuide();
+				return
+			end
+
+			local next=self.GetNextGuildID(guideID)
+			if next<1 then
+				self:OnEndGuide();
+			end
+		end);
+
+end
+
+function TutorialWidget:GuideIsRunning(path,replay)
+	if self.GuideMap[path]~=nil then
+		if replay then
+			self.GuideMap[path]:RePlay()
+		end
+		return true
+	end
+	return  false;
+end
+
+
+return  TutorialWidget

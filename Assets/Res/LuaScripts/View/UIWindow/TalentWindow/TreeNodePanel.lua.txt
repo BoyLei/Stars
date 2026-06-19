@@ -1,0 +1,255 @@
+local TreeNodePanel = {}
+TreeNodePanel.__index = TreeNodePanel
+
+local RootNodeItem = require("View/UIWindow/TalentWindow/RootNodeItem")
+local BigNodeItem = require("View/UIWindow/TalentWindow/BigNodeItem")
+local SmallNodeItem = require("View/UIWindow/TalentWindow/SmallNodeItem")
+
+function TreeNodePanel:New(obj)
+	local self = {};
+	setmetatable(self, TreeNodePanel);
+
+	self:InitControls(obj)
+
+	return self;
+end
+
+function TreeNodePanel:InitControls(obj)
+	self.gameObject = obj;
+	self.transform = obj.transform;
+
+	self.closeBtn = self.transform:Find("ReturnBtn"):GetComponent(typeof(JButton));
+	self.closeBtn.OnClick = function()
+		-- 关闭rightpanel
+		-- 影藏自己
+		-- 显示左边栏
+		LuaModuleDispatcher:SendMessage(ModuleDef.TalentModule, "OnCloseTreeNodes", {});
+		-- local ani = self.transform:Find("1100001/Lines/1103000-1103103"):GetComponent(typeof(Animation));
+		-- ani:Play("Line");
+	end;
+
+	self.nameText = self.transform:Find("TalentName/Name"):GetComponent(typeof(Text));
+	self.numText = self.transform:Find("TalentName/LightNum"):GetComponent(typeof(Text));
+
+
+	self.bigLightable = self.transform:Find("FX_ui_TalentWindow_Loop01").gameObject;	--大街店loop
+	self.smallLightable = self.transform:Find("FX_ui_TalentWindow_Loop02").gameObject;
+	self.lightPurple = self.transform:Find("FX_ui_TalentWindow_Looding").gameObject;	--累加
+	self.lightGolden = self.transform:Find("FX_ui_TalentWindow_DianLiang").gameObject;	--完全
+
+	self.allEffect = {};
+	table.insert(self.allEffect, self.bigLightable);
+	table.insert(self.allEffect, self.smallLightable);
+	table.insert(self.allEffect, self.lightPurple);
+	table.insert(self.allEffect, self.lightGolden);
+	self.objectpool = {}
+	self.objectpool[1] = CS.StarProject.Service.Resource.GameObjectPool.CreatePool("",self.bigLightable,self.transform)
+	self.objectpool[2] = CS.StarProject.Service.Resource.GameObjectPool.CreatePool("",self.smallLightable,self.transform)
+	self.objectpool[3] = CS.StarProject.Service.Resource.GameObjectPool.CreatePool("",self.lightPurple,self.transform)
+	self.objectpool[4] = CS.StarProject.Service.Resource.GameObjectPool.CreatePool("",self.lightGolden,self.transform)
+
+	local attriTTCondition = ConfigDataAccessor.AttriTTCondition;
+	local attriTTNodes = ConfigDataAccessor.AttriTTNode;
+	self.nodeTable = {};
+	for k, v in pairs(attriTTCondition) do
+		self.nodeTable[k] = {};
+		local nodeRoot = self.transform:Find(tostring(k));
+		if nodeRoot ~= nil then
+			self.nodeTable[k].root = nodeRoot.gameObject;
+			for i = 1, nodeRoot.childCount - 1 do
+				local nodeObj = nodeRoot:GetChild(i);
+				local nodeId = tonumber(nodeObj.name);
+				local nodeData = attriTTNodes[nodeId];
+				if nodeData == nil then
+					self.nodeTable[k][nodeId] = RootNodeItem:new(nodeObj.gameObject, self.objectpool);
+				elseif nodeData.NodeType == 1 then
+					self.nodeTable[k][nodeId] = SmallNodeItem:new(nodeObj.gameObject, self.objectpool);
+				else
+					self.nodeTable[k][nodeId] = BigNodeItem:new(nodeObj.gameObject, self.objectpool);
+				end
+			end
+		end
+	end
+
+	-- self.nodeTable = {};
+
+	-- local attriTTNodes = ConfigDataAccessor.AttriTTNode;
+	-- for i=0, self.nodeRoot.Children.Count-1 do
+
+	-- local nodeObj = self.nodeRoot.Children[i];
+
+	-- local nodeId = tonumber(nodeObj.name);
+	-- local nodeData = attriTTNodes[nodeId];
+	-- if nodeData == nil then
+	-- self.nodeTable[nodeObj.name] = RootNodeItem:New(nodeObj);
+	-- elseif nodeData.NodeType == 1 then
+	-- self.nodeTable[nodeObj.name] = SmallNodeItem:New(nodeObj);
+	-- else
+	-- self.nodeTable[nodeObj.name] = BigNodeItem:New(nodeObj);
+	-- end
+	-- end
+end
+
+function TreeNodePanel:Refresh(isShow, treeId, data, usePoint)
+	self:Show(isShow, treeId, data, usePoint, true);
+end
+
+function TreeNodePanel:ResetNodeLines(data)
+	local tbTrees = {};
+	if data.IsClear then
+		local attriTTCondition = ConfigDataAccessor.AttriTTCondition;
+		for k,v in pairs(attriTTCondition) do
+			table.insert(tbTrees, k);
+		end
+	else
+		table.insert(tbTrees, data.TreeID);
+	end
+	
+	-- for _,treeId in pairs(tbTrees) do
+	-- 	local lines = self.transform:Find(treeId .. "/Lines");
+	-- 	local c = lines.childCount;
+	-- 	for i=0, c-1 do
+	-- 		local ob = lines:GetChild(i).gameObject;
+			
+	-- 		--if string.find(ob.name, tostring(treeId)) == nil then	
+	-- 			ob:SetActive(false);
+	-- 		--end
+	-- 	end
+	-- end
+end
+
+function  TreeNodePanel:ClearPool()
+	for k,v in ipairs(self.objectpool) do
+		v:Clear(false)
+	end
+end
+
+function TreeNodePanel:Show(isShow, treeId, data, usePoint, isRefresh)
+	local tb = {}
+	local inittreefunc = function()
+		if not self.nodeTable[treeId] then 
+			return
+		end
+		for k, v in pairs(self.nodeTable[treeId]) do
+			if k ~= "root" then
+				if isShow then 
+					local lv = 0;
+					if tb[k] ~= nil then
+						lv = tb[k];
+					end
+					local preLight = false;
+					local tbLine = {};
+					local tbHideLine = {};
+					local prenode = ConfigDataAccessor.AttriTTNode[k];
+					local usePointEnough = true;
+					if prenode == nil then
+						preLight = true;
+					else
+						local preNodes = ConfigDataAccessor.AttriTTNode[k].PredeNode;
+						local isFirstNode = false;
+						for a,b in pairs(preNodes) do
+							if b == treeId then
+								isFirstNode = true;
+								break;
+							end
+						end
+						if isFirstNode then
+							preLight = true;
+						end
+						usePointEnough = usePoint >= prenode.TotalNeedNum
+						for k2, v2 in pairs(data.AllTree) do
+							for k3, v3 in pairs(v2.Tree) do
+								for _, v4 in pairs(preNodes) do
+									local pre = ConfigDataAccessor.AttriTTNode[v4];
+									if pre == nil then
+										--do nothing
+									elseif k3 == pre.ID and pre.MaxLevel == v3 then
+										preLight = true;
+										local obj = self.transform:Find(treeId .. "/Lines/" .. k3 .. "-" .. k).gameObject;
+										table.insert(tbLine, obj);
+									end
+								end
+							end
+						end
+					end
+		
+					for _, go in pairs(tbLine) do
+						if not go.activeSelf then
+							go:SetActive(true);
+							if isRefresh then
+								local ani = go:GetComponent(typeof(Animation));
+								ani:Play("Line");
+							else
+								local img = go:GetComponent(typeof(Image));
+								img.fillAmount = 1;
+							end
+						end
+					end
+		
+					v:InitData(k, lv, preLight, usePointEnough);
+				else
+					v:Clear()
+				end
+			end
+		end
+	end
+	if not isShow then
+		self:ClearPool()
+		inittreefunc()
+		inittreefunc()
+		self.gameObject:SetActive(false);
+		return;
+	else
+		if not self.gameObject.activeSelf then
+			self.gameObject:SetActive(true);
+		end
+	end
+
+	for k, v in pairs(self.nodeTable) do
+		if v.root ~= nil then
+			v.root:SetActive(false);
+		end
+	end
+	self.nodeTable[treeId].root:SetActive(true);
+
+	
+	for k, v in pairs(data.AllTree) do
+		for k2, v2 in pairs(v.Tree) do
+			tb[k2] = v2;
+		end
+	end
+	inittreefunc()
+	
+	-- 显示树节点
+	-- local lightNodes = {};
+	-- for k,v in pairs(data.Tree) do
+	-- lightNodes[k] = v;
+	-- end
+	-- for k,v in pairs(self.nodeTable) do
+	-- v:InitData(k,lightNodes[k]);
+	-- end
+
+	local attriTTCondition = ConfigDataAccessor.AttriTTCondition;
+	self.nameText.text = attriTTCondition[treeId].RootName;
+
+	local attriTTNode = ConfigDataAccessor.AttriTTNode;
+	local lightNum = 0;
+	for k, v in pairs(data.AllTree) do
+		for k2, v2 in pairs(v.Tree) do
+			if attriTTNode[k2] ~= nil and attriTTNode[k2].FromTree == treeId then
+				lightNum = lightNum + v2;
+			end
+		end
+	end
+
+	local totalNum = 0;
+	for k, v in pairs(attriTTNode) do
+		if v.FromTree == treeId then
+			totalNum = totalNum + v.MaxLevel;
+		end
+	end
+
+	self.numText.text = lightNum .. "/" .. totalNum;
+end
+
+return TreeNodePanel

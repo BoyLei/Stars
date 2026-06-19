@@ -1,0 +1,121 @@
+PartnerModule = class("PartnerModule",BaseLuaModule)
+
+local PartnerWindowPath = "Partner/Prefab/PartnerWindow"
+
+--LuaModule 消息模块
+PartnerModule.ModuleMessages=
+{
+	["OpenPartnerEquip"]=function(...)
+		PartnerModule:OnOpenPartnerEquip(...);
+	end
+}
+
+--打开伙伴装备
+function PartnerModule:OnOpenPartnerEquip(...)
+	--local tb=...
+	
+	-- local partnerWindowCs =UIManager.Instance:OpenWindow(PartnerWindowPath,nil,CS.StarProjectDef.MainPageCommond.HideBoth,false,true);
+	-- if self.partnerWindowView == nil then
+	-- 	self.partnerWindowView = partnerWindowCs:GetLuaPanel().ScriptTable;	
+	-- 	self.partnerWindowView:BindModule(self);
+	-- 	self.partnerWindowView:InitItems();
+	-- 	self.evtOnCloseBox = LuaModuleDispatcher:Event(ModuleDef.PartnerModule, "OnCloseBoxEvt")
+	-- end
+    
+	self.AsyncLoadPartnerWindowCb = function(ui)
+		if ui ~= nil then
+			if self.partnerWindowView == nil then
+				self.partnerWindowView = ui:GetLuaPanel().ScriptTable;	
+				self.partnerWindowView:BindModule(self);
+				self.partnerWindowView:InitItems();
+				self.evtOnCloseBox = LuaModuleDispatcher:Event(ModuleDef.PartnerModule, "OnCloseBoxEvt")
+			end
+		end
+		self.AsyncLoadPartnerWindowCb = nil;
+	end
+	UIManager.Instance:OpenWindowAsync(PartnerWindowPath, self.AsyncLoadPartnerWindowCb,nil,CS.StarProjectDef.MainPageCommond.HideBoth,false,true);
+end
+
+function PartnerModule:OpenEquip()
+	LuaModuleDispatcher:SendMessage(ModuleDef.EquipModule, "OnOpenEquip", {0});
+end
+
+function PartnerModule:CloseEquip()
+	LuaModuleDispatcher:SendMessage(ModuleDef.EquipModule, "OnCloseEquip", { });
+end
+
+function PartnerModule:GetItemsByItemSpaceId()
+	return BusinessManager.Instance:GetItemsByItemSpaceId(self.SpaceID);
+end
+
+
+--关闭背包回调
+function PartnerModule:OnCloseBoxEvt(arg)
+	self.evtOnCloseBox:Invoke()
+	self.partnerWindowView=nil;
+end
+
+
+--关闭背包
+function PartnerModule:OnCloseBox()
+
+	--self.bagWindowView.currencyBar:OffListener();
+
+	self:OnCloseBoxEvt();
+
+	--所有的New置空
+	--BusinessManager.Instance:UnNewAllItems();
+
+	--关闭装备
+	self:CloseEquip();
+
+end
+
+
+--LuaModule 创建
+function PartnerModule:OnModuleCreate(arg)
+	LuaModuleDispatcher:Register(ModuleDef.PartnerModule,self)
+	--self.itemManagerModule=GameManager.Instance:GetItemModule();
+end
+
+
+function PartnerModule:OnItemSpaceListRefesh(data)
+
+	print("OnItemSpaceListRefesh");	
+
+end
+
+function PartnerModule:OpenItemTips(baseID,entityID,num,tipsType)
+	--print("PartnerModule:OpenItemTips:"..baseID);
+	LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",{ baseID,true ,entityID,self.bagWindowView.tips_anchor,0,tipsType});
+	LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnSetUseNum",{ num});
+
+end
+
+function PartnerModule:CloseItemTips()
+	print("PartnerModule:CloseItemTips");
+	LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips",{  });
+end
+
+
+--LuaModule 消息处理
+function PartnerModule:OnModuleMessage(msg,...)
+	self.ModuleMessages[msg](...);
+end
+
+
+--LuaModule显示
+function PartnerModule:OnModuleShow(arg)
+
+	self:OnOpenBag(arg);
+	
+end
+
+--LuaModule 释放
+function PartnerModule:OnModuleRelease()
+	LuaModuleDispatcher:UnRegister(ModuleDef.PartnerModule)
+end
+
+
+return  PartnerModule
+

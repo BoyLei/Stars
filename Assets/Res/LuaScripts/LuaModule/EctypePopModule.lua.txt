@@ -1,0 +1,83 @@
+EctypePopModule = class("EctypePopModule", BaseLuaModule)
+
+local EctypePopWindowPath = "Ectype/Prefab/EctypePopWindow"
+local EctypeRingPopWindowPath = "Ectype/Prefab/EctypeRingPopWindow"
+
+-- LuaModule 消息模块
+EctypePopModule.ModuleMessages = {
+    ["OnOpenEctypePop"] = function(...)
+        EctypePopModule:OnOpenWnd(...);
+    end,
+    ["OnOpenEctypeRingPop"] = function(...)
+        EctypePopModule:OnOpenRingWnd(...);
+    end
+}
+
+-- 监听打开出战界面事件
+function EctypePopModule:OnOpenWnd(...)
+    -- local ectypePopWindowCS = UIManager.Instance:OpenWindow(EctypePopWindowPath, nil,
+    --     CS.StarProjectDef.MainPageCommond.HideBoth);
+    -- if self.ectypePopWindow == nil then
+    --     self.ectypePopWindow = ectypePopWindowCS:GetLuaPanel().ScriptTable;
+    --     self.ectypePopWindow:BindModule(self);
+    --     self.ectypePopWindow:InitControls();
+    -- end
+
+	self.AsyncLoadEctypePopWindowCb = function(ui)
+		if ui ~= nil then
+            if self.ectypePopWindow == nil then
+                self.ectypePopWindow = ui:GetLuaPanel().ScriptTable;
+                self.ectypePopWindow:BindModule(self);
+                self.ectypePopWindow:InitControls();
+            end
+		end
+		self.AsyncLoadEctypePopWindowCb = nil;
+	end
+    UIManager.Instance:OpenWindowAsync(EctypePopWindowPath, self.AsyncLoadEctypePopWindowCb, nil,
+    CS.StarProjectDef.MainPageCommond.HideBoth);
+end
+
+-- 监听打环任务界面
+function EctypePopModule:OnOpenRingWnd(...)
+    -- local ectypeRingPopWindowCS = UIManager.Instance:OpenWindow(EctypeRingPopWindowPath, nil,
+    --     CS.StarProjectDef.MainPageCommond.HideBoth);
+    -- if self.ectypeRingPopWindow == nil then
+    --     self.ectypeRingPopWindow = ectypeRingPopWindowCS:GetLuaPanel().ScriptTable;
+    --     self.ectypeRingPopWindow:BindModule(self);
+    --     self.ectypeRingPopWindow:InitControls();
+    -- end
+
+    self.AsyncLoadEctypeRingPopWindowCb = function(ui)
+		if ui ~= nil then
+            if self.ectypeRingPopWindow == nil then
+                self.ectypeRingPopWindow = ui:GetLuaPanel().ScriptTable;
+                self.ectypeRingPopWindow:BindModule(self);
+                self.ectypeRingPopWindow:InitControls();
+            end
+		end
+		self.AsyncLoadEctypeRingPopWindowCb = nil;
+	end
+    UIManager.Instance:OpenWindowAsync(EctypeRingPopWindowPath, self.AsyncLoadEctypeRingPopWindowCb, nil,
+    CS.StarProjectDef.MainPageCommond.HideBoth);
+end
+
+function EctypePopModule:OnModuleCreate(arg)
+	LuaModuleDispatcher:Register(ModuleDef.EctypePopModule,self)
+end
+
+-- LuaModule 消息处理
+function EctypePopModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...);
+end
+
+-- LuaModule显示
+function EctypePopModule:OnModuleShow(arg)
+
+end
+
+-- LuaModule 释放
+function EctypePopModule:OnModuleRelease()
+	LuaModuleDispatcher:UnRegister(ModuleDef.EctypePopModule)
+end
+
+return EctypePopModule

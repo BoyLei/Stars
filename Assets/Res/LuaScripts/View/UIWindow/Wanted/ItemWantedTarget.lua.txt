@@ -1,0 +1,112 @@
+---------------------------------------------------------------------
+-- Stars (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-09-21 14:58:28
+---------------------------------------------------------------------
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+---@class ItemWantedTarget
+local ItemWantedTarget = {}
+ItemWantedTarget.__index = ItemWantedTarget
+
+function ItemWantedTarget:New(obj, index, clickFun)
+    local self = {}
+    setmetatable(self, ItemWantedTarget)
+    self.Index = index
+    self.Click = clickFun
+    self.isCountdown = false
+    self:InitControls(obj)
+    return self
+end
+
+function ItemWantedTarget:InitControls(obj)
+    self.GameObject = obj
+    self.Transform = obj.transform
+
+    -- 时间
+    self.Time = self.Transform:Find("Time"):GetComponent(typeof(Text))
+    -- 数量
+    self.Count = self.Transform:Find("Count"):GetComponent(typeof(Text))
+
+    if self.Click ~= nil then
+        -- 定位【J按钮】
+        self.JBtnLocation = self.Transform:Find("JBtnLocation"):GetComponent(typeof(JButton))
+        self.JBtnLocationFun = function()
+            self:OnClickLocationJBtn()
+        end
+        self.JBtnLocation.OnClick = self.JBtnLocationFun
+        -- 定位状态
+        self.LocationEmpty = self.Transform:Find("JBtnLocation/Empty").gameObject
+        self.LocationHave = self.Transform:Find("JBtnLocation/Have").gameObject
+    end
+    -- update事件
+    self.UpdateFun = function()
+        self:UpdateData();
+    end
+end
+
+function ItemWantedTarget:OnClickLocationJBtn()
+    if self.Click == nil then
+        return
+    end
+    self.Click(self.Index)
+end
+
+function ItemWantedTarget:SetItem(data, isCountdown)
+    MonoHelper.RemoveSecTimeUpdateListener(self.UpdateFun);
+    self.WantedData = data
+    self:SetCountdown(isCountdown)
+    self.Countdown = 0
+    if data == nil then
+        return
+    end
+    --Log("通缉任务-》 总数" .. self.WantedData.Sum);
+    --Log("通缉任务-》 时间" .. self.WantedData.RefTime);
+
+    self.Time.gameObject:SetActive(self.WantedData.Sum <= 0)
+    if self.WantedData.Sum > 0 then
+        if self.Click ~= nil then
+            self.Count.text = self.WantedData.Num .. "/" .. self.WantedData.Sum
+        else
+            self.Count.text = self.WantedData.Num .. LanguageHelp:GetLanguageByKey("Local_Str_Several")
+        end
+    else
+        self.Count.text = ""
+        self:UpdateData()
+    end
+    if self.Click ~= nil then
+        self.JBtnLocation.gameObject:SetActive(self.WantedData.Sum > 0)
+        self.LocationEmpty:SetActive(self.WantedData.Num <= 0)
+        self.LocationHave:SetActive(self.WantedData.Num > 0)
+    end
+end
+
+function ItemWantedTarget:SetCountdown(isCountdown)
+    self.isCountdown = isCountdown
+    if self.isCountdown then
+        if self.WantedData ~= nil and self.WantedData.Sum <= 0 then
+            local now = TimeUtils.GetServerTimeNow() / 1000
+            if self.WantedData.RefTime > now then
+                MonoHelper.AddSecTimeUpdateListener(self.UpdateFun)
+            end
+        end
+    else
+        MonoHelper.RemoveSecTimeUpdateListener(self.UpdateFun)
+    end
+end
+
+function ItemWantedTarget:UpdateData()
+    if self.WantedData == nil then
+        return
+    end
+    local now = TimeUtils.GetServerTimeNow() / 1000
+    if now >= self.WantedData.RefTime then
+        self.Time.gameObject:SetActive(false)
+        MonoHelper.RemoveSecTimeUpdateListener(self.UpdateFun)
+    else
+        self.Countdown = math.floor((tonumber(self.WantedData.RefTime) - tonumber(now)))
+    end
+    self.Time.text = SecToStringColon3(self.Countdown)
+end
+
+return ItemWantedTarget

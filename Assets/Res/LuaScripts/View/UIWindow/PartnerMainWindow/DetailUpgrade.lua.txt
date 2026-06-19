@@ -1,0 +1,642 @@
+--[[
+*文件名   :   DetailUpgrade
+*内  容   :
+*说  明   :
+*创建日期 :   "2024/05/16 17:31:07"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+DetailUpgrade=class("DetailUpgrade",UIPanel)
+local PartnerCostItem=require("View/UIWindow/PartnerMainWindow/PartnerCostItem")
+
+DetailUpgrade.m_ClearAll=nil;
+DetailUpgrade.m_FastAdd=nil;
+DetailUpgrade.m_Item1=nil;
+DetailUpgrade.m_Item2=nil;
+DetailUpgrade.m_Item3=nil;
+
+DetailUpgrade.m_UpBtn=nil;
+DetailUpgrade.m_BackBtn=nil;
+DetailUpgrade.Items={}
+DetailUpgrade.Results={}
+
+DetailUpgrade.AttrList={}
+DetailUpgrade.SetPartnerCall=nil;
+DetailUpgrade.PartnerData=nil;
+DetailUpgrade.RiseUpIsfull=false;
+DetailUpgrade.BackCallBack=nil;
+DetailUpgrade.m_UnUpgrade=nil;
+DetailUpgrade.m_UnUpgradeUpText=nil;
+
+local MainAttr={3004,3001,3014,3016}
+local ClearAllFunc=nil;
+local FastAddFunc=nil;
+local UpBtnFunc=nil;
+local BackBtnFunc=nil;
+
+local PartnerUpgradeNewRetEventFunc=nil;
+
+function DetailUpgrade:ctor(go)
+	self.prefab=go;
+	self.m_ClearAll=self:Find("Attr/TitleCost/ClearAll"):GetComponent(typeof(JButton));
+	self.m_FastAdd=self:Find("Attr/TitleCost/FastAdd"):GetComponent(typeof(JButton));
+	self.m_Item1=self:Find("Attr/Cost/Item1").gameObject
+	self.m_Item2=self:Find("Attr/Cost/Item2").gameObject
+	self.m_Item3=self:Find("Attr/Cost/Item3").gameObject
+	self.m_UpBtn=self:Find("Attr/UpBtn"):GetComponent(typeof(JButton));
+	self.m_BackBtn=self:Find("Attr/Back"):GetComponent(typeof(JButton));
+	ClearAllFunc=function() self:OnClickClearAll(); end;
+	FastAddFunc=function() self:OnClickFastAdd(); end;
+	UpBtnFunc=function() self:OnClickUpBtn(); end;
+	BackBtnFunc=function()
+		self:OnClickBackBtn();
+	end
+	PartnerUpgradeNewRetEventFunc=function(data)
+		self:PartnerUpgradeNewRetEvent(data);
+	end
+	self.Items={}
+	self.Items[104011]=PartnerCostItem.new(self.m_Item1)
+	self.Items[104012]=PartnerCostItem.new(self.m_Item2)
+	self.Items[104013]=PartnerCostItem.new(self.m_Item3)
+
+	self.AttrList={}
+	self.AttrList[3004]=self:Find("Attr/List/Item1").gameObject;
+	self.AttrList[3001]=self:Find("Attr/List/Item2").gameObject;
+	self.AttrList[3014]=self:Find("Attr/List/Item3").gameObject;
+	self.AttrList[3016]=self:Find("Attr/List/Item4").gameObject;
+	self.m_UnUpgrade=self:Find("Attr/UnUpgrade").gameObject;
+	self.m_UnUpgradeUpText=self:Find("Attr/UnUpgrade/UpText"):GetComponent(typeof(Text));
+
+end
+
+
+function DetailUpgrade:OnClickBackBtn()
+	self:OnDisable();
+	if self.BackCallBack~=nil then
+		self.BackCallBack();
+	end
+end
+
+function DetailUpgrade:Start()
+
+end
+
+function DetailUpgrade:PartnerUpgradeNewRetEvent(data)
+	--快速添加
+	--self:UseFastAdd(self.PartnerData);
+	self.Results={}
+	local list=	ConfigDataAccessor.PartnerCard;
+	for k, v in pairs(list) do
+		local itemNum=BusinessManager.Instance:GetCurrencyNum(v.Id)
+		--OwnCnt 拥有数量， UseExp 单次添加的经验值
+		self.Results[k]={OwnCnt=itemNum,UseExp=v.UseExp,Cnt=0}
+	end
+
+	self:OnClickClearAll()
+	self:UpdateState()
+end
+
+function DetailUpgrade:OnEnable()
+	self.m_ClearAll.OnClick= ClearAllFunc;
+	self.m_FastAdd.OnClick= FastAddFunc;
+	self.m_UpBtn.OnClick= UpBtnFunc;
+	self.m_BackBtn.OnClick= BackBtnFunc;
+	if self.Items~=nil then
+		for k, v in pairs(self.Items) do
+			v:OnDisable()
+		end
+	end
+	local BankItemIDListRetEvent=LuaModuleDispatcher:Event(ModuleDef.BattleTeamModule,"PartnerUpgradeNewRetEvent");
+	BankItemIDListRetEvent:AddListener(PartnerUpgradeNewRetEventFunc)
+
+end
+
+function DetailUpgrade:OnDisable()
+	self.m_ClearAll.OnClick= nil;
+	self.m_FastAdd.OnClick= nil;
+	self.m_UpBtn.OnClick= nil;
+
+	local BankItemIDListRetEvent=LuaModuleDispatcher:Event(ModuleDef.BattleTeamModule,"PartnerUpgradeNewRetEvent");
+	BankItemIDListRetEvent:RemoveListener(PartnerUpgradeNewRetEventFunc)
+end
+
+function DetailUpgrade:OnDestroy()
+
+end
+
+function DetailUpgrade:OnOpen(arg,callback,setPartnerCall)
+	self:OnEnable();
+	self.PartnerData=arg;
+	self.BackCallBack=callback;
+	self.SetPartnerCall=setPartnerCall;
+	self.RiseUpIsfull=false;
+	self.Results={}
+	local list=	ConfigDataAccessor.PartnerCard;
+	for k, v in pairs(list) do
+		self.Items[k]:OnOpen(v,
+			function (id) self:OnClickItem(id); end,
+			function (id) self:OnDelClickItem(id); end)
+	end
+	self.m_ClearAll.gameObject:SetActive(false)
+	self.m_FastAdd.gameObject:SetActive(true)
+
+	self.Results={}
+	local list=	ConfigDataAccessor.PartnerCard;
+	for k, v in pairs(list) do
+		local itemNum=BusinessManager.Instance:GetCurrencyNum(v.Id)
+		--OwnCnt 拥有数量， UseExp 单次添加的经验值
+		self.Results[k]={OwnCnt=itemNum,UseExp=v.UseExp,Cnt=0}
+	end
+
+
+	local config=ConfigDataAccessor.Partner[arg.Index];
+	self:FreshAttr(config,arg,arg.Level)
+
+	self.SetPartnerCall(arg.Level,0,0)
+	self:UpdateState()
+
+	--快速添加
+	---self:UseFastAdd(arg);
+end
+
+function DetailUpgrade:UpdateState()
+	--玩家冒险等级
+	local curRiskLevel = GameManager.Instance.M_MainPlayerCtrlBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Int,CS.StarProjectDef.AOIAttrDefine.PlayerLevel)
+
+	local needLevel=0
+	local config=ConfigDataAccessor.PartnerExp[self.PartnerData.Level+1]
+	if config~=nil then
+		needLevel=config.UnlockLevel
+	end
+
+	if curRiskLevel< needLevel then
+		self.m_UpBtn.gameObject:SetActive(false)
+		self.m_UnUpgrade:SetActive(true)
+		if  self.m_UnUpgradeUpText~=nil then
+			self.m_UnUpgradeUpText.text=LanguageHelp:GetLanguageByKey("partner_sys_47")..needLevel
+		end
+	else
+		self.m_UpBtn.gameObject:SetActive(true)
+		self.m_UnUpgrade:SetActive(false)
+	end
+end
+
+function DetailUpgrade:UseItem(cfgs,id,needExp)
+	if cfgs[id].OwnCnt >0 then
+		local needCnt=math.ceil(needExp/cfgs[id].UseExp)
+		if needCnt > cfgs[id].OwnCnt then
+			needExp=needExp-(needCnt-cfgs[id].OwnCnt)*cfgs[id].UseExp
+			return false,needExp,cfgs[id].OwnCnt
+		else
+			return true,(cfgs[id].UseExp)*needCnt-needExp,needCnt
+		end
+	end
+	return false,needExp,0
+end
+
+
+function DetailUpgrade:UseFastAdd(arg)
+	self.Results={}
+	local list=	ConfigDataAccessor.PartnerCard;
+	for k, v in pairs(list) do
+		local itemNum=BusinessManager.Instance:GetCurrencyNum(v.Id)
+		--OwnCnt 拥有数量， UseExp 单次添加的经验值
+		self.Results[k]={OwnCnt=itemNum,UseExp=v.UseExp,Cnt=0}
+	end
+
+	---主角当前冒险等级
+	local curRiskLevel =GameManager.Instance.M_MainPlayerCtrlBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Int,CS.StarProjectDef.AOIAttrDefine.PlayerLevel);
+
+
+	--拥有的经验值
+	local ownExp=0;
+
+	--快速添加
+	local needExp=0;
+
+	for k, v in pairs(self.Results) do
+		ownExp=ownExp+v.OwnCnt*v.UseExp
+	end
+
+	if ownExp ==0 then
+		return
+	end
+
+	local maxLevel=(math.floor(arg.Level/5)+1)*5
+
+	--可以升级到的等级
+	local AchLevel=arg.Level;
+
+	for i = arg.Level, 	maxLevel-1 do
+		local expcfg= ConfigDataAccessor.PartnerExp[i];
+		if expcfg~=nil then
+			if i==arg.Level then
+				needExp=needExp+expcfg.Exp
+				AchLevel=i+1;
+			else
+				if expcfg.UnlockLevel <=curRiskLevel then
+					needExp=needExp+expcfg.Exp
+					AchLevel=i+1;
+				end
+			end
+		end
+	end
+	--减去已经拥有的经验
+	needExp=needExp-arg.CurExp
+
+	local LeftExp=0;
+	if ownExp>=needExp then
+		-- 有经验卡且满足升级5级
+		--先用高级，在用中级，低级
+		local ok3,nexp3,cnt3=self:UseItem(self.Results,104013,needExp)
+		self.Results[104013].Cnt=cnt3;
+		if not ok3 then
+			local ok2,nexp2,cnt2=self:UseItem(self.Results,104012,nexp3)
+			self.Results[104012].Cnt=cnt2;
+			if not ok2 then
+				local ok1,nexp1,cnt1=self:UseItem(self.Results,104011,nexp2)
+				self.Results[104011].Cnt=cnt1;
+				LeftExp=nexp1;
+			else
+				LeftExp=nexp2;
+			end
+		else
+			LeftExp=nexp3;
+
+			local level=AchLevel;
+			while LeftExp>0 do
+				local expcfg= ConfigDataAccessor.PartnerExp[level];
+				if expcfg~=nil then
+					if(LeftExp>expcfg.Exp) and (expcfg.UnlockLevel <=curRiskLevel) then
+						LeftExp=LeftExp-expcfg.Exp
+						level=level+1
+					else
+						break
+					end
+				end
+			end
+			AchLevel=level
+		end
+	else
+		if ownExp <= 0 then
+			--一个经验卡都没
+		else
+			local level=arg.Level;
+			ownExp=ownExp+arg.CurExp
+			while ownExp>0 do
+				local expcfg= ConfigDataAccessor.PartnerExp[level];
+				if expcfg~=nil then
+					if(ownExp>expcfg.Exp)  and (expcfg.UnlockLevel <=curRiskLevel) then
+						ownExp=ownExp-expcfg.Exp
+						level=level+1
+					else
+						LeftExp=ownExp
+						break
+					end
+				end
+			end
+			AchLevel=level;
+			for k, v in pairs(self.Results) do
+				v.Cnt=v.OwnCnt
+			end
+			print("可以升级到"..level.."剩余经验"..ownExp)
+		end
+	end
+
+	print("当前等级:"..arg.Level.."可以升级到"..AchLevel.."剩余经验"..LeftExp)
+	local totalExp=0;
+	for k, v in pairs(self.Results) do
+		self.Items[k]:SetUseCnt(v.Cnt)
+		if v.Cnt>0 then
+			totalExp=totalExp+v.UseExp*v.Cnt
+		end
+	end
+	local config=ConfigDataAccessor.Partner[arg.Index];
+	self:FreshAttr(config,arg,AchLevel)
+
+	self.SetPartnerCall(AchLevel,LeftExp,totalExp)
+end
+
+
+function DetailUpgrade:FreshAttr(config,data,nextLevel)
+	local temp={}
+	for i = 1, #MainAttr do
+		local AoiAttr= ConfigDataAccessor.GetAttrByID(MainAttr[i])
+		if AoiAttr~=nil then
+			temp[MainAttr[i]]={Equip=0,id=MainAttr[i],PropName=AoiAttr.Name,Base=self:GetBaseAttrVaule(config.Nature,data.Level,MainAttr[i]),NewCer=0,Cer=0,CerRatio=0,Star=0,NextBase=self:GetBaseAttrVaule(config.Nature,nextLevel,MainAttr[i])}
+		end
+	end
+
+	for k, v in pairs(data.AMD.Aptitudes) do
+		local convert= ConfigDataAccessor.ParConversion[k];
+		if convert~=nil then
+			for k1, v1 in pairs(convert.Natures) do
+				if temp[k1]~=nil then
+					--比v 小的最大值
+					local te=nil;
+					for k2, v2 in pairs(v1) do
+						if v.BaseValue<v2.Range or v.BaseValue==v2.Range  then
+							if te==nil then
+								te=v2
+							else
+								if v2.Range>te.Range then
+									te=v2
+								end
+							end
+						end
+					end
+
+					if te~=nil then
+						local t=math.floor(v.BaseValue*te.Ratio*0.0001)
+						temp[k1].NewCer=temp[k1].NewCer+t
+					end
+				end
+			end
+		end
+	end
+
+	---星级
+	local starExpend= ConfigDataAccessor.StarExpend[config.Quality][data.CurStar]
+	if starExpend~=nil then
+		for k = 1, GetTableLen(starExpend.Nature) do
+			if temp[starExpend.Nature[k]]~=nil then
+				temp[starExpend.Nature[k]].Star=starExpend.Value[k];
+			end
+		end
+	end
+
+	--装备相关
+	self:CalculateToAddEquipValue(data,temp)
+
+	for k, v in pairs(temp) do
+
+		local go=self.AttrList[k];
+		local icon=go.transform:Find("Icon"):GetComponent(typeof(Image))
+		local text=go.transform:Find("Text"):GetComponent(typeof(Text))
+		local Value=go.transform:Find("Value"):GetComponent(typeof(Text))
+		local NextValue=go.transform:Find("NextValue"):GetComponent(typeof(Text))
+		self:GetSpriteByAtlas("UI/Icons/Atlas/IconAttribute","Attribute_"..v.id,function (sp)
+				icon.sprite=sp
+			end)
+		text.text=v.PropName
+		local vaule=(v.Base+v.NewCer)*(1+v.Star*0.0001)+v.Equip
+
+		local nextvaule=(v.NextBase+v.NewCer)*(1+v.Star*0.0001)+v.Equip
+
+		--print("Key"..data.id.."基础"..data.Base.."资质"..data.NewCer.."星级"..data.Star.."装备"..data.Equip .."最终值"..vaule)
+		--(升级属性+资质*转化率)*(1+星级加成)+装备属性
+		Value.text=tostring(math.floor(vaule));
+		NextValue.text=tostring(math.floor(nextvaule));
+	end
+
+	local isEmpty=false;
+	local cnt=0;
+	for k, v in pairs(self.Results) do
+		cnt=cnt+ v.Cnt
+	end
+
+	isEmpty=cnt==0;
+	self.m_ClearAll.gameObject:SetActive(not isEmpty)
+	self.m_FastAdd.gameObject:SetActive(isEmpty)
+
+end
+
+function DetailUpgrade:GetBaseAttrVaule(Nature,lv,id)
+	local  PartnerNature=ConfigDataAccessor.PartnerNature[Nature][lv]
+	if PartnerNature~=nil then
+		for i = 1, #PartnerNature.AttrID do
+			if PartnerNature.AttrID[i]==id then
+
+				return PartnerNature.AttrValue[i];
+			end
+
+		end
+	end
+	return 0;
+end
+
+function DetailUpgrade:CalculateToAddEquipValue(data,temp)
+
+	--装备
+	if data~= nil then
+		for i=1,3 do
+			local data=BusinessManager.Instance:GetPartnerEquipedEquip(data.ID,i);
+			if data~= nil then
+				local Nature=ConfigDataAccessor.PartnerEquip[data.BaseID].Nature;
+				local Value=ConfigDataAccessor.PartnerEquip[data.BaseID].Value;
+				for j=1,#Nature do
+					local t=temp[Nature[j]];
+					if t~=nil then
+						t.Equip=t.Equip+Value[j];
+						temp[Nature[j]]=t;
+					end
+				end
+			end
+		end
+	end
+
+
+end
+
+
+
+
+function DetailUpgrade:OnClickItem(id)
+	if self.RiseUpIsfull then
+		Util.ShowMessage(LanguageHelp:GetLanguageByKey("partner_sys_18"))
+		return
+	end
+
+	if self.Results[id]~=nil then
+		if self.Results[id].OwnCnt>self.Results[id].Cnt then
+
+			self.Results[id].Cnt=self.Results[id].Cnt+1
+
+			---主角当前冒险等级
+			local curRiskLevel =GameManager.Instance.M_MainPlayerCtrlBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Int,CS.StarProjectDef.AOIAttrDefine.PlayerLevel)
+		
+			local LeftExp=0;
+			local AchLevel=0;
+			local level=self.PartnerData.Level;
+			local ownExp=0;
+			for k, v in pairs(self.Results) do
+				ownExp=ownExp+v.Cnt*v.UseExp
+			end
+
+			ownExp=ownExp+self.PartnerData.CurExp
+
+			while ownExp>0 do
+				local expcfg= ConfigDataAccessor.PartnerExp[level];
+				if expcfg~=nil then
+					if(ownExp>=expcfg.Exp)   then
+						if expcfg.UnlockLevel <=curRiskLevel then
+							ownExp=ownExp-expcfg.Exp
+							level=level+1
+						else
+							self.RiseUpIsfull=true;
+							break;
+						end
+					else
+						break
+					end
+				end
+			end
+			AchLevel=level;
+			LeftExp=ownExp;
+			print("当前等级:"..self.PartnerData.Level.."可以升级到"..AchLevel.."剩余经验"..LeftExp)
+			local totalExp=0;
+			for k, v in pairs(self.Results) do
+				self.Items[k]:SetUseCnt(v.Cnt)
+				if v.Cnt>0 then
+					totalExp=totalExp+v.UseExp*v.Cnt
+				end
+			end
+
+			local config=ConfigDataAccessor.Partner[self.PartnerData.Index];
+			self:FreshAttr(config,self.PartnerData,AchLevel)
+
+			self.SetPartnerCall(AchLevel,LeftExp,totalExp)
+
+		end
+	end
+end
+
+function DetailUpgrade:OnDelClickItem(id)
+	if self.Results[id]~=nil then
+		if self.Results[id].Cnt>0 then
+
+
+			self.Results[id].Cnt=self.Results[id].Cnt-1
+			if self.RiseUpIsfull then
+				self.RiseUpIsfull=false;
+			end
+			---主角当前冒险等级
+			local curRiskLevel = GameManager.Instance.M_MainPlayerCtrlBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Int,CS.StarProjectDef.AOIAttrDefine.PlayerLevel)
+	
+			local LeftExp=0;
+			local AchLevel=0;
+			local level=self.PartnerData.Level;
+			local ownExp=0;
+			for k, v in pairs(self.Results) do
+				ownExp=ownExp+v.Cnt*v.UseExp
+			end
+
+			ownExp=ownExp+self.PartnerData.CurExp
+
+			while ownExp>0 do
+				local expcfg= ConfigDataAccessor.PartnerExp[level];
+				if expcfg~=nil then
+					if(ownExp>expcfg.Exp)  and (expcfg.UnlockLevel <=curRiskLevel) then
+						ownExp=ownExp-expcfg.Exp
+						level=level+1
+					else
+						break
+					end
+				end
+			end
+			AchLevel=level;
+			LeftExp=ownExp;
+			print("当前等级:"..self.PartnerData.Level.."可以升级到"..AchLevel.."剩余经验"..LeftExp)
+			local totalExp=0;
+			for k, v in pairs(self.Results) do
+				self.Items[k]:SetUseCnt(v.Cnt)
+				if v.Cnt>0 then
+					totalExp=totalExp+v.UseExp*v.Cnt
+				end
+			end
+
+			local config=ConfigDataAccessor.Partner[self.PartnerData.Index];
+			self:FreshAttr(config,self.PartnerData,AchLevel)
+
+			self.SetPartnerCall(AchLevel,LeftExp,totalExp)
+
+		end
+	end
+end
+
+function DetailUpgrade:OnDelPressItem(id)
+
+end
+
+function DetailUpgrade:OnClose(arg)
+
+end
+
+function DetailUpgrade:OnClickClearAll()
+	for k, v in pairs(self.Results) do
+		v.Cnt=0;
+	end
+
+	---主角当前冒险等级
+	local curRiskLevel = GameManager.Instance.M_MainPlayerCtrlBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Int,CS.StarProjectDef.AOIAttrDefine.PlayerLevel)
+
+	local LeftExp=0;
+	local AchLevel=0;
+	local level=self.PartnerData.Level;
+	local ownExp=0;
+	for k, v in pairs(self.Results) do
+		ownExp=ownExp+v.Cnt*v.UseExp
+	end
+
+	ownExp=ownExp+self.PartnerData.CurExp
+
+	while ownExp>0 do
+		local expcfg= ConfigDataAccessor.PartnerExp[level];
+		if expcfg~=nil then
+			if(ownExp>expcfg.Exp)   then
+				if expcfg.UnlockLevel <=curRiskLevel then
+					ownExp=ownExp-expcfg.Exp
+					level=level+1
+				else
+					self.RiseUpIsfull=true;
+					break;
+				end
+			else
+				break
+			end
+		end
+	end
+	AchLevel=level;
+	LeftExp=ownExp;
+	print("当前等级:"..self.PartnerData.Level.."可以升级到"..AchLevel.."剩余经验"..LeftExp)
+	local totalExp=0;
+	for k, v in pairs(self.Results) do
+		self.Items[k]:SetUseCnt(v.Cnt)
+		if v.Cnt>0 then
+			totalExp=totalExp+v.UseExp*v.Cnt
+		end
+	end
+
+	local config=ConfigDataAccessor.Partner[self.PartnerData.Index];
+	self:FreshAttr(config,self.PartnerData,AchLevel)
+
+	self.SetPartnerCall(AchLevel,LeftExp,totalExp)
+
+end
+
+function DetailUpgrade:OnClickFastAdd()
+	self:UseFastAdd(self.PartnerData);
+end
+
+
+function DetailUpgrade:OnClickUpBtn()
+	local useCnt=0;
+	local ownCnt=0;
+	for k, v in pairs(self.Results) do
+		useCnt=useCnt+v.Cnt
+		ownCnt=ownCnt+v.OwnCnt
+	end
+	if ownCnt<1 then
+		Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_No_Item"))
+		return
+	end
+	if useCnt<1 then
+		Util.ShowMessage(LanguageHelp:GetLanguageByKey("partner_sys_19"))
+		return
+	end
+	LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule,"OnPartnerUpgradeNewReq",{self.PartnerData.Index,self.Results})
+end
+
+
+
+return  DetailUpgrade

@@ -1,0 +1,128 @@
+--[[
+*文件名   :   PlotWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/10/25 15:57:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+PlotWidget=class("PlotWidget",UIPanel)
+
+function PlotWidget:Awake()
+
+	self.transform =self.prefab.transform;
+	self.gameObject =self.prefab;
+
+
+	self.go_area=self:Find("Area").gameObject;
+	self.go_area2=self:Find("Area2").gameObject;
+
+
+	self.area_desc=self:Find("Area/TextTile"):GetComponent(typeof(Text));
+	self.area2_desc=self:Find("Area2/TextTile"):GetComponent(typeof(Text));
+
+	self.area_title=self:Find("Area/TextTile2"):GetComponent(typeof(Text));
+	self.area2_title=self:Find("Area2/TextTile2"):GetComponent(typeof(Text));
+
+	self.area_act=self:Find("Area/chapt/smallChapt"):GetComponent(typeof(Text));
+	self.area2_act=self:Find("Area2/chapt/smallChapt"):GetComponent(typeof(Text));
+
+	self.module= nil;
+
+	--UIManager.Instance.OpenWidgetAsync(UIDef.PlotWidget, null, false, new object[] { JsonData.AreaName }, null, StarProjectDef.MainPageCommond.HideNone, true, false);
+
+end
+
+function PlotWidget:BindModule(m)
+	print(".............")
+	self.module=m;
+end
+
+function PlotWidget:Start()
+
+end
+
+function PlotWidget:OnEnable()
+
+end
+
+function PlotWidget:OnDisable()
+
+end
+
+function PlotWidget:OnDestroy()
+
+end
+
+
+function PlotWidget:OnOpen(arg)
+
+	local configid=arg[1]
+	local EffectID=arg[2]
+	self.EffectID=EffectID;
+
+
+	local config = ConfigDataAccessor.Plot[configid]
+
+	--读取配置表
+
+	local type=config.Type;
+
+	local desc=config.Desc;
+	local title=config.Title;
+	local actnum=config.ActNum;
+
+	local time=config.Time/1000;
+
+	self.go_area:SetActive(false);
+	self.go_area2:SetActive(false);
+
+
+	if type==1 then
+
+		self.go_area:SetActive(true);
+
+
+		self.area_desc.text=desc;
+		self.area_act.text=actnum;
+		self.area_title.text=title;
+
+		--[[
+
+
+		]]
+
+
+		DOVirtual.DelayedCall(time,function ()
+				self:OnPlayBack()
+			end);
+
+
+	else
+		self.go_area2:SetActive(true);
+
+		self.area2_desc.text=desc;
+		self.area2_act.text=actnum;
+		self.area2_title.text=title;
+
+		DOVirtual.DelayedCall(time,function ()
+				self:OnPlayBack()
+			end);
+
+	end
+
+
+
+end
+
+function PlotWidget:OnClose(arg)
+
+end
+
+function PlotWidget:OnPlayBack()
+	CS.StarProject.GlobalEvent.OnEffectEnd:Invoke(self.EffectID)
+	UIManager.Instance:CloseWidget("Avg/PlotWidget",nil,true);
+	--self.gameObject:SetActive(false);
+end
+
+return  PlotWidget

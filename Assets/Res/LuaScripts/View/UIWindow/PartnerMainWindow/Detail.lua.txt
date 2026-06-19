@@ -1,0 +1,374 @@
+--[[
+*文件名   :   Detail
+*内  容   :
+*说  明   :
+*创建日期 :   "2024/05/16 10:53:23"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+Detail=class("Detail",UIPanel)
+local DetailAttr=require("View/UIWindow/PartnerMainWindow/DetailAttr")
+local DetailSkill=require("View/UIWindow/PartnerMainWindow/DetailSkill")
+local DetailUpgrade=require("View/UIWindow/PartnerMainWindow/DetailUpgrade")
+Detail.m_PartnerInfo=nil;
+Detail.m_Main=nil;
+Detail.m_DetailAttr=nil;
+Detail.m_DetailSkill=nil;
+Detail.m_DetailUpgrade=nil;
+Detail.m_UpBtn=nil;
+Detail.m_List=nil;
+Detail.m_Skills=nil;
+Detail.m_AttrFold=nil;
+Detail.m_SkillFold=nil;
+
+Detail.Attr=nil;
+Detail.Skill=nil;
+Detail.Upgrade=nil;
+
+Detail.PartnerData=nil;
+Detail.AttrList={}
+Detail.SkillList={}
+Detail.m_UnUpgrade=nil;
+Detail.m_UnUpgradeUpText=nil;
+Detail.m_RedPoint=nil;
+
+local PartnerUpgradeNewRetEventFunc=nil;
+local UpBtnFunc=nil;
+local AttrFoldFunc=nil;
+local SkillFoldFunc=nil;
+local MainAttr={3004,3001,3014,3016}
+local CostItem={104011,104012,104013}
+
+
+function Detail:ctor(go,red)
+	self.prefab=go;
+	self.RedPoint=red;
+	self.RedPoint:SetActive(false)
+	self.m_PartnerInfo=self:Find("Top/PartnerInfo").gameObject;
+	self.m_Main=self:Find("Bottom/Content/Main").gameObject;
+	self.m_DetailAttr=self:Find("Bottom/Content/DetailAttr").gameObject;
+	self.m_DetailSkill=self:Find("Bottom/Content/DetailSkill").gameObject;
+	self.m_DetailUpgrade=self:Find("Bottom/Content/DetailUpgrade").gameObject;
+	self.m_UpBtn=self:Find("Bottom/Content/Main/UpBtn"):GetComponent(typeof(JButton));
+	self.m_RedPoint=self:Find("Bottom/Content/Main/UpBtn/Text/RedPoint").gameObject;
+	self.m_List=self:Find("Bottom/Content/Main/Attr/List").gameObject;
+	self.m_Skills=self:Find("Bottom/Content/Main/Skill/List/Skills").gameObject;
+	self.m_AttrFold=self:Find("Bottom/Content/Main/Attr/Title/Fold"):GetComponent(typeof(JButton));
+	self.m_SkillFold=self:Find("Bottom/Content/Main/Skill/Title/Fold"):GetComponent(typeof(JButton));
+	self.m_UnUpgrade=self:Find("Bottom/Content/Main/UnUpgrade").gameObject;
+	self.m_UnUpgradeUpText=self:Find("Bottom/Content/Main/UnUpgrade/UpText"):GetComponent(typeof(Text));
+	self.AttrList={}
+	self.AttrList[3004]=self:Find("Bottom/Content/Main/Attr/List/Item1").gameObject;
+	self.AttrList[3001]=self:Find("Bottom/Content/Main/Attr/List/Item2").gameObject;
+	self.AttrList[3014]=self:Find("Bottom/Content/Main/Attr/List/Item3").gameObject;
+	self.AttrList[3016]=self:Find("Bottom/Content/Main/Attr/List/Item4").gameObject;
+	self.SkillList={}
+	self.Locks={}
+	for i = 1, 4 do
+		table.insert(self.SkillList,{Go=self:Find("Bottom/Content/Main/Skill/List/Skills/Skill"..i).gameObject})
+		table.insert(self.Locks,self:Find("Bottom/Content/Main/Skill/List/Skills/Skill"..i.."/Lock").gameObject)
+	end
+
+
+	self.PartnerInfo=StructAccessor.PartnerInfo.new(self.m_PartnerInfo)
+	self.Attr=DetailAttr.new(self.m_DetailAttr);
+	self.Skill=DetailSkill.new(self.m_DetailSkill);
+	self.Upgrade=DetailUpgrade.new(self.m_DetailUpgrade)
+	UpBtnFunc=function() self:OnClickUpBtn(); end;
+	AttrFoldFunc=function() self:OnClickAttrFold(); end;
+	SkillFoldFunc=function() self:OnClickSkillFold(); end;
+	PartnerUpgradeNewRetEventFunc=function(data)
+		self:PartnerUpgradeNewRetEvent(data);
+	end
+
+end
+
+
+
+function Detail:OnEnable()
+	self.m_UpBtn.OnClick= UpBtnFunc;
+	self.m_AttrFold.OnClick= AttrFoldFunc;
+	self.m_SkillFold.OnClick= SkillFoldFunc;
+	local BankItemIDListRetEvent=LuaModuleDispatcher:Event(ModuleDef.BattleTeamModule,"PartnerUpgradeNewRetEvent");
+	BankItemIDListRetEvent:AddListener(PartnerUpgradeNewRetEventFunc)
+end
+
+function Detail:OnDisable()
+	
+	local BankItemIDListRetEvent=LuaModuleDispatcher:Event(ModuleDef.BattleTeamModule,"PartnerUpgradeNewRetEvent");
+	BankItemIDListRetEvent:RemoveListener(PartnerUpgradeNewRetEventFunc)
+	self.Attr:OnDisable()
+	self.Skill:OnDisable()
+	self.Upgrade:OnDisable()
+	self.m_UpBtn.OnClick= nil;
+	self.m_AttrFold.OnClick= nil;
+	self.m_SkillFold.OnClick= nil;
+end
+
+function Detail:OnDestroy()
+
+end
+
+function Detail:PartnerUpgradeNewRetEvent(data)
+	if self.PartnerData==nil then
+		return 
+	end
+	self:SetRedPoint(self.PartnerData)
+	--local config=ConfigDataAccessor.Partner[self.PartnerData.Index];
+	--self:FreshAttr(config,self.PartnerData);
+end
+
+function Detail:SetPartnerInfo(nextLevel,lExp,total)
+	self.PartnerInfo:OnShowNextLevel(self.PartnerData,true,true,nextLevel,lExp,total)
+end
+
+
+function Detail:OnOpen(arg,useUpgrade)
+
+	self.PartnerData=arg;
+	self:CallBack();
+	--头顶信息
+	--self.PartnerInfo:OnOpen(arg,true,true)
+
+	--初始化属性
+	local config=ConfigDataAccessor.Partner[arg.Index];
+	self:FreshAttr(config,arg);
+
+	--初始化技能
+	self:FreshSkill(config,arg);
+	if useUpgrade then
+		self:OnClickUpBtn()
+	end
+end
+
+function Detail:GetParSkillDataCell(parId,starId)
+	for k, v in pairs(ConfigDataAccessor.ParSkill) do
+		if v.Par == parId and v.Star == starId then
+			return v;
+		end
+	end
+	return nil;
+end
+
+function Detail:FreshSkill(config,data)
+	if config~=nil then
+
+		local parSkillCfg = self:GetParSkillDataCell(data.Index,data.CurStar);
+		if parSkillCfg ~= nil then
+			self.Skills={}
+			local locked=false;
+			local level=parSkillCfg.ParSkillLV;
+			if level<1 then
+				locked=true
+				level=1;
+			end
+			self.SkillList[1].Locked=locked
+			local array=ConfigDataAccessor.PartnerSkillDesc[parSkillCfg.ParSkill]
+			if array~=nil then
+				local ParSkill=	array[level]
+				if ParSkill~=nil then
+					local go= self.SkillList[1].Go;
+					local icon=go.transform:GetComponent(typeof(Image));
+					if icon~=nil and ParSkill.IconPath~="" then
+						self:GetSpriteByAtlas("ui/icons/atlas/IconSkill1",ParSkill.IconPath,function (sp)
+								icon.sprite=sp
+							end);
+						--table.insert(self.Skills,{Name=ParSkill.SkillName,IsPassive=false, Icon=ParSkill.IconPath,Desc=ParSkill.Decs})
+					end
+					self.Locks[1]:SetActive(self.SkillList[1].Locked)
+				end
+
+				local index=2;
+				for i = 1, #parSkillCfg.SelfSkill do
+					local level=parSkillCfg.SelfSkillLV[i]
+					local locked=false;
+					if level<1 then
+						locked=true
+						level=1;
+					end
+					self.SkillList[index].Locked=locked
+					local array=ConfigDataAccessor.PartnerSkillDesc[parSkillCfg.SelfSkill[i]]
+					if array~=nil then
+						local SelfSkill=array[level]
+						if SelfSkill~=nil then
+							if index<5 then
+								local go= self.SkillList[index].Go;
+								self.Locks[index]:SetActive(self.SkillList[index].Locked)
+								local icon=go.transform:GetComponent(typeof(Image));
+								if icon~=nil and ParSkill.IconPath~="" then
+									self:GetSpriteByAtlas("ui/icons/atlas/IconSkill1",SelfSkill.IconPath,function (sp)
+											icon.sprite=sp
+										end);
+									--table.insert(self.Skills,{Name=SelfSkill.SkillName,IsPassive=true,Icon=SelfSkill.IconPath,Desc=SelfSkill.Decs})
+									index=index+1;
+								end
+							end
+						end
+					end
+					--self.m_PropScrollView:ContinueScroll(#self.Skills);
+				end
+
+			end
+		end
+	end
+end
+
+
+function Detail:SetRedPoint(data)
+	if self.m_UnUpgrade~=nil then
+		local red=false;
+		local cnt=0;
+		for i = 1, #CostItem do
+			cnt=cnt+BusinessManager.Instance:GetCurrencyNum(CostItem[i]);
+		end
+		if cnt>0 then
+			local playerLv = GameManager.Instance:GetPlayerLevel();
+			local  cfg=ConfigDataAccessor.PartnerExp[data.Level+1]
+			if cfg~=nil then
+				red=cfg.UnlockLevel <= playerLv
+			end
+		end
+		self.m_RedPoint:SetActive(red)
+		self.RedPoint:SetActive(red)
+	end
+end
+
+function Detail:FreshAttr(config,data)
+	self:SetRedPoint(data)
+	local temp={}
+	local prop=CalculatePartnerProp(data)
+	for i = 1, #MainAttr do
+		for _, v in ipairs(prop) do
+			if v.id==MainAttr[i] then
+				temp[v.id]=v
+			end
+		end
+	end
+
+	for k, v in pairs(temp) do
+
+		local go=self.AttrList[k];
+		local icon=go.transform:Find("Icon"):GetComponent(typeof(Image))
+		local text=go.transform:Find("Text"):GetComponent(typeof(Text))
+		local Value=go.transform:Find("Value"):GetComponent(typeof(Text))
+		self:GetSpriteByAtlas("UI/Icons/Atlas/IconAttribute","Attribute_"..v.id,function (sp)
+				icon.sprite=sp
+			end)
+		text.text=v.PropName
+		local vaule=(v.Base+v.NewCer)*(1+v.Star*0.0001)+v.Equip
+		--print("Key"..data.id.."基础"..data.Base.."资质"..data.NewCer.."星级"..data.Star.."装备"..data.Equip .."最终值"..vaule)
+		--(升级属性+资质*转化率)*(1+星级加成)+装备属性
+		Value.text=tostring(math.floor(vaule));
+	end
+
+end
+
+function Detail:GetBaseAttrVaule(config,data,id)
+	local  PartnerNature=ConfigDataAccessor.PartnerNature[config.Nature][data.Level]
+	if PartnerNature~=nil then
+		for i = 1, #PartnerNature.AttrID do
+			if PartnerNature.AttrID[i]==id then
+
+				return PartnerNature.AttrValue[i];
+			end
+
+		end
+	end
+	return 0;
+end
+
+function Detail:CalculateToAddEquipValue(data,temp)
+
+	--装备
+	if data~= nil then
+		for i=1,3 do
+			local data=BusinessManager.Instance:GetPartnerEquipedEquip(data.ID,i);
+			if data~= nil then
+				local Nature=ConfigDataAccessor.PartnerEquip[data.BaseID].Nature;
+				local Value=ConfigDataAccessor.PartnerEquip[data.BaseID].Value;
+				for j=1,#Nature do
+					local t=temp[Nature[j]];
+					if t~=nil then
+						t.Equip=t.Equip+Value[j];
+						temp[Nature[j]]=t;
+					end
+				end
+			end
+		end
+	end
+
+
+end
+
+function Detail:OnClose(arg)
+
+end
+
+function Detail:OnClickUpBtn()
+	self.m_Main:SetActive(false)
+	self.m_DetailSkill:SetActive(false)
+	self.m_DetailAttr:SetActive(false)
+	self.m_DetailUpgrade:SetActive(true)
+	self.Upgrade:OnOpen(self.PartnerData,function ()
+			self:CallBack()
+		end,function (nextLevel,lExp,total)
+			self:SetPartnerInfo(nextLevel,lExp,total)
+		end)
+end
+
+
+
+function Detail:CallBack()
+	self.m_DetailSkill:SetActive(false)
+	self.m_DetailAttr:SetActive(false)
+	self.m_DetailUpgrade:SetActive(false)
+	self.m_Main:SetActive(true)
+	--头顶信息
+	self.PartnerInfo:OnOpen(self.PartnerData,true,true)
+
+	--玩家冒险等级
+	local curRiskLevel = GameManager.Instance.M_MainPlayerCtrlBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Int,CS.StarProjectDef.AOIAttrDefine.PlayerLevel)
+
+
+	local needLevel=0
+	local config=ConfigDataAccessor.PartnerExp[self.PartnerData.Level+1]
+	if config~=nil then
+		needLevel=config.UnlockLevel
+	end
+
+	if curRiskLevel< needLevel then
+		self.m_UpBtn.gameObject:SetActive(false)
+		self.m_UnUpgrade:SetActive(true)
+
+		self.m_UnUpgradeUpText.text=LanguageHelp:GetLanguageByKey("partner_sys_47")..needLevel
+	else
+		self.m_UpBtn.gameObject:SetActive(true)
+		self.m_UnUpgrade:SetActive(false)
+	end
+end
+
+
+
+function Detail:OnClickAttrFold()
+	self.m_Main:SetActive(false)
+	self.m_DetailUpgrade:SetActive(false)
+	self.m_DetailSkill:SetActive(false)
+	self.m_DetailAttr:SetActive(true)
+	self.Attr:OnOpen(self.PartnerData,function ()
+			self:CallBack()
+		end)
+end
+
+function Detail:OnClickSkillFold()
+	self.m_Main:SetActive(false)
+	self.m_DetailUpgrade:SetActive(false)
+	self.m_DetailSkill:SetActive(true)
+	self.m_DetailAttr:SetActive(false)
+	self.Skill:OnOpen(self.PartnerData,function ()
+			self:CallBack()
+		end)
+end
+
+
+
+return  Detail

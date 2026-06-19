@@ -1,0 +1,174 @@
+--[[
+*文件名   :   Purchase
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/10/16 16:01:09"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+PurchaseGoodsDetailItem=class("PurchaseGoodsDetailItem",UIPanel)
+PurchaseGoodsDetailItem.m_Selected=nil;
+PurchaseGoodsDetailItem.m_BgRare=nil;
+PurchaseGoodsDetailItem.m_Icon=nil;
+PurchaseGoodsDetailItem.m_AttentionIconHas=nil;
+PurchaseGoodsDetailItem.m_AttentionIconNone=nil;
+PurchaseGoodsDetailItem.m_AttentionBtn=nil;
+PurchaseGoodsDetailItem.m_Name=nil;
+PurchaseGoodsDetailItem.m_State=nil;
+PurchaseGoodsDetailItem.m_StateText=nil;
+PurchaseGoodsDetailItem.m_Price=nil;
+PurchaseGoodsDetailItem.m_Btn=nil;
+PurchaseGoodsDetailItem.m_Time=nil;
+
+PurchaseGoodsDetailItem.OnSelectCallBack=nil;
+PurchaseGoodsDetailItem.ItemID=0;
+PurchaseGoodsDetailItem.GoodsID=0;
+PurchaseGoodsDetailItem.Data=nil;
+
+local SelectionFunc=nil;
+local AttentionFunc=nil;
+
+function PurchaseGoodsDetailItem:ClearData()
+	self.OnSelectCallBack=nil;
+	self.ItemID=0;
+	self.GoodsID=0;
+	self.Data=nil;
+end
+
+function PurchaseGoodsDetailItem:ctor(go, atlas)
+	self.prefab = go;
+	self.AtlasPath = atlas;
+	self.m_Selected=self:Find("Selected").gameObject;
+	self.m_BgRare=self:Find("BgRare"):GetComponent(typeof(Image));
+	self.m_Icon=self:Find("Icon"):GetComponent(typeof(Image));
+	self.m_AttentionBtn=self:Find("Attention"):GetComponent(typeof(JButton));
+	self.m_AttentionIconHas=self:Find("Attention/IconA").gameObject;
+	self.m_AttentionIconNone=self:Find("Attention/Icon").gameObject;
+
+	self.m_Name=self:Find("Name"):GetComponent(typeof(Text));
+	self.m_State=self:Find("State").gameObject;
+	self.m_StateText=self:Find("State/Text"):GetComponent(typeof(Text));
+	self.m_Price=self:Find("Price"):GetComponent(typeof(Text));
+	self.m_Time=self:Find("Time"):GetComponent(typeof(Text));
+	self.m_Btn=self.prefab:GetComponent(typeof(JButton));
+	SelectionFunc=function() self:OnClickSelectBtn(); end;
+	AttentionFunc=function() self:OnClickAttentionBtn(); end;
+
+	self.m_Btn.OnClick= SelectionFunc;
+	self.m_AttentionBtn.OnClick= AttentionFunc;
+
+	local BankSetMyFollowRetEvent=LuaModuleDispatcher:Event(ModuleDef.ExchangeModule,"BankSetMyFollowRetEvent");
+	BankSetMyFollowRetEvent:AddListener(function (data)
+			self:OnBankSetMyFollowRet(data);
+		end)
+
+end
+
+
+function PurchaseGoodsDetailItem:OnBankSetMyFollowRet(data)
+	if self.GoodsID~=0 and  data.GoodsID==self.GoodsID then
+		if data.IsFollow then
+			Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_170"));
+		else
+			Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_171"))
+		end
+		self:SetAttention(data.IsFollow);
+	end
+end
+
+function PurchaseGoodsDetailItem:SetAttention(attention)
+	if self.m_AttentionIconHas ~=nil then
+		self.m_AttentionIconHas:SetActive(attention)
+	end
+	if self.m_AttentionIconNone~=nil then
+		self.m_AttentionIconNone:SetActive(not attention)
+	end
+end
+
+function PurchaseGoodsDetailItem:OnClickAttentionBtn()
+	local isAtt=self:IsAttention(self.GoodsID)
+	LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule,"OnBankSetMyFollowReq",{self.GoodsID,not isAtt})
+end
+
+function PurchaseGoodsDetailItem:OnClickSelectBtn()
+	if self.OnSelectCallBack~=nil then
+		self.OnSelectCallBack(self.Data);
+	end
+end
+
+function PurchaseGoodsDetailItem:Select(select)
+	self.m_Selected:SetActive(select)
+end
+
+function PurchaseGoodsDetailItem:UpdateContent(arg,cb)
+
+	self.OnSelectCallBack=cb;
+	self.Data=arg;
+	self.ItemID=self.Data.ItemMD.BaseID;
+	self.GoodsID=self.Data.GoodsID
+	self:Select(false);
+	local config=ConfigDataAccessor.Item[self.ItemID]
+	if config~=nil then
+		self.m_Name.text=config.Name
+		local quality=config.Quality;
+		ResourceHelper:LoadIconByAtlasAsync(
+			self.m_BgRare,
+			ResourceHelper.AtlasPathCommonItem,
+			"Bag_Grid_sq"..quality,
+			false
+		)
+		ResourceHelper:LoadIconAsync(self.m_Icon, "", config.Icon, false)
+	end
+
+	self:SetAttention(self:IsAttention(self.Data.GoodsID));
+
+	self.m_Price.text=self.Data.Price
+	if self.Data.ItemMD.Num>99 then
+		self.m_StateText.text="99+"
+	else
+		self.m_StateText.text=self.Data.ItemMD.Num
+	end
+	local serverNow=TimeUtils.GetServerTimeNow()/1000
+	local time=self.Data.Etime-serverNow
+	local time_s=self.Data.Stime-serverNow
+	if time_s>0 then
+		self.m_Time.text= LanguageHelp:GetLanguageByKey("Local_Str_Publish")..SecondToFormat(time_s)
+	else
+		if time>0 then
+			self.m_Time.text= SecondToFormat(time)
+		else
+			self.m_Time.text="0"..LanguageHelp:GetLanguageByKey("Local_Str_Time_second");
+		end
+	end
+end
+
+
+function PurchaseGoodsDetailItem:GetStateName(state)
+	--0：没有设置 1：正常售卖 2：已出售 3：已下架
+	if state ==2 then
+		return LanguageHelp:GetLanguageByKey("Local_Str_BeSold")
+	elseif state ==3 then
+		return LanguageHelp:GetLanguageByKey("Local_Str_SOLD_OUT")
+	end
+	return ""
+
+end
+
+function PurchaseGoodsDetailItem:IsAttention(goodsID)
+
+	local playerinfo= BusinessManager.Instance.M_BankPlayerMD;
+	local items={}
+	if playerinfo~=nil then
+		if playerinfo.FollowGoods~=nil  and playerinfo.FollowGoods.GoodsList~=nil and playerinfo.FollowGoods.GoodsList.Count>0 then
+
+			for i = 1, playerinfo.FollowGoods.GoodsList.Count do
+				if goodsID==playerinfo.FollowGoods.GoodsList[i-1].GoodsID then
+					return true;
+				end
+			end
+		end
+	end
+	return false;
+end
+
+return  PurchaseGoodsDetailItem

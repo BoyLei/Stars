@@ -1,0 +1,96 @@
+-- 副本选择界面
+EctypeBagWindow = class("EctypeBagWindow", UIPanel)
+EctypeBagWindow.IsOpen = false;
+local RewardItem = require("View/UIWindow/Ectype/RewardItem")
+
+function EctypeBagWindow:Awake()
+
+end
+
+function EctypeBagWindow:BindModule(m)
+    EctypeBagWindow.module = m;
+end
+
+function EctypeBagWindow:InitControls()
+    self.transform = self.prefab.transform;
+    self.gameObject = self.transform.gameObject;
+
+    self.dropRewardItem = self.transform:Find("Image/d2/ScrollView/Viewport/Content/Item").gameObject;
+    
+	self.dropItems = {};
+    self:RefreshData();
+end
+
+function EctypeBagWindow:RefreshData()
+    self.items = BusinessManager.Instance:GetItemsByItemSpaceId(22);
+
+    for _,v in pairs(self.dropItems) do
+        GameObject.Destroy(v);
+    end
+	
+    self.dropItems = {};
+	
+	local allNormalItems = {}
+	for i=0, self.items.Count-1 do
+		local itemid = self.items[i].BaseID;
+		local info = self.items[i];
+		if allNormalItems[itemid] == nil then
+			allNormalItems[itemid] = info.Num;
+		else
+			allNormalItems[itemid] = allNormalItems[itemid] + info.Num;
+		end
+	end
+	local sortNormalItems = {}
+	for k, v in pairs(allNormalItems) do
+		local tb = {};
+		tb.id = k;
+		tb.num = v;
+		table.insert(sortNormalItems, tb);
+	end
+	table.sort(sortNormalItems, function(a, b)
+			local cfga = ConfigDataAccessor.Item[a.id];
+			local cfgb = ConfigDataAccessor.Item[b.id];
+			return cfga.Quality > cfgb.Quality
+		end);
+	for k, v in pairs(sortNormalItems) do
+		local gob = newObject(self.dropRewardItem);
+		gob:SetActive(true);
+		gob.transform:SetParent(self.dropRewardItem.transform.parent);
+		gob.transform.localPosition = Vector3.zero;
+		gob.transform.localScale = Vector3.one;
+		RewardItem:New(gob, v.id, v.num);
+		self.dropItems[v.id] = gob;
+	end
+end
+
+function EctypeBagWindow:Start()
+    print("EctypeBagWindow:Start")
+end
+
+function EctypeBagWindow:OnEnable()
+
+end
+
+function EctypeBagWindow:OnDisable()
+
+end
+
+function EctypeBagWindow:OnDestroy()
+
+end
+
+function EctypeBagWindow:OnOpen(arg)
+    EctypeBagWindow.IsOpen = true;
+end
+
+function EctypeBagWindow:OnClose(arg)
+    EctypeBagWindow:CloseWindow();
+	self.module.ectypeBagWindow = nil
+end
+
+function EctypeBagWindow:CloseWindow()
+    EctypeBagWindow.IsOpen = false;
+	self.module.ectypeBagWindow = nil
+end
+
+return EctypeBagWindow

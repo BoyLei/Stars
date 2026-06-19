@@ -1,0 +1,89 @@
+--[[
+*文件名   :   BuffList
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "quzhenxin"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local BuffList = {}
+
+BuffList.__index = BuffList;
+
+local ItemBuffList = require("View/Item/ItemBuffList");
+
+
+function BuffList:New(_go)
+	local self = {};
+	setmetatable(self, BuffList);
+
+	self.Prefab = _go.transform;
+
+	self.ItemContent = self.Prefab:Find("ScrollView/Viewport/Content");
+	self.ItemContentSizeFitter = self.ItemContent:GetComponent(typeof(ContentSizeFitter));
+	self.ItemBuffListPrefab = self.Prefab:Find("ItemBuffList").gameObject;
+	self.ItemBuffListPrefab:SetActive(false);
+
+	self.Close = self.Prefab:Find("Close"):GetComponent(typeof(Button));
+	self.CloseFun = function()
+		self:ClosePanel();
+	end
+	self.Close.onClick:AddListener(self.CloseFun);
+
+	self.M_IsOpen = false;
+	self.M_IsDebuff = false;
+
+	self.M_BuffList = {};  -- 所有buff数据list
+	self.M_BuffListItem = {}; -- 所有buffItemlist
+
+	return self;           --返回自身
+end
+
+function BuffList:Init(buffList, isDebuff)
+	self.M_IsOpen = true;
+	self.M_IsDebuff = isDebuff;
+
+	self:UpdateData(buffList);
+end
+
+function BuffList:UpdateData(list)
+	self.M_BuffList = list;
+	if self.M_BuffList == nil or #self.M_BuffList <= 0 then
+		self:ClosePanel();
+	else
+		local count = #self.M_BuffList;
+		local listCount = #self.M_BuffListItem;
+		local maxLength = math.max(count, listCount);
+		for i = 1, maxLength do
+			local data = nil;
+			if count >= i then
+				data = self.M_BuffList[i];
+			end
+			if listCount >= i then
+				local item = self.M_BuffListItem[i];
+				-- 设置内容
+				item:OnUpdateContent(data);
+			else
+				-- 创建
+				local gob = newObject(self.ItemBuffListPrefab);
+				gob.transform:SetParent(self.ItemContent);
+				gob.transform.localPosition = Vector3.zero;
+				gob.transform.localScale = Vector3.one;
+				local item = ItemBuffList:New(gob);
+				table.insert(self.M_BuffListItem, item);
+				item:OnUpdateContent(data);
+			end
+		end
+		self.Prefab.gameObject:SetActive(true);
+	end
+	self.ItemContentSizeFitter:SetLayoutVertical();
+end
+
+function BuffList:ClosePanel()
+	self.Prefab.gameObject:SetActive(false);
+	self.M_IsOpen = false;
+	self.M_BuffList = {};
+end
+
+return BuffList;

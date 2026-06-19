@@ -1,0 +1,185 @@
+---------------------------------------------------------------------
+-- StarsPublish (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-02-15 11:10:51
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class PartnerAssistItem
+PartnerAssistItem = class("PartnerAssistItem",UIPanel)
+PartnerAssistItem.QualityBg=nil;
+PartnerAssistItem.Icon=nil;
+PartnerAssistItem.Level=nil;
+PartnerAssistItem.Selected=nil;
+PartnerAssistItem.Stars=nil;
+PartnerAssistItem.Tag=nil;
+PartnerAssistItem.State=nil;
+PartnerAssistItem.StateText=nil;
+PartnerAssistItem.Btn=nil;
+PartnerAssistItem.Name=nil;
+PartnerAssistItem.AttribuiteRoot=nil;
+PartnerAssistItem.AttribuiteTemplete=nil;
+PartnerAssistItem.CallBack=nil;
+PartnerAssistItem.Index=0;
+PartnerAssistItem.CompareAttr=nil;
+PartnerAssistItem.PartnerData=nil;
+
+local CommonAtlas="UI/Common/Atlas/CommonRes"
+function PartnerAssistItem:ctor(go,parent,atlas,callBack,compareattr)
+	self.prefab=go;
+	self.AtlasPath=atlas;
+	self.CallBack=callBack;
+	self.CompareAttr=compareattr
+	self.Btn=self:Find("BgRare"):GetComponent(typeof(Button));
+	self.QualityBg=self:Find("Quality"):GetComponent(typeof(Image));
+	self.Icon=self:Find("Icon"):GetComponent(typeof(Image));
+	self.Level=self:Find("Level"):GetComponent(typeof(Text));
+	self.Selected=self:Find("Selected").gameObject;
+	self.Tag=self:Find("tag/tt"):GetComponent(typeof(Text));
+	self.State=self:Find("State").gameObject;
+	self.StateText=self:Find("State/Text"):GetComponent(typeof(Text));
+	self.Name=self:Find("NameBG/Name"):GetComponent(typeof(Text));
+	self.AttribuiteRoot=self:Find("Attribuite");
+	self.AttribuiteTemplete=self:Find("Atr");
+	self.Stars={}
+	table.insert(self.Stars,self:Find("Stars/Star1").gameObject);
+	table.insert(self.Stars,self:Find("Stars/Star2").gameObject);
+	table.insert(self.Stars,self:Find("Stars/Star3").gameObject);
+	table.insert(self.Stars,self:Find("Stars/Star4").gameObject);
+	table.insert(self.Stars,self:Find("Stars/Star5").gameObject);
+	table.insert(self.Stars,self:Find("Stars/Star6").gameObject);
+	self.Btn.onClick:AddListener(function() self:OnClickHandler() end);
+end
+
+--点击事件
+function PartnerAssistItem:OnClickHandler()
+	self.CallBack(self.Index);
+	self:OnSelect(true);
+end
+
+function PartnerAssistItem:GetStateText(state)
+	local stateText=LanguageHelp:GetLanguageByKey("Local_Str_stateText1");
+	if state==CS.ProtoMsg.PartnerState.InBattle or state==CS.ProtoMsg.PartnerState.Concretization then
+		stateText=LanguageHelp:GetLanguageByKey("Local_Str_stateText2");
+	elseif state ==CS.ProtoMsg.PartnerState.Assist then
+		stateText=LanguageHelp:GetLanguageByKey("Local_Str_stateText3");
+	end
+	return stateText;
+end
+
+function PartnerAssistItem:OnSelect(select)
+	self.Selected:SetActive(select)
+end
+
+function  PartnerAssistItem:GetQualityName(quality)
+	if quality==1 then
+		return "Partner_select_white";
+	elseif quality==2 then
+		return "Partner_select_blue";
+	elseif quality==3 then
+		return "Partner_select_purple";
+	elseif quality==4 then
+		return "Partner_select_orange";
+	end
+end
+--数据更新
+function PartnerAssistItem:UpdateContent(odata,selectIndex)
+	local data=odata.data;
+	self.PartnerData=data;
+	if data==nil then
+		return
+	end
+	local config=ConfigDataAccessor.Partner[data.Index];
+	if config==nil then
+		return
+	end
+
+	local avatarDataCell= ConfigDataAccessor.Avatar[config.AvatarID];
+	if avatarDataCell ~= nil then
+		local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID];
+		if headCfg ~= nil then
+			self:GetSpriteByAtlas(headCfg.HeadAtlasName,headCfg.MaxHead,function (sp)
+					self.Icon.sprite=sp
+					self.Icon:SetNativeSize();
+				end);
+
+		end
+	end
+
+	self.Index=data.Index;
+	--self.Level.text=tostring(data.Level) .. "级"
+	self.Level.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {data.Level});
+
+	local activeState=false;
+	if data.State==CS.ProtoMsg.PartnerState.InBattle or data.State==CS.ProtoMsg.PartnerState.Concretization then
+		activeState=true;
+	elseif data.State ==CS.ProtoMsg.PartnerState.Assist then
+		activeState=true;
+	end
+	self.State:SetActive(activeState)
+	if activeState then
+		self.StateText.text=self:GetStateText(data.State);
+	end
+
+	self:GetSprite(self:GetQualityName(config.Quality),function (sp)
+			self.QualityBg.sprite=sp
+		end)
+
+	for i = 1, #self.Stars do
+		if i<=data.CurStar then
+			self.Stars[i]:SetActive(true)
+		else
+			self.Stars[i]:SetActive(false)
+		end
+	end
+
+	self:OnSelect(data.Index==selectIndex)
+	self.Name.text=config.Name
+	local count=self.AttribuiteRoot.childCount;
+	for i = 1, count do
+		GameObject.Destroy(self.AttribuiteRoot:GetChild(i-1).gameObject);
+	end
+
+	local list= self:CompareAttr(self.PartnerData);
+	if list~=nil and #list>0 then
+		for i = 1, #list do
+			local atr= GameObject.Instantiate(self.AttribuiteTemplete)
+			local txt= atr.transform:Find("Text"):GetComponent(typeof(Text));
+			local image=atr.transform:Find("Image"):GetComponent(typeof(Image))
+			local id=list[i].id;
+			local isup=list[i].isup;
+			local info=""
+			local AoiAttr= ConfigDataAccessor.ParConversion[id]
+			if AoiAttr~=nil then
+				info=AoiAttr.Name..":"..data.AMD.Aptitudes[id].BaseValue
+			end
+			if isup==0 then
+				image.gameObject:SetActive(false)
+			else
+				if isup>0 then
+					self:GetSpriteByAtlas(CommonAtlas,"Common_Btn_Return04",function (sp)
+							image.sprite=sp
+					end);
+
+				else
+					self:GetSpriteByAtlas(CommonAtlas,"Common_Btn_Return04s",function (sp)
+							image.sprite=sp
+					end);
+				end
+				image.gameObject:SetActive(true)
+				image:SetNativeSize()
+			end
+
+			txt.text=info;
+
+			atr.gameObject:SetActive(true)
+			atr.transform:SetParent(self.AttribuiteRoot)
+			atr.transform.localScale=Vector3(1,1,1)
+			atr.transform.localPosition=Vector3.zero
+		end
+	end
+end
+
+return  PartnerAssistItem;

@@ -1,0 +1,121 @@
+---------------------------------------------------------------------
+-- Stars (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2022-10-27 15:04:37
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class TaskInfo
+TaskInfo = class("TaskInfo")
+
+--任务ID
+local TaskID=0;
+
+--任务类型
+local TaskType=0;
+
+--任务状态
+local TaskStateEnum;
+
+--任务标题
+local TaskTitle=nil;
+
+--任务描述
+local TaskDesc=nil;
+
+--任务到期时间
+local TaskOverdueTime=0;
+
+--任务目标
+local TaskTarget={}
+
+--奖励标签
+local TaskTag;
+
+--跳转
+local JumpSpawnerID;
+
+local select=false;
+
+local ChapterName=nil;
+
+local ShowItemID=0;
+
+local DropID=0;
+function TaskInfo:ctor(taskid,type,state,title,desc,time,targets,tag,jumpid,chaptername,showitemid,dropid)
+	self.TaskID=taskid
+	self.TaskType=type
+	self.TaskStateEnum=state
+	self.TaskTitle=title
+	self.TaskDesc=desc
+	self.TaskOverdueTime=time
+
+
+	self:UpdateTarget(targets)
+	self.TaskTag=tag;
+	self.JumpSpawnerID=jumpid;
+	self.ChapterName=chaptername;
+	self.ShowItemID=showitemid;
+	self.DropID=dropid;
+	self.select=false;
+
+end
+
+function TaskInfo:UpdateTarget(targets)
+	self.TaskTarget={}
+	for i = 0, targets.Count-1 do
+		local v=targets[i]
+		if v~=nil then
+			-- 表格已废弃这块逻辑业务理论上需要同步删除处理，先暂时注释@caojie
+			-- local condition=ConfigDataAccessor.TaskEvent[v.Condition];
+			-- if condition~=nil then
+			-- 	table.insert(self.TaskTarget,condition.Desc.."("..tonumber(v.CurProgress).."/"..tonumber(condition.MaxNum)..")")
+			-- end
+		end
+	end
+end
+
+function TaskInfo:GetHeight()
+	local count=#self.TaskTarget;
+	return count*50+50;
+end
+function TaskInfo:GetCount()
+	if self.TaskTarget==nil then
+		return 0;
+	end
+	return  #self.TaskTarget;
+end
+function  TaskInfo:GetStringType()
+	if self.TaskType==1 then
+		return LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_46")
+	elseif self.TaskType==2 then
+		return LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_47")
+	elseif self.TaskType==3 then
+		return LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_48")
+	elseif self.TaskType==4 then
+		return LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_49")
+	elseif self.TaskType==5 then
+		return LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_50")
+	elseif self.TaskType==6 then
+		return LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_51")
+	else
+		return "None this TaskType"
+	end
+
+end
+
+function TaskInfo:GetTaskTagets()
+	local content=""
+	for i, v in ipairs(self.TaskTarget) do
+		if i==1 then
+			content=v
+		else
+			content=content.."\n"..v
+		end
+	end
+	return content
+end
+
+return  TaskInfo;

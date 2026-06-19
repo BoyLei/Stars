@@ -1,0 +1,97 @@
+--[[
+*文件名   :   AvgPopBox
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/10/25 14:29:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+AvgPopBox = class("AvgPopBox", UIPanel)
+AvgPopBox.m_rectBg = nil
+AvgPopBox.m_TalkBoxContent = nil
+
+local ObjectPool = require("Common/Helper/ObjectPool")
+
+function AvgPopBox:Awake()
+    self.transform = self.prefab.transform
+    self.gameObject = self.prefab
+
+    --对象池
+    local _go = self.transform:Find("AvgPopItem").gameObject
+    self.avgPopItemPool =
+        ObjectPool:New(
+        2,
+        "View.Item.AvgPopItem",
+        _go,
+        _go.transform.parent,
+        function(it)
+            it:InitItem()
+        end,
+        --回收回调
+        function(ritem)
+            ritem:SetUse(false)
+        end,
+        nil
+    )
+end
+
+function AvgPopBox:BindModule(m)
+    self.module = m
+end
+
+function AvgPopBox:Start()
+end
+
+function AvgPopBox:OnEnable()
+end
+
+function AvgPopBox:OnDisable()
+end
+
+function AvgPopBox:OnDestroy()
+end
+
+function AvgPopBox:OnOpen(arg)
+end
+
+function AvgPopBox:OnClose(arg)
+end
+
+function AvgPopBox:GetTalkContentById(idx, PopEntityID)
+    if GameManager.Instance.M_Map == nil then
+        return
+    end
+    local worldPoint = GameManager.Instance:GetEntityUpPosById(PopEntityID)
+    worldPoint.x = worldPoint.x - 0.6
+    worldPoint.y = worldPoint.y + 0.6
+
+    --print("气泡对话:实体："..PopEntityID.."  对话id:"..idx.."  坐标:("..worldPoint.x..","..worldPoint.y..","..worldPoint.z..")");
+
+    local isInScreen = CS.PositionConvert.IsPointInFrustum(worldPoint)
+    local MapSpaceType = GameManager.Instance.M_Map:GetMapType()
+    if MapSpaceType ~= CS.ProtoMsg.SpaceType.SpaceScene and MapSpaceType ~= CS.ProtoMsg.SpaceType.SpaceDefault then
+        --副本里特判
+        isInScreen = true
+    end
+
+    if isInScreen then
+        self.gameObject:SetActive(true)
+
+        local info = {}
+        info.PopEntityID = PopEntityID
+        info.EffectID_AvgPop = self.module.EffectID_AvgPop
+        info.idx = idx
+
+        local item = self.avgPopItemPool:Spawn()
+        item:SetItem(info)
+    end
+end
+
+function AvgPopBox:FinishTalk()
+    self.module.PopEntityID = 0
+    --UIManager.Instance:CloseWidget("Avg/AvgPopBox");
+    --CS.StarProject.GlobalEvent.OnSelectEffect:Invoke(self.module.EffectID_AvgPop,0);
+    self.module:OnFinishAvgPopBox()
+end
+
+return AvgPopBox

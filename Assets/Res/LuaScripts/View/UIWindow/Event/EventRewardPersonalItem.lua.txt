@@ -1,0 +1,123 @@
+--[[
+*文件名   :   EventRewardPersonalItem
+*内  容   :   Item
+*说  明   :
+*创建日期 :   "2023/05/31 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local EventRewardPersonalItem = {}
+
+EventRewardPersonalItem.__index = EventRewardPersonalItem
+
+
+local ItemGrid=require("View/Item/ItemGrid");
+
+
+function EventRewardPersonalItem:New(_go)
+    local self = {}
+    setmetatable(self, EventRewardPersonalItem)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.Title = self.transform:Find("title"):GetComponent(typeof(Text))
+
+	--道具
+    self.items={}
+    for i=1,6 do
+        local it = ItemGrid:New(self.transform:Find("Items/ItemGrid"..i).gameObject);
+		it:InitItem(false,function(ritem)  
+            self:OnItemClick(ritem);
+        end);
+        table.insert( self.items,it);
+    end
+
+    return self --返回自身
+end
+
+function EventRewardPersonalItem:InitItem()
+    self.IsUsed=false;
+    self.gameObject:SetActive(false);
+end
+
+function EventRewardPersonalItem:OnItemClick(ritem)
+	LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",{ ritem.BaseID,false ,0,ritem.transform,0});
+end
+
+
+function EventRewardPersonalItem:SetItem(cfg,scoreNow,isGuild)
+
+    local playMode=cfg.PlayMode;
+
+    --判断是否开启了活动
+    if scoreNow>0 then
+        if scoreNow>cfg.ScoOneP then
+            --self.Title.text="·积分奖励    "..cfg.ScoOneP.."/"..cfg.ScoOneP;
+            self.Title.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_EventRewardPersonalItem_Title"), {cfg.ScoOneP, cfg.ScoOneP});
+
+        else
+            --self.Title.text="·积分奖励    "..scoreNow.."/"..cfg.ScoOneP;
+            self.Title.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_EventRewardPersonalItem_Title"), {scoreNow, cfg.ScoOneP});
+
+        end
+    else
+        --self.Title.text="·积分奖励    "..cfg.ScoOneP;
+        self.Title.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_EventRewardPersonalItem_Title2"), {cfg.ScoOneP});
+
+    end
+
+
+    --消耗道具
+	for i=1,#self.items do
+		self.items[i].gameObject:SetActive(false);
+	end
+
+    local sortTb={};
+	for i=1,#cfg.Reward do
+        
+        local data={};
+        data.BaseID=cfg.Reward[i]
+        data.Num=cfg.Num[i]
+        data.Quality=ConfigDataAccessor.Item[data.BaseID].Quality;
+        table.insert( sortTb, data )
+    end
+    self:SortItem(sortTb)
+
+
+    for j=1,#sortTb do
+        if j<=#self.items then
+            self.items[j].gameObject:SetActive(true);
+            self.items[j]:SetItemNum(sortTb[j].BaseID,sortTb[j].Num);
+        end
+    end
+
+
+
+
+    self.IsUsed=true;
+    self.gameObject:SetActive(true);
+end
+
+function EventRewardPersonalItem:SetUse(b)
+    self.IsUsed=b;
+    self.gameObject:SetActive(b);
+end
+
+
+function EventRewardPersonalItem:SortItem(tbl)
+	if #tbl > 1 then
+
+
+		table.sort(tbl, function(a, b)
+			if a.Quality > b.Quality then
+				-- 按照稀有度降序
+				return true
+			end
+			return false
+		end)
+
+	end
+end
+
+return EventRewardPersonalItem

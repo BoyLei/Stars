@@ -1,0 +1,342 @@
+local SingleAdd = {}
+SingleAdd.__index = SingleAdd
+
+function SingleAdd:New(obj, rp)
+    local self = {};
+    setmetatable(self, SingleAdd);
+
+    self:InitControls(obj)
+
+    self.rightP = rp;
+    return self;
+end
+
+function SingleAdd:InitControls(obj)
+    self.transform = obj.transform:Find("SingleAdd");
+    self.gameObject = self.transform.gameObject;
+
+    self.nameText = self.transform:Find("NodeType"):GetComponent(typeof(Text));
+    self.lockedgo = self.transform:Find("Locked").gameObject;
+    self.unlockedText = self.transform:Find("Unlocked"):GetComponent(typeof(Text));
+    self.addPropText = self.transform:Find("Add/AddProp"):GetComponent(typeof(Text));
+    self.nextPropText = self.transform:Find("Next/NextProp"):GetComponent(typeof(Text));
+    self.nextObj = self.transform:Find("Next").gameObject;
+    self.lightObj = self.transform:Find("Light").gameObject;
+    self.numText1 = self.transform:Find("Light/SV/Viewport/Content/Num1"):GetComponent(typeof(Text));
+    self.numText2 = self.transform:Find("Light/SV/Viewport/Content/Num2"):GetComponent(typeof(Text));
+    self.img1 = self.transform:Find("Light/SV/Viewport/Content/Item1"):GetComponent(typeof(Image));
+    self.img2 = self.transform:Find("Light/SV/Viewport/Content/Item2"):GetComponent(typeof(Image));
+    self.btn1 = self.transform:Find("Light/SV/Viewport/Content/Item1"):GetComponent(typeof(Button));
+    self.btn2 = self.transform:Find("Light/SV/Viewport/Content/Item2"):GetComponent(typeof(Button));
+    self.btn1.onClick:AddListener(function()
+        if self.itemId1 ~= nil then
+            LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",
+                {self.itemId1, false, nil, self.img1.transform, 0});
+        end
+    end)
+    self.btn2.onClick:AddListener(function()
+        if self.itemId2 ~= nil then
+            LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",
+                {self.itemId2, false, nil, self.img2.transform, 0});
+        end
+    end)
+
+    self.lockReason1 = self.transform:Find("Locked/LockReason1"):GetComponent(typeof(Text));
+    self.lockReason2 = self.transform:Find("Locked/LockReason2"):GetComponent(typeof(Text));
+    self.lockTextgo = self.transform:Find("Locked/LockText").gameObject;
+
+    self.propAddImg = self.transform:Find("Add/Icon"):GetComponent(typeof(Image));
+    self.propAddName = self.transform:Find("Add/PropName"):GetComponent(typeof(Text));
+    self.propAddNum = self.transform:Find("Add/Num"):GetComponent(typeof(Text));
+    self.propNextImg = self.transform:Find("Next/Icon"):GetComponent(typeof(Image));
+    self.propNextName = self.transform:Find("Next/PropName"):GetComponent(typeof(Text));
+    self.propNextNum = self.transform:Find("Next/Num"):GetComponent(typeof(Text));
+
+    self.lightBtn = self.transform:Find("Light/LightBtn"):GetComponent(typeof(Button));
+    self.lightBtn.onClick:AddListener(function()
+        -- local isMet = GameManager.Instance:IsConditionMete(ConfigDataAccessor.AttriTTCondition[self.nodeId].Condition)
+        -- if isMet then 
+            local talentNodeActiveReq = CS.ProtoMsg.TalentNodeActiveReq()
+            talentNodeActiveReq.NodeID = self.nodeId;
+            CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+                talentNodeActiveReq, false)
+        -- else
+        --     Util.ShowMessage("Local_Str_item_insufficient_3")
+        -- end
+        --self.rightP.gameObject:SetActive(false);
+        --LuaModuleDispatcher:SendMessage(ModuleDef.TalentModule, "OnCloseRightPanel1", {});
+    end)
+end
+
+function SingleAdd:InitData(id, lv, totalCost, preLight, leavePoint)
+    self.nodeId = id;
+    local attriTTNode = ConfigDataAccessor.AttriTTNode[id];
+
+    local isBig = false;
+    if attriTTNode.NodeType == 1 then
+        self.nameText.text =LanguageHelp:GetLanguageByKey("Local_Str_node1")
+    else
+        self.nameText.text =LanguageHelp:GetLanguageByKey("Local_Str_node2")
+        isBig = true;
+    end
+
+    self.lockedgo:SetActive(false);
+    self.unlockedText.gameObject:SetActive(false);
+
+
+    local isUnLock = preLight and totalCost >= attriTTNode.TotalNeedNum;
+
+
+    if not isUnLock then
+        self.lockedgo:SetActive(true);
+    else
+        self.unlockedText.gameObject:SetActive(true);
+        if not isBig then
+            --self.unlockedText.text = "领悟等级" .. lv .. "/" .. attriTTNode.MaxLevel;
+            self.unlockedText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_SingleAdd_unlockedText"), {lv,attriTTNode.MaxLevel});
+        else
+            self.unlockedText.text =LanguageHelp:GetLanguageByKey("Local_Str_realized")
+        end
+    end
+
+    local attrName = "";
+    local attributes = ConfigDataAccessor.Attribute;
+    for k, v in pairs(attributes) do
+        if v.AttrId == attriTTNode.AttrID then
+            attrName = v.Name;
+            break
+        end
+    end
+
+    local nextlv = nil;
+
+    self.lockReason1.gameObject:SetActive(false);
+    self.lockReason2.gameObject:SetActive(false);
+
+    -- 	self.propAddImg = 
+    -- self.propAddName =
+    -- self.propAddNum = 
+    -- self.propNextImg =
+    -- self.propNextName 
+    -- self.propNextNum =
+
+    -- 检测是否可以点亮
+    if isBig then
+        if not isUnLock then
+            if totalCost < attriTTNode.TotalNeedNum then
+                self.lockReason2.gameObject:SetActive(true);
+                local itemCfg=ConfigDataAccessor.Item[113];
+                --self.lockReason2.text = "累计消耗"..itemCfg.Name.."点数 " .. totalCost .. "/" .. attriTTNode.TotalNeedNum;
+                self.lockReason2.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_SingleAdd_lockReason2"), {itemCfg.Name, totalCost, attriTTNode.TotalNeedNum});
+            end
+            self.lockReason1.gameObject:SetActive(preLight == false);
+
+            self.lockTextgo:SetActive(true);
+            self.lightObj:SetActive(false);
+			self.addPropText.transform.parent.gameObject:SetActive(true);
+            self.addPropText.transform.parent.gameObject:SetActive(false);
+            self.nextPropText.transform.parent.gameObject:SetActive(true);
+            local attrAdd = self:GetAttrAdd(attriTTNode, lv + 1);
+            self.nextPropText.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips49"); -- ..attrName.."+"..attrAdd;
+
+            self:SetAttrIcon(self.propNextImg, attriTTNode.AttrID);
+            self.propNextName.text = attrName;
+            self.propNextNum.text = tostring(attrAdd);
+        elseif lv == 0 then
+            self.lockTextgo:SetActive(false);
+            self.lightObj:SetActive(true);
+
+            self.addPropText.transform.parent.gameObject:SetActive(false);
+            self.nextPropText.transform.parent.gameObject:SetActive(true);
+            local attrAdd = self:GetAttrAdd(attriTTNode, lv + 1);
+            self.nextPropText.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips49"); -- ..attrName.."+"..attrAdd;
+
+            self:SetAttrIcon(self.propNextImg, attriTTNode.AttrID);
+            self.propNextName.text = attrName;
+            self.propNextNum.text = tostring(attrAdd);
+
+            nextlv = 1;
+
+            local itemsEnough = true;
+            local items, nums = self:GetItems(attriTTNode, nextlv);
+            for k, v in pairs(items) do
+                if v == 113 then
+                    if leavePoint < nums[k] then
+                        itemsEnough = false;
+                    end
+                else
+                    local itemNum = BusinessManager.Instance:GetCurrencyNum(v);
+                    if itemNum < nums[k] then
+                        itemsEnough = false;
+                    end
+                end
+
+            end
+            self.lightBtn.interactable = itemsEnough; 
+        else
+            self.nextPropText.transform.parent.gameObject:SetActive(false);
+            self.addPropText.transform.parent.gameObject:SetActive(true);
+            self.lightObj:SetActive(false);
+            local attrAdd = self:GetAttrAdd(attriTTNode, lv);
+			self.addPropText.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips50");
+            -- self.addPropText.text = "加点效果："..attrName.."+"..attrAdd;
+
+            --self:SetAttrIcon(self.propNextImg, attriTTNode.AttrID);
+			self:SetAttrIcon(self.propAddImg, attriTTNode.AttrID);
+            self.propAddName.text = attrName;
+            self.propAddNum.text = tostring(attrAdd);
+        end
+    else
+        if not isUnLock then
+            if totalCost < attriTTNode.TotalNeedNum then
+                self.lockReason2.gameObject:SetActive(true);
+                --self.lockReason2.text = "累计消耗"..itemCfg.Name.."点数 " .. totalCost .. "/" .. attriTTNode.TotalNeedNum;
+                self.lockReason2.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_SingleAdd_lockReason2"), {itemCfg.Name, totalCost, attriTTNode.TotalNeedNum});
+            end
+			self.addPropText.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips50");
+			self.nextPropText.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips50");
+            self.lockReason1.gameObject:SetActive(preLight == false);
+            self.lockTextgo:SetActive(true);
+            self.lightObj:SetActive(false);
+        elseif lv == 0 then
+            self.lockReason1.gameObject:SetActive(false);
+            self.lockTextgo:SetActive(false);
+            self.lightObj:SetActive(true);
+
+            self.addPropText.transform.parent.gameObject:SetActive(false);
+            self.nextPropText.transform.parent.gameObject:SetActive(true);
+            local attrAdd = self:GetAttrAdd(attriTTNode, lv + 1);
+            self.nextPropText.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips50");--"加点效果："..attrName.."+"..attrAdd;
+
+            self:SetAttrIcon(self.propNextImg, attriTTNode.AttrID);
+			self:SetAttrIcon(self.propAddImg, attriTTNode.AttrID);
+            self.propNextName.text = attrName;
+            self.propNextNum.text = tostring(attrAdd);
+
+            nextlv = 1;
+
+            local itemsEnough = true;
+            local items, nums = self:GetItems(attriTTNode, nextlv);
+            for k, v in pairs(items) do
+                if v == 113 then
+                    if leavePoint < nums[k] then
+                        itemsEnough = false;
+                    end
+                else
+                    local itemNum = BusinessManager.Instance:GetCurrencyNum(v);
+                    if itemNum < nums[k] then
+                        itemsEnough = false;
+                    end
+                end
+            end
+            self.lightBtn.interactable = itemsEnough;
+        elseif lv == 3 then
+            self.addPropText.transform.parent.gameObject:SetActive(true);
+            local attrAdd = self:GetAttrAdd(attriTTNode, lv);
+            -- self.addPropText.text = "加点效果："..attrName.."+"..attrAdd;
+            self.addPropText.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips50");
+            self.nextPropText.transform.parent.gameObject:SetActive(false);
+            self.lightObj:SetActive(false);
+			self:SetAttrIcon(self.propAddImg, attriTTNode.AttrID);
+            self:SetAttrIcon(self.propNextImg, attriTTNode.AttrID);
+
+            self.propAddName.text = attrName;
+            self.propAddNum.text = tostring(attrAdd);
+        else
+            self.addPropText.transform.parent.gameObject:SetActive(true);
+            local attrAdd = self:GetAttrAdd(attriTTNode, lv);
+            self.addPropText.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips50"); -- ..attrName;--.."+"..attrAdd;
+
+            local attrNextAdd = self:GetAttrAdd(attriTTNode, lv + 1);
+            self.nextPropText.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips49"); -- ..attrName;--.."+"..attrNextAdd;
+            nextlv = lv + 1;
+            self.lightObj:SetActive(true);
+
+            self.lightBtn.interactable = true;
+            self:SetAttrIcon(self.propAddImg, attriTTNode.AttrID);
+            self.propAddName.text = attrName;
+            self.propAddNum.text = tostring(attrAdd);
+            -- local str = "Attribute_"..attriTTNode.AttrID;
+            self:SetAttrIcon(self.propNextImg, attriTTNode.AttrID);
+            self.propNextName.text = attrName;
+            self.propNextNum.text = tostring(attrNextAdd);
+        end
+    end
+
+    -- self.nextObj:SetActive(nextlv ~= nil);
+    self.img1.gameObject:SetActive(false);
+    self.img2.gameObject:SetActive(false);
+    if nextlv ~= nil then
+        local items, nums = self:GetItems(attriTTNode, nextlv);
+        if #items > 0 then
+            self.itemId1 = items[1];
+            self.img1.gameObject:SetActive(true);
+            local cfg = ConfigDataAccessor.Item[items[1]];
+            ResourceHelper:LoadIconAsync(self.img1, "", cfg.Icon, false)
+        end
+        if #items > 1 then
+            self.itemId2 = items[2];
+            self.img2.gameObject:SetActive(true);
+            local cfg = ConfigDataAccessor.Item[items[2]];
+            ResourceHelper:LoadIconAsync(self.img2, "", cfg.Icon, false)
+        end
+
+        local cor1 = Color(0xc0 / 255, 0x66 / 255, 0x66 / 255);
+        local cor2 = Color(1, 1, 1);
+        if self.lightBtn.interactable then
+            self.numText1.color = cor2;
+            self.numText2.color = cor2;
+        else
+            self.numText1.color = cor1;
+            self.numText2.color = cor1;
+        end
+        self.numText1.gameObject:SetActive(false);
+        self.numText2.gameObject:SetActive(false);
+        if #nums > 0 then
+            self.numText1.gameObject:SetActive(true);
+            self.numText1.text = tostring(nums[1]);
+        end
+        if #nums > 1 then
+            self.numText2.gameObject:SetActive(true);
+            self.numText2.text = tostring(nums[2]);
+        end
+    end
+end
+
+function SingleAdd:GetAttrAdd(attriTTNode, lv)
+    if lv == 1 then
+        return attriTTNode.FirLvAttrValue
+    elseif lv == 2 then
+        return attriTTNode.SecLvAttrValue
+    elseif lv == 3 then
+        return attriTTNode.ThrLvAttrValue
+    end
+    return 0;
+end
+
+function SingleAdd:GetItems(attriTTNode, lv)
+    if lv == 1 then
+        return attriTTNode.FirLvUseItem, attriTTNode.FirLvNum
+    elseif lv == 2 then
+        return attriTTNode.SecUseItem, attriTTNode.SecLvNum
+    elseif lv == 3 then
+        return attriTTNode.ThrLvUseItem, attriTTNode.ThrLvNum
+    end
+    return {}, {};
+end
+
+function SingleAdd:SetAttrIcon(icon, id)
+    local iconName = nil;
+    local attrs = ConfigDataAccessor.Attribute;
+    for k2, v2 in pairs(attrs) do
+        if v2.AttrId == id then
+            iconName = v2.Icon;
+            break
+        end
+    end
+    if iconName ~= nil then
+        ResourceHelper:LoadIconByAtlasAsync(icon, ResourceHelper.AtlasPathIconAttribute, iconName, false)
+    end
+end
+
+return SingleAdd

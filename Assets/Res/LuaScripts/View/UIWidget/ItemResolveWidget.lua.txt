@@ -1,0 +1,952 @@
+--[[
+*文件名   :   ItemResolveWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/08 17:23:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] ItemResolveWidget = class("ItemResolveWidget", UIPanel)
+ItemResolveWidget.IsOpen = false
+
+local ObjectPool = require("Common/Helper/ObjectPool")
+local ItemGrid = require("View/Item/ItemGrid")
+
+function ItemResolveWidget:Awake()
+end
+
+function ItemResolveWidget:InitItems()
+    self.transform = self.prefab.transform
+    self.IsOpen = false
+
+    self.go_BagItem = self.transform:Find("Cut4Cam90/ItemGrid").gameObject
+    self.go_BagItem:SetActive(false)
+
+    -- 无限列表1（背包中的道具）
+    self.BagItemList1 = {}
+    self.rect_grid1 = self.transform:Find("Cut4Cam90/Items1/Scroll View/Mask/List"):GetComponent(typeof(RectTransform))
+    self.tr_ItemRoot1 = self.transform:Find("Cut4Cam90/Items1/Scroll View/Mask/List")
+    self.BagScorllView1 = self.transform:Find("Cut4Cam90/Items1/Scroll View"):GetComponent(typeof(SuperScrollViewController))
+    self.BagScorllView1:NewScroll(
+        self.go_BagItem,
+        0,
+        function(tr, idx)
+            self:OnBagItemRefesh(tr, idx)
+        end
+    )
+
+    -- 无限列表2（需要被分解的道具）
+    self.BagItemList2 = {}
+    self.rect_grid2 = self.transform:Find("Cut4Cam90/Items2/Scroll View/Mask/List"):GetComponent(typeof(RectTransform))
+    self.tr_ItemRoot2 = self.transform:Find("Cut4Cam90/Items2/Scroll View/Mask/List")
+    self.BagScorllView2 = self.transform:Find("Cut4Cam90/Items2/Scroll View"):GetComponent(typeof(SuperScrollViewController))
+    self.BagScorllView2:NewScroll(
+        self.go_BagItem,
+        0,
+        function(tr, idx)
+            self:OnBagItemRefesh2(tr, idx)
+        end
+    )
+
+    -- 无限列表3（分解获得的道具）
+    self.BagItemList3 = {}
+    self.rect_grid3 = self.transform:Find("Cut4Cam90/Items3/Scroll View/Mask/List"):GetComponent(typeof(RectTransform))
+    self.tr_ItemRoot3 = self.transform:Find("Cut4Cam90/Items3/Scroll View/Mask/List")
+    self.BagScorllView3 = self.transform:Find("Cut4Cam90/Items3/Scroll View"):GetComponent(typeof(SuperScrollViewController))
+    self.BagScorllView3:NewScroll(
+        self.go_BagItem,
+        0,
+        function(tr, idx)
+            self:OnBagItemRefesh3(tr, idx)
+        end
+    )
+
+    -- 稀有度筛选【1-5】
+    self.IsCheckBoxSelectedRare = {}
+    self.IsCheckBoxHaveRare = {}
+    self.go_CheckBoxSelectedRare = {}
+    self.go_CheckBoxNullRare = {}
+    for i = 1, 5 do
+        table.insert(self.go_CheckBoxSelectedRare, self.transform:Find("Cut4Cam90/CheckBox" .. i .. "/selected").gameObject)
+        table.insert(self.go_CheckBoxNullRare, self.transform:Find("Cut4Cam90/CheckBox" .. i .. "/forb").gameObject)
+        table.insert(self.IsCheckBoxSelectedRare, 0)
+        table.insert(self.IsCheckBoxHaveRare, 0)
+
+        self.transform:Find("Cut4Cam90/CheckBox" .. i):GetComponent(typeof(JButton)).OnClick = function()
+            self:OnCheckBoxClickRare(i)
+        end
+    end
+
+    -- 道具类型筛选【装备，纹章】
+    self.IsCheckBoxSelectedType = {}
+    self.IsCheckBoxHaveType = {}
+    self.go_CheckBoxSelectedType = {}
+    self.go_CheckBoxNullType = {}
+    for i = 1, 2 do
+        table.insert(self.go_CheckBoxSelectedType, self.transform:Find("Cut4Cam90/AmuletCheckBox" .. i .. "/selected").gameObject)
+        table.insert(self.go_CheckBoxNullType, self.transform:Find("Cut4Cam90/AmuletCheckBox" .. i .. "/forb").gameObject)
+        table.insert(self.IsCheckBoxSelectedType, 0)
+        table.insert(self.IsCheckBoxHaveType, 0)
+
+        self.transform:Find("Cut4Cam90/AmuletCheckBox" .. i):GetComponent(typeof(JButton)).OnClick = function()
+            self:OnCheckBoxClickType(i)
+        end
+    end
+
+    -- 关闭按钮
+    local btnClose = self.transform:Find("BackGround"):GetComponent(typeof(JButton))
+    btnClose.OnClick = (function()
+        self:OnCloseClick()
+    end)
+
+    -- 确认按钮
+    local BtnConfirm = self.transform:Find("Cut4Cam90/BtnConfirm"):GetComponent(typeof(JButton))
+    BtnConfirm.OnClick = (function()
+        -- 点击确认
+        -- self:OnCloseClick();
+
+        self:OnBtnConfirmClick()
+    end)
+
+    -- info按钮
+
+    self.go_info = self.transform:Find("Cut4Cam90/FloatTips").gameObject
+    self.go_info:SetActive(false)
+    local infoBtn = self.transform:Find("Cut4Cam90/infoBtn"):GetComponent(typeof(JButton))
+    infoBtn.OnClick = (function()
+        self.go_info:SetActive(true)
+    end)
+
+    local infoCloseBtn = self.transform:Find("Cut4Cam90/FloatTips/click"):GetComponent(typeof(JButton))
+    infoCloseBtn.OnClick = (function()
+        self.go_info:SetActive(false)
+    end)
+
+    -- 监听分解回调
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.ItemResolveRetID,
+        function(data)
+            self:OnItemResolveRet(data)
+        end,
+        nil
+    )
+
+    self.autoSelectedRare = 0
+    self.autoUnSelectedRare = 0
+end
+
+function ItemResolveWidget:OnBtnConfirmClick()
+    -- 判断是否有高级装备
+
+    local data = {}
+
+    local SelectedNum = 0
+    -- 筛选出所有选中的
+    for k, v in pairs(self.ItemDataList1) do
+        if v.IsSelected then
+            local needAdd = false
+            v.PolishNum = 0
+            v.Refined = 0
+
+            if v.Quality >= 4 then
+                needAdd = true
+            end
+
+            -- 纹章已经打磨
+            if v.ItemType == 5 then
+                local itemData = BusinessManager.Instance:GetItemByItemEntityId(v.EntityID)
+                local combatSkills = itemData.CombatSkills
+                local PolishNum = combatSkills.CurPolish -- 已经铭刻的次数
+                if PolishNum > 0 then
+                    needAdd = true
+                    v.PolishNum = PolishNum -- 打磨进度
+                end
+            end
+
+            -- 装备已经精炼
+            if v.ItemType == 2 then
+                local itemData = BusinessManager.Instance:GetItemByItemEntityId(v.EntityID)
+                local RefinedNum = itemData.EquipProps.RefinedNum --已经精炼的次数
+                if RefinedNum > 0 then
+                    needAdd = true
+
+                    --计算完美度
+                    local perfectAllValue = 0
+                    local eCfg = ConfigDataAccessor.Equip[v.BaseID]
+                    if eCfg == nil then
+                        LogError("道具没有在装备表里配置")
+                        return
+                    end
+                    --主属性
+                    local MainProps = itemData.EquipProps.MainPropList
+                    for i = 0, MainProps.Count - 1 do
+                        local maxAttr = eCfg.NumMax[i + 1]
+                        perfectAllValue = perfectAllValue + (MainProps[i].Value / maxAttr)
+                    end
+
+                    --这里要计算平均完美度（不完美的话上面就变成false）
+                    local Perfection = math.floor(perfectAllValue / MainProps.Count * 100)
+
+                    v.Refined = Perfection --完美度
+                end
+            end
+
+            if needAdd then
+                table.insert(data, v)
+            end
+        end
+    end
+
+    local isNoShowToDay = false --今日不在显示
+    if LocalCacheManager.Instance:GetDayValue("ItemResolveNoConfirmToDay") ~= nil then
+        isNoShowToDay = LocalCacheManager.Instance:GetDayValue("ItemResolveNoConfirmToDay")
+    end
+
+    if #data > 0 and not (isNoShowToDay) then
+        LuaModuleDispatcher:SendMessage(ModuleDef.ItemResolveModule, "OnOpenItemResolveConfirmWidget", {data})
+    else
+        self:ItemResolveReq()
+    end
+end
+
+function ItemResolveWidget:OnCheckBoxClickType(idx)
+    -- 不需要自动选择
+    -- self.needAutoSelected=false;
+    if self.IsCheckBoxHaveType[idx] == 1 then
+        if self.IsCheckBoxSelectedType[idx] == 1 then
+            self.IsCheckBoxSelectedType[idx] = 0
+        else
+            -- self.needAutoSelected=true;
+            self.IsCheckBoxSelectedType[idx] = 1
+        end
+        self:RefeshCheckBox() -- 刷新筛选按钮
+        self:RefeshItems() -- 刷新列表1
+        self:RefeshItems3()
+    end
+end
+
+function ItemResolveWidget:OnCheckBoxClickRare(idx)
+    self.needAutoSelected = true -- 触发了自动选择用来刷新列表
+    -- self.needAutoSelected=false;
+    self.autoUnSelectedRare = 0
+    self.autoSelectedRare = 0
+    if self.IsCheckBoxHaveRare[idx] == 1 then
+        if self.IsCheckBoxSelectedRare[idx] == 1 then
+            self.IsCheckBoxSelectedRare[idx] = 0
+            self.autoUnSelectedRare = idx
+        else
+            -- self.needAutoSelected=true;
+            self.IsCheckBoxSelectedRare[idx] = 1
+            self.autoSelectedRare = idx
+        end
+        self:RefeshCheckBox() -- 刷新筛选按钮
+        self:RefeshItems() -- 刷新列表1
+        self:RefeshItems3()
+    end
+end
+
+-- 清除所有的选中框
+function ItemResolveWidget:ResetCheckBox()
+    for i = 1, #self.IsCheckBoxSelectedRare do
+        self.IsCheckBoxHaveRare[i] = 0 -- 默认都没有
+        self.IsCheckBoxSelectedRare[i] = 0 -- 默认全不选
+    end
+
+    for i = 1, #self.IsCheckBoxSelectedType do
+        self.IsCheckBoxHaveType[i] = 0 -- 默认都没有
+        self.IsCheckBoxSelectedType[i] = 1 -- 默认全选
+    end
+
+    self:RefeshCheckBox()
+end
+
+-- 刷新选中框UI状态
+function ItemResolveWidget:RefeshCheckBox()
+    -- 稀有度
+    for i = 1, #self.IsCheckBoxSelectedRare do
+        if self.IsCheckBoxHaveRare[i] == 1 then
+            self.go_CheckBoxNullRare[i]:SetActive(false)
+            if self.IsCheckBoxSelectedRare[i] == 1 then
+                self.go_CheckBoxSelectedRare[i]:SetActive(true)
+            else
+                self.go_CheckBoxSelectedRare[i]:SetActive(false)
+            end
+        else
+            self.go_CheckBoxSelectedRare[i]:SetActive(false)
+            self.go_CheckBoxNullRare[i]:SetActive(true)
+        end
+    end
+
+    -- 类型
+    for i = 1, #self.IsCheckBoxSelectedType do
+        if self.IsCheckBoxHaveType[i] == 1 then
+            self.go_CheckBoxNullType[i]:SetActive(false)
+            if self.IsCheckBoxSelectedType[i] == 1 then
+                self.go_CheckBoxSelectedType[i]:SetActive(true)
+            else
+                self.go_CheckBoxSelectedType[i]:SetActive(false)
+            end
+        else
+            self.go_CheckBoxSelectedType[i]:SetActive(false)
+            self.go_CheckBoxNullType[i]:SetActive(true)
+        end
+    end
+end
+
+-- 判断是否选中了该稀有度
+function ItemResolveWidget:IsRareSelected(rare)
+    for i = 1, #self.IsCheckBoxSelectedRare do
+        if self.IsCheckBoxSelectedRare[i] == 1 and i == rare then
+            return true
+        end
+    end
+
+    return false
+end
+
+-- 判断是否选中了该类型
+function ItemResolveWidget:IsTypeSelected(tp)
+    local idx = 0
+    if tp == 2 then
+        idx = 1
+    elseif tp == 5 then
+        idx = 2
+    end
+
+    for i = 1, #self.IsCheckBoxSelectedType do
+        if self.IsCheckBoxSelectedType[i] == 1 and i == idx then
+            return true
+        end
+    end
+
+    return false
+end
+
+-- 道具分解回调
+function ItemResolveWidget:OnItemResolveRet(data)
+    print("道具分解回调")
+
+    local ret = data.data.Result
+
+    if ret == CS.ProtoMsg.ItemResolveRet.Types.Eresult.Ok then
+        -- 成功
+        --Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_97"))
+
+        -- 刷新面板
+        self:RefeshPanel()
+    else
+        -- 失败
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_98"))
+    end
+end
+
+-- 道具分解请求
+function ItemResolveWidget:ItemResolveReq()
+    local SelectedNum = 0
+
+    local itemResolveReq = CS.ProtoMsg.ItemResolveReq()
+    -- 筛选出所有选中的
+    for k, v in pairs(self.ItemDataList1) do
+        if v.IsSelected then
+            itemResolveReq.EId:Add(v.EntityID)
+            SelectedNum = SelectedNum + 1
+        end
+    end
+
+    if SelectedNum == 0 then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_99"))
+        return
+    end
+
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, itemResolveReq, false)
+end
+
+-- 刷新面板
+function ItemResolveWidget:RefeshPanel(noResetPos)
+    -- 是否不重置列表
+    if noResetPos == nil then
+    -- self.rect_grid1.anchoredPosition=Vector2(self.rect_grid1.anchoredPosition.x,0);
+    end
+
+    -- 拿到所有的(可分解的)
+    self.allitems1 = BusinessManager.Instance:GetItemsCanResolve()
+
+    -- 清除数据
+    self:ClearItemData()
+
+    -- 判断是否有改稀有度的装备
+    for i = 1, #self.IsCheckBoxSelectedRare do
+        self.IsCheckBoxHaveRare[i] = 0
+    end
+
+    -- 判断是否有该类型的装备
+    for i = 1, #self.IsCheckBoxSelectedType do
+        self.IsCheckBoxHaveType[i] = 0
+    end
+
+    -- 此处做筛选（稀有度筛选）
+    for i = 0, self.allitems1.Count - 1 do
+        local cfg = ConfigDataAccessor.Item[self.allitems1[i].BaseID]
+
+        self.IsCheckBoxHaveRare[cfg.Quality] = 1 -- 表示背包里有这种稀有度
+
+        if cfg.ItemType == 2 then
+            self.IsCheckBoxHaveType[1] = 1 -- 表示背包里有这种类型
+        elseif cfg.ItemType == 5 then
+            self.IsCheckBoxHaveType[2] = 1 -- 表示背包里有这种类型
+        end
+
+        local it = {}
+        it.EntityID = self.allitems1[i].EntityID
+        it.BaseID = self.allitems1[i].BaseID
+        it.Heroid = self.allitems1[i].Heroid
+        it.Num = self.allitems1[i].Num
+        it.IsNew = self.allitems1[i].IsNew
+        it.SortProp = cfg.SortProp
+        it.Quality = cfg.Quality
+        it.ItemType = cfg.ItemType
+        it.IsSelected = false -- 是否是选中的
+        it.CanShow = true -- 是否被筛选选中
+        it.Level = self:GetLevel(it.BaseID, it.ItemType)
+
+        it.CantEquipLv = self:GetCantEquipLv(it.EntityID, cfg)
+
+        table.insert(self.ItemDataList1, it)
+    end
+
+    self:RefeshItems() -- 刷新列表1
+    self:RefeshItems2() -- 刷新列表2
+    self:RefeshItems3() -- 刷新列表3
+
+    self:RefeshCheckBox() -- 刷新选中框
+
+    -- 关闭tags
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips", {})
+end
+
+function ItemResolveWidget:GetLevel(BaseID, ItemType)
+    if ItemType == 2 then
+        -- 装备
+        if ConfigDataAccessor.Equip[BaseID] ~= nil then
+            return ConfigDataAccessor.Equip[BaseID].Level
+        end
+    elseif ItemType == 5 then
+        -- 纹章
+        if ConfigDataAccessor.HeraldryEquip[BaseID] ~= nil then
+            return ConfigDataAccessor.HeraldryEquip[BaseID].Level
+        end
+    elseif ItemType == 6 then
+        -- 星次石
+        if ConfigDataAccessor.HeraldryEquip[BaseID] ~= nil then
+            return ConfigDataAccessor.HeraldryEquip[BaseID].HeraldryLevel
+        end
+    end
+
+    return 0
+end
+
+function ItemResolveWidget:GetCantEquipLv(EntityID, cfg)
+    local CantEquipLv = 0
+
+    if cfg.ItemType == 2 then
+        local cantEquip = false
+
+        -- 等级不足无法穿戴
+        local lvLimit = ConfigDataAccessor.Equip[cfg.Id].Level
+        local playerLv = GameManager.Instance:GetPlayerLevel()
+        if lvLimit > playerLv then
+            CantEquipLv = 1
+        end
+
+        -- 职业不同无法装备
+        if not (cantEquip) then
+            local JobType = ConfigDataAccessor.Equip[cfg.Id].JobBaseType
+            local playerJob = GameManager.Instance:GetPlayJobBaseID()
+            local isMarchPlayerJob = false
+            if JobType == 0 or JobType == playerJob then
+                isMarchPlayerJob = true
+            end
+
+            if not (isMarchPlayerJob) then
+                CantEquipLv = 2
+            end
+        end
+    elseif cfg.ItemType == 5 then
+        -- 装备等级
+        local lvLimit = ConfigDataAccessor.AmuletEquip[cfg.Id].Level
+        local playerLv = GameManager.Instance:GetPlayerLevel()
+        if lvLimit > playerLv then
+            CantEquipLv = 1
+        end
+    end
+
+    return CantEquipLv
+end
+
+------------------------------
+------------------------------无限列表相关
+
+-- 刷新全部列表
+function ItemResolveWidget:RefeshItems()
+    self:SortItem(self.ItemDataList1)
+
+    -- 如果筛选一个没选那么就不筛选
+    local isSelectRare = false
+    for i = 1, #self.IsCheckBoxSelectedRare do
+        if self.IsCheckBoxSelectedRare[i] == 1 then
+            isSelectRare = true
+        end
+    end
+
+    -- 如果类型一个没选那就是空的
+    local isSelectType = false
+    for i = 1, #self.IsCheckBoxSelectedType do
+        if self.IsCheckBoxSelectedType[i] == 1 then
+            isSelectType = true
+        end
+    end
+
+    self:ClearItemData1_1()
+
+    -- 必须有类型选择
+    if isSelectType then
+        for i = 1, #self.ItemDataList1 do
+            if self:IsTypeSelected(self.ItemDataList1[i].ItemType) then
+                table.insert(self.ItemDataList1_1, self.ItemDataList1[i])
+
+            --[[
+
+				if isSelectRare then
+
+					--不隐藏
+					--if self:IsRareSelected(self.ItemDataList1[i].Quality) then
+						table.insert( self.ItemDataList1_1,self.ItemDataList1[i]);
+					--end
+
+					if self.needAutoSelected then
+						if self:IsRareSelected(self.ItemDataList1[i].Quality) then
+							--把列表中的都加进去
+							self.ItemDataList1[i].IsSelected=true;--是否是选中的
+						end
+					end
+
+				else
+					table.insert( self.ItemDataList1_1,self.ItemDataList1[i]);
+				end
+				]]
+            end
+        end
+
+        -- 点击了自动勾选按钮
+        if self.autoSelectedRare > 0 then
+            for i = 1, #self.ItemDataList1_1 do
+                if self.ItemDataList1_1[i].Quality == self.autoSelectedRare then
+                    -- 把列表中的都加进去
+                    self.ItemDataList1_1[i].IsSelected = true -- 是否是选中的
+                end
+            end
+
+            self.autoSelectedRare = 0
+        end
+
+        -- 点击了取消自动勾选按钮
+        if self.autoUnSelectedRare > 0 then
+            for i = 1, #self.ItemDataList1_1 do
+                if self.ItemDataList1_1[i].Quality == self.autoUnSelectedRare then
+                    -- 把列表中的都加进去
+                    self.ItemDataList1_1[i].IsSelected = false -- 是否是选中的
+                end
+            end
+            self.autoUnSelectedRare = 0
+        end
+    end
+
+    -- 追加到25个空格子
+    for i = #self.ItemDataList1_1 + 1, 25 do
+        local it = {}
+        it.BaseID = 0
+        table.insert(self.ItemDataList1_1, it)
+    end
+
+    if self.needAutoSelected then
+        -- 把列表中的都加进去
+        -- for k,v in pairs(self.ItemDataList1_1) do
+        --	v.IsSelected=true;--是否是选中的
+        -- end
+        self.needAutoSelected = false
+        self:RefeshItems2()
+    end
+
+    self.BagScorllView1:ContinueScroll(#self.ItemDataList1_1, false)
+end
+
+function ItemResolveWidget:ClearItemData1_1()
+    if self.ItemDataList1_1 == nil then
+        self.ItemDataList1_1 = {}
+    else
+        for k, _ in pairs(self.ItemDataList1_1) do
+            self.ItemDataList1_1[k] = nil
+        end
+    end
+end
+
+function ItemResolveWidget:CleanAllSelected()
+    -- 无限列表
+    for i = 1, #self.BagItemList1 do
+        self.BagItemList1[i]:MakeSelected(false)
+    end
+end
+
+function ItemResolveWidget:OnBagItemRefesh(tr, idx)
+    for i = 1, #self.BagItemList1 do
+        if self.BagItemList1[i].transform == tr then
+            self.BagItemList1[i]:SetItem(self.ItemDataList1_1[idx + 1]) -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+        end
+    end
+
+    -- tr.gameObject:SetActive(true);
+    local bi = ItemGrid:New(tr.gameObject, self.tr_ItemRoot1)
+    bi:InitItem(
+        true,
+        function(ritem)
+            self:OnItemClick1(ritem)
+        end
+    )
+    bi.gameObject:SetActive(true)
+    bi:SetItem(self.ItemDataList1_1[idx + 1]) -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+    bi:HideDel()
+
+    table.insert(self.BagItemList1, bi)
+end
+
+function ItemResolveWidget:OnItemClick1(bitem)
+    -- self:CleanAllSelected();
+
+    if bitem.Item.BaseID == 0 then
+        return
+    end
+
+    if not bitem.Item.IsSelected then
+        -- 标记到分解表
+        bitem:MakeSelected(true)
+        bitem.Item.IsSelected = true
+    else
+        -- 从分解标记表中移除
+        bitem:MakeSelected(false)
+        bitem.Item.IsSelected = false
+    end
+
+    -- 刷新左边
+    self.BagScorllView1:ContinueScroll(#self.ItemDataList1_1, false)
+
+    -- 刷新右边表
+    self:RefeshItems2()
+    self:RefeshItems3() -- 刷新列表3
+
+    -- 设置道具Tips
+    -- self.go_BlackCover:SetActive(true);
+    -- LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",{ bitem.BaseID,true,bitem.EntityID,self.tips_anchor,0});
+end
+
+function ItemResolveWidget:ClearItemData()
+    if self.ItemDataList1 == nil then
+        self.ItemDataList1 = {}
+    else
+        for k, _ in pairs(self.ItemDataList1) do
+            self.ItemDataList1[k] = nil
+        end
+    end
+end
+
+function ItemResolveWidget:SortItem(tbl)
+    if #tbl > 1 then
+        table.sort(
+            tbl,
+            function(a, b)
+                if a.Quality ~= b.Quality then
+                    return a.Quality > b.Quality
+                end
+
+                if a.ItemType ~= b.ItemType then
+                    return a.ItemType < b.ItemType
+                end
+
+                if a.CantEquipLv ~= b.CantEquipLv then
+                    return a.CantEquipLv < b.CantEquipLv
+                end
+
+                if a.SubType ~= b.SubType then
+                    return a.SubType < b.SubType
+                end
+
+                if a.Level ~= b.Level then
+                    return a.Level > b.Level
+                end
+
+                --[[
+
+
+			if a.Quality ~= b.Quality then
+				return a.Quality < b.Quality;
+			end
+			
+			if a.ItemType ~= b.ItemType then
+				return a.ItemType < b.ItemType;
+			end
+			
+			if a.SubType ~= b.SubType then
+				return a.SubType < b.SubType;
+			end
+			
+			if a.CantEquipLv ~= b.CantEquipLv then
+				return a.CantEquipLv > b.CantEquipLv;
+			end
+
+			if a.Level ~= b.Level then
+				return a.Level < b.Level;
+			end
+
+			]]
+            end
+        )
+    end
+end
+
+------------------------------无限列表相关
+------------------------------
+
+-- 刷新右侧装备列表
+function ItemResolveWidget:RefeshItems2()
+    -- self:SortItem(self.ItemDataList2);
+
+    self:ClearItemData2()
+
+    -- 筛选出所有选中的
+    for k, v in pairs(self.ItemDataList1) do
+        if v.IsSelected then
+            table.insert(self.ItemDataList2, v)
+        end
+    end
+
+    -- 追加到20个空格子
+    for i = #self.ItemDataList2 + 1, 20 do
+        local it = {}
+        it.BaseID = 0
+        table.insert(self.ItemDataList2, it)
+    end
+    self.BagScorllView2:ContinueScroll(#self.ItemDataList2, false)
+end
+
+function ItemResolveWidget:ClearItemData2()
+    if self.ItemDataList2 == nil then
+        self.ItemDataList2 = {}
+    else
+        for k, _ in pairs(self.ItemDataList2) do
+            self.ItemDataList2[k] = nil
+        end
+    end
+end
+
+function ItemResolveWidget:OnItemClick2(bitem)
+    -- 去掉选中的
+    -- 设置道具Tips
+    -- self.go_BlackCover:SetActive(true);
+    -- LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",{ bitem.BaseID,true,bitem.EntityID,self.tips_anchor,0});
+end
+
+function ItemResolveWidget:OnBagItemRefesh2(tr, idx)
+    for i = 1, #self.BagItemList2 do
+        if self.BagItemList2[i].transform == tr then
+            self.BagItemList2[i]:SetItem(self.ItemDataList2[idx + 1]) -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            self.BagItemList2[i]:MakeSelected(false)
+            return
+        end
+    end
+
+    -- tr.gameObject:SetActive(true);
+    local bi = ItemGrid:New(tr.gameObject, self.tr_ItemRoot2)
+    bi:InitItem(
+        true,
+        function(ritem)
+            self:OnItemClick1(ritem)
+        end
+    )
+    bi.gameObject:SetActive(true)
+    bi:SetItem(self.ItemDataList2[idx + 1]) -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+    bi:MakeSelected(false)
+    table.insert(self.BagItemList2, bi)
+end
+
+------------------------------分解获得的道具统计
+------------------------------
+
+function ItemResolveWidget:AddToResoloveList(tempList, dropID)
+    local dropCfg = ConfigDataAccessor.Drop[dropID]
+    for k, v in pairs(dropCfg) do
+        for k2, v2 in pairs(v) do
+            local dropIdxCfg = v2
+
+            local baseId = dropIdxCfg.ItemIDs[2] -- 先读取全职业的
+            local num = dropIdxCfg.NumMin
+
+            if tempList[baseId] == nil then
+                tempList[baseId] = num
+            else
+                tempList[baseId] = tempList[baseId] + num
+            end
+        end
+    end
+end
+
+-- 刷新获得的道具
+function ItemResolveWidget:RefeshItems3()
+    self:ClearItemData3()
+
+    local tempList = {}
+
+    -- 计算出所有消耗
+    for k, v in pairs(self.ItemDataList1) do
+        if v.IsSelected then
+            local baseID = v.BaseID
+
+            local itemJo = ConfigDataAccessor.Item[baseID]
+
+            -- 常规分解
+            if itemJo.BackItem > 0 then
+                self:AddToResoloveList(tempList, itemJo.BackItem)
+            end
+
+            -- 符文返还
+            if itemJo.ItemType == 5 then
+                local itemData = BusinessManager.Instance:GetItemByItemEntityId(v.EntityID)
+
+                if itemData.CombatSkills.CurPolish > 0 then
+                    local PolishIndex = itemData.CombatSkills.CurPolish
+                    local amuletEquipCfg = ConfigDataAccessor.AmuletEquip[baseID]
+                    local AmuletPointCfg = ConfigDataAccessor.GetAmuletPoint(amuletEquipCfg.EquipLevel, itemJo.Quality, PolishIndex)
+                    self:AddToResoloveList(tempList, AmuletPointCfg.BackItem)
+                end
+            end
+        end
+    end
+
+    for k, v in pairs(tempList) do
+        local data = {}
+        data.BaseID = k
+        data.Num = v
+        local cfg = ConfigDataAccessor.Item[k]
+        data.SortProp = cfg.SortProp
+        data.ItemType = cfg.ItemType
+        table.insert(self.ItemDataList3, data)
+    end
+
+    self:SortItem(self.ItemDataList3)
+
+    -- 追加到5个空格子
+    for i = #self.ItemDataList3 + 1, 5 do
+        local it = {}
+        it.BaseID = 0
+        it.Num = 0
+        table.insert(self.ItemDataList3, it)
+    end
+
+    self.BagScorllView3:ContinueScroll(#self.ItemDataList3, false)
+end
+
+function ItemResolveWidget:ClearItemData3()
+    if self.ItemDataList3 == nil then
+        self.ItemDataList3 = {}
+    else
+        for k, _ in pairs(self.ItemDataList3) do
+            self.ItemDataList3[k] = nil
+        end
+    end
+end
+
+function ItemResolveWidget:OnItemClick3(bitem)
+    -- 去掉选中的
+    -- 设置道具Tips
+    -- self.go_BlackCover:SetActive(true);
+    -- LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",{ bitem.BaseID,true,bitem.EntityID,self.tips_anchor,0});
+end
+
+function ItemResolveWidget:OnBagItemRefesh3(tr, idx)
+    for i = 1, #self.BagItemList3 do
+        if self.BagItemList3[i].transform == tr then
+            self.BagItemList3[i]:SetItemNum(self.ItemDataList3[idx + 1].BaseID, self.ItemDataList3[idx + 1].Num) -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            self.BagItemList3[i]:MakeSelected(false)
+            self.BagItemList3[i]:HideDel()
+            return
+        end
+    end
+
+    -- tr.gameObject:SetActive(true);
+    local bi = ItemGrid:New(tr.gameObject, self.tr_ItemRoot3)
+    bi:InitItem(
+        true,
+        function(ritem)
+            self:OnItemClick3(ritem)
+        end
+    )
+    bi.gameObject:SetActive(true)
+    bi:SetItemNum(self.ItemDataList3[idx + 1].BaseID, self.ItemDataList3[idx + 1].Num) -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+    bi:MakeSelected(false)
+    bi:HideDel()
+    table.insert(self.BagItemList3, bi)
+end
+
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+
+function ItemResolveWidget:RefeshItemResolve()
+    self.module.IsOpenTips = false
+    self.module:CloseItemTips()
+
+    self:ResetCheckBox()
+    self:RefeshPanel()
+
+    self.transform:SetAsLastSibling()
+end
+
+function ItemResolveWidget:BindModule(m)
+    print(".............")
+    self.module = m
+end
+
+function ItemResolveWidget:Start()
+end
+
+function ItemResolveWidget:OnEnable()
+end
+
+function ItemResolveWidget:OnDisable()
+end
+
+function ItemResolveWidget:OnDestroy()
+end
+
+function ItemResolveWidget:OnOpen(arg)
+    self.IsOpen = true
+end
+
+function ItemResolveWidget:OnClose(arg)
+    self.IsOpen = false
+end
+
+function ItemResolveWidget:OnCloseClick()
+    -- 关闭道具Tips
+    if self.module.IsOpenTips then
+        self.module.IsOpenTips = false
+        self.module:CloseItemTips()
+    else
+        self:CloseWidget()
+    end
+end
+
+function ItemResolveWidget:CloseWidget()
+    print("ItemResolveWidget:CloseWidget")
+    UIManager.Instance:CloseWidget("ItemResolve/ItemResolveWidget", nil, true)
+    self.module:OnCloseItemResolve()
+end
+
+return ItemResolveWidget

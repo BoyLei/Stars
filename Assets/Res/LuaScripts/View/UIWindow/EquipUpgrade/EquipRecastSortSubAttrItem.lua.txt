@@ -1,0 +1,109 @@
+--[[
+*文件名   :   EquipRecastSortSubAttrItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/24 15:31:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local EquipRecastSortSubAttrItem = {}
+
+EquipRecastSortSubAttrItem.__index = EquipRecastSortSubAttrItem
+
+function EquipRecastSortSubAttrItem:New(_go) 
+    local self = {};    
+    setmetatable(self, EquipRecastSortSubAttrItem); 
+    
+
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+
+    self.Name=self.transform:Find("Have/desc"):GetComponent(typeof(Text));
+    self.go_null=self.transform:Find("Null").gameObject;
+    self.go_have=self.transform:Find("Have").gameObject;
+
+
+    --点击自己
+	local btnClick=self.transform:GetComponent(typeof(JButton));
+	btnClick.OnClick=(function()
+        if self.OnClick~= nil then
+		    self.OnClick(self);
+        end
+	end);
+
+
+    --点击删除
+	local btnDelClick=self.transform:Find("Have/delBtn"):GetComponent(typeof(JButton));
+	btnDelClick.OnClick=(function()
+        if self.OnDelClick~= nil then
+		    self.OnDelClick(self);
+        end
+	end);
+
+    self.IsUsed=false;
+    self:SetUse(false)
+
+    return self;    --返回自身
+end
+
+
+
+function EquipRecastSortSubAttrItem:SetUse(b)
+    self.IsUsed=b;
+    if b then
+        self.go_null:SetActive(false);
+        self.go_have:SetActive(true);
+    else
+        self.go_null:SetActive(true);
+        self.go_have:SetActive(false);
+    end
+end
+
+function EquipRecastSortSubAttrItem:InitItem(OnClick,OnDelClick)
+    self.OnClick=OnClick;
+    self.OnDelClick=OnDelClick;
+    self:SetUse(false);
+end
+
+function EquipRecastSortSubAttrItem:SetItem(cfgID)
+    
+
+    if cfgID==0 then
+        self:SetUse(false);
+    else
+
+        self.CfgID=cfgID;
+        self:SetUse(true);
+
+        local cfg=ConfigDataAccessor.EquipSub[cfgID];
+
+		local attrName1 = "";
+		if cfg ~= nil then
+
+
+			if cfg.AttType==4 then
+				--技能
+				attrName1 = cfg.Name.."+"..cfg.Num[1];
+			else
+				--属性
+				attrName1 = cfg.Name
+			end
+		end
+    
+
+        local name=attrName1;
+        self.Name.text=name;
+    end
+
+
+end
+
+
+
+
+
+
+
+return EquipRecastSortSubAttrItem;

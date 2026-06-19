@@ -1,0 +1,390 @@
+--[[
+*文件名   :   EventBossRankWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/10/31 15:00:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] EventBossRankWidget =
+    class("EventBossRankWidget", UIPanel)
+EventBossRankWidget.IsOpen = false
+
+local EventBossRankItem = require("View/UIWindow/Event/EventBossRankItem")
+
+function EventBossRankWidget:Awake()
+    self.gameObject = self.prefab
+    self.transform = self.prefab.transform
+
+    self.rectSelf = self.transform:GetComponent(typeof(RectTransform))
+
+    self.title = self.transform:Find("AnimRoot/Show/Rewards"):GetComponent(typeof(Text))
+
+    self.go_ic1 = self.transform:Find("AnimRoot/Show/ic1").gameObject
+    self.go_ic2 = self.transform:Find("AnimRoot/Show/ic2").gameObject
+    self.go_ic3 = self.transform:Find("AnimRoot/Show/ic3").gameObject
+
+    self.title_2 = self.transform:Find("AnimRoot/Hide/Rewards"):GetComponent(typeof(Text))
+
+    self.go_ic1_2 = self.transform:Find("AnimRoot/Hide/ic1").gameObject
+    self.go_ic2_2 = self.transform:Find("AnimRoot/Hide/ic2").gameObject
+    self.go_ic3_2 = self.transform:Find("AnimRoot/Hide/ic3").gameObject
+
+    self.AnimRoot = self.transform:Find("AnimRoot").gameObject
+
+    self.rankItems = {}
+    for i = 1, 5 do
+        local rit = self.transform:Find("AnimRoot/Show/Info/DamIt" .. i).gameObject
+        table.insert(self.rankItems, EventBossRankItem:New(rit))
+    end
+
+    self.myRankItem = EventBossRankItem:New(self.transform:Find("AnimRoot/Show/DamItSelf").gameObject)
+    self.myRankItem2 = EventBossRankItem:New(self.transform:Find("AnimRoot/Hide/DamItSelf").gameObject)
+
+    -- 活动倒计时
+    -- 刷新时间
+    self.NeedRefesh = false
+    MonoHelper.AddUpdateListener(
+        function()
+            self:RefeshRank()
+        end
+    )
+
+    -- 点击收纳
+    self.IsOpen = true
+
+    self.go_show = self.transform:Find("AnimRoot/Show").gameObject
+    self.go_hide = self.transform:Find("AnimRoot/Hide").gameObject
+
+    self.tr_Unfold = self.transform:Find("AnimRoot/Unfold")
+    self.transform:Find("AnimRoot/Unfold"):GetComponent(typeof(JButton)).OnClick = (function()
+        self.IsOpen = not (self.IsOpen)
+        self:SetIsOpen()
+    end)
+
+    -- 点击排行榜
+    self.transform:Find("AnimRoot/timeIcon"):GetComponent(typeof(JButton)).OnClick = (function()
+        UIManager.Instance:OpenWidget("Event/BossRankRewardsWidget", false, self.BossBaseId, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, false)
+    end)
+
+    -- 动画相关
+    -- self.anim=self.transform:GetComponent(typeof(Animator));
+
+    -- 监听排行榜
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.GVEBossHurtSortRet1ID,
+        function(data)
+            self:OnGVEBossHurtSortRet1(data)
+        end,
+        nil
+    )
+
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.GuildHurtID,
+        function(data)
+            self:OnGuildHurt(data)
+        end,
+        nil
+    )
+
+    self.lastRefreshTime = os.time() -- 记录上次刷新的时间
+    self.refreshInterval = 4
+
+    self.module = nil
+end
+
+function EventBossRankWidget:SetIsOpen()
+    self.go_show:SetActive(self.IsOpen)
+    self.go_hide:SetActive(not (self.IsOpen))
+
+    if not (self.IsOpen) then
+        self.tr_Unfold.eulerAngles = Vector3(0, 0, 0)
+    else
+        self.tr_Unfold.eulerAngles = Vector3(0, 0, 180)
+    end
+end
+
+function EventBossRankWidget:BindModule(m)
+    print(".............")
+    self.module = m
+end
+
+function EventBossRankWidget:OnSwitchBtnClick()
+end
+
+-- 整个Boss排行榜回调
+function EventBossRankWidget:OnGVEBossHurtSortRet1(data)
+    print("Boss排行榜回调")
+
+    if self.BossEntity == nil or self.BossEntity.Data == nil or self.BossEntity.Data.Attrs == nil then
+        return
+    end
+
+    local m_HPSum = self.BossEntity.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Long, CS.StarProjectDef.AOIAttrDefine.TruthHp)
+    local m_HPCur = self.BossEntity.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Long, CS.StarProjectDef.AOIAttrDefine.curHp)
+    local m_HPKill = m_HPSum - m_HPCur
+
+    local pb = data.data
+
+    local BossEID = pb.BossEID
+    local hurtList = pb.HurtList -- 伤害列表6人
+    local topThree = pb.TopThree -- 可以拿奖励的前三人
+
+    for i = 1, 5 do
+        self.rankItems[i].gameObject:SetActive(false)
+    end
+
+    local idx = 1
+
+    for i = 0, topThree.Count - 1 do
+        local guildHurt = topThree[i]
+        local total = guildHurt.Total
+        local guildID = guildHurt.GuildID
+        local rank = guildHurt.Rank
+        local hurtList = guildHurt.HurtList
+        local bossEID = guildHurt.BossEID
+        local guildName = guildHurt.GuildName
+        local guildTimes = guildHurt.GuildTimes -- 打了多少次
+
+        self.rankItems[idx].gameObject:SetActive(true)
+        local per = 0
+        if m_HPKill > 0 then
+            per = total / m_HPKill
+        end
+        self.rankItems[idx]:RefeshItem(guildName, per, true, rank)
+        idx = idx + 1
+    end
+
+    for i = 0, hurtList.Count - 1 do
+        local guildHurt = hurtList[i]
+
+        local guildID = guildHurt.GuildID
+
+        local isInTop3 = false
+
+        for j = 0, topThree.Count - 1 do
+            if topThree[j].GuildID == guildID then
+                isInTop3 = true
+            end
+        end
+
+        if not (isInTop3) and idx < 5 then
+            local total = guildHurt.Total
+            local rank = guildHurt.Rank
+            local guildName = guildHurt.GuildName
+            local guildTimes = guildHurt.GuildTimes -- 打了多少次
+
+            self.rankItems[idx].gameObject:SetActive(true)
+            local per = 0
+            if m_HPKill > 0 then
+                per = total / m_HPKill
+            end
+            self.rankItems[idx]:RefeshItem(guildName, per, false, rank)
+            idx = idx + 1
+        end
+    end
+end
+
+-- 个人Boss排行榜回调
+function EventBossRankWidget:OnGuildHurt(data)
+    -- boss已经死了
+
+    if self.BossEntity == nil or self.BossEntity.Data == nil or self.BossEntity.Data.Attrs == nil then
+        return
+    end
+
+    self.myRankItem.gameObject:SetActive(true)
+    self.myRankItem2.gameObject:SetActive(true)
+
+    local m_HPSum = self.BossEntity.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Long, CS.StarProjectDef.AOIAttrDefine.TruthHp)
+    local m_HPCur = self.BossEntity.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Long, CS.StarProjectDef.AOIAttrDefine.curHp)
+    local m_HPKill = m_HPSum - m_HPCur
+
+    print("个人Boss排行榜回调")
+    local guildHurt = data.data
+
+    -- 判断是否有冒险团
+    local guildID = guildHurt.GuildID
+    local total = guildHurt.Total
+    local rank = guildHurt.Rank
+    local bossEID = guildHurt.BossEID
+    local guildName = guildHurt.GuildName
+    local guildTimes = guildHurt.GuildTimes -- 打了多少次
+
+    local per = 0
+    if m_HPKill > 0 then
+        per = total / m_HPKill
+    end
+    self.myRankItem:RefeshItem(guildName, per, false, rank)
+    self.myRankItem2:RefeshItem(guildName, per, false, rank)
+
+    self.go_ic1:SetActive(false)
+    self.go_ic1_2:SetActive(false)
+
+    -- 判断冒险团状态
+    if BusinessManager.Instance:GetGuildID() > 0 then
+        -- 最大次数
+        local maxTime = 3
+
+        local isMaxTime = (maxTime == guildTimes)
+        local leftTimes = maxTime - guildTimes
+
+        if isMaxTime then
+            self.go_ic2:SetActive(false)
+            self.go_ic3:SetActive(true)
+
+            -- self.title.text="冒险团剩余领奖次数 (0/"..maxTime..")\n击杀奖励已领完！"
+            self.title.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_EventBossRankWidget_title"), {maxTime})
+
+            self.go_ic2_2:SetActive(false)
+            self.go_ic3_2:SetActive(true)
+            -- self.title_2.text="冒险团剩余领奖次数 (0/"..maxTime..")\n击杀奖励已领完！"
+            self.title_2.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_EventBossRankWidget_title"), {maxTime})
+        else
+            self.go_ic3:SetActive(false)
+            self.go_ic2:SetActive(true)
+            -- self.title.text="冒险团剩余领奖次数 ("..leftTimes.."/"..maxTime..")"
+            self.title.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_EventBossRankWidget_title3"), {leftTimes, maxTime})
+
+            self.go_ic3_2:SetActive(false)
+            self.go_ic2_2:SetActive(true)
+            -- self.title_2.text="冒险团剩余领奖次数 ("..leftTimes.."/"..maxTime..")"
+            self.title_2.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_EventBossRankWidget_title3"), {leftTimes, maxTime})
+        end
+    else
+        self.go_ic1:SetActive(true)
+        self.go_ic2:SetActive(false)
+        self.go_ic3:SetActive(false)
+        self.title.text = LanguageHelp:GetLanguageByKey("Local_Str_EventBossRankWidget_title4")
+
+        self.go_ic1_2:SetActive(true)
+        self.go_ic2_2:SetActive(false)
+        self.go_ic3_2:SetActive(false)
+        self.title_2.text = LanguageHelp:GetLanguageByKey("Local_Str_EventBossRankWidget_title4")
+    end
+end
+
+-- 两秒拉一次
+function EventBossRankWidget:PullRank()
+    if self.module.BossEID > 0 then
+        local gVEBossHurtSortReq = CS.ProtoMsg.GVEBossHurtSortReq()
+        gVEBossHurtSortReq.BossEID = self.module.BossEID
+        CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace, gVEBossHurtSortReq, false)
+    end
+end
+
+function EventBossRankWidget:RefeshBossRank()
+    self:ClearAllAnim()
+    -- self.anim:Play("EventBossRankWidgetAnim_Open");
+
+    self.transform:SetAsLastSibling()
+
+    self.myRankItem.gameObject:SetActive(false)
+    self.myRankItem2.gameObject:SetActive(false)
+
+    self.go_ic1:SetActive(true)
+    self.go_ic2:SetActive(false)
+    self.go_ic3:SetActive(false)
+
+    self.go_ic1_2:SetActive(true)
+    self.go_ic2_2:SetActive(false)
+    self.go_ic3_2:SetActive(false)
+
+    -- 判断冒险团状态
+    if BusinessManager.Instance:GetGuildID() > 0 then
+        self.title.text = LanguageHelp:GetLanguageByKey("Local_Str_EventBossRankWidget_title5")
+        self.title_2.text = LanguageHelp:GetLanguageByKey("Local_Str_EventBossRankWidget_title5")
+    else
+        self.title.text = LanguageHelp:GetLanguageByKey("Local_Str_EventBossRankWidget_title4")
+        self.title_2.text = LanguageHelp:GetLanguageByKey("Local_Str_EventBossRankWidget_title4")
+    end
+
+    for i = 1, 5 do
+        self.rankItems[i].gameObject:SetActive(false)
+    end
+
+    self.BossEntity = GameManager.Instance:GetEntityCtr(self.module.BossEID)
+    self.BossBaseId = self.BossEntity.M_Curr.ConfigIndex
+
+    -- 活动数据
+    local GVEStartI2S = GameManager.Instance.GVEStartI2S
+    if GVEStartI2S ~= nil then
+        self.duration = GVEStartI2S.Duration -- 持续时间
+        self.tartTime = GVEStartI2S.StartTime -- 开始时间
+
+        self.NeedRefesh = true
+    else
+        self.NeedRefesh = false
+        self:CloseWidget()
+    end
+end
+
+function EventBossRankWidget:RefeshRank()
+    if self.NeedRefesh then
+        local serverNowTime = math.floor(GameManager.Instance:GetServerTimeStamp() / 1000)
+        local serverCloseTime = self.tartTime / 1000 + self.duration
+        local leftTime = serverCloseTime - serverNowTime
+
+        if leftTime > 0 then
+            local currentTime = os.time()
+
+            -- 判断是否已经过去了四秒
+            if currentTime - self.lastRefreshTime >= self.refreshInterval then
+                if self.BossEntity ~= nil then
+                    self.lastRefreshTime = currentTime -- 更新上次刷新的时间
+                    -- 这里可以放入需要刷新的代码
+                    self:PullRank()
+                else
+                    self:CloseWidget()
+                end
+            end
+        else
+            self:CloseWidget()
+        end
+    end
+end
+
+function EventBossRankWidget:Start()
+end
+
+function EventBossRankWidget:OnEnable()
+end
+
+function EventBossRankWidget:OnDisable()
+end
+
+function EventBossRankWidget:OnDestroy()
+end
+
+function EventBossRankWidget:OnOpen(arg)
+    self.IsOpen = true
+end
+
+function EventBossRankWidget:OnClose(arg)
+    self.IsOpen = false
+end
+
+function EventBossRankWidget:CloseWidget()
+    self.NeedRefesh = false
+    self.module.BossEID = 0
+
+    self.IsOpen = false
+    -- self.anim:Play("EventBossRankWidgetAnim_Close");
+    self:ClearAllAnim()
+    self.tw_close =
+        DOVirtual.DelayedCall(
+        0.01,
+        function()
+            self.gameObject:SetActive(false)
+            UIManager.Instance:CloseWidget("Event/EventBossRankWidget", nil, true)
+        end
+    )
+end
+
+function EventBossRankWidget:ClearAllAnim()
+    if self.tw_close ~= nil then
+        self.tw_close:Kill()
+        self.tw_close = nil
+    end
+end
+
+return EventBossRankWidget

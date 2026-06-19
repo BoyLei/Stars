@@ -1,0 +1,54 @@
+---------------------------------------------------------------------
+-- Stars (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-09-21 14:58:28
+---------------------------------------------------------------------
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+---@class ItemWantedSuc
+local ItemWantedSuc = {}
+ItemWantedSuc.__index = ItemWantedSuc
+
+function ItemWantedSuc:New(obj)
+    local self = {}
+    setmetatable(self, ItemWantedSuc)
+    self:InitControls(obj)
+    return self
+end
+
+function ItemWantedSuc:InitControls(obj)
+    self.GameObject = obj
+    self.Transform = obj.transform
+
+    -- 队伍队长名字
+    self.CaptainName = self.Transform:Find("CaptainName"):GetComponent(typeof(Text))
+    -- 我的队伍
+    self.MyTeam = self.Transform:Find("RankBG/MyTeam").gameObject
+    -- 循环列表
+    self.m_ItemPreviewGo = self.Transform:Find("ItemPreview").gameObject
+    self.m_ItemPreview = StructAccessor.ItemPreview.new(self.m_ItemPreviewGo)
+    self.m_ItemPreview:SetSize(121, 121, 14)
+    self.m_ItemPreview:SetShowDropData(true)
+end
+
+function ItemWantedSuc:SetItem(data, rank, dropList, myTeamID)
+    if data == nil then
+        self.GameObject:SetActive(false)
+        return
+    end
+
+    self.CaptainName.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_CaptainName"), {data.TeamName});
+
+    self.MyTeam:SetActive(data.TeamID == myTeamID)
+    -- 奖励显示
+    local CostItems = {}
+    for i = 1, dropList.Infos.Count do
+        local child = dropList.Infos[i - 1];
+        table.insert(CostItems, child);
+    end
+    self.m_ItemPreview:SetDropItems(CostItems);
+
+    self.GameObject:SetActive(true)
+end
+
+return ItemWantedSuc

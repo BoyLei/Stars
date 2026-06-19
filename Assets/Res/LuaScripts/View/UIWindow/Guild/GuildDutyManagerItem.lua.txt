@@ -1,0 +1,115 @@
+--[[
+*文件名   :   GuildDutyManagerItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local GuildDutyManagerItem = {}
+
+GuildDutyManagerItem.__index = GuildDutyManagerItem
+
+function GuildDutyManagerItem:New(_go,guildDutyManager) 
+    local self = {};    
+    setmetatable(self, GuildDutyManagerItem); 
+    
+    self.GuildDutyManager=guildDutyManager;
+
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+    self.headIcon=self.transform:Find("headIcon"):GetComponent(typeof(Image));
+    self.jobIcon=self.transform:Find("jobIcon"):GetComponent(typeof(Image));
+
+
+
+    self.Name=self.transform:Find("name"):GetComponent(typeof(Text));
+    self.Duty=self.transform:Find("duty"):GetComponent(typeof(Text));
+    self.BattlePoint=self.transform:Find("battlePoint"):GetComponent(typeof(Text));
+    self.aLv=self.transform:Find("aLv"):GetComponent(typeof(Text));
+
+    self.go_selected=self.transform:Find("CkeckBg/Selected").gameObject;
+    self.go_selected:SetActive(false);
+
+    self.transform:Find("CkeckBg"):GetComponent(typeof(JButton)).OnClick=(function() 
+        
+
+        --选中变为非选中
+        if self.Info.IsSelected then
+            self.GuildDutyManager.NowSelectCount=self.GuildDutyManager.NowSelectCount-1;
+            self.Info.IsSelected=not(self.Info.IsSelected);
+            self.go_selected:SetActive(self.Info.IsSelected);
+        else
+            --判断是否达到最大数量
+            if self.GuildDutyManager.NowSelectCount >= self.GuildDutyManager.MaxSelectCount then
+                Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_87"));
+            else
+                self.Info.IsSelected=not(self.Info.IsSelected);
+                self.go_selected:SetActive(self.Info.IsSelected);
+					self.GuildDutyManager.NowSelectCount=self.GuildDutyManager.NowSelectCount+1;
+            end
+        end
+
+
+	end);
+
+
+
+
+    return self;    --返回自身
+end
+
+
+
+function GuildDutyManagerItem:SetItem(info)
+
+
+    self.Info=info;
+
+    self.Name.text=info.UserName;
+
+    local lv=0;
+    if info.PlayerPosLv == CS.ProtoMsg.GuLevelEnum.GuPresident  then --团长
+        lv=1001;
+    elseif info.PlayerPosLv == CS.ProtoMsg.GuLevelEnum.GuVicePresident  then --副团长
+        lv=1002;
+    elseif info.PlayerPosLv == CS.ProtoMsg.GuLevelEnum.GuElite  then --精英
+        lv=1003;
+    elseif info.PlayerPosLv == CS.ProtoMsg.GuLevelEnum.GuOrdinary  then --普通成员
+        lv=1004;
+    end
+    self.Duty.text=ConfigDataAccessor.GuildTitle[lv].Comments;
+
+
+
+    --冒险等级->战力
+    --local cfg=ConfigDataAccessor.AdvGradeExp[info.RiskLevel];
+	--self.aLv.text=cfg.AdvClass..GetRomaNum(cfg.AdvOrder);
+
+    self.BattlePoint.text = GetTotalPowerRankLevel(info.Power);
+
+    --头像
+
+    local jobId=info.JobID;
+
+    -- 职业头像
+	local jobCfg = ConfigDataAccessor.Job[jobId]
+	if jobCfg ~= nil then
+		local avatarDataCell = ConfigDataAccessor.Avatar[jobCfg.AvatarID]
+		if avatarDataCell ~= nil then
+			local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID]
+			if headCfg ~= nil then
+				ResourceHelper:LoadIconByAtlasAsync(self.headIcon, headCfg.HeadAtlasName, headCfg.MinHead, false)
+			end
+		end
+	end
+
+
+    self.go_selected:SetActive(info.IsSelected);
+
+end
+
+
+return GuildDutyManagerItem;

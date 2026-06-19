@@ -1,0 +1,456 @@
+--[[
+*文件名   :   Sell
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/10/18 19:47:29"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]] Sell = class("Sell", UIPanel)
+
+local SellIGoodstem = require("View/UIWindow/Exchange/SellIGoodstem");
+local SellDetailUI = require("View/UIWindow/Exchange/SellDetailUI");
+local SellItemDetail = require("View/UIWindow/Exchange/SellItemDetail");
+
+Sell.m_SellDetailUI = nil;
+Sell.m_SellItemDetail = nil;
+Sell.m_Main = nil;
+Sell.m_ScrollView = nil;
+Sell.m_ItemGrid = nil;
+Sell.m_Dropdown = nil;
+Sell.m_TotalCount = nil;
+Sell.m_PastCount = nil;
+Sell.m_Money = nil;
+Sell.m_UnShelveBtn = nil;
+Sell.m_RevenueBtn = nil;
+Sell.m_SortBtn = nil;
+Sell.m_SortUp = nil;
+Sell.m_SortDown = nil;
+Sell.Goods = {}
+Sell.Grids = {}
+Sell.SellGridItemList = {}
+Sell.CurrentDropIndex = 0;
+Sell.SellDetail = nil;
+Sell.OrderPass = true;
+local OnDropDownFunc = nil;
+local UnShelveBtnFunc = nil;
+local RevenueBtnFunc = nil;
+local SortBtnFunc = nil;
+local OnBankMyGoodsRetFunc = nil;
+local OnBankGetIncomeRetFunc = nil;
+local OnBankBuyGoodsMaxRetFunc = nil;
+local OptionsItems = {LanguageHelp:GetLanguageByKey("Local_Str_Duration"),
+                      LanguageHelp:GetLanguageByKey("Local_Str_Total_sellable_price"),
+                      LanguageHelp:GetLanguageByKey("Local_Str_quality")}
+
+function Sell:ctor(go, atlas)
+    self.prefab = go;
+    self.AtlasPath = atlas;
+    self.m_SellDetailUI = self:Find("SellDetailUI").gameObject;
+    self.m_Main = self:Find("Main").gameObject;
+    self.m_SellItemDetail = self:Find("SellItemDetail").gameObject;
+
+    self.m_ScrollView = self:Find("Main/Scroll View"):GetComponent(typeof(SuperScrollViewController));
+    self.m_ItemGrid = self:Find("Main/ItemGrid").gameObject;
+    self.m_Dropdown = self:Find("Main/Dropdown"):GetComponent(typeof(Dropdown));
+    self.m_TotalCount = self:Find("Main/Info/Total/TotalCount"):GetComponent(typeof(Text));
+    self.m_PastCount = self:Find("Main/Info/Past/PastCount"):GetComponent(typeof(Text));
+    self.m_Money = self:Find("Main/Info/Revenue/Money"):GetComponent(typeof(Text));
+    self.m_UnShelveBtn = self:Find("Main/Info/UnShelveBtn"):GetComponent(typeof(JButton));
+    self.m_RevenueBtn = self:Find("Main/Info/RevenueBtn"):GetComponent(typeof(JButton));
+    self.m_SortBtn = self:Find("Main/SortBtn"):GetComponent(typeof(JButton));
+    self.m_SortUp = self:Find("Main/SortBtn/Up").gameObject;
+    self.m_SortDown = self:Find("Main/SortBtn/Down").gameObject;
+
+    self.SellDetail = SellDetailUI.new(self.m_SellDetailUI, self.AtlasPath)
+    self.SellItemDetail = SellItemDetail.new(self.m_SellItemDetail, self.AtlasPath)
+
+    UnShelveBtnFunc = function()
+        self:OnClickUnShelveBtn();
+    end;
+    RevenueBtnFunc = function()
+        self:OnClickRevenueBtn();
+    end;
+    SortBtnFunc = function()
+        self:OnClickSortBtnBtn();
+    end;
+
+    self.m_ScrollView:NewScroll(self.m_ItemGrid, 0, function(tr, idx)
+        self:OnSellGridItemRefesh(tr, idx);
+    end);
+
+    OnDropDownFunc = function(index)
+        self:OnDropDownHandler(index);
+    end;
+    OnBankMyGoodsRetFunc = function(data)
+        self:OnBankMyGoodsRet(data)
+    end;
+    OnBankGetIncomeRetFunc = function(data)
+        self:OnBankGetIncomeRet(data)
+    end;
+    OnBankBuyGoodsMaxRetFunc = function(data)
+        self:OnBankBuyGoodsMaxRet(data)
+    end;
+    self.OrderPass = true;
+    self.m_SellDetailUI:SetActive(false)
+    self.m_SellItemDetail:SetActive(false)
+    self.m_Main:SetActive(true)
+    self.Goods = {}
+    self.Grids = {}
+    self.SellGridItemList = {}
+    self:Start()
+end
+
+function Sell:Start()
+    self.m_UnShelveBtn.OnClick = UnShelveBtnFunc;
+    self.m_RevenueBtn.OnClick = RevenueBtnFunc;
+    self.m_SortBtn.OnClick = SortBtnFunc;
+    self.m_Dropdown.onValueChanged:AddListener(OnDropDownFunc);
+
+    local OnBankMyGoodsRet = LuaModuleDispatcher:Event(ModuleDef.ExchangeModule, "BankMyGoodsRetEvent");
+    OnBankMyGoodsRet:AddListener(OnBankMyGoodsRetFunc)
+
+    ---领取收益回复
+    CS.SGF.Network.MsgRetManager.Instance:OnMessageEnum(OnBankGetIncomeRetFunc, CS.MsgIDEnum.BankGetIncomeReqID);
+
+    ---解锁格式回复
+    CS.SGF.Network.MsgRetManager.Instance:OnMessageEnum(OnBankBuyGoodsMaxRetFunc, CS.MsgIDEnum.BankBuyGoodsMaxReqID);
+
+end
+
+function Sell:GetSortIndex()
+    if self.OrderPass then
+        return 1
+    end
+    return 2
+end
+
+function Sell:OnClickSortBtnBtn()
+    self.OrderPass = not self.OrderPass;
+    self.m_SortUp:SetActive(self.OrderPass)
+    self.m_SortDown:SetActive(not self.OrderPass)
+    self:SortGoods();
+    self:InitGrids();
+    -- 重新排序
+    -- LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule,"OnSetOrderRule",{true,PurchaseType,self:GetSortIndex(),self.CurrentDropIndex})
+end
+
+function Sell:SortGoods()
+
+    local order = self:GetSortIndex();
+    if self.CurrentDropIndex == 0 then
+        -- "持续时间"
+        if order == 1 then
+            table.sort(self.Goods, function(good1, good2)
+                return good1.Etime < good2.Etime
+            end)
+            -- 从小到大
+        else
+            -- 从大到小
+            table.sort(self.Goods, function(good1, good2)
+                return good1.Etime > good2.Etime
+            end)
+        end
+
+    elseif self.CurrentDropIndex == 1 then
+        -- "可售出总价"
+        if order == 1 then
+            table.sort(self.Goods, function(good1, good2)
+                return good1.Price < good2.Price
+            end)
+            -- 从小到大
+        else
+            -- 从大到小
+            table.sort(self.Goods, function(good1, good2)
+                return good1.Price > good2.Price
+            end)
+        end
+
+    elseif self.CurrentDropIndex == 2 then
+        -- "品阶"
+        if order == 1 then
+            table.sort(self.Goods, function(good1, good2)
+                return good1.Quality < good2.Quality
+            end)
+            -- 从小到大
+        else
+            -- 从大到小
+            table.sort(self.Goods, function(good1, good2)
+                return good1.Quality > good2.Quality
+            end)
+        end
+
+    end
+end
+
+---
+function Sell:OnBankGetIncomeRet(data)
+    ---收到回复 刷新列表
+    self:Fresh();
+end
+
+function Sell:OnBankBuyGoodsMaxRet(data)
+    self:InitGrids();
+end
+
+function Sell:OnBankMyGoodsRet(data)
+
+    self.Goods = {}
+
+    if data.Datas ~= nil and data.Datas.Count > 0 then
+        for i = 1, data.Datas.Count do
+            table.insert(self.Goods, data.Datas[i - 1])
+        end
+    end
+
+    -- 排序
+
+    self:SortGoods();
+    self:InitGrids();
+    -- self.m_TotalCount.text=#self.Goods.."件"
+    self.m_TotalCount.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Sell_TotalCount"), {#self.Goods});
+
+    local cnt = 0;
+    local money = 0;
+    -- // 状态信息 0：没有设置 1：正常售卖 2：已出售 3：已下架
+    for k, v in pairs(self.Goods) do
+        if (v.Etime <= (TimeUtils.GetServerTimeNow() / 1000) and v.Status ~= 2) or (v.Status == 3) then
+            cnt = cnt + 1
+        end
+        money = money + v.RealPrice
+    end
+    -- self.m_PastCount.text=cnt.."件"
+    self.m_PastCount.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Sell_TotalCount"), {cnt});
+
+    self.m_Money.text = tostring(money)
+
+end
+
+function Sell:OnHide()
+    self:OnBack()
+    self:OnBackByItem()
+end
+
+function Sell:OnSellGridItemRefesh(tr, idx)
+    if self.SellGridItemList == nil then
+        return;
+    end
+    for i = 1, #self.SellGridItemList do
+        if self.SellGridItemList[i].transform == tr then
+            self.SellGridItemList[i]:UpdateContent(self.Grids[idx + 1], function(type, Index, goodsID)
+                self:OnSelectCallBack(type, Index, goodsID)
+            end); -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+        end
+    end
+
+    local bi = SellIGoodstem.new(tr.gameObject, self.AtlasPath);
+    bi.prefab:SetActive(true);
+    bi:UpdateContent(self.Grids[idx + 1], function(type, Index, goodsID)
+        self:OnSelectCallBack(type, Index, goodsID)
+    end); -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+    table.insert(self.SellGridItemList, bi);
+end
+
+function Sell:OnBack()
+    self.SellDetail:OnHide();
+    self.m_SellDetailUI:SetActive(false)
+    self:Fresh();
+    self.m_Main:SetActive(true)
+end
+
+function Sell:OnBackByItem()
+    self.SellItemDetail:OnHide();
+    self.m_SellItemDetail:SetActive(false)
+    self:Fresh();
+    self.m_Main:SetActive(true)
+end
+
+function Sell:Fresh()
+    LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule, "OnBankMyGoodsReq")
+end
+
+function Sell:UnLockGrid()
+
+    local cost = SystemConstConfigs.TradeUnlockShelfConsume;
+    local money = BusinessManager.Instance:GetCurrencyNum(1);
+
+    if cost > money then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_81"));
+        return
+    end
+
+    CS.StarProjectDef.UIAPI.ShowMsgBox(41, function(str)
+        if str == "SURE" then
+            local t = 0;
+            if BusinessManager.Instance.M_BankPlayerMD ~= nil then
+                t = BusinessManager.Instance.M_BankPlayerMD.GoodsMax
+            end
+            LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule, "OnBankBuyGoodsMaxReq", {t})
+        end
+    end, cost);
+
+end
+
+function Sell:OnSelectCallBack(type, Index, goodsID)
+    if type == 1 then
+        -- 解锁格子
+        print("解锁格子");
+        self:UnLockGrid();
+    elseif type == 2 then
+        -- 添加商品
+        print("添加商品");
+        self.m_SellDetailUI:SetActive(true)
+        self.m_Main:SetActive(false)
+        self.SellDetail:OnOpen(function()
+            self:OnBack();
+        end);
+
+    elseif type == 3 then
+        -- 选中出售商品
+        print("选中出售商品");
+        self.m_SellItemDetail:SetActive(true)
+        self.m_Main:SetActive(false)
+
+        local goods = {}
+        for k, v in pairs(self.Goods) do
+            if v.Status == 1 then
+                table.insert(goods, v)
+            end
+        end
+
+        self.SellItemDetail:OnOpen({
+            Goods = goods,
+            select = goodsID,
+            Back = function()
+                self:OnBackByItem();
+            end
+        });
+
+    end
+end
+
+function Sell:OnOpen(arg)
+
+    self:Fresh();
+    self:InitDropdown();
+
+end
+
+function Sell:InitGrids()
+
+    ---货架初始个数
+    local starCnt = SystemConstConfigs.TradePutawayInitialNum;
+
+    ---货架最大个数
+    local maxCount = SystemConstConfigs.TradePutawayMaxNum;
+
+    ---当前商品个数
+    local goodsCnt = #self.Goods;
+
+    local t = 0;
+    if BusinessManager.Instance.M_BankPlayerMD ~= nil then
+        t = BusinessManager.Instance.M_BankPlayerMD.GoodsMax
+    end
+
+    --- max(初始个数 ，当前商品个数)
+    local count = starCnt + t;
+    if goodsCnt > count then
+        count = goodsCnt;
+    end
+
+    --- （3- count%3）
+    local lockCnt = 0;
+    if count < maxCount then
+        lockCnt = 3 - count % 3
+    end
+
+    self.Grids = {}
+    for i = 1, count do
+        local data = nil;
+        if i <= goodsCnt then
+            data = self.Goods[i];
+        end
+        table.insert(self.Grids, StructAccessor.SellGridInfo.new(i, false, data))
+    end
+
+    if lockCnt > 0 then
+        for i = 1, lockCnt do
+            table.insert(self.Grids, StructAccessor.SellGridInfo.new(count + i, true, nil))
+        end
+    end
+
+    self.m_ScrollView:ContinueScroll(#self.Grids);
+
+end
+
+function Sell:InitDropdown()
+    self.m_Dropdown:ClearOptions();
+    self.CurrentDropIndex = 0;
+    local list = List_String()
+    for i = 1, #OptionsItems do
+        list:Add(OptionsItems[i])
+    end
+    self.m_Dropdown:AddOptions(list);
+    -- self:OnFresh();
+end
+
+function Sell:OnDropDownHandler(index)
+    self.CurrentDropIndex = index;
+    -- 重新排序
+    self:SortGoods();
+    self:InitGrids();
+end
+
+function Sell:OnClose(arg)
+
+end
+
+function Sell:OnClickUnShelveBtn()
+    ---下架过期
+    -- // 状态信息 0：没有设置 1：正常售卖 2：已出售 3：已下架
+    local ls = {}
+    for k, v in pairs(self.Goods) do
+
+        local time = v.Etime - (TimeUtils.GetServerTimeNow() / 1000)
+
+        if v.Status == 3 or (time < 1) then
+            table.insert(ls, uint64.new(v.GoodsID))
+        end
+    end
+    LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule, "OnBankGetIncomeReq", {ls})
+end
+
+function Sell:OnClickRevenueBtn()
+    ---领取奖励
+    local ls = {}
+    for k, v in pairs(self.Goods) do
+        if v.Status == 2 then
+            table.insert(ls, uint64.new(v.GoodsID))
+        end
+    end
+    LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule, "OnBankGetIncomeReq", {ls})
+end
+
+function Sell:OnDestroy()
+    self.m_UnShelveBtn.OnClick = nil;
+    self.m_RevenueBtn.OnClick = nil;
+    self.m_SortBtn.OnClick = nil;
+    self.m_Dropdown.onValueChanged:RemoveListener(OnDropDownFunc);
+
+    local OnBankMyGoodsRet = LuaModuleDispatcher:Event(ModuleDef.ExchangeModule, "BankMyGoodsRetEvent");
+    OnBankMyGoodsRet:RemoveListener(OnBankMyGoodsRetFunc)
+
+    ---领取收益回复
+    CS.SGF.Network.MsgRetManager.Instance:OffMessageEnum(OnBankGetIncomeRetFunc, CS.MsgIDEnum.BankGetIncomeReqID);
+
+    ---解锁格式回复
+    CS.SGF.Network.MsgRetManager.Instance:OffMessageEnum(OnBankBuyGoodsMaxRetFunc, CS.MsgIDEnum.BankBuyGoodsMaxReqID);
+
+    self.SellDetail:OnDestroy();
+    self.SellDetail = nil;
+
+    self.SellItemDetail:OnDestroy();
+    self.SellItemDetail = nil;
+end
+
+return Sell

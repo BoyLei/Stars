@@ -1,0 +1,436 @@
+--[[
+*文件名   :   WildBossModule
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/11/28 14:35:39"
+*创建人   :   "caojie"
+*版权所有 :   游卡网络科技技术有限公司
+]] WildBossModule = class("WildBossModule", BaseLuaModule)
+-- LuaModule 消息模块
+WildBossModule.ModuleMessages = {
+    -- 打开野外界面
+    ["OnOpenWildBossWindow"] = function(...)
+        WildBossModule:OnOpenWildBossWindow(...)
+    end,
+    -- 显示野外boss宝箱进度
+    ["OnOpenWildBossDamageWidget"] = function(...)
+        WildBossModule:OnOpenWildBossDamageWidget(...)
+    end,
+    -- 隐藏野外boss宝箱进度
+    ["OnCloseWildBossDamageWidget"] = function(...)
+        WildBossModule:OnCloseWildBossDamageWidget(...)
+    end
+}
+
+WildBossModule.WildBossWindowView = nil
+WildBossModule.WildBossConfigDatas = {}
+WildBossModule.WildBossServerDatas = {}
+WildBossModule.LeastLimitDays = 0
+WildBossModule.UnlockLimitTimeStamp = 0
+
+function WildBossModule:IsAvailableCreateBoss()
+    local serverNowTime = math.floor(GameManager.Instance:GetServerTimeStamp() / 1000)
+    return serverNowTime > self.UnlockLimitTimeStamp
+end
+
+-- 请求野外boss列表数据
+function WildBossModule:MapBossListReq()
+    local battleSocket = NetworkManager.Instance.gameSocket
+    local message = CS.ProtoMsg.MapBossListReq()
+    battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace, message, false)
+end
+
+-- 根据monster表Id和对应地图id 来获取野外boss玩法表的配表数据
+function WildBossModule:GetWildBossConfigData(monsterId, mapId)
+    local _, data = table.find1st(self.WildBossConfigDatas, function(k, v)
+        return (v.MonID == monsterId) and (v.Map == mapId)
+    end)
+
+    return data
+end
+
+function WildBossModule:OnOpenWildBossDamageWidget(...)
+    local tb = ...
+    local bossEid = 0;
+    local parentTransform = nil
+    local monsterId = nil
+    local mapId = nil
+    local serverID = nil
+    -- 传入功能ID
+    if type(tb) == "table" then
+        -- Lua调用
+        bossEid = tb[1];
+        parentTransform = tb[2];
+        monsterId = tb[3];
+        mapId = tb[4];
+        serverID = tb[5];
+    else
+        -- C#调用
+        bossEid = tb[0];
+        parentTransform = tb[1];
+        monsterId = tb[2];
+        mapId = tb[3];
+        serverID = tb[4];
+    end
+
+    local cfgData = self:GetWildBossConfigData(monsterId, mapId)
+    if cfgData == nil then
+        return
+    end
+
+    local bossData = {}
+    bossData.EID = bossEid
+    bossData.cfgData = cfgData
+
+    -- local WildBossDamageWidgetCs = UIManager.Instance:OpenWidget("WildBoss/Prefab/WildBossDamageWidget",false,{BossData = bossData}, parentTransform, CS.StarProjectDef.MainPageCommond.HideNone,true,false);
+    -- if self.WildBossDamageWidgetView == nil then
+    -- 	self.WildBossDamageWidgetView = WildBossDamageWidgetCs:GetLuaPanel().ScriptTable;	
+    -- 	self.WildBossDamageWidgetView:BindModule(self);
+    -- end
+
+    local Cb = function(ui)
+        if ui ~= nil then
+            if self.WildBossDamageWidgetView == nil then
+                self.WildBossDamageWidgetView = ui:GetLuaPanel().ScriptTable;
+                self.WildBossDamageWidgetView:BindModule(self);
+            end
+        end
+    end
+    UIManager.Instance:OpenWidgetAsync("WildBoss/Prefab/WildBossDamageWidget", Cb, false, {
+        BossData = bossData
+    }, parentTransform, CS.StarProjectDef.MainPageCommond.HideNone, true)
+end
+
+function WildBossModule:OnCloseWildBossDamageWidget(...)
+    if self.WildBossDamageWidgetView ~= nil then
+        self.WildBossDamageWidgetView:CloseWidget();
+    end
+end
+
+function WildBossModule:OnWildBossDamageWidgetDestroy()
+    if self.WildBossDamageWidgetView ~= nil then
+        self.WildBossDamageWidgetView = nil
+    end
+end
+
+function WildBossModule:OnOpenWildBossWindow(...)
+    -- local dropNotify = CS.ProtoMsg.DropNotify()
+    -- local dropInfo = CS.ProtoMsg.Dropinfo()
+    -- dropInfo.Itemid = 21103004
+    -- dropInfo.ItemNum = 1
+    -- dropInfo.EntityID = 0
+    -- dropNotify.Infos:Add(dropInfo)
+
+    -- local data = {}
+    -- data.RemainRewardCount = 0
+    -- data.IsHurtEnough = true
+    -- local canOpenBox = true
+
+    -- local openBoxCallBackFunc = function(canOpen)
+    -- 	if not canOpen then
+    -- 		if data.RemainRewardCount <= 0 then
+    -- 			Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_63"))
+    -- 			return
+    -- 		end
+
+    -- 		if not data.IsHurtEnough then
+    -- 			Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_64"))
+    -- 			return
+    -- 		end
+    -- 	end
+    -- end
+    -- CreateSingleLocalEntity(dropNotify, E_LocalEntityType.TreasureBox, E_LocalEntitySource.WildBoss, nil, 9999991, true, canOpenBox, openBoxCallBackFunc)
+
+    self:MapBossListReq()
+    local Cb = function(ui)
+        if ui ~= nil then
+            self.WildBossWindowView = ui:GetLuaPanel().ScriptTable;
+            if self.WildBossWindowView ~= nil then
+                self.WildBossWindowView.InstPanel = ui
+                self.WildBossWindowView:BindModule(self)
+                self.WildBossWindowView:RenderAllView(true)
+            end
+        end
+    end
+    UIManager.Instance:OpenWindowAsync("WildBoss/Prefab/WildBossWindow", Cb, ...,
+        CS.StarProjectDef.MainPageCommond.HideNone)
+end
+
+-- LuaModule 创建
+function WildBossModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.WildBossModule, self)
+    self:InitConfigData()
+    self:AddProtocalListeners()
+end
+
+function WildBossModule:AddProtocalListeners()
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.MapBossListRetID, function(data)
+        self:OnMapBossListRet(data)
+    end, nil);
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.WildBossBoxDropNtfID, function(data)
+        self:OnWildBossBoxDropNtf(data)
+    end, nil);
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.WildBossNoticeNtfID, function(data)
+        self:OnWildBossNoticeNtf(data)
+    end, nil);
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.BoxRareItemBroadNtfID, function(data)
+        self:OnBoxRareItemBroadNtf(data)
+    end, nil);
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.GloInfoSrvRetID, function(data)
+        self:OnGloInfoSrvRet(data)
+    end, nil);
+end
+
+-- 界面请求当前boss列表协议
+function WildBossModule:OnMapBossListRet(rsp)
+    self.WildBossServerDatas = {}
+    if rsp == nil or rsp.data == nil or rsp.data.BossList == nil then
+        return
+    end
+
+    for k, v in pairs(rsp.data.BossList) do
+        local data = {}
+        data.EID = v.EID
+        data.ConfigID = v.ConfigID
+        data.MapID = v.MapID
+        data.ControlID = v.ControlID
+        data.MonsterLevel = v.MonsterLevel
+        data.WildBossConfigID = v.WildBossConfigID
+
+        self.WildBossServerDatas[v.WildBossConfigID] = data
+    end
+    -- table.print(self.WildBossServerDatas)
+
+    if self.WildBossWindowView ~= nil and self.WildBossWindowView.prefab.activeSelf then
+        self.WildBossWindowView:RenderAllView(false)
+    end
+end
+
+local treasureBoxPos = Vector3.zero
+-- 野外boss掉落宝箱通知
+function WildBossModule:OnWildBossBoxDropNtf(rsp)
+    -- printError("OnWildBossBoxDropNtf")
+    if rsp == nil or rsp.data == nil and rsp.data.RealDrop == nil then
+        return
+    end
+
+    local data = {}
+    data.EID = rsp.data.EID
+    data.Pos = rsp.data.Pos
+    data.IsHurtEnough = rsp.data.HurtOK
+    data.RemainRewardCount = rsp.data.CommonCount
+
+    local canOpenBox = data.IsHurtEnough and data.RemainRewardCount > 0
+    treasureBoxPos.x = rsp.data.Pos.X
+    treasureBoxPos.y = rsp.data.Pos.Y
+    treasureBoxPos.z = rsp.data.Pos.Z
+    local openBoxCallBackFunc = function(canOpen)
+        if not canOpen then
+            if data.RemainRewardCount <= 0 then
+                Util.ShowMessage(ConfigDataAccessor.CRetMsgList[60].Note)
+                return
+            end
+
+            if not data.IsHurtEnough then
+                Util.ShowMessage(ConfigDataAccessor.CRetMsgList[61].Note)
+                return
+            end
+        end
+    end
+    CreateSingleLocalEntity(rsp.data.RealDrop, E_LocalEntityType.TreasureBox, E_LocalEntitySource.WildBoss,
+        treasureBoxPos, 9999991, true, canOpenBox, openBoxCallBackFunc)
+
+    -- table.print(data)
+end
+
+-- 稀有掉落通知
+function WildBossModule:OnBoxRareItemBroadNtf(rsp)
+    if rsp == nil or rsp.data == nil then
+        return
+    end
+
+    -- data.BoxIndex = rsp.data.BoxIndex
+    local strBoxName = ""
+    -- local it=BusinessManager.Instance:GetItemByItemBaseId(21103005);
+    -- self:SendDropChatMsg("test", strBoxName, it)
+    self:SendDropChatMsg(rsp.data.OpenUserName, strBoxName, rsp.data.RareItem)
+end
+
+-- 开服时间通知
+function WildBossModule:OnGloInfoSrvRet(rsp)
+    local weeHourTime = GetAfterDaysWeeHourTime(rsp.data.GRisk.SrvOpenTime, self.LeastLimitDays)
+    self.UnlockLimitTimeStamp = GetFutureTimeSec(weeHourTime, 0, 0, 0, ConfigDataAccessor.SystemList[63].Value)
+    LuaModuleDispatcher:SendMessage(ModuleDef.EventModule, "OnCalEventOpenTime", nil)
+
+    local eventModule = LuaModuleDispatcher:GetModule(ModuleDef.EventModule)
+    if eventModule == nil then
+        return
+    end
+
+    table.apply(self.WildBossConfigDatas, function(k, v)
+        local dailyFirstRefreshSec = eventModule:GetWildBossDailyFirstRefreshSec()
+        local curWeeHourTime = GetAfterDaysWeeHourTime(rsp.data.GRisk.SrvOpenTime, v.OpeningDays)
+        v.PlayOnRefreshTimeStamp = GetFutureTimeSec(curWeeHourTime, 0, 0, 0, dailyFirstRefreshSec)
+    end)
+end
+
+-- local strBossCreate = "各地图的野外首领已经出现，请各位冒险家前往讨伐!"
+-- local strBossDead = "<color=#57A3EC>%s</color>被成功击败，最后一击由<color=#57A3EC>%s</color>获得，冒险家们可以开启宝箱啦!"
+-- local strChatBossDead = "<color=#57A3EC>%s</color>被成功击败，最后一击由<color=#57A3EC>%s</color>获得!"
+-- local strMVP = "<color=#57A3EC>%s</color>在对<color=#57A3EC>%s</color>的战斗中贡献了最高输出，当选MVP!"
+-- local strRareItem = "<color=#57A3EC>%s</color>打开<color=#57A3EC>%s</color>后获得珍贵道具<color=#57A3EC>%s</color>"
+-- 飘字推送
+function WildBossModule:OnWildBossNoticeNtf(rsp)
+    -- printError("OnWildBossNoticeNtf")
+    if rsp == nil or rsp.data == nil then
+        return
+    end
+
+    local data = {}
+    data.NoticeType = rsp.data.NoticeType
+    data.MonID = rsp.data.MonID
+    data.MVP = rsp.data.MVP
+    data.MVPEID = rsp.data.MVPEID
+
+    -- table.print(data)
+    -- 野外boss出现
+    if rsp.data.NoticeType == 1 then
+        if BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.FieldBoss) then
+            -- Util.ShowMessage(strBossCreate)
+            -- self:SendNormalChatMsg(strBossCreate, CS.ProtoMsg.ChatChannel.ChannelWorld)
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_278"))
+            self:SendNormalChatMsg(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_278"),
+                CS.ProtoMsg.ChatChannel.ChannelWorld)
+        end
+        -- 尾刀通知
+    elseif rsp.data.NoticeType == 2 then
+        local monsterConfig = ConfigDataAccessor.Monster[rsp.data.MonID]
+        if monsterConfig ~= nil then
+            -- Util.ShowMessage(string.format(strBossDead,monsterConfig.Name,rsp.data.MVP))
+            -- self:SendNormalChatMsg(string.format(strChatBossDead,monsterConfig.Name,rsp.data.MVP), CS.ProtoMsg.ChatChannel.ChannelSpace)
+            local str = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_279"),
+                {monsterConfig.Name, rsp.data.MVP});
+            Util.ShowMessage(str)
+            local str2 = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_280"),
+                {monsterConfig.Name, rsp.data.MVP});
+            self:SendNormalChatMsg(str2, CS.ProtoMsg.ChatChannel.ChannelSpace)
+        end
+        -- MVP通知
+    elseif rsp.data.NoticeType == 3 then
+        local monsterConfig = ConfigDataAccessor.Monster[rsp.data.MonID]
+        if monsterConfig ~= nil then
+            -- local str = string.format(strMVP,rsp.data.MVP,monsterConfig.Name)
+            local str = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_281"),
+                {rsp.data.MVP, monsterConfig.Name});
+            Util.ShowMessage(str)
+            self:SendNormalChatMsg(str, CS.ProtoMsg.ChatChannel.ChannelSpace)
+        end
+        -- 播放MVP特效
+        GameManager.Instance:PlayMvpAnimByEntityID(rsp.data.MVPEID)
+    end
+end
+
+function WildBossModule:SendNormalChatMsg(str, chanelType)
+    local msgList = {};
+    local chatMsgNotice = CS.ProtoMsg.ChatMsgNotice();
+    chatMsgNotice.EID = 0;
+    chatMsgNotice.PID = 0;
+    chatMsgNotice.Data = str;
+    chatMsgNotice.Channel = chanelType;
+    chatMsgNotice.ChatTime = TimeUtils.ServerNowStampMilli;
+
+    table.insert(msgList, chatMsgNotice);
+    LuaModuleDispatcher:SendMessage(ModuleDef.ChatModule, "OnAnalogReceptionChatMsg", {msgList});
+end
+
+-- local strDrop = "%s打开宝箱%s后 获得珍贵道具[0]"
+function WildBossModule:SendDropChatMsg(strName, strBoxName, itemData)
+    local msgList = {};
+    local chatMsgNotice = CS.ProtoMsg.ChatMsgNotice();
+    chatMsgNotice.EID = 0;
+    chatMsgNotice.PID = 0;
+    -- chatMsgNotice.Data = string.format(strDrop,strName,strBoxName)
+    chatMsgNotice.Data = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_283"), {strName, strBoxName})
+
+    chatMsgNotice.Channel = CS.ProtoMsg.ChatChannel.ChannelWorld;
+    chatMsgNotice.ChatTime = TimeUtils.ServerNowStampMilli;
+    local extrainfos = CS.ProtoMsg.ChatExtraInfos();
+    local chatExtraInfo = CS.ProtoMsg.ChatExtraInfo();
+    chatExtraInfo.EType = CS.ProtoMsg.ChatExtraInfo.Types.EMsg.Equip;
+    chatExtraInfo.EquipData = itemData;
+    extrainfos.ChatExtraInfo:Add(chatExtraInfo);
+    chatMsgNotice.SendData:Add(ExtraData.ToByteString(extrainfos));
+
+    table.insert(msgList, chatMsgNotice);
+    LuaModuleDispatcher:SendMessage(ModuleDef.ChatModule, "OnAnalogReceptionChatMsg", {msgList});
+end
+
+function WildBossModule:InitConfigData()
+    WildBossModule.WildBossDatas = {}
+    local configData = ConfigDataAccessor.FieldBoss
+    if configData == nil or type(configData) ~= "table" then
+        printError("FieldBoss.xlsx FieldBoss sheet config error")
+        return
+    end
+
+    local copyConfigData = {}
+    table.apply(configData,function(k,v)
+        copyConfigData[k] = v
+    end)
+
+    table.apply(copyConfigData, function(k, v)
+        table.insert(self.WildBossConfigDatas, v)
+    end)
+
+    local leastDays = -1
+    for k, v in pairs(self.WildBossConfigDatas) do
+        if leastDays == -1 then
+            leastDays = v.OpeningDays
+        else
+            if v.OpeningDays < leastDays then
+                leastDays = v.OpeningDays
+            end
+        end
+    end
+    self.LeastLimitDays = leastDays
+end
+
+function WildBossModule:GetAllWildBossConfigData()
+    return self.WildBossConfigDatas
+end
+
+function WildBossModule:GetWildBossServerDataByConfigId(id)
+    if self.WildBossServerDatas == nil then
+        return
+    end
+
+    return self.WildBossServerDatas[id]
+end
+
+-- LuaModule 消息处理
+function WildBossModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...);
+end
+
+-- LuaModule显示
+function WildBossModule:OnModuleShow(arg)
+
+end
+
+function WildBossModule:OnWildBossWindowDestroy(arg)
+    self.WildBossWindowView = nil
+end
+
+-- LuaModule 释放
+function WildBossModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.WildBossModule)
+    self.WildBossWindowView = nil
+    self.WildBossDamageWidgetView = nil
+end
+
+return WildBossModule
+

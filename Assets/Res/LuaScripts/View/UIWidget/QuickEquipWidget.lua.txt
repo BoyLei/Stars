@@ -1,0 +1,205 @@
+--[[
+*文件名   :   QuickEquipWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/04 14:08:37"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+QuickEquipWidget = class("QuickEquipWidget", UIPanel)
+QuickEquipWidget.Items = {}
+
+local ItemGrid = require("View/Item/ItemGrid")
+
+function QuickEquipWidget:Awake()
+    self.transform = self.prefab.transform
+    self.gameObject = self.prefab
+
+    --根目录
+    self.root = self.transform:Find("bg").gameObject
+    self.root:SetActive(false)
+    self.IsOpen = false
+
+    --装备CD
+    self.canEquipNext = true
+
+    --点击装备
+    local btnEquip = self.transform:Find("bg/BtnConfirm"):GetComponent(typeof(JButton))
+    btnEquip.OnClick = function(go)
+        --if GameManager.Instance:IsPlayerInBattle() then
+        --    Util.ShowMessageByCode(CRetMsgEnum.Tips_equip_no);
+        --else
+
+        --判断装备是否还存在
+
+        local equipData = BusinessManager.Instance:GetItemByItemEntityId(self.EntityID)
+
+        if equipData ~= nil then
+            --判断是否已穿戴
+            local itCfg = ConfigDataAccessor.Item[self.BaseID]
+            local equip = BusinessManager.Instance:GetHeroEquipedEquip(itCfg.SubType)
+            if equip ~= nil and equip.EntityID == self.EntityID then
+                local str = LanguageHelp:GetLanguageByKey("RetMsg_ItemClientStr1106")
+                local str2 = CS.RichTextUtils.ParseRunHorseText(str, "" .. self.BaseID, true)
+                Util.ShowMessage(str2)
+                self.IsOpen = false
+                self.root:SetActive(false)
+                self.canEquipNext = false
+                --延迟0.25秒
+                DOVirtual.DelayedCall(
+                    0.1,
+                    function()
+                        self.canEquipNext = true
+                    end
+                )
+                return
+            end
+
+            --end
+            self.module:WearEquip(self.EntityID)
+            self.IsOpen = false
+            self.root:SetActive(false)
+            self.canEquipNext = false
+            --延迟0.25秒
+            DOVirtual.DelayedCall(
+                0.1,
+                function()
+                    self.canEquipNext = true
+                end
+            )
+        else
+            local str = LanguageHelp:GetLanguageByKey("RetMsg_ItemClientStr1014")
+            local str2 = CS.RichTextUtils.ParseRunHorseText(str, "" .. self.BaseID, true)
+            Util.ShowMessage(str2)
+            self.IsOpen = false
+            self.root:SetActive(false)
+            self.canEquipNext = false
+            --延迟0.25秒
+            DOVirtual.DelayedCall(
+                0.1,
+                function()
+                    self.canEquipNext = true
+                end
+            )
+        end
+    end
+
+    --点击关闭
+    local btnClose = self.transform:Find("bg/BtnClose"):GetComponent(typeof(JButton))
+    btnClose.OnClick = function(go)
+        self.IsOpen = false
+        self.root:SetActive(false)
+        if btnEquip.transform.childCount > 2 then
+            TaskHelper.EndGuide(153)
+        end
+    end
+
+    --装备道具
+    local _go = self.transform:Find("bg/ItemGrid").gameObject
+    self.item = ItemGrid:New(_go) --第一个不填会默认创建一个
+    self.item:InitItem(
+        false,
+        function()
+        end
+    )
+
+    --装备名
+    self.Name = self.transform:Find("bg/Name"):GetComponent(typeof(Text))
+
+    --UP图标
+    self.go_Up = self.transform:Find("bg/Up").gameObject
+
+    --战力
+    self.Power = self.transform:Find("bg/power"):GetComponent(typeof(Text))
+
+    --等级
+    self.Lv = self.transform:Find("bg/ItemGrid/Lv"):GetComponent(typeof(Text))
+end
+
+function QuickEquipWidget:BindModule(m)
+    print("QuickEquipWidget:BindModule")
+    self.module = m
+
+    MonoHelper.AddUpdateListener(
+        function()
+            self:PopCheck()
+        end
+    )
+end
+
+function QuickEquipWidget:PopCheck()
+    self:Pop()
+end
+
+function QuickEquipWidget:Pop()
+    --判断是否使用了
+    if not (self.IsOpen) and not (GameManager.Instance.IsOpenTalkBox) and self.canEquipNext then
+        --if not(self.IsOpen) and not(GameManager.Instance:IsPlayerInBattle()) and not(GameManager.Instance.IsOpenTalkBox) and self.canEquipNext then
+        -- 副本内不开放自动穿戴功能
+        local sceneType = GameManager.Instance:GetCurMapType()
+        local isInMap = sceneType == CS.ProtoMsg.SpaceType.SpaceScene
+        if not (isInMap) then
+            return
+        end
+        local data = self.module:PopFront()
+        --进包的
+        if data ~= nil then
+            self.transform:SetAsFirstSibling()
+
+            local itemId = data.Itemid
+            self.EntityID = data.EntityID
+            self.BaseID = itemId
+            local cfg = ConfigDataAccessor.Item[itemId]
+
+            self.IsOpen = true
+
+            --延迟0.25秒
+            DOVirtual.DelayedCall(
+                0.25,
+                function()
+                    self.root:SetActive(true)
+                    self.Name.text = cfg.Name
+                    self.Name.color = GetQualityColorRGB(cfg.Quality)
+
+                    --装备等级
+                    local eCfg = ConfigDataAccessor.Equip[itemId]
+                    if eCfg ~= nil then
+                        self.Lv.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {eCfg.Level})
+                    end
+
+                    --战力
+                    --计算战力
+                    --装备战力
+                    local itemData = BusinessManager.Instance:GetItemByItemEntityId(self.EntityID)
+                    local equipPower = FightPowerManager.Instance:GetShowEquipPower(itemData)
+                    self.Power.text = equipPower
+
+                    local it = {}
+                    it.BaseID = itemId
+                    self.item:SetItem(it)
+                end
+            )
+        end
+    end
+end
+
+function QuickEquipWidget:Start()
+end
+
+function QuickEquipWidget:OnEnable()
+end
+
+function QuickEquipWidget:OnDisable()
+end
+
+function QuickEquipWidget:OnDestroy()
+end
+
+function QuickEquipWidget:OnOpen(arg)
+end
+
+function QuickEquipWidget:OnClose(arg)
+    self.module.quickEquipListWidgetView = nil
+end
+
+return QuickEquipWidget

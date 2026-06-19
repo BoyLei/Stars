@@ -1,0 +1,46 @@
+---------------------------------------------------------------------
+-- Stars (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-09-21 14:58:28
+---------------------------------------------------------------------
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+---@class ItemWantedRank
+local ItemWantedRank = {}
+ItemWantedRank.__index = ItemWantedRank
+
+function ItemWantedRank:New(obj)
+    local self = {}
+    setmetatable(self, ItemWantedRank)
+    self:InitControls(obj)
+    return self
+end
+
+function ItemWantedRank:InitControls(obj)
+    self.GameObject = obj
+    self.Transform = obj.transform
+
+    -- 队伍队长名字
+    self.CaptainName = self.Transform:Find("CaptainName"):GetComponent(typeof(Text))
+    -- 血量百分比
+    self.Per = self.Transform:Find("Per"):GetComponent(typeof(Text))
+    -- 血量百分比图标
+    self.Bg = self.Transform:Find("bg"):GetComponent(typeof(Image))
+end
+
+function ItemWantedRank:SetItem(data, sumHurt)
+    if data == nil then
+        self.GameObject:SetActive(false)
+        return
+    end
+    self.CaptainName.text = data.TeamName
+    local per = data.Hurt / sumHurt
+    local perText = roundToDecimal(per * 100, 2)
+    self.Per.text = perText .. "%";
+
+    self.Bg.fillAmount = per
+
+    self.GameObject:SetActive(true)
+end
+
+return ItemWantedRank

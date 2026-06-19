@@ -1,0 +1,215 @@
+-- 结算界面
+EctypeSettleWindow = class("EctypeSettleWindow", UIPanel)
+EctypeSettleWindow.IsOpen = false;
+
+local RewardItem = require("View/UIWindow/Ectype/RewardItem")
+
+function EctypeSettleWindow:Awake()
+
+end
+
+function EctypeSettleWindow:BindModule(m)
+    EctypeSettleWindow.module = m;
+end
+
+function EctypeSettleWindow:InitControls()
+    self.transform = self.prefab.transform;
+    self.gameObject = self.transform.gameObject;
+
+    self.sucnameTxt = self.transform:Find("Cut4Cam90/AssemblyRatio2/Success/Name"):GetComponent(typeof(Text));
+    self.failnameTxt = self.transform:Find("Cut4Cam90/AssemblyRatio2/Fail/Name"):GetComponent(typeof(Text));
+
+    self.sucGo = self.transform:Find("Cut4Cam90/AssemblyRatio2/Success").gameObject;
+    self.failGo = self.transform:Find("Cut4Cam90/AssemblyRatio2/Fail").gameObject;
+
+    self.normalItem = self.transform:Find("Cut4Cam90/AssemblyRatio2/Success/NormalRewards/Viewport/Content/Item")
+                          .gameObject;
+    self.firstItem = self.transform:Find("Cut4Cam90/AssemblyRatio2/Success/FirstRewards/Viewport/Content/Item")
+                         .gameObject;
+
+    self.firstRewardGo = self.transform:Find("Cut4Cam90/AssemblyRatio2/Success/FirstRewards").gameObject;
+
+    local okBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ok"):GetComponent(typeof(Button));
+    okBtn.onClick:AddListener(function()
+        -- 离开副本
+        self:LeaveEctype();
+    end);
+
+    self.leftCountTxt = self.transform:Find("Cut4Cam90/AssemblyRatio2/LeftCount"):GetComponent(typeof(Text));
+
+    self.firstPassItems = {}
+    self.normalRewardItems = {}
+end
+
+function EctypeSettleWindow:Refresh(data)
+    local isSuc = data.IsSuccess > 0; -- 是否成功
+    local mapId = data.MapID;
+    self.secs = data.Second;
+    local normalDrops = data.CommonDrop; -- 普通掉落
+    local firstDrops = data.FirstDrop; -- 首次掉落
+
+    self.sucGo:SetActive(isSuc);
+    self.failGo:SetActive(not isSuc);
+
+    for _, v in pairs(self.firstPassItems) do
+        GameObject.Destroy(v);
+    end
+    for _, v in pairs(self.normalRewardItems) do
+        GameObject.Destroy(v);
+    end
+    self.firstPassItems = {}
+    self.normalRewardItems = {}
+
+    local allNormalItems = {}
+    for i = 0, normalDrops.Count - 1 do
+        local infos = normalDrops[i].Infos;
+        for j = 0, infos.Count - 1 do
+            local info = infos[j];
+            if allNormalItems[info.Itemid] == nil then
+                allNormalItems[info.Itemid] = info.ItemNum;
+            else
+                allNormalItems[info.Itemid] = allNormalItems[info.Itemid] + info.ItemNum;
+            end
+        end
+    end
+
+    local sortNormalItems = {}
+    for k, v in pairs(allNormalItems) do
+        local tb = {};
+        tb.id = k;
+        tb.num = v;
+        table.insert(sortNormalItems, tb);
+    end
+    table.sort(sortNormalItems, function(a, b)
+        local cfga = ConfigDataAccessor.Item[a.id];
+        local cfgb = ConfigDataAccessor.Item[b.id];
+        return cfga.Quality > cfgb.Quality
+    end);
+
+    for k, v in pairs(sortNormalItems) do
+        local gob = newObject(self.normalItem);
+        gob:SetActive(true);
+        gob.transform:SetParent(self.normalItem.transform.parent);
+        gob.transform.localPosition = Vector3.zero;
+        gob.transform.localScale = Vector3.one;
+        local it = RewardItem:New(gob, v.id, v.num);
+        self.normalRewardItems[v.id] = gob;
+    end
+
+    local showFistRewards = firstDrops ~= nil and firstDrops.Data ~= nil and firstDrops.Infos.Count > 0;
+    if firstDrops ~= nil then
+        local infos = firstDrops.Infos;
+        local allFirstItems = {}
+        for j = 0, infos.Count - 1 do
+            local info = infos[j];
+            if allFirstItems[info.Itemid] == nil then
+                allFirstItems[info.Itemid] = info.ItemNum;
+            else
+                allFirstItems[info.Itemid] = allFirstItems[info.Itemid] + info.ItemNum;
+            end
+        end
+        local sortFirstItems = {}
+        for k, v in pairs(allFirstItems) do
+            local tb = {};
+            tb.id = k;
+            tb.num = v;
+            table.insert(sortFirstItems, tb);
+        end
+        table.sort(sortFirstItems, function(a, b)
+            local cfga = ConfigDataAccessor.Item[a.id];
+            local cfgb = ConfigDataAccessor.Item[b.id];
+            return cfga.Quality > cfgb.Quality
+        end);
+
+        for k, v in pairs(sortFirstItems) do
+            local gob = newObject(self.firstItem);
+            gob:SetActive(true);
+            gob.transform:SetParent(self.firstItem.transform.parent);
+            gob.transform.localPosition = Vector3.zero;
+            gob.transform.localScale = Vector3.one;
+            local it = RewardItem:New(gob, v.id, v.num);
+            self.firstPassItems[v.id] = gob;
+        end
+    end
+    self.firstRewardGo:SetActive(showFistRewards);
+
+    --self.leftCountTxt.text = self.secs .. "秒后离开副本";
+    self.leftCountTxt.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_leftCountTxt"), {self.secs});
+
+    local dailyCopyGroupList = ConfigDataAccessor.DailyCopyGroupList;
+    local dailyCopyList = ConfigDataAccessor.DailyCopyList;
+    local dicStr = "";
+    if self.module.curDif~=nil and self.module.curDif==2 then
+        dicStr = LanguageHelp:GetLanguageByKey("Local_Str_dicStr1");
+    else
+        dicStr = LanguageHelp:GetLanguageByKey("Local_Str_dicStr2");
+    end
+    for _, v in pairs(dailyCopyGroupList) do
+        if v.LevelID == mapId then
+            if isSuc then
+                self.sucnameTxt.text = dailyCopyList[v.CopyGroupID].Name..dicStr;
+            else
+                self.failnameTxt.text = dailyCopyList[v.CopyGroupID].Name..dicStr;
+            end
+            break
+        end
+    end
+
+    self.UpdateLeftCountFunc = function()
+        self:UpdateLeftCount();
+    end
+    MonoHelper.AddSecTimeUpdateListener(self.UpdateLeftCountFunc);
+end
+
+function EctypeSettleWindow:UpdateLeftCount()
+    self.secs = self.secs - 1;
+    if self.secs <= 0 then
+        self.secs = 0;
+        MonoHelper.RemoveSecTimeUpdateListener(self.UpdateLeftCountFunc);
+        self:LeaveEctype();
+    end
+
+    --self.leftCountTxt.text = self.secs .. "秒后离开副本";
+    self.leftCountTxt.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_leftCountTxt"), {self.secs});
+
+end
+
+function EctypeSettleWindow:LeaveEctype()
+    local mapChangeReqMsg = CS.ProtoMsg.LeaveInstanceReq();
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace,
+        mapChangeReqMsg, false);
+
+    -- 关闭窗口
+    UIManager.Instance:CloseWindow("Ectype/Prefab/EctypeSettleWindow");
+end
+
+function EctypeSettleWindow:Start()
+    print("EctypeSettleWindow:Start")
+end
+
+function EctypeSettleWindow:OnEnable()
+
+end
+
+function EctypeSettleWindow:OnDisable()
+
+end
+
+function EctypeSettleWindow:OnDestroy()
+
+end
+
+function EctypeSettleWindow:OnOpen(arg)
+    EctypeSettleWindow.IsOpen = true;
+end
+
+function EctypeSettleWindow:OnClose(arg)
+    EctypeSettleWindow:CloseWindow();
+    MonoHelper.RemoveSecTimeUpdateListener(self.UpdateLeftCountFunc);
+end
+
+function EctypeSettleWindow:CloseWindow()
+    EctypeSettleWindow.IsOpen = false;
+end
+
+return EctypeSettleWindow

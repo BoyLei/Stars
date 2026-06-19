@@ -1,0 +1,29 @@
+local DrawCardCZ = {}
+DrawCardCZ.__index = DrawCardCZ
+
+function DrawCardCZ:New(obj, id)
+    local self = {};
+    setmetatable(self, DrawCardCZ);
+
+    self:InitControls(obj, id)
+
+    return self;
+end
+
+function DrawCardCZ:InitControls(obj, id)
+    self.gameObject = obj;
+    self.transform = obj.transform;
+
+    self.desc = self.transform:Find("Tips"):GetComponent(typeof(Text));
+	self.leftTimes = self.transform:Find("Times1"):GetComponent(typeof(Text));
+    self.poolName = self.transform:Find("name"):GetComponent(typeof(Text));
+
+	self.desc.text = ConfigDataAccessor.CardPool[id].CardPoolDesc;
+    self.poolName.text = ConfigDataAccessor.CardPool[id].CardPoolName;
+end
+
+function DrawCardCZ:RefreshSsrTimes(t, ft)
+    self.leftTimes.text = tostring(ft);
+end
+
+return DrawCardCZ

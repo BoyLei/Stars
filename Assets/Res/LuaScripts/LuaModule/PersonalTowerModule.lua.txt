@@ -1,0 +1,357 @@
+--[[
+*文件名   :   PersonalTowerModule
+*内  容   :
+*说  明   :	  个人爬塔模块
+*创建日期 :   ""
+*创建人   :   ""
+*版权所有 :   游卡网络科技技术有限公司
+]] PersonalTowerModule = class("PersonalTowerModule", BaseLuaModule)
+local PersonalTowerWindowPath = "PersonalTower/Prefab/PersonalTowerWindow" -- 秘境主界面
+local CommonTaskTargetWidgetPath = "PersonalTower/Prefab/CommonTaskTargetWidget"
+local PersonalTowerSuccessWindowPath = "PersonalTower/Prefab/PersonalTowerSuccessWindow"
+local PersonalTowerFailWindowPath = "PersonalTower/Prefab/PersonalTowerFailWindow"
+local PersonalTowerLevelWindowPath = "PersonalTower/Prefab/PersonalTowerLevelWindow"
+
+PersonalTowerModule.TaskRoot = nil
+PersonalTowerModule.PassFloor = 0
+PersonalTowerModule.MaxFloor = 0
+PersonalTowerModule.StageAwardList = {}
+PersonalTowerModule.TargetData = {}
+
+local IsAlreadySyncAllSecretData = false -- 是否已经全量同步过秘境数据
+-- LuaModule 消息模块
+PersonalTowerModule.ModuleMessages = {
+    ["OnDisable"] = function(...)
+        PersonalTowerModule:OnDisable(...);
+    end,
+    ["OnCustomEnterEctype"] = function(...)
+        PersonalTowerModule:OnCustomEnterEctype(...)
+    end,
+    ["OnCustomLevelEctype"] = function(...)
+        PersonalTowerModule:OnCustomLevelEctype(...)
+    end,
+
+    ["OpenPersonalTowerWindow"] = function(...)
+        PersonalTowerModule:OpenPersonalTowerWindow(...)
+    end,
+    ["ClosePersonalTowerWindow"] = function(...)
+        PersonalTowerModule:ClosePersonalTowerWindow(...)
+    end,
+    ["SendEnterPersonTowerLevelReq"] = function(...)
+        PersonalTowerModule:SendEnterPersonTowerLevelReq(...)
+    end,
+    ["SendPersonTowerAwardReq"] = function(...)
+        PersonalTowerModule:SendPersonTowerAwardReq(...)
+    end,
+    ["RefreshLevelRedPoint"] = function(...)
+        PersonalTowerModule:OnRefreshLevelRedPoint(...)
+    end
+}
+
+-- LuaModule 创建
+function PersonalTowerModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.PersonalTowerModule, self)
+    self.PersonTowerTargetChangedEvent = LuaModuleDispatcher:Event(ModuleDef.PersonalTowerModule,
+        "PersonTowerTargetChanged");
+    -- self.PersonTowerAwardEvent=LuaModuleDispatcher:Event(ModuleDef.PersonalTowerModule,"PersonTowerReward");
+    -- 个人秘境数据(全量/差量同步)
+    self.OnFixMessagePersonalTowerCmd = function(data)
+        self:OnFixMessagePersonTower(data)
+    end
+    FixMessageManager.Instance:OnMessage(FixUpdateDef.PersonTower, self.OnFixMessagePersonalTowerCmd);
+
+    self.InstanceDataRetCmd = function(data)
+        self:OnInstanceDataRet(data)
+    end
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.InstanceDataRetID, self.InstanceDataRetCmd, nil)
+    self:InitData()
+    -- 爬塔结算
+    self.PersonTowerGameEndNtfCallback = function(data)
+        self:OnPersonTowerGameEndNtf(data)
+    end
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.PersonTowerGameEndNtfID,
+        self.PersonTowerGameEndNtfCallback, nil);
+    self.OnSystemOpenCallback = function(type, isOpen)
+        self:OnRefreshLevelRedPoint(type, isOpen)
+    end
+    CS.StarProject.GlobalEvent.OnSystemOpen:AddListener(self.OnSystemOpenCallback)
+
+    self.OnEctypeTargetDataChangeFunc = function(data)
+        self:OnEctypeTargetDataChange(data);
+    end
+    local PersonTowerTargetChangedEvent = LuaModuleDispatcher:Event(ModuleDef.PersonalTowerModule,
+        "PersonTowerTargetChanged");
+    PersonTowerTargetChangedEvent:AddListener(self.OnEctypeTargetDataChangeFunc)
+end
+function PersonalTowerModule:InitData()
+    self.MaxFloor = #ConfigDataAccessor.TowerCopy
+end
+-- LuaModule 释放
+function PersonalTowerModule:OnModuleRelease()
+    if self.PersonTowerTargetChangedEvent ~= nil then
+        self.PersonTowerTargetChangedEvent:RemoveAllListeners()
+    end
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.InstanceDataRetID, self.InstanceDataRetCmd, nil)
+    FixMessageManager.Instance:OffMessage(FixUpdateDef.PersonTower, self.OnFixMessagePersonalTowerCmd);
+    CS.SGF.Network.NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.PersonTowerGameEndNtfID,
+        self.PersonTowerGameEndNtfCallback, nil);
+    CS.StarProject.GlobalEvent.OnSystemOpen:RemoveListener(self.OnSystemOpen);
+    LuaModuleDispatcher:UnRegister(ModuleDef.PersonalTowerModule)
+end
+
+-- LuaModule显示
+function PersonalTowerModule:OnModuleShow(arg)
+    self.TaskRoot = arg
+end
+
+-- LuaModule 消息处理
+function PersonalTowerModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...)
+end
+
+function PersonalTowerModule:OnDisable(...)
+    IsAlreadySyncAllSecretData = false;
+    self.TaskRoot = nil;
+end
+-- 打开爬塔主界面
+function PersonalTowerModule:OpenPersonalTowerWindow()
+    local data = {
+        PassFloor = self.PassFloor,
+        MaxFloor = self.MaxFloor,
+        StageAwardList = self.StageAwardList
+    }
+    local AsyncLoadPersonalTowerWindowCb = function(ui)
+        if ui ~= nil then
+            if self.PersonalTowerWindow == nil or self.PersonalTowerWindow.IsOpen == false then
+                self.PersonalTowerWindow = ui:GetLuaPanel().ScriptTable
+                self.PersonalTowerWindow:BindModule(self)
+            end
+            UIManager.Instance:CloseWidget(CommonTaskTargetWidgetPath, nil, false);
+            UIManager.Instance:CloseWindow("Ectype/Prefab/GamePlayChoiceWindow");
+        end
+    end
+    UIManager.Instance:OpenWindowAsync(PersonalTowerWindowPath, AsyncLoadPersonalTowerWindowCb, data,
+        CS.StarProjectDef.MainPageCommond.HideBoth, true)
+end
+
+function PersonalTowerModule:ClosePersonalTowerWindow()
+    if self.PersonTowerTargetChangedEvent ~= nil then
+        self.PersonTowerTargetChangedEvent:RemoveAllListeners()
+    end
+end
+-- 发送【申请进入个人爬塔】
+function PersonalTowerModule:SendEnterPersonTowerLevelReq(...)
+    local tb = ...
+    local floor = 0
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        floor = tb[1]
+    else
+        -- C#调用
+        floor = tb[0]
+    end
+
+    local battleSocket = NetworkManager.Instance.gameSocket
+    local message = CS.ProtoMsg.PersonTowerLevelReq()
+    message.Floor = floor
+    battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message, false)
+end
+-- 个人秘境数据(全量/差量同步)
+function PersonalTowerModule:OnFixMessagePersonTower(data)
+    local IsPartial = true; -- 是否差量
+    if data.AllDatas ~= nil and data.AllDatas.Count > 0 then
+        IsPartial = false;
+    end
+
+    if IsAlreadySyncAllSecretData == false and IsPartial == true then
+        -- 如果没有收到全量同步、先收到了差量，就过滤
+        return;
+    end
+
+    local pid = GameManager.Instance.mainPlayerId;
+    local md = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.PersonTower):GetMDByPid(pid);
+    if md == nil then
+        md = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.PersonTower):GetMD();
+    end
+    if md ~= nil then
+        if not IsPartial then
+            IsAlreadySyncAllSecretData = true;
+        end
+        self.PassFloor = md.CurTowerFloor --- 今日通过层数
+        local canRewardNum = math.floor(self.PassFloor / 5)
+        local hasRewardNum = 0
+        if md.AwardList.AwardList then
+            for i, v in pairs(md.AwardList.AwardList) do
+                local find = false
+                if self.StageAwardList then
+                    for m, n in pairs(self.StageAwardList) do
+                        if n.stageId == i then
+                            n.isReceived = v
+                            find = true
+                        end
+                    end
+                end
+                if not find then
+                    local stageItem = {}
+                    stageItem.stageId = i
+                    stageItem.isReceived = v -- 这里修正字段
+                    table.insert(self.StageAwardList, stageItem)
+                    if v then
+                        local data = {
+                            PassFloor = self.PassFloor,
+                            MaxFloor = self.MaxFloor,
+                            StageAwardList = self.StageAwardList
+                        }
+                        if self.PersonalTowerWindow then
+                            self.PersonalTowerWindow:RefreshView(data)
+
+                        end
+                    end
+                end
+            end
+        end
+        for i, v in pairs(self.StageAwardList) do
+            if v and v.isReceived then
+                hasRewardNum = hasRewardNum + 1
+            end
+        end
+        if CheckSysOpen(8, false) then
+            local notHave = not LocalCacheManager.Instance:Has("PersonTowerLevel_" .. self.PassFloor + 1);
+            if notHave then
+                RedPointManager.Instance:TriggerConditionTypeBoolValue(RedPointConditionType.PersonTowerLevel, true);
+            end
+            RedPointManager.Instance:TriggerConditionTypeBoolValue(RedPointConditionType.PersonTowerAward,
+                canRewardNum - hasRewardNum > 0);
+        end
+    end
+end
+function PersonalTowerModule:OnCustomEnterEctype(...)
+    -- 进入【爬塔】副本
+    -- self:CloseSecretAreaSueecssWindow()
+
+    local curFloor = self.PassFloor + 1
+    local config = ConfigDataAccessor.TowerCopy[curFloor]
+    if config then
+        UIManager.Instance:OpenWindowAsync(PersonalTowerLevelWindowPath, nil, curFloor);
+    end
+
+    self:ClosePersonTowerWindow()
+    if self.TaskRoot ~= nil then
+        self:OpenSecretAreaTaskWidget()
+        -- else
+        --    IsMainPageLoadedCompleteOpenWidget = true;
+    end
+end
+function PersonalTowerModule:OnCustomLevelEctype(...)
+    self:OpenPersonalTowerWindow()
+end
+function PersonalTowerModule:OnInstanceDataRet(data)
+    if GameManager.Instance:GetCurMapType() ~= CS.ProtoMsg.SpaceType.SpacePersonTower then
+        return
+    end
+    local monsterData = data.data
+    if monsterData then
+        local targetData = {}
+        targetData.TileName = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_PersonalTowerFailWindow_title"),
+            {self.PassFloor + 1})
+        local Contents = {}
+        if monsterData.Mons then
+            for i, v in pairs(monsterData.Mons) do
+                local contentData = {}
+                local content = StringFormat(LanguageHelp:GetLanguageByKey("DefeatCount"), {string.format("%s(%d/%d)",
+                    ConfigDataAccessor.Monster[tonumber(v.Index)].Name, v.Dead, v.Max)})
+                contentData.Content = content
+                table.insert(Contents, contentData)
+            end
+        end
+        targetData.Contents = Contents
+        if self.PersonTowerTargetChangedEvent ~= nil then
+            self.PersonTowerTargetChangedEvent:Invoke(targetData)
+        end
+    end
+end
+function PersonalTowerModule:OnPersonTowerGameEndNtf(data)
+    if data.data.IsSuccess then
+        UIManager.Instance:OpenWindowAsync(PersonalTowerSuccessWindowPath, nil, data.data);
+    else
+        UIManager.Instance:OpenWindowAsync(PersonalTowerFailWindowPath, nil, data.data);
+    end
+end
+function PersonalTowerModule:OnRefreshLevelRedPoint(type, isOpen)
+    if type == CS.StarProjectDef.SystemOpenType.PersonalTower then
+        local currentFloorCfg = ConfigDataAccessor.TowerCopy[self.PassFloor + 1]
+        if currentFloorCfg and CheckSysOpen(8, false) then
+            local isMete = GameManager.Instance:IsConditionMete(currentFloorCfg.ConditionID); -- 判断是否满足
+            if isMete then
+                local notHave = not LocalCacheManager.Instance:Has("PersonTowerLevel_" .. self.PassFloor + 1);
+                if notHave then
+                    -- LocalCacheManager.Instance:SetValueType("PersonTowerLevel_"..self.PassFloor + 1, true, CacheType.Normal);
+                    RedPointManager.Instance:TriggerConditionTypeBoolValue(RedPointConditionType.PersonTowerLevel, true);
+                end
+            end
+        end
+    end
+end
+function PersonalTowerModule:SendPersonTowerAwardReq(...)
+    local tb = ...
+    local floor = 0
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        floor = tb.Floor
+        local battleSocket = NetworkManager.Instance.gameSocket
+        local message = CS.ProtoMsg.PersonTowerAwardReq()
+        message.Floor = floor
+        battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message, false)
+    end
+end
+function PersonalTowerModule:OnPersonTowerAwardRet(data)
+    local Floor = data.data.Floor
+    -- local rewardsList={};
+    -- local nextStageData  = ConfigDataAccessor.TowerStage[Floor]
+    -- if nextStageData then
+    --    for i = 1, 2 do
+    --        local rw={};
+    --        rw.BaseID = nextStageData.StageAward[i]
+    --        rw.Num=nextStageData.StageAwardNum[i]
+    --        rw.EntityID=0;
+    --        table.insert( rewardsList,rw);
+    --    end
+    -- end
+    --
+    ----弹窗逻辑（先塞进去之后在外面调用）
+    -- LuaModuleDispatcher:SendMessage(ModuleDef.RewardsPopModule, "OnOpenRewardsPop",{rewardsList});
+end
+-- 关闭秘境胜利界面
+function PersonalTowerModule:CloseSecretAreaSueecssWindow()
+    if self.SuccessWindow ~= nil and self.SuccessWindow.IsOpen then
+        self.SuccessWindow.Close()
+    end
+    self.SuccessWindow = nil
+end
+-- 关闭秘境主界面
+function PersonalTowerModule:ClosePersonTowerWindow()
+    if self.PersonalTowerWindow ~= nil and self.PersonalTowerWindow.IsOpen then
+        self.PersonalTowerWindow.Close()
+    end
+    self.PersonalTowerWindow = nil;
+end
+-- 打开左边秘境任务挂件
+function PersonalTowerModule:OpenSecretAreaTaskWidget(action)
+    local AsyncLoadTaskWidgetCb = function(ui)
+        if ui ~= nil then
+            if self.TaskWidget == nil then
+                self.TaskWidget = ui:GetLuaPanel().ScriptTable
+                self.TaskWidget:OnEctypeTargetDataChange(self.TargetData)
+            end
+        end
+    end
+    UIManager.Instance:OpenWidgetAsync(CommonTaskTargetWidgetPath, AsyncLoadTaskWidgetCb, true, self.TargetData,
+        self.TaskRoot.transform, CS.StarProjectDef.MainPageCommond.HideNone, true, false)
+end
+function PersonalTowerModule:OnEctypeTargetDataChange(data)
+    self.TargetData = data;
+end
+------------------------------ 发送协议
+return PersonalTowerModule

@@ -1,0 +1,99 @@
+---------------------------------------------------------------------
+-- Stars (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2022-12-21 15:42:56
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class ItemBaseAttr
+
+
+local ItemBaseAttr = {}
+
+ItemBaseAttr.__index = ItemBaseAttr
+
+
+function ItemBaseAttr:New(go, callBack)
+	local self = {};
+	setmetatable(self, ItemBaseAttr);
+
+	self.Btn = nil;
+	self.Bg = nil;
+	self.AttrName = nil;
+	self.AttrNum = nil;
+	self.Selected = nil;
+	self.SelectAttrName = nil;
+	self.SelectAttrNum = nil;
+
+	self.AttrData = nil;
+
+	self.prefab = go;
+	self.gameObject = go;
+	self.transform = go.transform;
+	self.Btn = self.transform:GetComponent(typeof(JButton));
+	self.Bg = self.transform:GetComponent(typeof(Image));
+	self.Noselected = self.transform:Find("noselected").gameObject;
+	self.AttrName = self.transform:Find("noselected/AttrName"):GetComponent(typeof(Text));
+	self.AttrNum = self.transform:Find("noselected/AttrNum"):GetComponent(typeof(Text));
+	self.Selected = self.transform:Find("select").gameObject;
+	self.SelectAttrName = self.transform:Find("select/SelectAttrName"):GetComponent(typeof(Text));
+	self.SelectAttrNum = self.transform:Find("select/SelectAttrNum"):GetComponent(typeof(Text));
+
+	self.CallBack = callBack;
+	self.BtnClickFun = function()
+		self:OnClickHandler();
+	end
+	self.Btn.OnClick = self.BtnClickFun;
+
+	return self; --返回自身
+end
+
+--点击事件
+function ItemBaseAttr:OnClickHandler()
+	self.CallBack(self.AttrData);
+	self:OnSelect(true);
+end
+
+function ItemBaseAttr:OnSelect(select)
+	self.Selected:SetActive(select);
+	self.Noselected:SetActive((not select));
+end
+
+--数据更新
+function ItemBaseAttr:UpdateContent(data)
+	self.AttrData = data;
+
+	if self.AttrData == nil then
+		return;
+	end
+
+	self.AttrName.text = self.AttrData.Name;
+	self.SelectAttrName.text = self.AttrData.Name;
+
+	local value = self.AttrData.Value;
+	if value == nil then
+		value = 1;
+	end
+
+	if self.AttrData.AttType == 1 then
+		self.AttrNum.text = tostring(value);
+		self.SelectAttrNum.text = tostring(value);
+	else
+		value = value / 100;
+		self.AttrNum.text = roundToDecimal2(value, 1) .. "%";
+		self.SelectAttrNum.text = roundToDecimal2(value, 1) .. "%";
+	end
+	self:OnSelect(false);
+end
+
+function ItemBaseAttr:SetBgShow(isShow)
+	local num = 0;
+	if isShow then
+		num = 1;
+	end
+	--self.Bg:SetAlpha(num);
+end
+
+return ItemBaseAttr;

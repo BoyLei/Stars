@@ -1,0 +1,159 @@
+--[[
+*文件名   :   EventRewardPersonal
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local EventRewardPersonal = {}
+
+EventRewardPersonal.__index = EventRewardPersonal
+
+local EventRewardPersonalItem=require("View/Uiwindow/Event/EventRewardPersonalItem")
+
+function EventRewardPersonal:New(_go) 
+    local self = {};    
+    setmetatable(self, EventRewardPersonal); 
+    
+
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+
+    self.Title=self.transform:Find("title1/tt1"):GetComponent(typeof(Text));
+
+    --道具列表
+    self.EventRewardPersonalItemList={};
+	--无限列表
+	self.go_EventRewardPersonalItem = self.transform:Find("Scroll View/Mask/List/Item").gameObject;
+
+	self.tr_ItemRoot=self.transform:Find("Scroll View/Mask/List");
+	self.go_EventRewardPersonalItem:SetActive(false);
+	self.go_EventRewardPersonalItem.transform:SetParent(self.transform);
+	self.EventRewardPersonalScorllView=self.transform:Find("Scroll View"):GetComponent(typeof(SuperScrollViewController));
+	self.EventRewardPersonalScorllView:NewScroll(self.go_EventRewardPersonalItem, 0, function (tr,idx)
+		self:OnEventRewardPersonalItemRefesh(tr,idx);
+	end);
+
+
+    self:Show(false);
+
+    return self;    --返回自身
+end
+
+
+
+function EventRewardPersonal:OnEventRewardPersonalItemRefesh(tr,idx)
+
+	for i=1,#self.EventRewardPersonalItemList do
+		if self.EventRewardPersonalItemList[i].transform == tr then
+            self.EventRewardPersonalItemList[i]:SetItem(self.ItemDataList[idx+1],self.totalScore);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+		end
+
+	end
+
+    local bi = EventRewardPersonalItem:New(tr.gameObject);
+
+	bi.gameObject:SetActive(true);
+	bi:SetItem(self.ItemDataList[idx+1],self.totalScore);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+
+    table.insert(self.EventRewardPersonalItemList, bi);
+
+end
+
+
+function EventRewardPersonal:Show(b,playMode)
+    self.gameObject:SetActive(b);
+    if b then
+
+        self.PlayMode=playMode;
+        self.EffectLv=0;
+        
+        local GVEStartI2S = GameManager.Instance.GVEStartI2S;
+        if GVEStartI2S~=nil and GVEStartI2S.PlayID==self.PlayMode then
+            self.totalScore=0;
+
+            --玩家属性
+            local M_MainPlayerCtrlBase=GameManager.Instance.M_MainPlayerCtrlBase;
+            if M_MainPlayerCtrlBase~=nil and M_MainPlayerCtrlBase.Data~=nil and M_MainPlayerCtrlBase.Data.Attrs~=nil then
+                local GVEBonus=	M_MainPlayerCtrlBase.Data.Attrs:GetProtoValue(CS.StarProjectDef.AOIAttrDefine.GVEBonus);
+                if GVEBonus~= nil and GVEBonus.PlayID==self.PlayMode then
+
+                    self.totalScore= GVEBonus.DonateBonus;--已上交积分
+
+                end
+            end
+
+            --生效等级
+            self.EffectLv=GVEStartI2S.EffectLv;
+
+        else
+            self.totalScore=0;  
+
+            if self.EffectLv==0 then
+                local openServerDay=0;
+                if GameManager.Instance.GloInfoSrv~=nil then
+                    openServerDay=GameManager.Instance.GloInfoSrv.GRisk.OffDay;
+                end
+                self.EffectLv=ConfigDataAccessor.GetGVEEffectLevel(openServerDay);
+            end
+        end
+
+        self:Refesh(self.PlayMode);
+
+
+    end
+end
+
+
+
+function EventRewardPersonal:Refesh(playMode)
+
+    if self.ItemDataList==nil then
+        self.ItemDataList ={}
+    else
+        for k,_ in pairs(self.ItemDataList) do self.ItemDataList[k] = nil end
+    end
+
+
+    local cfgs=ConfigDataAccessor.GVEPersonReward;
+
+    for k,v in pairs(cfgs) do
+
+        if v.PlayMode==playMode and (self.EffectLv==v.EffectLevel or self.EffectLv==0) then;
+            table.insert( self.ItemDataList, v );
+        end
+
+    end
+
+    --根据活动判断
+    --self.Title.text="个人已上交积分："..self.totalScore;
+    self.Title.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_EventRewardPersonal_Title"), {self.totalScore});
+
+	self:SortItem(self.ItemDataList);
+	self.EventRewardPersonalScorllView:ContinueScroll(#self.ItemDataList);
+
+end
+
+
+function EventRewardPersonal:SortItem(tbl)
+
+	if #tbl > 1 then
+
+		table.sort(tbl, function(a, b)
+			--升序
+			if a.ScoOneP < b.ScoOneP then
+				return true
+			end
+			return false
+		end)
+
+	end
+
+end
+
+
+return EventRewardPersonal;

@@ -1,0 +1,227 @@
+---------------------------------------------------------------------
+-- Stars (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-02-21 14:51:26
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class PartnerStarRiseFinishPanel
+local RiseStarAttrItem = require("View/UIWindow/PartnerWindow/RiseStarAttrItem")
+PartnerStarRiseFinishPanel = class("PartnerStarRiseFinishPanel")
+
+---表现层
+PartnerStarRiseFinishPanel.Prefab = nil
+PartnerStarRiseFinishPanel.Atlas = nil
+PartnerStarRiseFinishPanel.m_PartnerRawImage = nil
+PartnerStarRiseFinishPanel.m_DisplayRawimg = nil
+PartnerStarRiseFinishPanel.m_Quality = nil
+PartnerStarRiseFinishPanel.m_RoleIcon = nil
+
+PartnerStarRiseFinishPanel.PartnerName = nil
+PartnerStarRiseFinishPanel.Stars = nil
+--PartnerStarRiseFinishPanel.Power=nil;
+
+PartnerStarRiseFinishPanel.AttrRoot = nil
+PartnerStarRiseFinishPanel.AttrItem = nil
+PartnerStarRiseFinishPanel.SkillDes = nil
+PartnerStarRiseFinishPanel.QualificationDes = nil
+
+PartnerStarRiseFinishPanel.JBtnClose = nil
+---数据层
+PartnerStarRiseFinishPanel.M_CloseCb = false
+PartnerStarRiseFinishPanel.CurSelectPartnerData = nil
+PartnerStarRiseFinishPanel.CurPartnerCfg = nil
+PartnerStarRiseFinishPanel.StarExpendCfg = nil
+
+PartnerStarRiseFinishPanel.AttrItemList = {}
+
+function PartnerStarRiseFinishPanel:ctor(pb)
+    self.Prefab = pb.transform
+    --self.M_CloseCb = closeCb;
+
+    --self.m_PartnerRawImage=self.Prefab:Find("BG/Root/Left/PartnerRawImage"):GetComponent(typeof(RawImage));
+    --self.m_DisplayRawimg=self.Prefab:Find("BG/Root/Left/DisplayRawimg"):GetComponent(typeof(DisplayRawimg));
+    self.m_Quality = self.Prefab:Find("BG/Root/Left/Quality"):GetComponent(typeof(Image))
+    self.m_RoleIcon = self.Prefab:Find("BG/Root/Left/RoleIcon"):GetComponent(typeof(Image))
+    self.PartnerName = self.Prefab:Find("BG/Root/Left/NameBg/PartnerName"):GetComponent(typeof(Text))
+    --self.Power=self.Prefab:Find("Root/Right/PartnerInfo/Power"):GetComponent(typeof(Text));
+    self.Stars = {}
+    table.insert(self.Stars, self.Prefab:Find("BG/Root/Right/PartnerInfo/Image/Stars/Star1").gameObject)
+    table.insert(self.Stars, self.Prefab:Find("BG/Root/Right/PartnerInfo/Image/Stars/Star2").gameObject)
+    table.insert(self.Stars, self.Prefab:Find("BG/Root/Right/PartnerInfo/Image/Stars/Star3").gameObject)
+    table.insert(self.Stars, self.Prefab:Find("BG/Root/Right/PartnerInfo/Image/Stars/Star4").gameObject)
+    table.insert(self.Stars, self.Prefab:Find("BG/Root/Right/PartnerInfo/Image/Stars/Star5").gameObject)
+    table.insert(self.Stars, self.Prefab:Find("BG/Root/Right/PartnerInfo/Image/Stars/Star6").gameObject)
+
+    self.AttrRoot = self.Prefab:Find("BG/Root/Right/PartnerInfo/AttrRoot")
+    self.AttrItem = self.Prefab:Find("BG/Root/Right/PartnerInfo/AttrItem").gameObject
+    self.SkillDes = self.Prefab:Find("BG/Root/Right/PartnerInfo/SkillDes"):GetComponent(typeof(Text))
+    self.QualificationDes = self.Prefab:Find("BG/Root/Right/PartnerInfo/QualificationDes"):GetComponent(typeof(Text))
+
+    self.JBtnClose = self.Prefab:Find("BG/Root/JBtnBack"):GetComponent(typeof(JButton))
+    self.JBtnCloseFun = function()
+        self:ClosePanel()
+    end
+    self.JBtnClose.OnClick = self.JBtnCloseFun
+
+    self.AttrItemList = {}
+end
+
+function PartnerStarRiseFinishPanel:SetAtlas(atlas)
+    self.AtlasPath = atlas
+end
+
+function PartnerStarRiseFinishPanel:Init(CurSelectPartnerData, CurPartnerCfg, StarExpendCfg)
+    if CurSelectPartnerData == nil or CurPartnerCfg == nil or StarExpendCfg == nil then
+        Log(
+            "PartnerStarRiseFinishPanel:Init CurSelectPartnerData==nil or CurPartnerCfg==nil or StarExpendCfg==nil err!!!"
+        )
+        self:ClosePanel()
+        return
+    end
+
+    self.CurSelectPartnerData = CurSelectPartnerData
+    self.CurPartnerCfg = CurPartnerCfg
+    self.StarExpendCfg = StarExpendCfg
+
+    self:SetBaseData()
+    self:SetRiseStarData()
+
+    self.Prefab.gameObject:SetActive(true)
+end
+
+
+
+-- 设置基础信息
+function PartnerStarRiseFinishPanel:SetBaseData()
+    -- 设置星星
+    for i = 1, #self.Stars do
+        self.Stars[i]:SetActive(i <= self.CurSelectPartnerData.CurStar)
+    end
+    self.PartnerName.text = self.CurPartnerCfg.Name
+
+    local qualityName = self:GetQualityName(self.CurPartnerCfg.Quality)
+     ResourceHelper:GetSpriteInAtlasByName(self.AtlasPath, qualityName,function (sp)
+			if sp ~= nil then
+				self.m_Quality.sprite = sp
+			end
+	 end)
+  
+
+    ------- 设置模型
+    --self.m_PartnerRawImage.texture= ResourceManager.Instance.RenderTexture;
+    self.m_RoleIcon.gameObject:SetActive(false)
+    local AvatarCfg = ConfigDataAccessor.Avatar[self.CurPartnerCfg.AvatarID]
+    if AvatarCfg ~= nil then
+        local ModelHeadCfg = ConfigDataAccessor.ModelHead[AvatarCfg.HeadID]
+        if ModelHeadCfg ~= nil then
+            --ResourceHelper:LoadRawIconAsync(self.m_RoleIcon, ModelHeadCfg.HalfDrawing, false, function()
+            ResourceHelper:LoadSpriteAtlasAsync(self.m_RoleIcon,  ResourceHelper.HeadAtlasPath .. ModelHeadCfg.HalfDrawing , ModelHeadCfg.HalfDrawing , true,function() 
+                self.m_RoleIcon.gameObject:SetActive(true)
+            end)
+ 
+        end
+    end
+
+    -- 目前先只读配置表里面的战斗力
+    --local PartnerNature = ConfigDataAccessor.PartnerNature[self.CurPartnerCfg.Nature][self.CurSelectPartnerData.Level]
+    --if PartnerNature ~= nil then
+    --self.Power.text = tostring(PartnerNature.Power);
+    --end
+end
+
+-- 设置升星信息
+function PartnerStarRiseFinishPanel:SetRiseStarData()
+    -- 设置属性
+    for i = 1, #self.StarExpendCfg.Nature do
+        local attrIndex = self.StarExpendCfg.Nature[i]
+        local attrNum = self.StarExpendCfg.Value[i]
+        if attrNum == nil then
+            attrNum = 100
+        end
+        local attrNumStr = tostring(attrNum / 100) .. "%"
+        if attrIndex > 0 then
+
+            local config1=  ConfigDataAccessor.GetAttrByID(attrIndex)
+            local attrName1 = "";
+            if config1 ~= nil then
+                attrName1 = config1.Name;
+            end
+
+
+            if attrName1 ~= "" then
+                local attrItem = self:GetAttrItemByIndex(i)
+                if attrItem ~= nil then
+                    attrItem:Init(attrName1, attrNumStr)
+                end
+            else
+                Log("PartnerStarRiseFinishPanel:SetRiseStarData err!!! AoiAttr=nil,attrIndex=" .. attrIndex)
+            end
+        end
+    end
+
+    -- 技能
+    self.SkillDes.text = self:GetParSkillDes()
+
+    -- 资质
+    self.QualificationDes.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_QualificationDes"), {self.StarExpendCfg.Star});
+end
+
+-- 根据下标获得属性Item
+function PartnerStarRiseFinishPanel:GetAttrItemByIndex(index)
+    local attrItem = self.AttrItemList[index]
+
+    if attrItem == nil then
+        local _go = newObject(self.AttrItem)
+        _go.transform:SetParent(self.AttrRoot)
+        _go.transform.localPosition = Vector3.zero
+        _go.transform.localScale = Vector3.one
+        attrItem = RiseStarAttrItem.new(_go)
+        self.AttrItemList[index] = attrItem
+    end
+
+    return attrItem
+end
+
+-- 获得技能描述
+function PartnerStarRiseFinishPanel:GetParSkillDes()
+    for _k, _v in pairs(ConfigDataAccessor.ParSkill) do
+        if _v.Par == self.CurPartnerCfg.Id and _v.Star == self.CurSelectPartnerData.CurStar then
+            return _v.Desc
+        end
+    end
+
+    return ""
+end
+
+-- 获得品质-颜色图标
+function PartnerStarRiseFinishPanel:GetQualityName(quality)
+    if quality == 1 then
+        return "Partner_quality_n"
+    elseif quality == 2 then
+        return "Partner_quality_r"
+    elseif quality == 3 then
+        return "Partner_quality_sr"
+    elseif quality == 4 then
+        return "Partner_quality_ssr"
+    end
+end
+
+-- 关闭属性Item
+function PartnerStarRiseFinishPanel:CloseAttrItemList()
+    for i = 1, #self.AttrItemList do
+        local item = self.AttrItemList[i]
+        if item ~= nil and item.prefab ~= nil then
+            item.prefab.gameObject:SetActive(false)
+        end
+    end
+end
+
+function PartnerStarRiseFinishPanel:ClosePanel()
+    self.Prefab.gameObject:SetActive(false)
+    self:CloseAttrItemList()
+end
+
+return PartnerStarRiseFinishPanel

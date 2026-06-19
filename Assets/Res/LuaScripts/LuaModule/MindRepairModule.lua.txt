@@ -1,0 +1,112 @@
+--[[
+*文件名   :   MindRepairModule
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/11/28 14:35:39"
+*创建人   :   "caojie"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+MindRepairModule = class("MindRepairModule",BaseLuaModule)
+--LuaModule 消息模块
+MindRepairModule.ModuleMessages =
+{
+    ["OnOpenMindRepairWindow"] = function(...)
+    	MindRepairModule:OnOpenMindRepairWindow(...)
+    end,
+}
+
+MindRepairModule.MindRepairWindowView = nil
+-- 配表格子ID对应连通数据Map
+MindRepairModule.GridConnectDataMap = 
+{
+	-- 起点
+	["Start"] = {Left = false, Right = true, Top = false, Bottom = false, canExchange = false},
+	-- 终点
+	["End"] = {Left = true, Right = false, Top = false, Bottom = false, canExchange = false},
+	-- 空格子
+	[1] = {Left = false, Right = false, Top = false, Bottom = false, canExchange = false},
+	-- 十
+	[2] = {Left = true, Right = true, Top = true, Bottom = true, canExchange = true},
+	-- 一
+	[3] = {Left = true, Right = true, Top = false, Bottom = false, canExchange = true},
+	-- 丨
+	[4] = {Left = false, Right = false, Top = true, Bottom = true, canExchange = true},
+	-- ↑→
+	[5] = {Left = false, Right = true, Top = true, Bottom = false, canExchange = true},
+	-- ↓→
+	[6] = {Left = false, Right = true, Top = false, Bottom = true, canExchange = true},
+	-- ↓←
+	[7] = {Left = true, Right = false, Top = false, Bottom = true, canExchange = true},
+	-- ↑←
+	[8] = {Left = true, Right = false, Top = true, Bottom = false, canExchange = true},
+	-- ↑←↓
+	[9] = {Left = true, Right = false, Top = true, Bottom = true, canExchange = true},
+	-- ↑←→
+	[10] = {Left = true, Right = true, Top = true, Bottom = false, canExchange = true},
+	-- ↑→↓
+	[11] = {Left = false, Right = true, Top = true, Bottom = true, canExchange = true},
+	-- →↓←
+	[12] = {Left = true, Right = true, Top = false, Bottom = true, canExchange = true},
+}
+
+MindRepairModule.ArgData = {}
+
+-- 构建技能数据
+function MindRepairModule:BuildArgData()
+
+end
+
+function MindRepairModule:OnOpenMindRepairWindow(...)
+	local tb = ...
+    local cfgId = 0
+    --列表
+    if type(tb) == "table" then
+        --Lua调用
+        cfgId = tb[1]
+    else
+        --C#调用
+        cfgId = tb[0]
+    end
+
+	local Cb = function(ui)
+		if ui ~= nil then
+			self.MindRepairWindowView = ui:GetLuaPanel().ScriptTable;	
+			if self.MindRepairWindowView ~= nil then
+				self.MindRepairWindowView.InstPanel = ui
+				self.MindRepairWindowView:BindModule(self)
+				self.MindRepairWindowView:RenderAllView(true, cfgId)
+			end
+		end
+	end
+
+	UIManager.Instance:OpenWindowAsync("MiniGame/Prefab/MindRepairWindow", Cb, cfgId)
+end
+
+--LuaModule 创建
+function MindRepairModule:OnModuleCreate(arg)
+	LuaModuleDispatcher:Register(ModuleDef.MindRepairModule,self)
+	-- self:BuildAllSkillData()
+end
+
+--LuaModule 消息处理
+function MindRepairModule:OnModuleMessage(msg,...)
+	self.ModuleMessages[msg](...);
+end
+
+--LuaModule显示
+function MindRepairModule:OnModuleShow(arg)
+
+end
+
+function MindRepairModule:OnSkillOpenWidgetDestroy(arg)
+	self.MindRepairWindowView = nil
+end
+
+--LuaModule 释放
+function MindRepairModule:OnModuleRelease()
+	LuaModuleDispatcher:UnRegister(ModuleDef.MindRepairModule)
+	self.MindRepairWindowView = nil
+end
+
+return MindRepairModule
+

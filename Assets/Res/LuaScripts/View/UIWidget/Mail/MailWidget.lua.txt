@@ -1,0 +1,198 @@
+--[[
+*文件名   :   MailWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/06/13 16:50:20"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local MailItem=require("View/UIWidget/Mail/MailItem")
+MailWidget=class("MailWidget",UIPanel)
+MailWidget.m_Close=nil;
+MailWidget.m_ScrollView=nil;
+MailWidget.m_Item=nil;
+MailWidget.m_DeleteRead=nil;
+MailWidget.m_GetAllward=nil;
+MailWidget.m_NoMail=nil;
+MailWidget.SelectMailID=-1;
+MailWidget.IsQuerying=false;
+MailWidget.ItemList={}
+MailWidget.ItemDatas={}
+MailWidget.EmptyBtn=nil;
+
+local OnOnFreshMailFunc=nil;
+local OnQueryDataHandlerFunc=nil;
+local MailDeleteFunc=nil;
+function MailWidget:Awake()
+	self.EmptyBtn=self:Find("Image"):GetComponent(typeof(JButton));
+	self.m_Close=self:Find("Center/AnimRoot/TopCenter/Close"):GetComponent(typeof(JButton));
+	self.m_ScrollView=self:Find("Center/AnimRoot/ScrollView"):GetComponent(typeof(SuperScrollViewController));
+	self.m_Item=self:Find("Center/AnimRoot/Item").gameObject
+	self.m_DeleteRead=self:Find("Center/AnimRoot/DeleteRead"):GetComponent(typeof(JButton));
+	self.m_GetAllward=self:Find("Center/AnimRoot/GetAllward"):GetComponent(typeof(JButton));
+	self.m_NoMail=self:Find("Center/AnimRoot/NoMail").gameObject
+	self.m_NoMail:SetActive(false)
+	self.m_Close.OnClick=(function()
+			self.PlayAnimation("MailWidget_Out",function ()
+					self.Close();
+				end)
+
+		end);
+
+	self.EmptyBtn.OnClick=(function()
+		self.PlayAnimation("MailWidget_Out",function ()
+			self.Close();
+		end)
+
+	end);
+	
+	self.m_DeleteRead.OnClick=(function()
+			self:DeleteAllRead();
+		end);
+
+	self.m_GetAllward.OnClick=(function()
+			self:GetAllAward();
+		end);
+
+	self.m_ScrollView:NewScroll(self.m_Item, 0, function (tr,idx)
+			self:OnItemRefesh(tr,idx);
+		end);
+
+	OnQueryDataHandlerFunc=function(result)
+		self:OnQueryDataHandler(result);
+	end
+
+	self.m_ScrollView:BinderQueryDataDelegate(OnQueryDataHandlerFunc);
+
+
+	OnOnFreshMailFunc=function(data)
+		self:OnFreshMail(data)
+	end
+
+	MailDeleteFunc=function(id)
+		self:OnMailDeleteHandler(id)
+	end
+
+end
+
+function MailWidget:ChekHasMail()
+	if #self.ItemDatas>0 then
+		self.m_NoMail:SetActive(false)
+	else
+		self.m_NoMail:SetActive(true)
+	end
+
+end
+
+function MailWidget:OnMailDeleteHandler(id)
+	if self.SelectMailID==id then
+		self.SelectMailID=0;
+	end
+end
+
+function MailWidget:OnQueryDataHandler(result)
+	if result then
+		if self.IsQuerying then
+			return
+		end
+		LuaModuleDispatcher:SendMessage(ModuleDef.MailModule, "OnMailGetInfosReq");
+		self.IsQuerying=true;
+	end
+end
+
+
+---获取所有附件奖励
+function MailWidget:GetAllAward()
+	LuaModuleDispatcher:SendMessage(ModuleDef.MailModule, "OnGetAllMail");
+end
+
+--删除已读
+function MailWidget:DeleteAllRead()
+	LuaModuleDispatcher:SendMessage(ModuleDef.MailModule, "OnDeleteAllReadMail");
+end
+
+function MailWidget:CleanAllSelected()
+	--无限列表
+	for i=1,#self.ItemList do
+		self.ItemList[i]:OnSelect(false);
+	end
+end
+
+function MailWidget:OnSelect(mailID)
+	self.SelectMailID=mailID;
+	self:CleanAllSelected();
+	LuaModuleDispatcher:SendMessage(ModuleDef.MailModule, "OnOpenMailDeatailWidget", self.SelectMailID);
+
+	--self:SetPartnerInfo();
+end
+
+function MailWidget:OnItemRefesh(tr,idx)
+	if self.ItemList==nil then
+		return;
+	end
+	for i=1,#self.ItemList do
+		if self.ItemList[i].transform == tr then
+			self.ItemList[i]:UpdateContent(self.ItemDatas[idx+1],self.SelectMailID,function (mailid)
+					self:OnSelect(mailid)
+				end);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+			return
+		end
+	end
+
+	local bi = MailItem.new(tr.gameObject,self.AtlasPath);
+	bi.prefab:SetActive(true);
+	bi:UpdateContent(self.ItemDatas[idx+1],self.SelectMailID,function (mailid)
+			self:OnSelect(mailid)
+		end);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+	table.insert(self.ItemList, bi);
+end
+
+function MailWidget:Start()
+
+end
+
+function MailWidget:OnFreshMail(data)
+	self.ItemDatas=data
+	self.m_ScrollView:ContinueScroll(#self.ItemDatas,false);
+	self.IsQuerying=false;
+	self:ChekHasMail();
+	if self.SelectMailID~=0 and self.SelectMailID~=nil then
+		LuaModuleDispatcher:SendMessage(ModuleDef.MailModule, "OnFreshMailDeatailWidget", self.SelectMailID);
+	end
+end
+
+function MailWidget:OnEnable()
+	CS.StarProject.GlobalEvent.OnFreshMail:AddListener(OnOnFreshMailFunc);
+	CS.StarProject.GlobalEvent.OnDeleteMail:AddListener(MailDeleteFunc);
+
+end
+
+function MailWidget:OnDisable()
+	CS.StarProject.GlobalEvent.OnFreshMail:RemoveListener(OnOnFreshMailFunc);
+	CS.StarProject.GlobalEvent.OnDeleteMail:RemoveListener(MailDeleteFunc);
+
+end
+
+function MailWidget:OnDestroy()
+
+end
+
+function MailWidget:OnOpen(arg)
+	self.ItemDatas=arg
+	self.m_ScrollView:ContinueScroll(#self.ItemDatas,false);
+	self:ChekHasMail();
+	self.PlayAnimation("MailWidget_Open",function ()
+
+		end)
+end
+
+function MailWidget:OnClose(arg)
+	LuaModuleDispatcher:SendMessage(ModuleDef.MailModule, "OnCloseMailDeatailWidget");
+	self.SelectMailID=0;
+	self.IsQuerying=false;
+end
+
+
+
+return  MailWidget

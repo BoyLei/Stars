@@ -1,0 +1,83 @@
+--[[
+*文件名   :   ChoiceBtn
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/18 18:36:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local ChoiceBtn = {}
+
+ChoiceBtn.__index = ChoiceBtn
+
+function ChoiceBtn:New(_go,selectedPath) 
+    local self = {};    
+    setmetatable(self, ChoiceBtn); 
+    
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+
+    self.go_Selected=self.transform:Find(selectedPath).gameObject;
+    --点击事件
+    self.btnClick=self.transform:GetComponent(typeof(JButton));
+    self.btnClick.OnClick=(function() 
+        if self.OnItemClick ~= nil then
+            self.OnItemClick(self.Idx); 
+        end
+    end);
+
+
+    self.go_Selected:SetActive(false);
+
+    self:SetUse(false);
+
+	
+    self.IsSelected=false;
+
+    return self;    --返回自身
+end
+
+function ChoiceBtn:PoolInit(onItemClick)
+    self:SetUse(false);
+    self.OnItemClick=onItemClick; 
+end
+
+--初始化Item
+function ChoiceBtn:InitItem(idx,onItemClick)
+    self:SetUse(true);
+    self.Idx=idx;
+    if onItemClick~= nil then
+        self.OnItemClick=onItemClick;
+    end
+    self:MakeSelected(false);
+end
+
+function ChoiceBtn:SetUse(b)
+    self.IsUsed=b;
+
+    self.gameObject:SetActive(b);
+
+end
+
+function ChoiceBtn:SetText(textPath,tex)
+    self.transform:Find(textPath):GetComponent(typeof(Text)).text=tex;
+end
+
+function ChoiceBtn:SetIcon(iconPath,icon)
+	local iconComponent = self.transform:Find(iconPath):GetComponent(typeof(Image));
+	if iconComponent ~= nil then
+		ResourceHelper:LoadIconAsync(iconComponent, "", icon, false);
+
+	end
+end
+
+--是否被选中
+function ChoiceBtn:MakeSelected(b)
+    self.IsSelected=b;
+    self.go_Selected:SetActive(b)
+end
+
+
+return ChoiceBtn;

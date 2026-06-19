@@ -1,0 +1,308 @@
+--[[
+*文件名   :   QuickEquipModule
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/1/10 10:02:39"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] QuickEquipModule = class("QuickEquipModule", BaseLuaModule)
+
+local QuickEquipWidgetPath = "QuickEquip/QuickEquipWidget"
+
+
+-- LuaModule 消息模块
+QuickEquipModule.ModuleMessages = {
+    -- 打开快速装备
+    -- ModuleManager.Instance.SendMessage(ModuleDef.QuickEquipModule, "OnOpenDrop", null);
+    ["OnOpenQuickEquip"] = function(...)
+        QuickEquipModule:OnOpenQuickEquipMsg(...)
+    end,
+    -- 关闭快速装备
+    -- ModuleManager.Instance.SendMessage(ModuleDef.QuickEquipModule, "OnCloseDrop", null);
+    ["OnCloseQuickEquip"] = function(...)
+        QuickEquipModule:OnCloseQuickEquipMsg(...)
+    end,
+    -- 添加快速装备
+    -- ModuleManager.Instance.SendMessage(ModuleDef.QuickEquipModule, "OnAddDrop", new object[] { it }); //只要传一个快速装备信息
+    ["OnAddQuickEquip"] = function(...)
+        QuickEquipModule:OnAddQuickEquipMsg(...)
+    end,
+    --显隐快捷穿戴
+    --ModuleManager.Instance.SendMessage(ModuleDef.ObjectInteractiveModule, "OnShowHideObjectInteractive", {true});
+    ["OnShowHideQuickEquip"] = function(...)
+        QuickEquipModule:OnShowHideQuickEquip(...)
+    end,
+    --重新检查所有需要快捷穿戴的装备
+    ["OnRecheckQuickEquip"] = function(...)
+        QuickEquipModule:OnRecheckQuickEquip(...)
+    end
+}
+
+function QuickEquipModule:OnRecheckQuickEquip(...)
+    local tb = ...
+
+	
+    --传入道具ID
+    if type(tb) == "table" then
+        --Lua调用
+    else
+        --C#调用
+    end
+
+    --重新检查所有需要快捷穿戴的装备
+    local allitem = BusinessManager.Instance:GetAllNotCheckQuickEquip()
+    for i=0,allitem.Count-1 do
+		local dropinfo = {}
+		dropinfo.Itemid = allitem[i].BaseID
+		dropinfo.EntityID = allitem[i].EntityID
+        self:PushBack(dropinfo)
+    end
+end
+
+function QuickEquipModule:OnShowHideQuickEquip(...)
+    local tb = ...
+    local isShow = false
+    --传入道具ID
+    if type(tb) == "table" then
+        --Lua调用
+        isShow = tb[1]
+    else
+        --C#调用
+        isShow = tb[0]
+    end
+
+    if self.quickEquipListWidgetView ~= nil then
+        self.quickEquipListWidgetView.gameObject:SetActive(isShow)
+    end
+end
+
+-- 打开快速装备监听UI
+function QuickEquipModule:OnOpenQuickEquipMsg(...)
+    print("QuickEquipModule:OnOpenQuickEquip")
+
+    -- local quickEquipListWidgetCs =UIManager.Instance:OpenWidget(QuickEquipWidgetPath,false,nil,nil,CS.StarProjectDef.MainPageCommond.HideNone,true)
+    -- if self.quickEquipListWidgetView == nil then
+    -- 	self.quickEquipListWidgetView=quickEquipListWidgetCs:GetLuaPanel().ScriptTable;
+    -- 	self.quickEquipListWidgetView:BindModule(self);
+    -- else
+    -- 	self.quickEquipListWidgetView.gameObject:SetActive(true);
+    -- end
+    if self.quickEquipListWidgetView == nil then
+        self.AsyncLoadQuickEquipWidgetCb = function(ui)
+            if ui ~= nil then
+                self.quickEquipListWidgetView = ui:GetLuaPanel().ScriptTable
+                self.quickEquipListWidgetView:BindModule(self)
+            end
+            self.AsyncLoadQuickEquipWidgetCb = nil
+        end
+        UIManager.Instance:OpenWidgetAsync(QuickEquipWidgetPath, self.AsyncLoadQuickEquipWidgetCb, false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone, true, false, true)
+    else
+        self.quickEquipListWidgetView.gameObject:SetActive(true)
+    end
+end
+
+-- 关闭快速装备监听UI
+function QuickEquipModule:OnCloseQuickEquipMsg(...)
+    if self.quickEquipListWidgetView ~= nil and self.quickEquipListWidgetView.gameObject ~= nil then
+        self.quickEquipListWidgetView.gameObject:SetActive(false)
+    end
+end
+
+-- 添加快速装备事件
+function QuickEquipModule:OnAddQuickEquipMsg(...)
+    local tb = ...
+
+    -- 传入道具ID
+    if type(tb) == "table" then
+        -- Lua调用
+        local dropinfo = tb[1]
+
+        self:PushBack(dropinfo)
+    else
+        -- C#调用
+        local dropinfo = {}
+        dropinfo.Itemid = tb[0]
+        dropinfo.EntityID = tb[1]
+
+        self:PushBack(dropinfo)
+    end
+end
+
+-- 进队列
+function QuickEquipModule:PushBack(it)
+    local Itemid = it.Itemid
+    local EntityID = it.EntityID
+
+    local cfg = ConfigDataAccessor.Item[Itemid]
+    if cfg == nil then
+        Log("道具配置找不到 道具id=" .. Itemid)
+        return
+    end
+
+    -- 判断是否更强
+    local Type = cfg.ItemType
+
+    -- 只支持玩家装备类型
+    if Type == 2 then
+        -- 装备等级
+        local EquipCfg = ConfigDataAccessor.Equip[Itemid]
+        local lvLimit = 0
+        if EquipCfg ~= nil then
+            lvLimit = EquipCfg.Level
+        end
+        local playerLv = GameManager.Instance:GetPlayerLevel()
+        -- 排除等级不满足的
+        if lvLimit > playerLv then
+            return
+        end
+
+        -- 装备职业
+        local JobType = EquipCfg.JobBaseType
+        local playerJob = GameManager.Instance:GetPlayJobBaseID()
+        local isMarchPlayerJob = false
+        if JobType == 0 or JobType == playerJob then
+            isMarchPlayerJob = true
+        end
+        -- 排除非本职业
+        if not (isMarchPlayerJob) then
+            return
+        end
+
+        local itemDataNow = BusinessManager.Instance:GetItemByItemEntityId(EntityID)
+
+        --已经检查的装备
+        if not (itemDataNow.IsNeedCheckQuickEquip) then
+            return
+        end
+
+        -- 排除非玩家装备非进背包的
+        if itemDataNow.SpaceID ~= 2 then
+            return
+        end
+
+        local powerNow = FightPowerManager.Instance:GetShowEquipPower(itemDataNow) -- 当前装备的强度
+
+        -- 部位
+        local SubType = cfg.SubType
+
+        local powerEquiped = 0 -- 身上装备的强度
+        local itemDataEquiped = BusinessManager.Instance:GetHeroEquipedEquip(SubType)
+        if itemDataEquiped ~= nil then
+            powerEquiped = FightPowerManager.Instance:GetShowEquipPower(itemDataEquiped)
+        end
+
+        -- 排除战力比身上小的
+        if powerNow <= powerEquiped then
+            return
+        end
+        itemDataNow.IsNeedCheckQuickEquip = false
+
+        local needAdd = true
+        local isReplace = false
+        -- 替换队列里的
+        for k, v in pairs(self.DropQueue) do
+            if type(v) == "table" then
+                if v.subType == SubType then
+                    if powerNow > v.power then
+                        v.power = powerNow
+                        v.Itemid = Itemid
+                        v.EntityID = EntityID
+                        isReplace = true
+                        break
+                    else
+                        needAdd = false
+                    end
+                end
+            end
+        end
+
+        if not (isReplace) and needAdd then
+            --延迟0.25秒
+
+            it.power = powerNow
+            it.subType = SubType
+            Queue.pushBack(self.DropQueue, it)
+        end
+    end
+end
+
+-- 穿装备请求
+function QuickEquipModule:WearEquip(EntityID)
+    local wearEquipReq = CS.ProtoMsg.WearEquipReq()
+    wearEquipReq.ItemEntityID = EntityID
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, wearEquipReq, false)
+end
+
+-- 穿装备回调
+function QuickEquipModule:OnWearEquipRet(data)
+    print("穿装备回调")
+
+    local pb = data.data
+    local ItemEntityID = pb.ItemEntityID -- ItemEntityID
+
+    local Ret = pb.Ret -- Ret
+
+    if Ret == CS.ProtoMsg.WearEquipRet.Types.Result.Ok then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_28"))
+        LuaModuleDispatcher:SendMessage(ModuleDef.EquipModule, "OnRefeshEquip", {})
+    else
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_29"))
+    end
+end
+
+-- 出队列
+function QuickEquipModule:PopFront()
+    local it = nil
+
+    if self.DropQueue.first <= self.DropQueue.last then
+        it = Queue.popFront(self.DropQueue)
+    end
+
+    return it
+end
+
+-- LuaModule 创建
+function QuickEquipModule:OnModuleCreate(arg)
+	self.DropQueue = Queue.new() -- 队列
+
+    LuaModuleDispatcher:Register(ModuleDef.QuickEquipModule, self)
+
+    -- 监听穿装备
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.WearEquipRetID,
+        function(data)
+            self:OnWearEquipRet(data)
+        end,
+        nil
+    )
+
+    self.OnBackLoginFunc = function(againLoginType)
+        if self.quickEquipListWidgetView ~= nil and self.quickEquipListWidgetView.gameObject ~= nil then
+            -- 清除队列
+            for k, v in pairs(self.DropQueue) do
+                self.DropQueue[k] = nil
+            end
+            self.DropQueue.first = 0
+            self.DropQueue.last = -1
+            self.quickEquipListWidgetView.IsOpen = false
+            self.quickEquipListWidgetView.root:SetActive(false)
+        end
+    end
+    CS.StarProject.GlobalEvent.OnBackLogin:AddListener(self.OnBackLoginFunc)
+end
+
+-- LuaModule 消息处理
+function QuickEquipModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...)
+end
+
+-- LuaModule显示
+function QuickEquipModule:OnModuleShow(arg)
+end
+
+-- LuaModule 释放
+function QuickEquipModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.QuickEquipModule)
+end
+
+return QuickEquipModule

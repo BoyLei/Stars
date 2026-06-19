@@ -1,0 +1,227 @@
+--[[
+*文件名   :   DailyTeamConfirmWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/06/30 16:00:21"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+DailyTeamConfirmWidget = class("DailyTeamConfirmWidget", UIPanel)
+
+local DailyTeamHeadItem = require("View/UIWindow/DailyTeam/DailyTeamHeadItem")
+
+DailyTeamConfirmWidget.m_Close = nil;
+DailyTeamConfirmWidget.Infos = {}
+DailyTeamConfirmWidget.m_EnterBtn = nil;
+DailyTeamConfirmWidget.m_AgreeBtn = nil;
+DailyTeamConfirmWidget.m_Progress = nil;
+
+DailyTeamConfirmWidget.PlayeType = -1      -- 玩法類型
+DailyTeamConfirmWidget.m_Countdown = 0;    -- 通缉玩法的倒计时
+DailyTeamConfirmWidget.m_MaxCountdown = 0; -- 通缉玩法的倒计时
+
+local CloseFunc = nil;
+local EnterFunc = nil;
+local AgreeFunc = nil;
+
+function DailyTeamConfirmWidget:Awake()
+	self.m_Close = self:Find("Center/Close"):GetComponent(typeof(JButton));
+	self.m_Title = self:Find("Center/Title"):GetComponent(typeof(Text));
+	self.m_EnterBtn = self:Find("Center/Buttons/EnterScene"):GetComponent(typeof(JButton));
+	self.m_AgreeBtn = self:Find("Center/Buttons/Agree"):GetComponent(typeof(JButton));
+	self.m_Progress = self:Find("Center/ProgressBg/Progress"):GetComponent(typeof(Image));
+	self.m_Progress.transform.parent.gameObject:SetActive(false);
+
+	CloseFunc = function() self:OnClickClose(); end;
+	EnterFunc = function() self:OnClickEnter(); end;
+	AgreeFunc = function() self:OnClickAgree(); end;
+
+	self.Infos = {}
+	for i = 1, 5 do
+		local go = self:Find("Center/Items/Item" .. i).gameObject
+		local item = DailyTeamHeadItem.new(go, self.AtlasPath);
+		table.insert(self.Infos, item);
+	end
+
+	-- update事件
+	self.UpdateFun = function()
+		self:UpdateTime();
+	end
+end
+
+function DailyTeamConfirmWidget:Start()
+	self.m_Close.OnClick = CloseFunc;
+	self.m_EnterBtn.OnClick = EnterFunc;
+	self.m_AgreeBtn.OnClick = AgreeFunc;
+end
+
+function DailyTeamConfirmWidget:OnEnable()
+
+end
+
+function DailyTeamConfirmWidget:OnDisable()
+
+end
+
+function DailyTeamConfirmWidget:OnDestroy()
+
+end
+
+function DailyTeamConfirmWidget:SortMembers(teamInfo)
+	local list = {}
+	if teamInfo ~= nil and teamInfo.TeamID ~= 0 and teamInfo.UserInfos.Count > 0 then
+		for i = 0, teamInfo.UserInfos.Count - 1 do
+			local info = teamInfo.UserInfos[i];
+			if info ~= nil then
+				local Pos = 0;
+				if info.IsCaptain then
+					Pos = 1;
+				end
+				table.insert(list, { info = info, Pos = Pos });
+			end
+		end
+	end
+	table.sort(list, function(p1, p2)
+		return p1.Pos > p2.Pos;
+	end);
+	return list;
+end
+
+function DailyTeamConfirmWidget:OnOpen(arg)
+	self.IsOpen = true
+	self:RenderAllView(true, arg)
+end
+
+function DailyTeamConfirmWidget:RenderAllView(isInit, arg)
+	if isInit then
+		-- 打开进度条
+		self.m_Progress.fillAmount = 1;
+		self.m_MaxCountdown = SystemConstConfigs.TeamDailCopy_TeamConfirm;
+		self.m_Countdown = SystemConstConfigs.TeamDailCopy_TeamConfirm;
+		MonoHelper.AddUpdateListener(self.UpdateFun);
+		self.m_Progress.transform.parent.gameObject:SetActive(true);
+	end
+
+	self:RenderTitle(arg)
+	self:SetTeamInfo(arg)
+end
+
+function DailyTeamConfirmWidget:RenderTitle(arg)
+	local teamInfo = arg.TeamInfo
+	local playType = arg.PlayeType
+	-- 通缉玩法
+	if playType == E_TeamPlayType.PLAY_WTASK then
+		self.m_Title.text = LanguageHelp:GetLanguageByKey("StrTeamDungeonConfirmTip_2")
+	-- 组队日常本
+	else
+		if teamInfo ~= nil then
+			local config = ConfigDataAccessor.TeamDailyCopy[teamInfo.Entry.PlayID];
+            if config ~= nil then
+                self.m_Title.text = StringFormat(LanguageHelp:GetLanguageByKey("StrTeamDungeonConfirmTip"), {config.AreaName})
+            end
+		end
+	end
+end
+
+function DailyTeamConfirmWidget:SetTeamInfo(arg)
+	local TeamInfo = arg.TeamInfo
+	local List = arg.List
+	local isEnterAll = true;
+	self.PlayeType = arg.PlayeType
+
+	local list = self:SortMembers(TeamInfo)
+	for i = 1, #self.Infos do
+		if i <= #list then
+			local data = list[i].info
+			if data ~= nil then
+				local isEntity = false;
+				if List ~= nil and List:ContainsKey(data.Eid) then
+					isEntity = List[data.Eid]
+				end
+				isEnterAll = isEnterAll and isEntity;
+				self.Infos[i]:OnShow(data, isEntity)
+			end
+		else
+			self.Infos[i]:OnHide()
+		end
+	end
+
+	local activeEnter = false;
+	if self:IsCaptain(TeamInfo) then
+		activeEnter = true;
+	end
+	self.isEnterAll = isEnterAll;
+	self.m_EnterBtn.gameObject:SetActive(activeEnter);
+	self.m_EnterBtn.UnClick= not isEnterAll
+
+	local activeAgree = self:IsAgree(List);
+	self.m_AgreeBtn.gameObject:SetActive(not activeAgree);
+end
+
+-- 更新倒计时
+function DailyTeamConfirmWidget:UpdateTime()
+	if self.m_Countdown > 0 and self.IsOpen then
+		local fixedDeltaTime = Time.deltaTime;
+		self.m_Countdown = self.m_Countdown - fixedDeltaTime;
+		local ratio = self.m_Countdown / self.m_MaxCountdown;
+		self.m_Progress.fillAmount = ratio;
+		if self.m_Countdown <= 0 then
+			-- 退出申请，服务器自己判断了
+			self.Close();
+		end
+	end
+end
+
+function DailyTeamConfirmWidget:IsAgree(List)
+	if List ~= nil and List:ContainsKey(GameManager.Instance.mainPlayerId) then
+		return List[GameManager.Instance.mainPlayerId]
+	end
+	return false;
+end
+
+function DailyTeamConfirmWidget:IsCaptain(teamInfo)
+	local isCaptain = false;
+	if teamInfo ~= nil and teamInfo.TeamID ~= 0 and teamInfo.UserInfos.Count > 0 then
+		for i = 0, teamInfo.UserInfos.Count - 1 do
+			local info = teamInfo.UserInfos[i];
+			if info ~= nil then
+				if info.IsCaptain then
+					if info.Eid == GameManager.Instance.mainPlayerId then
+						isCaptain = true;
+						break;
+					end
+				end
+			end
+		end
+	end
+	return isCaptain
+end
+
+function DailyTeamConfirmWidget:OnClose(arg)
+	self.IsOpen = false
+	MonoHelper.RemoveUpdateListener(self.UpdateFun);
+end
+
+function DailyTeamConfirmWidget:OnClickClose()
+	LuaModuleDispatcher:SendMessage(ModuleDef.DailyTeamModule, "OnTDMemberJoinReq", false)
+	self.Close();
+end
+
+function DailyTeamConfirmWidget:OnClickEnter()
+	if self.isEnterAll then
+		if self.PlayeType == 1001 then
+			LuaModuleDispatcher:SendMessage(ModuleDef.WantedModule, "OnSendWTaskStartReq", nil)
+		else
+			LuaModuleDispatcher:SendMessage(ModuleDef.DailyTeamModule, "OnTDCaptainStartReq", false)
+		end
+		self.Close();
+	else
+		Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_151"))
+	end
+end
+
+function DailyTeamConfirmWidget:OnClickAgree()
+	LuaModuleDispatcher:SendMessage(ModuleDef.DailyTeamModule, "OnTDMemberJoinReq", true)
+end
+
+return DailyTeamConfirmWidget

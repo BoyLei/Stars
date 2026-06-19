@@ -1,0 +1,33 @@
+--[[
+*文件名   :   LanguageHelp
+*内  容   :	 多语言lua中间层
+*说  明   :
+*创建日期 :
+*创建人   :
+*版权所有 :   游卡网络科技技术有限公司
+]]
+LanguageHelp = class("LanguageHelp")
+
+function LanguageHelp:ctor()
+    self.LanguageDic = {};
+end
+
+function LanguageHelp:Clear()
+    self.LanguageDic = {};
+end
+
+function LanguageHelp:GetLanguageByKey(key)
+    if key == "" or key == nil or type(key) ~= "string" then
+        return "";
+    end
+    local str = self.LanguageDic[key];
+    if str == nil then
+        str = LanguageManager.Instance:GetLanguageByKey(key);
+        if str ~= "" then
+            self.LanguageDic[key] = str;
+        end
+    end
+    return str;
+end
+
+return LanguageHelp

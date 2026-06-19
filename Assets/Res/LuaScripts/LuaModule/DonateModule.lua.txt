@@ -1,0 +1,97 @@
+--[[
+*文件名   :   DonateModule
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/02/03 13:39:39"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] 
+DonateModule = class("DonateModule", BaseLuaModule)
+
+local DonateWindowPath = "Donate/DonateWindow"
+
+-- LuaModule 消息模块
+DonateModule.ModuleMessages = {
+
+    
+    ["OnOpenDonate"] = function(...)
+        DonateModule:OnOpenDonateMsg(...);
+    end,
+
+}
+
+function DonateModule:OnOpenDonateMsg(...)
+
+    local tb = ...
+    -- 列表
+
+    
+    if type(tb) == "table" then
+        -- Lua调用
+
+    else
+        -- C#调用
+
+    end
+
+    --判断开启条件
+    if not(CheckSysOpen(7,true)) then
+		return
+	end
+
+    --UIManager.Instance:OpenWindow(DonateWindowPath,nil,CS.StarProjectDef.MainPageCommond.HideBoth);
+
+    UIManager.Instance:OpenWindowAsync(DonateWindowPath, nil,nil,CS.StarProjectDef.MainPageCommond.HideBoth);
+
+end
+
+
+function DonateModule:OnCloseDonateMsg()
+
+    
+end
+
+
+-- 关闭回调
+function DonateModule:OnCloseDonateEvt(arg)
+
+    self.evtOnCloseDonate:Invoke()
+end
+
+-- 关闭
+function DonateModule:OnCloseDonate()
+
+
+    self:OnCloseDonateEvt();
+
+end
+
+-- LuaModule 创建
+function DonateModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.DonateModule, self)
+
+end
+
+
+
+-- LuaModule 消息处理
+function DonateModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...);
+end
+
+-- LuaModule显示
+function DonateModule:OnModuleShow(arg)
+    self:OnOpenDonateMsg(arg);
+end
+
+function DonateModule:OnModuleHide(arg)
+
+end
+
+-- LuaModule 释放
+function DonateModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.DonateModule)
+end
+
+return DonateModule
+

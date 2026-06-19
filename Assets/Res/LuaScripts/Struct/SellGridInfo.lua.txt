@@ -1,0 +1,36 @@
+---------------------------------------------------------------------
+-- Stars (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2022-11-01 17:40:06
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class SellGridInfo
+SellGridInfo = class("SellGridInfo")
+
+--索引
+local Index=0;
+
+--售卖
+local SellInfo=nil;
+
+--是否锁定
+local IsLock=true;
+
+function SellGridInfo:ctor(index,isLock,info)
+	self.Index=index;
+	self.IsLock=isLock;
+	self.SellInfo=info;
+end
+
+function SellGridInfo:IsEmpty()
+	return self.SellInfo==nil;
+end
+
+function SellGridInfo:IsLock()
+	return  self.IsLock;
+end
+
+return  SellGridInfo;

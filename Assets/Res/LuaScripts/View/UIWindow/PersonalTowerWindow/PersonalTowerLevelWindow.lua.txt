@@ -1,0 +1,75 @@
+---@class PersonalTowerLevelWindow
+PersonalTowerLevelWindow = class("PersonalTowerLevelWindow", UIPanel)
+function PersonalTowerLevelWindow:Awake()
+    self.transform = self.prefab.transform;
+    self.gameObject = self.transform.gameObject;
+
+    self.LevelName = self:Find("Cut4Cam90/AssemblyRatio2/Center/tips/LevelName"):GetComponent(typeof(Text));
+    self.OnSecTimeUpdate = function()
+        self:OnSecTimeUpdateHandler()
+    end
+    self.gameObject:SetActive(true);
+end
+
+function PersonalTowerLevelWindow:OnOpen(floor)
+    self.CurFloor = floor
+    --self.LevelName.text = string.format("第%d层",floor)
+    self.LevelName.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_limitFloor"), {floor});
+
+    MonoHelper.AddSecTimeUpdateListener(self.OnSecTimeUpdate);
+    self.curTime = 3
+end
+
+function PersonalTowerLevelWindow:OnSecTimeUpdateHandler()
+    self.curTime = self.curTime - 1;
+    if self.curTime <= 0 then
+        self.curTime = 0;
+    end
+
+    if self.curTime <= 0 then
+        MonoHelper.RemoveSecTimeUpdateListener(self.OnSecTimeUpdate);
+        local config = ConfigDataAccessor.TowerCopy[self.CurFloor]
+        if config then
+            if config.CopyType == 2 then--普通
+                local countDownTipsCS = UIManager.Instance:OpenWidget("PVP/Prefab/CountDownTips", false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, true)
+                if self.countDownTipsCS == nil then
+                    self.countDownTipsCS = countDownTipsCS:GetLuaPanel().ScriptTable
+                    self.countDownTipsCS:BindModule(self)
+                    self.countDownTipsCS:InitControls();
+                end
+                self.countDownTipsCS:ShowCountDown("boss", 3);
+            end
+        end
+        self.Close()
+    end
+end
+
+function PersonalTowerLevelWindow:OnShow()
+end
+
+function PersonalTowerLevelWindow:Start()
+
+end
+
+function PersonalTowerLevelWindow:OnEnable()
+
+end
+
+function PersonalTowerLevelWindow:OnDisable()
+
+end
+
+function PersonalTowerLevelWindow:OnDestroy()
+    MonoHelper.RemoveSecTimeUpdateListener(self.OnSecTimeUpdate);
+end
+
+function PersonalTowerLevelWindow:OnClose(arg)
+    self:CloseWindow();
+    MonoHelper.RemoveSecTimeUpdateListener(self.OnSecTimeUpdate);
+end
+
+function PersonalTowerLevelWindow:CloseWindow()
+    self.IsOpen = false;
+end
+
+return PersonalTowerLevelWindow

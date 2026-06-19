@@ -1,0 +1,265 @@
+--[[
+*文件名   :   EquipRecastSelectedBox
+*内  容   :	装备熔铸
+*说  明   :
+*创建日期 :   "2023/02/03 13:09:51"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local EquipRecastSelectedBox = {}
+EquipRecastSelectedBox.__index = EquipRecastSelectedBox
+
+
+local SortList=require("View/Item/SortList")
+local EquipRecastSelectedBoxItem=require("View/Uiwindow/EquipUpgrade/EquipRecastSelectedBoxItem")
+
+
+function EquipRecastSelectedBox:New(_go,equipRecastSort) 
+    local self = {};    
+    setmetatable(self, EquipRecastSelectedBox); 
+
+
+	self.transform =_go.transform;
+	self.gameObject=_go;
+
+    self.EquipRecastSort=equipRecastSort;
+
+
+	--稀有度单选
+	
+    --稀有度下拉框
+    self.AttrQuality={0,1,2,3,4,5};--稀有度下拉框
+
+	self.SortList=SortList:New(self.transform:Find("SortMenu/SortList").gameObject);
+	self.SortList:Init({LanguageHelp:GetLanguageByKey("Local_Str_Quality_0"),LanguageHelp:GetLanguageByKey("Local_Str_Quality_1"),LanguageHelp:GetLanguageByKey("Local_Str_Quality_2"),LanguageHelp:GetLanguageByKey("Local_Str_Quality_3_1"),LanguageHelp:GetLanguageByKey("Local_Str_Quality_4"),LanguageHelp:GetLanguageByKey("Local_Str_Quality_5")},function (idx)
+		self:OnSelectSortList(idx);
+	end)
+	self.SortListTex=self.transform:Find("SortMenu/BtnSort/tex"):GetComponent(typeof(Text));
+	self.SortListIdx=1;
+	self.SortListTex.text=self.SortList.SortNames[self.SortListIdx];
+	self.transform:Find("SortMenu/BtnSort"):GetComponent(typeof(JButton)).OnClick=(function()
+		self.SortList:Show(true,self.SortListIdx);
+	end);
+	self.SortList:Show(false);
+	self.SelectedAttrQuality=0;--选择的稀有度
+
+
+	--选择的属性列表
+	self.SelectedAttrQuality={}
+
+    --道具列表
+    self.EquipRecastItemList={};
+	--无限列表
+	self.go_EquipRecastItem = self.transform:Find("Scroll View/Mask/List/GuildEventLogItem").gameObject;
+
+	self.tr_ItemRoot=self.transform:Find("Scroll View/Mask/List/");
+	self.go_EquipRecastItem:SetActive(false);
+	self.go_EquipRecastItem.transform:SetParent(self.transform);
+	self.EquipedAmuletScorllView=self.transform:Find("Scroll View"):GetComponent(typeof(SuperScrollViewController));
+	self.EquipedAmuletScorllView:NewScroll(self.go_EquipRecastItem, 0, function (tr,idx)
+		self:OnEquipRecastItemRefesh(tr,idx);
+	end);
+
+
+
+
+	--点击关闭
+	local btnClose=self.transform:Find("BtnClose"):GetComponent(typeof(JButton));
+	btnClose.OnClick=(function()
+		self:Show(false);
+	end);
+
+
+	--点击重置
+	local btnReset=self.transform:Find("BtnClean"):GetComponent(typeof(JButton));
+	btnReset.OnClick=(function()
+		self:OnBtnResetClick();
+	end);
+	
+
+	--点击确认
+	local btnConfirm=self.transform:Find("BtnConfirm"):GetComponent(typeof(JButton));
+	btnConfirm.OnClick=(function()
+		self:OnBtnConfirmClick();
+	end);
+
+	self:Show(false);
+
+	return self;    --返回自身
+
+end
+
+
+--重置
+function EquipRecastSelectedBox:OnBtnResetClick()
+	
+	self.EquipRecastSort:CleanSelectedSubAttr(); 
+	self:RefeshItems();
+end
+
+--确认
+function EquipRecastSelectedBox:OnBtnConfirmClick()
+	self:Show(false);
+	self.EquipRecastSort:SetSelectedSubAttr(self.ItemDataList);
+end
+
+
+
+--下拉框筛选
+function EquipRecastSelectedBox:OnSelectSortList(idx)
+
+	self.SortListIdx=idx;
+	self.SortListTex.text=self.SortList.SortNames[idx];
+	self.SelectedAttrQuality=self.AttrQuality[self.SortListIdx];
+	
+end
+
+
+
+function EquipRecastSelectedBox:Show(b)
+
+	self.gameObject:SetActive(b);
+
+	if b then
+		self:Refesh();
+	end
+	
+end
+
+
+function EquipRecastSelectedBox:Refesh()
+	self:RefeshItems();
+end
+
+
+------------------------------
+------------------------------无限列表相关
+
+
+
+--刷新装备列表
+function EquipRecastSelectedBox:RefeshItems()
+	
+	self:ClearItemData();
+
+
+	local cfgs=ConfigDataAccessor.EquipSub;
+
+	for k,v in pairs(cfgs) do
+		local data={};
+
+		data.CfgID=v.Id;
+		data.IsSelected=false;
+		for i=1,#self.EquipRecastSort.selectedSubAttr do
+			if self.EquipRecastSort.selectedSubAttr[i]==v.Id then
+				data.IsSelected=true;
+				break;
+			end
+		end
+
+		table.insert( self.ItemDataList,data );
+	end
+
+
+	self:SortItem(self.ItemDataList);
+
+	self.EquipedAmuletScorllView:ContinueScroll(#self.ItemDataList);
+
+
+end
+
+
+function EquipRecastSelectedBox:CleanAllSelected()
+	--无限列表
+	for i=1,#self.EquipRecastItemList do
+		self.EquipRecastItemList[i]:MakeSelected(false);
+	end
+end
+
+function EquipRecastSelectedBox:OnEquipRecastItemRefesh(tr,idx)
+
+
+	for i=1,#self.EquipRecastItemList do
+		if self.EquipRecastItemList[i].transform == tr then
+            self.EquipRecastItemList[i]:SetItem(self.ItemDataList[idx+1]);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+		end
+
+	end
+
+	--tr.gameObject:SetActive(true);
+    local bi = EquipRecastSelectedBoxItem:New(tr.gameObject);
+	bi:InitItem(function (ritem)
+		self:OnItemClick(ritem);
+	end)
+	bi.gameObject:SetActive(true);
+	bi:SetItem(self.ItemDataList[idx+1]);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+
+    table.insert(self.EquipRecastItemList, bi);
+
+end
+
+function EquipRecastSelectedBox:OnItemClick(bitem)
+
+	--切换选择
+	bitem.IsSelected = not(bitem.IsSelected);
+	bitem:MakeSelected(bitem.IsSelected);
+
+end
+
+function EquipRecastSelectedBox:ClearItemData()
+
+	if self.ItemDataList==nil then
+		self.ItemDataList ={}
+	else
+		for k,_ in pairs(self.ItemDataList) do self.ItemDataList[k] = nil end
+		--self.ItemDataList ={}
+	end
+end
+
+
+function EquipRecastSelectedBox:SortItem(tbl)
+
+	do return; end
+
+	if #tbl > 1 then
+
+		--[[
+		table.sort(tbl, function(a, b)
+			if a.Heroid < b.Heroid then
+				-- 按是否装备降序
+				return true
+			elseif a.Heroid == b.Heroid then
+				-- 如果是否装备相等，按Type升序
+				if a.Type < b.Type then
+					return true
+				elseif a.Type == b.Type then
+					-- 如果Type相等，按稀有度降序
+					return a.Quality > b.Quality
+				end
+			end
+			return false
+		end)
+
+		]]
+		table.sort(tbl, function(a, b)
+			if a.Data.Heroid > b.Data.Heroid then
+				-- 按是否装备降序
+				return true
+			elseif a.Data.Heroid == b.Data.Heroid then
+				-- 如果是否装备相等，按Quality升序
+				return a.Quality > b.Quality
+			end
+			return false
+		end)
+
+	end
+
+end
+
+------------------------------无限列表相关
+------------------------------
+
+
+
+return  EquipRecastSelectedBox

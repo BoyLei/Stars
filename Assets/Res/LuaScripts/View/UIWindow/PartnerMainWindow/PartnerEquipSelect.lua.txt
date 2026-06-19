@@ -1,0 +1,131 @@
+--[[
+*文件名   :   PartnerEquipSelect
+*内  容   :
+*说  明   :
+*创建日期 :   "2024/06/09 15:57:34"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local EquipSelectItem=require("View/UIWindow/PartnerMainWindow/EquipSelectItem")
+PartnerEquipSelect=class("PartnerEquipSelect",UIPanel)
+PartnerEquipSelect.m_CloseBtn=nil;
+PartnerEquipSelect.m_ScrollView=nil;
+PartnerEquipSelect.m_ItemGrid=nil;
+PartnerEquipSelect.m_SureBtn=nil;
+PartnerEquipSelect.OnSelectCallBack=nil;
+PartnerEquipSelect.OnCloseCallBack=nil;
+PartnerEquipSelect.ListDatas=nil;
+PartnerEquipSelect.ListItems=nil;
+PartnerEquipSelect.soltID=0;
+PartnerEquipSelect.ItemID=0;
+local CloseBtnFunc=nil;
+local SureBtnFunc=nil;
+
+function PartnerEquipSelect:ctor(go,cb)
+	self.prefab=go
+	self.OnSelectCallBack=cb
+	self.ListDatas={};
+	self.ListItems={};
+	self.m_CloseBtn=self:Find("CloseBtn"):GetComponent(typeof(JButton));
+	self.m_ScrollView=self:Find("Scroll View"):GetComponent(typeof(SuperScrollViewController));
+	self.m_ItemGrid=self:Find("ItemGrid").gameObject;
+
+	self.m_ScrollView:NewScroll(self.m_ItemGrid, 0, function(tr, idx)
+			self:OnItemRefesh(tr, idx);
+		end);
+
+	self.m_SureBtn=self:Find("Image/SureBtn"):GetComponent(typeof(JButton));
+	CloseBtnFunc=function() self:OnClickCloseBtn(); end;
+	SureBtnFunc=function() self:OnClickSureBtn(); end;
+	self.prefab:SetActive(false)
+	self:Start()
+end
+
+function PartnerEquipSelect:CleanAllSelected()
+	--无限列表
+	for i=1,#self.ListItems do
+		self.ListItems[i]:SetSelect(false);
+	end
+end
+
+function PartnerEquipSelect:OnSelect(index)
+	self:CleanAllSelected();
+	self.SelectIndex=index
+end
+
+function PartnerEquipSelect:OnItemRefesh(tr, idx)
+	if self.ListItems==nil then
+		return;
+	end
+	for i=1,#self.ListItems do
+		if self.ListItems[i].transform == tr then
+			self.ListItems[i]:UpdateContent(self.ListDatas[idx+1],self.SelectIndex);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+			return
+		end
+	end
+
+	local bi = EquipSelectItem.new(tr.gameObject,function(index)
+			self:OnSelect(index)
+		end);
+
+	bi.prefab:SetActive(true);
+	bi:OnUpdateContent(self.ListDatas[idx+1],self.SelectIndex);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+
+	table.insert(self.ListItems, bi);
+end
+
+
+
+function PartnerEquipSelect:Start()
+	self.m_CloseBtn.OnClick= CloseBtnFunc;
+	self.m_SureBtn.OnClick= SureBtnFunc;
+end
+
+function PartnerEquipSelect:OnEnable()
+
+end
+
+function PartnerEquipSelect:OnDisable()
+
+end
+
+function PartnerEquipSelect:OnDestroy()
+
+end
+
+function PartnerEquipSelect:OnOpen(data,items,select,cb)
+	self.soltID=data.SlotIndex;
+	self.ItemID=data.ItemID;
+	self.OnCloseCallBack=cb
+
+	self.ListDatas=items
+	self.SelectIndex=select;
+	self.m_ScrollView:ContinueScroll(#self.ListDatas);
+	self.prefab:SetActive(true)
+end
+
+function PartnerEquipSelect:OnClose(arg)
+
+end
+
+function PartnerEquipSelect:OnClickCloseBtn()
+	if self.OnCloseCallBack~=nil then
+		self.OnCloseCallBack();
+	end
+	self.prefab:SetActive(false)
+
+end
+
+function PartnerEquipSelect:OnClickSureBtn()
+	if self.SelectIndex~=0 then
+		if self.OnSelectCallBack~=nil then
+			self.OnSelectCallBack(self.soltID,self.ItemID,self.SelectIndex)
+		end
+	end
+	self:OnClickCloseBtn()
+end
+
+
+
+return  PartnerEquipSelect

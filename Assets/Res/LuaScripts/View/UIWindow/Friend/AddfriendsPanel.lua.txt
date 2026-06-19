@@ -1,0 +1,560 @@
+---------------------------------------------------------------------
+-- Stars (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-08-03 17:52:04
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class AddfriendsPanel
+local AddfriendsPanel = {}
+AddfriendsPanel.__index = AddfriendsPanel
+
+local ItemRecommendFriend = require("View/UIWindow/Friend/ItemRecommendFriend");
+
+AddfriendsPanel.m_SearchFriendItems = {};
+AddfriendsPanel.m_SearchFriendInfos = {};
+
+AddfriendsPanel.m_lastStr = "";
+
+function AddfriendsPanel:New(obj, idx)
+	local self = {};
+	setmetatable(self, AddfriendsPanel);
+
+	self.m_SearchFriendItems = {};
+	self.m_SearchFriendInfos = {};
+
+	self.Idx = idx;
+	self:InitControls(obj)
+
+	return self;
+end
+
+function AddfriendsPanel:InitControls(obj)
+	self.gameObject = obj;
+	self.transform = obj.transform;
+
+	self.ContentCanvasGroup = self.gameObject:GetComponent(typeof(CanvasGroup));
+	self.Input = self.transform:Find("Top/InputField"):GetComponent(typeof(InputField));
+	self.Input.onValueChanged:AddListener(function()
+		self:OnInputFieldValChanged();
+	end);
+	-- JBtn 搜索
+	local JBtnLook = self.transform:Find("Top/InputField/JBtnLook/click"):GetComponent(typeof(JButton));
+	self.JBtnLookFun = function()
+		self:OnClickJBtnLook();
+	end
+	JBtnLook.OnClick = self.JBtnLookFun;
+	-- JBtn 删除
+	self.JBtnRelease = self.transform:Find("Top/InputField/JBtnRelease/click"):GetComponent(typeof(JButton));
+	self.JBtnReleaseFun = function()
+		self:OnClickJBtnRelease();
+	end
+	self.JBtnRelease.OnClick = self.JBtnReleaseFun;
+	-- JBtn 申请列表
+	self.JBtnApplyList = self.transform:Find("Down/JBtnApplyList"):GetComponent(typeof(JButton));
+	self.JBtnApplyListFun = function()
+		self:OnClickJBtnApplyList();
+	end
+	self.JBtnApplyList.OnClick = self.JBtnApplyListFun;
+	-- JBtn 换一批
+	self.JBtnRefresh = self.transform:Find("Down/JBtnRefresh"):GetComponent(typeof(JButton));
+	self.JBtnRefreshFun = function()
+		self:OnClickJBtnRefresh();
+	end
+	self.JBtnRefresh.OnClick = self.JBtnRefreshFun;
+	-- JBtn 一键申请
+	self.JBtnAllApply = self.transform:Find("Down/JBtnAllApply"):GetComponent(typeof(JButton));
+	self.JBtnAllApplyFun = function()
+		self:OnClickJBtnAllApply();
+	end
+	self.JBtnAllApply.OnClick = self.JBtnAllApplyFun;
+	-- 添加好友item
+	self.ItemRecommendFriendGod = self.transform:Find("ItemRecommendFriend").gameObject;
+	-- 查找节点
+	self.LookContent = self.transform:Find("LookContent");
+	-- 推荐的好友列表
+	self.RecentlyItemList = {};
+	self.RecentlyScrollView = self.transform:Find("FriendScrollView"):GetComponent(typeof(SuperScrollViewController));
+	self.RecentlyScrollView:NewScroll(self.ItemRecommendFriendGod, 0, function(tr, idx)
+		self:OnItemRefesh(tr, idx);
+	end);
+
+	--获取推荐好友的回调
+	self.OnRecommendUserRespFun = function(data)
+		self:OnRecommendUserResp(data);
+	end
+	-- 查找好友的回调
+	self.OnSearchUserRespFun = function(data)
+		self:OnSearchUserResp(data);
+	end
+	-- 申请加友好回调
+	self.OnApplyToAddFriendRespFun = function(data)
+		self:OnApplyToAddFriendResp(data);
+	end
+
+	-- 发起聊天
+	self.OnInitiateChatFun = function(PID)
+		self:OnInitiateChat(PID);
+	end
+	-- 添加好友
+	self.OnAddFriendFun = function(PID)
+		self:OnAddFriend(PID);
+	end
+	-- 删除好友
+	self.OnDelFriendFun = function(PID)
+		self:OnDelFriend(PID);
+	end
+	-- 拉入黑名单
+	self.OnJoinBlackFriendFun = function(PID)
+		self:OnJoinBlackFriend(PID);
+	end
+	-- 移出黑名单
+	self.OnRemoveBlackRespFun = function(PID)
+		self:OnRemoveBlackResp(PID);
+	end
+	-- 邀请组队
+	self.OnInviteTeamFun = function(PID)
+		self:OnInviteTeam(PID);
+	end
+end
+
+function AddfriendsPanel:BindParent(parent)
+	self.Parent = parent;
+end
+
+function AddfriendsPanel:MakeSelected(b)
+	local alpha = 0;
+	if b == true then
+		alpha = 1;
+	end
+
+	if b == true then
+		self:Reast();
+		self.transform:SetAsFirstSibling();
+		if self.RecommendUserList == nil or self.RecommendUserList == {} or #self.RecommendUserList <= 0 then
+			self:GetRecommendUserReq();
+		else
+			self.RecentlyScrollView:ContinueScroll(#self.RecommendUserList, false);
+		end
+	end
+
+	self.ContentCanvasGroup.alpha = alpha;
+	self.ContentCanvasGroup.blocksRaycasts = b;
+end
+
+function AddfriendsPanel:Reast()
+	self.Input.text = "";
+	self.m_lastStr = "";
+	self.RecentlyScrollView.gameObject:SetActive(true);
+	self.LookContent.gameObject:SetActive(false);
+	self.JBtnApplyList.gameObject:SetActive(true);
+	self.JBtnRefresh.gameObject:SetActive(true);
+	self.JBtnAllApply.gameObject:SetActive(true);
+	self.m_SearchFriendInfos = {}; -- 清空搜索的结果列表
+	self.JBtnRelease.transform.parent.gameObject:SetActive(false);
+
+	LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "ClearApplyList");
+end
+
+-- 获取本服推荐的好友
+function AddfriendsPanel:GetRecommendUserReq()
+	local message = CS.ProtoMsg.RecommendUserReq();
+	message.FromUserPID = BusinessManager.Instance:GetUserPID();
+	local key = "AddfriendsPanel";
+	LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnSendClient2ThirdReq",
+		{ "RecommendUserReq", ExtraData.ToByteString(message), key, "RecommendUserResp", self.OnRecommendUserRespFun });
+end
+
+-- 获取本服推荐的好友的回调
+function AddfriendsPanel:OnRecommendUserResp(data)
+	if data == nil then
+		return;
+	end
+
+	self.RecommendUserList = {};
+	for i = 0, data.UserInfo.Count - 1 do
+		local item = data.UserInfo[i];
+		if item ~= nil then
+			table.insert(self.RecommendUserList, item);
+		end
+	end
+
+	self.RecentlyScrollView:ContinueScroll(#self.RecommendUserList);
+end
+
+-- 输入框监听
+function AddfriendsPanel:OnInputFieldValChanged()
+	local str = self.Input.text;
+	local isShow = false;
+	if str ~= "" then
+		isShow = true;
+	end
+	self.JBtnRelease.transform.parent.gameObject:SetActive(isShow);
+	self.JBtnApplyList.gameObject:SetActive(not isShow);
+	self.JBtnRefresh.gameObject:SetActive(not isShow);
+	self.JBtnAllApply.gameObject:SetActive(not isShow);
+end
+
+-- 获取item
+function AddfriendsPanel:GetItemRecommendFriendByPID(PID)
+	if self.Input.text ~= "" and self.m_SearchFriendInfos ~= nil and self.m_SearchFriendInfos ~= {} and #self.m_SearchFriendInfos <= 0 then
+		-- 查找搜索列表
+		for i = 1, #self.m_SearchFriendItems do
+			local item = self.m_SearchFriendItems[i];
+			if item ~= nil and item.UserInfo ~= nil and item.UserInfo.PID == PID then
+				return item;
+			end
+		end
+	elseif self.RecentlyItemList ~= nil or self.RecentlyItemList ~= {} or #self.RecentlyItemList > 0 then
+		for i = 1, #self.RecentlyItemList do
+			local item = self.RecentlyItemList[i];
+			if item ~= nil and item.UserInfo ~= nil and item.UserInfo.PID == PID then
+				return item;
+			end
+		end
+	end
+
+	return nil;
+end
+
+----------------------------------------------------- 无限列表 【STAR】 ------------------------------------------
+
+function AddfriendsPanel:OnItemRefesh(tr, idx)
+	if self.RecentlyItemList == nil then
+		return;
+	end
+
+	local userInfo = self.RecommendUserList[idx + 1];
+	local status = self.Parent:GetFriendRelation(userInfo.PID); -------- 0没有任何关系 1只有好友关系 2在我的黑名单中
+	if status == 0 then
+		local isHas = self.Parent:GetIsHasCacheApplyFinishPIDListByPID(userInfo.PID);
+		if isHas then
+			status = 3;
+		end
+	end
+
+	for i = 1, #self.RecentlyItemList do
+		if self.RecentlyItemList[i].prefab.transform == tr then
+			self.RecentlyItemList[i]:OnUpdateContent(userInfo);
+			self.RecentlyItemList[i]:SetStatus(status);
+			return;
+		end
+	end
+	local sp = ItemRecommendFriend.new(tr.gameObject, nil, function(data)
+		LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "AddFriendApplyListByPID", { data });
+	end, function(UserInfo, tr)
+		self:OnHeadSelect(UserInfo, tr);
+	end);
+	sp:OnUpdateContent(userInfo);
+	sp:SetStatus(status);
+	table.insert(self.RecentlyItemList, sp);
+end
+
+-- function AddfriendsPanel:SetAllItemSelectState()
+-- 	for i=1,#self.RecentlyItemList do
+-- 		local isSelect = false;
+-- 		if self.RecentlyItemList[i].Index == self.SelectIndex then
+-- 			isSelect = true;
+-- 		end
+-- 		self.RecentlyItemList[i]:OnSelect(isSelect);
+-- 	end
+-- end
+
+function AddfriendsPanel:OnHeadSelect(UserInfo, transform)
+	if UserInfo == nil then
+		return;
+	end
+	-------- 0没有任何关系 1只有好友关系 2在我的黑名单中
+	local friendRelation = self.Parent:GetFriendRelation(UserInfo.PID);
+
+	local playerInfo = {
+		PID = UserInfo.PID,
+		JobID = UserInfo.JobID,
+		Level = UserInfo.Level,
+		UserName = UserInfo.UserName,
+		GuildName = UserInfo.GuildName
+	};
+	local btnStrs = {};
+	local btnCBs = {};
+	if friendRelation == 0 then
+		-- 0没有任何关系
+		btnStrs = { LanguageHelp:GetLanguageByKey("Local_Str_Initiate_a_chat"), LanguageHelp:GetLanguageByKey("Local_Str_add_friends"), LanguageHelp:GetLanguageByKey("Local_Str_Be_blacklisted") };
+		btnCBs = { self.OnInitiateChatFun, self.OnAddFriendFun, self.OnJoinBlackFriendFun };
+		-- btnStrs = { LanguageHelp:GetLanguageByKey("Local_Str_Initiate_a_chat"), LanguageHelp:GetLanguageByKey("Local_Str_add_friends"), LanguageHelp:GetLanguageByKey("Local_Str_Invite_team"), LanguageHelp:GetLanguageByKey("Local_Str_Be_blacklisted") };
+		-- btnCBs = { self.OnInitiateChatFun, self.OnAddFriendFun, self.OnInviteTeamFun, self.OnJoinBlackFriendFun };
+	elseif friendRelation == 1 then
+		-- 1只有好友关系
+		btnStrs = { LanguageHelp:GetLanguageByKey("Local_Str_Initiate_a_chat"), LanguageHelp:GetLanguageByKey("Local_Str_del_friends"), LanguageHelp:GetLanguageByKey("Local_Str_Be_blacklisted") };
+		btnCBs = { self.OnInitiateChatFun, self.OnDelFriendFun, self.OnJoinBlackFriendFun };
+		-- btnStrs = { LanguageHelp:GetLanguageByKey("Local_Str_Initiate_a_chat"), LanguageHelp:GetLanguageByKey("Local_Str_del_friends"), LanguageHelp:GetLanguageByKey("Local_Str_Invite_team"), LanguageHelp:GetLanguageByKey("Local_Str_Be_blacklisted") };
+		-- btnCBs = { self.OnInitiateChatFun, self.OnDelFriendFun, self.OnInviteTeamFun, self.OnJoinBlackFriendFun };
+	elseif friendRelation == 2 then
+		-- 2在我的黑名单中
+		btnStrs = { LanguageHelp:GetLanguageByKey("Local_Str_Be_blacklist") };
+		btnCBs = { self.OnRemoveBlackRespFun };
+	end
+
+	if #btnStrs <= 0 or #btnCBs <= 0 then
+		return;
+	end
+
+	LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnOpenFriendTipsWidget",
+		{ playerInfo, btnStrs, btnCBs, transform });
+end
+
+----------------------------------------------------- 无限列表 【END】 ------------------------------------------
+
+----------------------------------------------------- 玩家头像点击事件 【STAR】 ------------------------------------------
+
+
+-- 发起聊天
+function AddfriendsPanel:OnInitiateChat(pid)
+	self.Parent:InitiateChat(pid);
+end
+
+-- 添加好友
+function AddfriendsPanel:OnAddFriend(pid)
+	local item = self:GetItemRecommendFriendByPID(pid);
+	if item == nil then
+		return;
+	end
+	item:OnClickJBtnApply();
+end
+
+-- 删除好友
+function AddfriendsPanel:OnDelFriend(pid)
+	local item = self:GetItemRecommendFriendByPID(pid);
+	if item == nil then
+		return;
+	end
+	item:OnDeleteFriend();
+end
+
+-- 拉入黑名单
+function AddfriendsPanel:OnJoinBlackFriend(pid)
+	local item = self:GetItemRecommendFriendByPID(pid);
+	if item == nil then
+		return;
+	end
+	item:OnAddBlackFriend();
+end
+
+-- 移出黑名单
+function AddfriendsPanel:OnRemoveBlackResp(pid)
+	local item = self:GetItemRecommendFriendByPID(pid);
+	if item == nil then
+		return;
+	end
+	item:OnRemoveBlack();
+end
+
+-- 邀请组队
+function AddfriendsPanel:OnInviteTeam(pid)
+	-- 等毛哥来了再写
+end
+
+----------------------------------------------------- 玩家头像点击事件 【END】 ------------------------------------------
+
+
+----------------------------------------------------- 按钮点击事件 【STAR】 ------------------------------------------
+
+-- JBTN 点击删除
+function AddfriendsPanel:OnClickJBtnRelease()
+	local str = self.Input.text;
+	if str == "" then
+		return;
+	end
+	self.Input.text = "";
+	self.m_lastStr = "";
+	self.RecentlyScrollView.gameObject:SetActive(true);
+	self.LookContent.gameObject:SetActive(false);
+
+	self.m_SearchFriendInfos = {}; -- 清空搜索的结果列表
+
+	self.JBtnRelease.transform.parent.gameObject:SetActive(false);
+	self.JBtnApplyList.gameObject:SetActive(true);
+	self.JBtnRefresh.gameObject:SetActive(true);
+	self.JBtnAllApply.gameObject:SetActive(true);
+end
+
+-- 点击搜索
+function AddfriendsPanel:OnClickJBtnLook()
+	local str = self.Input.text;
+	if str == "" then
+		CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(LanguageHelp:GetLanguageByKey("Local_Str_search_criteria"));
+		return;
+	end
+
+	if self.m_lastStr ~= "" and self.m_lastStr == str then
+		return;
+	end
+	self.m_lastStr = str;
+	local pid = tonumber(str);
+	local message = CS.ProtoMsg.SearchUserReq();
+	message.FromUserPID = BusinessManager.Instance:GetUserPID();
+	if pid ~= nil then
+		message.SearchPID = pid;
+	else
+		message.SearchPID = 0;
+	end
+	message.SearchUserName = str;
+	local key = "AddfriendsPanel";
+	LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnSendClient2ThirdReq",
+		{ "SearchUserReq", ExtraData.ToByteString(message), key, "SearchUserResp", self.OnSearchUserRespFun });
+end
+
+-- 搜索本服玩家回调
+function AddfriendsPanel:OnSearchUserResp(data)
+	if data == nil then
+		return;
+	end
+
+	local Count = data.UserInfo.Count;
+	if Count <= 0 then
+		CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(LanguageHelp:GetLanguageByKey("Local_Str_To_Forgive"));
+		return;
+	end
+
+	self:AddSearchFriendInfos(data.UserInfo);
+	self:AddSearchFriendItems();
+
+	self.RecentlyScrollView.gameObject:SetActive(false);
+	self.LookContent.gameObject:SetActive(true);
+	self.JBtnApplyList.gameObject:SetActive(false);
+	self.JBtnRefresh.gameObject:SetActive(false);
+	self.JBtnAllApply.gameObject:SetActive(false);
+
+	self.JBtnRelease.transform.parent.gameObject:SetActive(true);
+end
+
+function AddfriendsPanel:AddSearchFriendInfos(UserInfos)
+	self.m_SearchFriendInfos = {};
+	for i = 0, UserInfos.Count - 1 do
+		local info = UserInfos[i];
+		if info ~= nil then
+			table.insert(self.m_SearchFriendInfos, info);
+		end
+	end
+end
+
+function AddfriendsPanel:AddSearchFriendItems()
+	local count = #self.m_SearchFriendInfos;
+	local listCount = #self.m_SearchFriendItems;
+	local maxLength = math.max(count, listCount);
+	for i = 1, maxLength do
+		local data = nil;
+		local status = 0;
+		if count >= i then
+			data = self.m_SearchFriendInfos[i];
+			status = self.Parent:GetFriendRelation(data.PID); -------- 0没有任何关系 1只有好友关系 2在我的黑名单中
+			if status == 0 then
+				local isHas = self.Parent:GetIsHasCacheApplyFinishPIDListByPID(data.PID);
+				if isHas then
+					status = 3;
+				end
+			end
+		end
+		if listCount >= i then
+			local item = self.m_SearchFriendItems[i];
+			-- 设置内容
+			item:OnUpdateContent(data);
+			item:SetStatus(status);
+		else
+			-- 创建
+			local gob = GameObject.Instantiate(self.ItemRecommendFriendGod);
+			gob.transform:SetParent(self.LookContent);
+			gob.transform.localPosition = Vector3.zero;
+			gob.transform.localScale = Vector3.one;
+			local item = ItemRecommendFriend.new(gob.gameObject, self.LookContent.gameObject, function(data)
+				LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "AddFriendApplyListByPID", { data });
+			end);
+			table.insert(self.m_SearchFriendItems, item);
+			item:OnUpdateContent(data);
+			item:SetStatus(status);
+		end
+	end
+end
+
+-- 点击 换一批
+function AddfriendsPanel:OnClickJBtnRefresh()
+	self:GetRecommendUserReq();
+end
+
+-- 点击 一键申请
+function AddfriendsPanel:OnClickJBtnAllApply()
+	if self.RecommendUserList == nil or self.RecommendUserList == {} or #self.RecommendUserList <= 0 then
+		return;
+	end
+	local myPid = BusinessManager.Instance:GetUserPID();
+
+	local pids = {};
+	for i = 1, #self.RecommendUserList do
+		local item = self.RecommendUserList[i];
+		if item ~= nil and myPid ~= item.PID then
+			table.insert(pids, item.PID);
+		end
+	end
+	local key = "AddfriendsPanel";
+	LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnSendApplyToAddFriendReq",
+		{ pids, key, self.OnApplyToAddFriendRespFun });
+end
+
+-- 点击同意的回调 【code=0是成功】 【message是错误日志，如果错误了就播放】
+function AddfriendsPanel:OnApplyToAddFriendResp(data)
+	if data == nil then
+		return;
+	end
+
+	-- 过滤失败的PID,保留成功的PID
+	local isSendSuccess = false;
+	for j = 1, #self.RecommendUserList do
+		local item = self.RecommendUserList[j];
+		if item ~= nil then
+			local isSuccess = true;
+			for i = 0, data.FailToUserPID.Count - 1 do
+				local pid = data.FailToUserPID[i];
+				if pid == item.PID then
+					isSuccess = false;
+				end
+			end
+			if isSuccess then
+				LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "AddFriendApplyListByPID", { item.PID });
+				isSendSuccess = true;
+			end
+		end
+	end
+	if data.Result.Code == 0 then
+		--if isSendSuccess then
+			CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(LanguageHelp:GetLanguageByKey("Local_Str_friend_request_repeat"));
+		--end
+	elseif data.Result.Code == E_FriendReqErrCodeType.BlockedByPeer then
+		CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(LanguageHelp:GetLanguageByKey("Local_Str_friend_request_fail_6"));
+	elseif data.Result.Code == E_FriendReqErrCodeType.BlockedUser then
+		CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(LanguageHelp:GetLanguageByKey("Local_Str_friend_request_fail_5"));
+	elseif data.Result.Code == E_FriendReqErrCodeType.FromFriendCountExceeded then
+		CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(LanguageHelp:GetLanguageByKey("Local_Str_friend_request_fail_1"));
+	elseif data.Result.Code == E_FriendReqErrCodeType.ToFriendCountExceeded then
+		CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(LanguageHelp:GetLanguageByKey("Local_Str_friend_request_fail_2"));
+	elseif data.Result.Code == E_FriendReqErrCodeType.FromFriendReqCountExceeded then
+		CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(LanguageHelp:GetLanguageByKey("Local_Str_friend_request_fail_3"));
+	elseif data.Result.Code == E_FriendReqErrCodeType.ToFriendReqCountExceeded then
+		CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(LanguageHelp:GetLanguageByKey("Local_Str_friend_request_fail_4"));
+	end
+	-- if isSendSuccess then
+	-- 	CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(LanguageHelp:GetLanguageByKey("Local_Str_friend_request_repeat"));
+	-- end
+	self.RecentlyScrollView:ContinueScroll(#self.RecommendUserList);
+end
+
+-- 点击申请列表
+function AddfriendsPanel:OnClickJBtnApplyList()
+	LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnOpenFriendApplyListWidget");
+end
+
+----------------------------------------------------- 按钮点击事件 【END】 ------------------------------------------
+
+
+
+return AddfriendsPanel;

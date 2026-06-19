@@ -1,0 +1,752 @@
+--[[
+*文件名   :   WantedModule
+*内  容   :
+*说  明   :	  通缉任务玩法
+*创建日期 :   ""
+*创建人   :   ""
+*版权所有 :   游卡网络科技技术有限公司
+]] WantedModule = class("WantedModule", BaseLuaModule)
+
+local WantedWindowPath = "Wanted/Prefab/WantedWindow" -- 通缉窗口界面
+--local WantedTipsWidgetPath = "Wanted/Prefab/WantedTipsWidget" -- 通缉挂件界面
+local WantedChallengeSuccessWindowPath = "Wanted/Prefab/WantedChallengeSuccessWindow" -- 通缉成功弹框界面
+local WantedRankWidgetPath = "Wanted/Prefab/WantedRankWidget" -- 通缉玩法排行挂件
+local WantedFailWindowPath = "Wanted/Prefab/WantedFailWindow" -- 通缉玩法失败/复活界面
+
+local WantedRankWidgetRoot = nil -- 通缉玩法排行挂件父节点
+
+-------- 所有分线的所有大地图的各个阶级的NPC状态信息
+------- {{分线id,{a}},{分线id,{a}}}
+------ {a}->{{大地图id,{b}},{大地图id,{b}}}
+----- {b}->{{阶位类型,{c}},{阶位类型,{c}}}
+---- {c}->{{点位ID,详细信息},{点位ID,详细信息}}[点位ID,当前点位状态，当前进入副本队伍数量]
+WantedModule.AllTarInfo = {}
+------ 缓存点阶位开始刷新时间
+---- {{阶位类型,开始时间},{阶位类型,开始时间},{阶位类型,开始时间}}
+WantedModule.TarInfoStartShowTime = {}
+WantedModule.SendWantedPointID = -1 -- 发起的通缉点位ID
+WantedModule.SendWantedPointType = -1 -- 发起的通缉点位类型
+WantedModule.IsTaskAccepAutoWindow = false -- 接取通缉任务是否自动打开界面
+
+-- LuaModule 消息模块
+WantedModule.ModuleMessages = {
+    ["OnDisable"] = function(...)
+        WantedModule:OnDisable(...);
+    end,
+    ["OnCustomEnterEctype"] = function(...)
+        WantedModule:OnCustomEnterEctype(...)
+    end,
+    ["OnCustomLevelEctype"] = function(...)
+        WantedModule:OnCustomLevelEctype(...)
+    end,
+    -- 打开通缉提示界面
+    ["OnOpenWantedTipsWidget"] = function(...)
+        WantedModule:OnOpenWantedTipsWidget(...)
+    end,
+    -- 打开通缉界面
+    ["OnOpenWantedWindow"] = function(...)
+        WantedModule:OnOpenWantedWindow(...)
+    end,
+    -- 通知界面
+    ["InformWantedWindow"] = function(...)
+        WantedModule:InformWantedWindow(...)
+    end,
+    -- 客户端全量请求通缉信息
+    ["OnSendWTaskGetAllInfoReq"] = function(...)
+        WantedModule:OnSendWTaskGetAllInfoReq(...)
+    end,
+    -- 客户端 队长发起通缉 (已经全员同意了)
+    ["OnSendWTaskStartReq"] = function(...)
+        WantedModule:OnSendWTaskStartReq(...)
+    end,
+    ---- 发送【退出副本】
+    ["SendLeaveInstanceReq"] = function(...)
+        WantedModule:SendLeaveInstanceReq(...)
+    end,
+    ---- 打开复活界面
+    ["OpenReviveWidget"] = function(...)
+        WantedModule:OpenReviveWidget(...)
+    end,
+    ---- 发送复活
+    ["SendReviveReq"] = function(...)
+        WantedModule:SendReviveReq(...)
+    end,
+    ---- 复活返回
+    ["OnRoleReviveRet"] = function(...)
+        WantedModule:OnRoleReviveRet(...)
+    end,
+    ---- 共享通缉任务
+    ["OnShareWantedTask"] = function(...)
+        WantedModule:OnShareWantedTask(...)
+    end,
+    ---- 共享通缉任务
+    ["OnSendWTaskAcceptReqOpen"] = function(...)
+        WantedModule:OnSendWTaskAcceptReqOpen(...)
+    end
+}
+
+-- LuaModule 创建
+function WantedModule:OnModuleCreate(arg)
+    --------------------------------  【注册模块的事件】 -------------------------------------
+    LuaModuleDispatcher:Register(ModuleDef.WantedModule, self)
+
+    ------------------------------- 【初始化模块的本地变量】----------------------
+    self.AllTarInfo = {}
+    self.TarInfoStartShowTime = {}
+
+    --------------------------------  【 全局事件 】 -------------------------------------
+    self.OnChallengeWantedEntityFun = function(ServerID, MapID, PointID, PointType)
+        self:OnChallengeWantedEntity(ServerID, MapID, PointID, PointType)
+    end
+    CS.StarProject.GlobalEvent.onChallengeWantedEntity:AddListener(self.OnChallengeWantedEntityFun)
+    --------------------------------  【监听协议】 -------------------------------------
+    -- S-->C 返回客户端 接通缉任务
+    self.OnWTaskAcceptRetCmd = function(data)
+        self:OnWTaskAccept(data)
+    end
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.WTaskAcceptRetID, self.OnWTaskAcceptRetCmd, self)
+    -- S-->C 返回客户端 队长发起通缉挑战成功
+    self.OnWTaskChallRetCmd = function(data)
+        self:OnWTaskChallRet(data)
+    end
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.WTaskChallRetID, self.OnWTaskChallRetCmd, self)
+    -- S-->C 客户端 队长发起通缉返回 (已经全员同意了)
+    self.OnWTaskStartRetCmd = function(data)
+        self:OnWTaskStartRet(data)
+    end
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.WTaskStartRetID, self.OnWTaskStartRetCmd, self)
+    -- > 通缉任务三阶伤害数据通知
+    self.OnWTaskLevMonHurtNtfCmd = function(data)
+        self:OnWTaskLevMonHurtNtf(data)
+    end
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.WTaskLevMonHurtNtfID, self.OnWTaskLevMonHurtNtfCmd, self)
+    -- > 通缉任务三阶结算数据通知
+    self.OnWTaskLevMonResNtfCmd = function(data)
+        self:OnWTaskLevMonResNtf(data)
+    end
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.WTaskLevMonResNtfID, self.OnWTaskLevMonResNtfCmd, self)
+end
+
+-- LuaModule 释放
+function WantedModule:OnModuleRelease()
+    --------------------------------  【监听协议】 -------------------------------------
+    -- S-->C 返回客户端 接通缉任务
+    NetworkManager.Instance:OffMessageEnum(CS.ProtoMsg.WTaskAcceptRet.FullName, self.OnWTaskAcceptRetCmd, nil)
+    -- S-->C 返回客户端 队长发起通缉挑战成功
+    NetworkManager.Instance:OffMessageEnum(CS.ProtoMsg.WTaskChallRet.FullName, self.OnWTaskChallRetCmd, nil)
+    -- S-->C 客户端 队长发起通缉返回 (已经全员同意了)
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.WTaskStartRetID, self.OnWTaskStartRetCmd, nil)
+    -- > 通缉任务三阶伤害数据通知
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.WTaskLevMonHurtNtfID, self.OnWTaskLevMonHurtNtfCmd, nil)
+    -- > 通缉任务三阶伤害数据通知
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.WTaskLevMonResNtfID, self.OnWTaskLevMonResNtfCmd, nil)
+
+    --------------------------------  【注册模块的事件】 -------------------------------------
+    LuaModuleDispatcher:UnRegister(ModuleDef.WantedModule)
+    CS.StarProject.GlobalEvent.onChallengeWantedEntity:RemoveListener(self.OnChallengeWantedEntityFun)
+
+    ------------------------------- 【初始化模块的本地变量】----------------------
+end
+
+-- LuaModule显示
+function WantedModule:OnModuleShow(arg)
+    -- -- 判断是否接取了通缉任务
+    -- local isReceiveTask = false
+    -- local info = GameManager.Instance:GetMainPlayerWantTaskMD()
+    -- if info ~= nil then
+    --     isReceiveTask = info.IsAcc
+    -- end
+    -- if isReceiveTask then
+    --     -- 通知
+    -- end
+
+    WantedRankWidgetRoot = arg
+end
+
+-- LuaModule 消息处理
+function WantedModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...)
+end
+
+function WantedModule:OnDisable(...)
+    self.SendWantedPointType = -1
+    self.SendWantedPointID = -1
+    self.IsTaskAccepAutoWindow = false;
+end
+
+function WantedModule:OnCustomEnterEctype(...)
+    -- 进入【通缉三阶】副本
+    self:CloseWantedWindow()
+    self:CloseWantedChallengeSuccessWindow()
+    -- self:OpenWantedRankWidget(nil)
+    self:CloseFailWindow()
+    if self.SendWantedPointType >= 2 then
+        CS.StarProject.GlobalEvent.OnEntityEctype:Invoke(true);
+    end
+end
+
+function WantedModule:OnCustomLevelEctype(...)
+    -- 进入【通缉三阶】副本
+    self:CloseWantedWindow()
+    self:CloseWantedChallengeSuccessWindow()
+    self:CloseWantedRankWidget()
+    self:CloseFailWindow()
+    CS.StarProject.GlobalEvent.OnEntityEctype:Invoke(false);
+end
+
+-- 发送【退出副本】
+function WantedModule:SendLeaveInstanceReq(...)
+    local battleSocket = NetworkManager.Instance.gameSocket
+    local message = CS.ProtoMsg.LeaveInstanceReq()
+    battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace, message, false)
+end
+
+-- 发送 【复活】
+function WantedModule:SendReviveReq()
+    local battleSocket = NetworkManager.Instance.gameSocket
+    local message = CS.ProtoMsg.RoleReviveReq()
+    message.ReviveType = CS.ProtoMsg.ReviveTypeEnum.ReviveTypeDefault;
+    battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace, message, false)
+end
+
+-- 复活返回
+function WantedModule:OnRoleReviveRet(...)
+    local tb = ...
+    local data = false
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        data = tb[1]
+    else
+        -- C#调用
+        data = tb[0]
+    end
+    if data == true then
+        self:CloseFailWindow()
+    end
+end
+
+-- 共享通缉任务
+function WantedModule:OnShareWantedTask(...)
+    local tb = ...
+    local captainerName = ""
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        captainerName = tb[1]
+    else
+        -- C#调用
+        captainerName = tb[0]
+    end
+
+    local isReceiveTask = false
+    local rewNum = 0
+    local info = GameManager.Instance:GetMainPlayerWantTaskMD()
+    if info ~= nil then
+        isReceiveTask = info.IsAcc
+        rewNum = info.RewNum
+    end
+    -- 次数是否已经达到上限
+    local count = SystemConstConfigs.TeamWantedAwardLimits;
+    if rewNum >= count then
+        return
+    end
+    if isReceiveTask == false then
+        -- 没有接取任务，弹框提示
+        UIAPI.ShowMsgBox(42, function(EventName)
+            if EventName == "SURE" then
+                self:OnSendWTaskAcceptReq()
+            end
+        end, captainerName)
+    end
+end
+
+-- 接取通缉任务打开界面
+function WantedModule:OnSendWTaskAcceptReqOpen(...)
+    local isReceiveTask = false
+    local info = GameManager.Instance:GetMainPlayerWantTaskMD()
+    if info ~= nil then
+        isReceiveTask = info.IsAcc
+    end
+    if isReceiveTask == true then
+        self:OnOpenWantedWindow()
+    else
+        self.IsTaskAccepAutoWindow = true;
+        self:OnSendWTaskAcceptReq();
+    end
+end
+
+--------------------------------------- 【↓↓↓↓↓ 协议发送 ↓↓↓↓↓】 --------------------------------
+
+-- 客户端全量请求
+function WantedModule:OnSendWTaskGetAllInfoReq(...)
+    -- Log("通缉任务-》 请求----------------");
+    local battleSocket = NetworkManager.Instance.gameSocket
+    local message = CS.ProtoMsg.WTaskGetAllInfoReq()
+    battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace, message, false)
+end
+
+-- 客户端请求 接通缉任务
+function WantedModule:OnSendWTaskAcceptReq()
+    local battleSocket = NetworkManager.Instance.gameSocket
+    local message = CS.ProtoMsg.WTaskAcceptReq()
+    battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace, message, false)
+end
+
+-- 客户端 队长发起通缉挑战(判断自身条件,还需全员同意)
+function WantedModule:OnSendWTaskChallReq()
+    local battleSocket = NetworkManager.Instance.gameSocket
+    local message = CS.ProtoMsg.WTaskChallReq()
+    battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace, message, false)
+end
+
+-- 客户端 队长发起通缉 (已经全员同意了)
+function WantedModule:OnSendWTaskStartReq(...)
+    local battleSocket = NetworkManager.Instance.gameSocket
+    local message = CS.ProtoMsg.WTaskStartReq()
+    message.PointID = self.SendWantedPointID
+    message.StageType = self.SendWantedPointType
+    battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace, message, false)
+end
+
+--------------------------------------- 【↑↑↑↑↑ 协议发送 ↑↑↑↑↑】 --------------------------------
+
+--------------------------------------- 【↓↓↓↓↓协议回复↓↓↓↓↓】 --------------------------------
+
+-- S-->C 返回客户端 接通缉任务
+function WantedModule:OnWTaskAccept(data)
+    -- local res = data.data
+    -- 成功后（在属性同步监听里面做完了！！）
+    -- 1.主动添加通缉任务到任务列表中
+    -- 2.主动打开通缉win界面
+    if self.IsTaskAccepAutoWindow then
+        self:OnOpenWantedWindow();
+    end
+end
+
+-- S-->C 返回客户端 队长发起通缉挑战成功
+function WantedModule:OnWTaskChallRet(data)
+    -- local res = data.data
+    if self.SendWantedPointType <= 2 then
+
+        CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(
+            LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_3"));
+    end
+end
+
+-- S-->C 客户端 队长发起通缉返回 (已经全员同意了)
+function WantedModule:OnWTaskStartRet(data)
+    -- local res = data.data
+end
+
+-- > 通缉任务三阶伤害数据通知
+function WantedModule:OnWTaskLevMonHurtNtf(data)
+    local res = data.data
+
+    self:OpenWantedRankWidget(res.HurtInfos)
+    if self.SendWantedPointType ~= 2 then
+        self.SendWantedPointType = 2
+        CS.StarProject.GlobalEvent.OnEntityEctype:Invoke(true);
+    end
+end
+
+-- > 通缉任务三阶结算数据通知
+function WantedModule:OnWTaskLevMonResNtf(data)
+    local res = data.data
+    if res.WTaskType > 2 or self.SendWantedPointType > 2 then
+        -- 3阶的通缉目标
+        if res.IsSuc == true then
+            self:OnOpenWantedChallengeSuccessWindow(res.RankInfos, res.DropList)
+        else
+            local data = {
+                IsRevive = false
+            }
+            self:OpenFailWindow(data);
+        end
+    else
+        -- 1 2阶的通缉目标
+        if res.IsSuc == true then
+            CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(
+                LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_2"));
+        else
+            CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(
+                LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_1"));
+        end
+    end
+end
+
+--------------------------------------- 【↑↑↑↑↑协议回复↑↑↑↑↑】 --------------------------------
+
+--------------------------------------- 【↓↓↓↓↓模块事件↓↓↓↓↓】 --------------------------------
+
+---- 打开复活界面
+function WantedModule:OpenReviveWidget(...)
+    local data = {
+        IsRevive = true
+    }
+    self:OpenFailWindow(data);
+end
+
+--------------------------------------- 【↑↑↑↑↑模块事件↑↑↑↑↑】 --------------------------------
+
+--------------------------------------- 【↓↓↓↓↓界面操作↓↓↓↓↓】 -------------------------------
+
+-- 【打开】 通缉tips挂件
+function WantedModule:OnOpenWantedTipsWidget(...)
+    -- 判断是否接取了通缉任务
+    local isReceiveTask = false
+    local info = GameManager.Instance:GetMainPlayerWantTaskMD()
+    if info ~= nil then
+        isReceiveTask = info.IsAcc
+    end
+
+    -- UIManager.Instance:OpenWidget(WantedTipsWidgetPath, true, isReceiveTask, nil,
+    --     CS.StarProjectDef.MainPageCommond.HideNone, true, false)
+
+    -- UIManager.Instance:OpenWidgetAsync(WantedTipsWidgetPath, nil, true, isReceiveTask, nil,
+    --     CS.StarProjectDef.MainPageCommond.HideNone, true, false)
+end
+
+-- 【打开】 通缉界面
+function WantedModule:OnOpenWantedWindow(...)
+    self.IsTaskAccepAutoWindow = false;
+    -- local wantedWindow = UIManager.Instance:OpenWindow(WantedWindowPath, nil,
+    --     CS.StarProjectDef.MainPageCommond.HideBoth, true)
+    -- if self.WantedWindow == nil then
+    --     self.WantedWindow = wantedWindow:GetLuaPanel().ScriptTable
+    --     self.WantedWindow:BindModule(self)
+    -- end
+    -- self.WantedWindow:InitData()
+
+    self.AsyncLoadWantedWindowCb = function(ui)
+        if ui ~= nil then
+            if self.WantedWindow == nil then
+                self.WantedWindow = ui:GetLuaPanel().ScriptTable
+                self.WantedWindow:BindModule(self)
+            end
+            self.WantedWindow:InitData()
+        end
+        self.AsyncLoadWantedWindowCb = nil;
+    end
+    UIManager.Instance:OpenWindowAsync(WantedWindowPath, self.AsyncLoadWantedWindowCb, nil,
+        CS.StarProjectDef.MainPageCommond.HideBoth)
+end
+
+-- 【关闭】 通缉界面
+function WantedModule:CloseWantedWindow()
+    if self.WantedWindow ~= nil and self.WantedWindow.IsOpen then
+        self.WantedWindow.Close()
+    end
+end
+
+-- 通知界面更新数据
+function WantedModule:InformWantedWindow(...)
+    if self.WantedWindow ~= nil and self.WantedWindow.IsOpen then
+        local tb = ...
+        local informState = -1
+        -- 列表
+        if type(tb) == "table" then
+            -- Lua调用
+            informState = tb[1]
+        else
+            -- C#调用
+            informState = tb[0]
+        end
+        -- 全部刷新
+        if informState == 0 then
+            self.WantedWindow:InitData()
+        elseif informState == 1 then
+            -- 设置3档的目标信息
+            self.WantedWindow:SetTargetItemList()
+        elseif informState == 2 then
+            -- 设置今日次数
+            self.WantedWindow:SetTimeTips()
+        end
+    end
+end
+
+-- 【打开】 通缉成功界面
+function WantedModule:OnOpenWantedChallengeSuccessWindow(RankInfos, DropList)
+    local data = {
+        RankInfos = RankInfos,
+        DropList = DropList
+    }
+    -- local wantedChallengeSuccessWindow = UIManager.Instance:OpenWindow(
+    --     WantedChallengeSuccessWindowPath,
+    --     data,
+    --     CS.StarProjectDef.MainPageCommond.WidgetHide,
+    --     true
+    -- )
+    -- if self.WantedChallengeSuccessWindow == nil then
+    --     self.WantedChallengeSuccessWindow = wantedChallengeSuccessWindow:GetLuaPanel().ScriptTable
+    -- end
+    -- self.WantedChallengeSuccessWindow:InitData(data);
+
+    UIManager.Instance:OpenWindowAsync(WantedChallengeSuccessWindowPath, nil, data,
+        CS.StarProjectDef.MainPageCommond.WidgetHide)
+end
+
+-- 【关闭】 通缉成功界面
+function WantedModule:CloseWantedChallengeSuccessWindow()
+    UIManager.Instance:CloseWindow(WantedChallengeSuccessWindowPath)
+end
+
+-- 【打开】 通缉玩法排行挂件
+function WantedModule:OpenWantedRankWidget(data)
+    -- local wantedRankWidget = UIManager.Instance:OpenWidget(
+    --     WantedRankWidgetPath,
+    --     false,
+    --     data,
+    --     WantedRankWidgetRoot,
+    --     CS.StarProjectDef.MainPageCommond.HideNone,
+    --     true,
+    --     false
+    -- )
+    -- if self.WantedRankWidget == nil then
+    --     self.WantedRankWidget = wantedRankWidget:GetLuaPanel().ScriptTable
+    -- end
+    if self.WantedRankWidget ~= nil and self.WantedRankWidget.IsOpen then
+        self.WantedRankWidget:InitData(data);
+    else
+        self.AsyncLoadWantedRankWidgetCb = function(ui)
+            if ui ~= nil then
+                if self.WantedRankWidget == nil then
+                    self.WantedRankWidget = ui:GetLuaPanel().ScriptTable
+                end
+                self.WantedRankWidget:InitData(data);
+            end
+            self.AsyncLoadWantedRankWidgetCb = nil;
+        end
+        UIManager.Instance:OpenWidgetAsync(WantedRankWidgetPath, self.AsyncLoadWantedRankWidgetCb, false, nil,
+            WantedRankWidgetRoot, CS.StarProjectDef.MainPageCommond.HideNone)
+    end
+end
+
+-- 【关闭】 通缉玩法排行挂件
+function WantedModule:CloseWantedRankWidget()
+    -- if self.WantedRankWidget ~= nil and self.WantedRankWidget.IsOpen then
+    --     --self.WantedRankWidget.Close()
+    --     UIManager.Instance:CloseWidget(WantedRankWidgetPath, WantedRankWidgetRoot, false)
+    -- end
+    UIManager.Instance:CloseWidget(WantedRankWidgetPath, WantedRankWidgetRoot, false)
+end
+
+-- 【打开】 失败界面
+function WantedModule:OpenFailWindow(data)
+    if self.FailWindow ~= nil and self.FailWindow.IsOpen == true and data.IsRevive == true then
+        -- 判断是否是复活，如果我之前就打开了，后面又来一个复活，那就过滤掉
+        return;
+    end
+    -- local SecretAreaFailWindow = UIManager.Instance:OpenWindow(
+    --     WantedFailWindowPath,
+    --     data,
+    --     CS.StarProjectDef.MainPageCommond.WidgetHide,
+    --     true
+    -- )
+    -- if self.FailWindow == nil then
+    --     self.FailWindow = SecretAreaFailWindow:GetLuaPanel().ScriptTable
+    -- end
+
+    if self.FailWindow ~= nil and self.FailWindow.IsOpen then
+        self.FailWindow:InitData(data);
+    else
+        self.AsyncLoadWantedFailWindowCb = function(ui)
+            if ui ~= nil then
+                if self.FailWindow == nil then
+                    self.FailWindow = ui:GetLuaPanel().ScriptTable
+                    self.FailWindow:BindModule(self);
+
+                end
+                self.FailWindow:InitData(data);
+            end
+            self.AsyncLoadWantedFailWindowCb = nil;
+        end
+        UIManager.Instance:OpenWindowAsync(WantedFailWindowPath, self.AsyncLoadWantedFailWindowCb, nil,
+            CS.StarProjectDef.MainPageCommond.WidgetHide)
+    end
+end
+
+-- 【关闭】 失败界面
+function WantedModule:CloseFailWindow()
+    -- if self.FailWindow ~= nil and self.FailWindow.IsOpen then
+    --     self.FailWindow.Close()
+    -- end
+    UIManager.Instance:CloseWindow(WantedFailWindowPath)
+end
+
+--------------------------------------- 【↑↑↑↑↑界面操作↑↑↑↑↑】 -------------------------------
+
+--------------------------------------- 【↓↓↓↓↓其他方法↓↓↓↓↓】 -------------------------------
+
+-- 挑战通缉实体[分线ID,地图ID,点位ID,点位类型]
+function WantedModule:OnChallengeWantedEntity(ServerID, MapID, PointID, PointType)
+    local isCanChallenge = self:GetIsCanChallenge();
+    if isCanChallenge == false then
+        return
+    end
+    self.SendWantedPointID = PointID
+    self.SendWantedPointType = PointType
+    -- 请求挑战
+    if PointType > 2 then
+        self:OnSendWTaskChallReq()
+    else
+        -- 1、2阶位的直接发起挑战
+        self:OnSendWTaskStartReq()
+    end
+end
+
+-- 获取是否可以挑战
+function WantedModule:GetIsCanChallenge()
+    -- 判断是否接取了通缉任务
+    local isReceiveTask = self:GetIsReceiveWantedTask()
+    if isReceiveTask == false then
+        return false
+    end
+    ---- 请求挑战
+    -- return true
+    -- 1 没有队伍 创建队伍
+    -- 2、有队伍 且是队长 人数大于3人 则开始挑战
+    -- 3、有队伍 不是队长  飘字提示 仅有队长才能发起挑战
+    local module = ModuleManager.Instance:GetModule(ModuleDef.TeamModule)
+    local luatable = module:GetLuaTable()
+    local teamInfo = luatable:GetTeamInfo()
+    local hasTeam = false -- 是否有队伍
+    local isCaptain = false -- 是否队长
+    local teamPeopleNum = 0 -- 队伍人数
+    if teamInfo ~= nil and teamInfo.TeamID ~= 0 and teamInfo.UserInfos.Count > 0 then
+        hasTeam = true
+        for i = 0, teamInfo.UserInfos.Count - 1 do
+            local info = teamInfo.UserInfos[i]
+            if info ~= nil then
+                if info.IsCaptain then
+                    if info.Eid == GameManager.Instance.mainPlayerId then
+                        isCaptain = true
+                    end
+                end
+            end
+            teamPeopleNum = teamPeopleNum + 1
+        end
+    end
+    if hasTeam then
+        if isCaptain then
+            if teamPeopleNum >= 3 then
+                -- 请求挑战
+                return true
+            else
+                Util.ShowMessage(StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_251"), {3}));
+                return false
+            end
+        else
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_60"));
+            return false
+        end
+    else
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_61"));
+        return false
+    end
+    return true
+end
+
+-- 判断是否接取了通缉任务
+function WantedModule:GetIsReceiveWantedTask()
+    local isReceiveTask = false
+    local rewNum = 0
+    local info = GameManager.Instance:GetMainPlayerWantTaskMD()
+    if info ~= nil then
+        isReceiveTask = info.IsAcc
+        rewNum = info.RewNum
+        -- self:OnSendWTaskAcceptReq()
+    end
+    -- 次数是否已经达到上限
+    -- local count = SystemConstConfigs.TeamWantedAwardLimits;
+    -- if rewNum >= count then
+    --     Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_62"));
+    --     return false
+    -- end
+    if isReceiveTask == false then
+        -- 没有接取任务，弹框提示
+        UIAPI.ShowMsgBox(39, function(EventName)
+            if EventName == "SURE" then
+                self:GOReceiveWantedTask()
+            end
+        end)
+        return false
+    end
+    return isReceiveTask
+end
+
+-- 前往NPC接取通缉任务
+function WantedModule:GOReceiveWantedTask()
+    local config = ConfigDataAccessor.PlayOpenConditions[3]
+    if config ~= nil then
+        if not (CheckSysOpen(3, true)) then
+            return;
+        end
+
+        -- 寻路结束后打开通缉界面
+        TaskHelper.FindPathByNpc(config.MapID, config.NPCID, 1, function(result)
+            if result then
+                -- 打开通缉界面
+                -- self:OnOpenWantedWindow();
+            end
+        end)
+    end
+end
+
+-- 设置3档的目标信息的次数/总数/刷新时间
+function WantedModule:GetAllTarNumInfo()
+    local list = {}
+    if GameManager.Instance.AllWantedInfo == nil then
+        return list
+    end
+    local oneInfo = self:GetWTaskTypeCount(1)
+    list[1] = oneInfo
+    local twoInfo = self:GetWTaskTypeCount(2)
+    list[2] = twoInfo
+    local threeInfo = self:GetWTaskTypeCount(3)
+    list[3] = threeInfo
+    return list
+end
+
+-- 获取点阶位类型的数量和总数
+function WantedModule:GetWTaskTypeCount(wTaskType)
+    local sum = 0
+    local num = 0
+    for i, v in pairs(GameManager.Instance.AllWantedInfo) do
+        for i1, v1 in pairs(v) do
+            if v1 ~= nil then
+                for k2, v2 in pairs(v1) do
+                    if k2 == wTaskType then
+                        for index, value in pairs(v2) do
+                            sum = sum + 1
+                            if value ~= nil then
+                                if value.CurState == 0 then
+                                    num = num + 1
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    local refTime = 0
+    if GameManager.Instance.TarInfoStartShowTime ~= nil then
+        for k, v in pairs(GameManager.Instance.TarInfoStartShowTime) do
+            if k == wTaskType then
+                refTime = v;
+                break
+            end
+        end
+    end
+    local data = {
+        Sum = sum,
+        Num = num,
+        RefTime = refTime
+    }
+    return data
+end
+
+--------------------------------------- 【↑↑↑↑↑其他方法↑↑↑↑↑】 -------------------------------
+
+return WantedModule

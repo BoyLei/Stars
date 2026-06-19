@@ -1,0 +1,182 @@
+--[[
+*文件名   :   DonateTaskItem
+*内  容   :   定轨页面纹章选择列表中的Item
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local DonateTaskItem = {}
+
+DonateTaskItem.__index = DonateTaskItem
+
+
+function DonateTaskItem:New(_go,onItemClick,idx) 
+    local self = {};    
+    setmetatable(self, DonateTaskItem); 
+    
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+	self.OrderIndex=idx;
+	
+	self.OnItemClick=onItemClick;
+
+	self.Name=self.transform:Find("root/Name"):GetComponent(typeof(Text));
+	self.Num=self.transform:Find("root/Num"):GetComponent(typeof(Text));
+    self.Icon=self.transform:Find("root/item/Have/Icon"):GetComponent(typeof(Image));
+    self.Rare=self.transform:Find("root/item/Have/BgRare"):GetComponent(typeof(Image));
+
+	self.cg=self.transform:Find("root"):GetComponent(typeof(CanvasGroup));
+
+    self.go_Selected=self.transform:Find("root/selected").gameObject;
+    self.go_Selected:SetActive(false);
+
+	self.go_Finish=self.transform:Find("Finish").gameObject;
+    self.go_Finish:SetActive(false);
+
+	self.GoHead=self.transform:Find("root/Hero").gameObject;
+	self.Head=self.transform:Find("root/Hero/Bg/head"):GetComponent(typeof(Image));
+	self.HeadBg=self.transform:Find("root/Hero/Bg"):GetComponent(typeof(Image));
+
+	--点击事件
+	self.btnClick=self.transform:GetComponent(typeof(JButton));
+	self.btnClick.OnClick=(function() 
+		if self.OnItemClick ~= nil then
+			self.OnItemClick(self); 
+		end
+	end);
+
+    return self;    --返回自身
+end
+
+
+
+function DonateTaskItem:SetItem(data)
+
+
+	self.Data=data;
+
+    if data~= nil then
+
+		local configIndex=data.ConfigIndex;
+		local isSubmited =data.IsSubmited;
+
+		self.IsSubmited=isSubmited;
+
+		self.go_Finish:SetActive(isSubmited);
+
+		if isSubmited then
+			self.cg.alpha=0.6
+		else
+			self.cg.alpha=1
+		end
+
+		self.ConfigIndex=configIndex;
+
+
+		self.gameObject:SetActive(true);
+
+		local dCfg=ConfigDataAccessor.DonateOrderList[configIndex];
+
+
+		if dCfg.ItemSet>0 then
+			--道具集
+			local sCfg=ConfigDataAccessor.DonateItemSet[dCfg.ItemSet];
+
+			ResourceHelper:LoadIconAsync(self.Icon, "", sCfg.Icon, false)
+	
+			--稀有度底板
+			local quality=sCfg.Quality[1]; 
+			--self.Rare.sprite= AtlasManager.Instance:GetSprite("ui/common/atlas/commonitem","Bag_Grid_sq"..quality);
+			ResourceHelper:LoadIconByAtlasAsync(
+				self.Rare,
+				ResourceHelper.AtlasPathCommonItem,
+				"Bag_Grid_sq" .. quality,
+				false
+			)
+
+
+			self.Name.text=GetDonateQualityColor(quality)..sCfg.ShowName.."</color>";
+
+			self.HaveNum=#GetItemEntityIDsByItemSet(dCfg.ItemSet);
+			self.NeedNum=dCfg.Num;
+
+			self.IsEnough=self.HaveNum>=self.NeedNum;
+
+		else
+			--单个道具
+			local cfg=ConfigDataAccessor.Item[dCfg.Item];
+			--LoadIcon(self.Icon,cfg.Icon);
+			ResourceHelper:LoadIconAsync(self.Icon, "", cfg.Icon, false)
+	
+			--稀有度底板
+			local quality=cfg.Quality; 
+			--self.Rare.sprite= AtlasManager.Instance:GetSprite("ui/common/atlas/commonitem","Bag_Grid_sq"..quality);
+			ResourceHelper:LoadIconByAtlasAsync(
+				self.Rare,
+				ResourceHelper.AtlasPathCommonItem,
+				"Bag_Grid_sq" .. quality,
+				false
+			)
+
+			self.Name.text=GetDonateQualityColor(quality)..cfg.Name.."</color>";
+
+
+			self.HaveNum=BusinessManager.Instance:GetCurrencyNum(dCfg.Item);
+			self.NeedNum=dCfg.Num;
+
+			self.IsEnough=self.HaveNum>=self.NeedNum;
+		end
+
+
+		if dCfg.Spine_id~="" then
+
+			self.GoHead:SetActive(true);
+
+			local avatarDataCell = ConfigDataAccessor.Avatar[tonumber(dCfg.Spine_id)];
+			if avatarDataCell ~= nil then
+				local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID];
+				if headCfg ~= nil then
+					ResourceHelper:LoadIconByAtlasAsync(
+						self.Head,
+						headCfg.HeadAtlasName,
+						headCfg.MinHead,
+						false
+					)
+				end
+			end
+
+		else
+
+			self.GoHead:SetActive(false);
+		end
+
+		self.Num.color=Color(1,1,1);
+		if self.IsEnough then
+       		--self.Num.text="x "..dCfg.Num;
+			self.Num.text="<color=#25903e>x "..dCfg.Num.."</color>";
+
+		else
+			self.Num.text="<color=#d04545>x "..dCfg.Num.."</color>";
+		end
+
+
+		self:MakeSelected(false);
+
+	else
+		self.gameObject:SetActive(false);
+		self.IsSubmited=false;
+    end
+
+
+end
+
+
+--是否被选中
+function DonateTaskItem:MakeSelected(b)
+    self.go_Selected:SetActive(b);
+end
+
+return DonateTaskItem;

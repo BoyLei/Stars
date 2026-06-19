@@ -1,0 +1,1542 @@
+---------------------------------------------------------------------
+-- Stars (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2022-10-26 16:17:49
+---------------------------------------------------------------------
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+---@class ConfigDataAccessor
+ConfigDataAccessor = {
+    -- 鸣器表
+    EtchUP = require "Common.Config.EtchUP",
+    Etch = require "Common.Config.Etch",
+    -- 任务主表
+    Mail = require "Common.Config.Mail",
+    -- 商业化
+    ExternalPay = require "Common.Config.ExternalPay",
+    SignIn = require "Common.Config.SignIn",
+    -- 通行证
+    BPSeason = require "Common.Config.BPSeason",
+    BPGrade = require "Common.Config.BPGrade",
+    BPTask = require "Common.Config.BPTask",
+    -- 伙伴目标
+    PartnerTarget = require "Common.Config.PartnerTarget",
+    -- 任务奖励
+
+    TaskReward = require "Common.Config.TaskReward",
+    -- 道具表
+    Item = require "Common.Config.Item",
+    -- 道具获取表
+    ItemGetJump = require "Common.Config.ItemGetJump",
+    -- 系统跳转表
+    SystemJump = require "Common.Config.SystemJump",
+    --跑马灯
+    Marquee = require "Common.Config.Marquee",
+    -- 合成表
+    Compose = require "Common.Config.Compose",
+    -- 背包表
+    ItemSpace = require "Common.Config.ItemSpace",
+    EquipResetEvent = require "Common.Config.EquipResetEvent",
+    -- 冒险团表
+    GuildEvent = require "Common.Config.GuildEvent",
+    GuildTitle = require "Common.Config.GuildTitle",
+    GuildLevel = require "Common.Config.GuildLevel",
+    GuildLabel = require "Common.Config.GuildLabel",
+    GNActivPassive = require "Common.Config.GNActivPassive",
+    -- 章节表
+    Plot = require "Common.Config.Plot",
+    -- 世界线
+    WorldLine = require "Common.Config.WorldLine",
+    -- 黑幕表
+    BlackMovie = require "Common.Config.BlackMovie",
+    Image = require "Common.Config.Image",
+    -- 怪物表
+    Monster = require "Common.Config.Monster",
+    -- 召唤物表
+    Summon = require "Common.Config.Summon",
+    SummonAttr = require "Common.Config.SummonAttr",
+    LevelExp = require "Common.Config.LevelExp",
+    -- 服务器等级经验开放表
+    LevelLimit = require "Common.Config.LevelLimit",
+    ExpDecay = require "Common.Config.ExpDecay",
+    -- 装备表
+    Equip = require "Common.Config.Equip",
+    EquipSub = require "Common.Config.EquipSub",
+    -- AVG 相关
+    CommonDialog = require "Common.Config.CommonDialog",
+    TeleDialog = require "Common.Config.TeleDialog",
+    -- 伙伴装备表
+    PartnerEquip = require "Common.Config.PartnerEquip",
+    -- 装备特技表
+    PartnerEquipEffect = require "Common.Config.Effect",
+    -- 通用提示配置表
+    RetMsg = require "Common.Config.RetMsg",
+    -- 职业表
+    Job = require "Common.Config.Job",
+    -- 职业转职条件表
+    TransferCondition = require "Common.Config.TransferCondition",
+    Npc = require "Common.Config.Npc",
+    Interact = require "Common.Config.Interact",
+    -- 属性显示表
+    Attribute = require "Common.Config.Attribute",
+    ---消耗表
+    Cost = require "Common.Config.Cost",
+    -- 篝火答题
+    PartyQA = require "Common.Config.PartyQA",
+    -- 篝火进度奖励
+    PartyTimeGuildReward = require "Common.Config.PartyTimeGuildReward",
+    -- 商店
+    Shop = require "Common.Config.Shop",
+    Goods = require "Common.Config.Goods",
+    -- 伙伴系统表
+    Partner = require "Common.Config.Partner",
+    -- 伙伴技能表
+    ParSkill = require "Common.Config.ParSkill",
+    -- 通用条件表
+    CMcondition = require "Common.Config.CMcondition",
+    -- 通用效果，事件，服务
+    CMeffect = require "Common.Config.CMeffect",
+    -- 伙伴经验
+    PartnerExp = require "Common.Config.PartnerExp",
+    -- 系统配置表
+    SystemList = require "Common.Config.System",
+    -- 聊天配置表
+    ChatList = require "Common.Config.Chat",
+    -- 化身表
+    Avatar = require "Common.Config.Avatar",
+    -- 模型表
+    Model = require "Common.Config.Model",
+    -- 头像配置表
+    ModelHead = require "Common.Config.ModelHead",
+    ------ 个人秘境表
+    -- 剩余时间
+    SecretSettle = require "Common.Config.SecretSettle",
+    -- 层数配置
+    SecretCopy = require "Common.Config.SecretCopy",
+    -- 秘境门票
+    TicketSynthesize = require "Common.Config.TicketSynthesize",
+    -- 秘境复活次数
+    SecretRevive = require "Common.Config.SecretRevive",
+    -- 秘境每日任务
+    SercretDailyTask = require "Common.Config.SercretDailyTask",
+    -- 通缉奖励表
+    TeamWantedTrends = require "Common.Config.TeamWantedTrends",
+    -- 职业技能配置表
+    TalentList = require "Common.Config.Talent",
+    SkillPosSetList = require "Common.Config.SkillPosSet",
+    SkillLevelList = require "Common.Config.SkillLevel",
+    SkillUpList = require "Common.Config.SkillUp",
+    SkillResetList = require "Common.Config.SkillReset",
+    SkillDescList = require "Common.Config.JobSkillDesc",
+    NatureTrans = require "Common.Config.NatureTrans",
+    -- 公会跳转表
+    GuildJump = require "Common.Config.GuildJump",
+    -- 货币配置表
+    CurrencyCfg = require "Common.Config.CurrencyCfg",
+    -- 日常副本配置表
+    DailyCopyList = require "Common.Config.DailyCopy",
+    DailyCopyDifficultyList = require "Common.Config.DailyCopyDifficulty",
+    DailyCopyGroupList = require "Common.Config.DailyCopyGroup",
+    -- 玩法配置表
+    PlayOpenConditions = require "Common.Config.PlayOpenConditions",
+    -- 秘境每日奖励表
+    SecretDailyAward = require "Common.Config.SecretDailyAward",
+    -- 个人秘境赛季奖励表
+    SeasonSecret = require "Common.Config.SeasonSecret",
+    -- 秘境成就表
+    SeasonAchieve = require "Common.Config.SeasonAchieve",
+    -- 组队系统
+    TeamPlayList = require "Common.Config.TeamPlay",
+    -- 组队日常本
+    TeamDailyCopy = require "Common.Config.TeamDailyCopy",
+    -- 组队日常本
+    CopyEntryArea = require "Common.Config.CopyEntryArea",
+    -- 环任务组
+    RingTaskGroup = require "Common.Config.RingTaskGroup",
+    -- 环任务
+    RingTask = require "Common.Config.RingTask",
+    -- 冒险等级
+    AdvGradeExp = require "Common.Config.AdvGradeExp",
+    -- 冒险等级获取上限
+    OpeningTime = require "Common.Config.OpeningTime",
+    -- 关卡词缀表_LevelAffix.xlsx
+    LevelAffix = require "Common.Config.LevelAffix",
+    SceneMap = require "Common.Config.SceneMap",
+    -- GVE玩法
+    RecyclePlay = require "Common.Config.RecyclePlay", -- 循环玩法开启运营表
+    GVEMain = require "Common.Config.GVEMain", -- 玩法模板表
+    GVEMapSelect = require "Common.Config.GVEMain", -- 玩法地图选择表
+    GVEMonRefresh = require "Common.Config.GVEMonRefresh", -- 玩法每月刷新表
+    GVEScoreShare = require "Common.Config.GVEScoreShare", -- 玩法队伍积分比例表
+    GVEPersonReward = require "Common.Config.GVEPersonReward", -- 玩法个人奖励表
+    GVEGuildReward = require "Common.Config.GVEGuildReward", -- 玩法冒险团奖励表
+    GVEBossSelect = require "Common.Config.GVEBossSelect", -- 玩法Boss表
+    GVEBossTypeNum = require "Common.Config.GVEBossTypeNum", -- 玩法Boss类型表
+    GVEBossReward = require "Common.Config.GVEBossReward", -- 玩法Boss奖励表
+    GVETime = require "Common.Config.GVETime", -- GVE开服时间表
+    -- 自选宝箱
+    Boxes = require "Common.Config.Boxes", -- 宝箱表
+    FixAward = require "Common.Config.FixAward", -- 宝箱奖励表
+    -- 卡池
+    CardPool = require "Common.Config.CardPool",
+    PartnerGroup = require "Common.Config.PartnerGroup",
+    Probability = require "Common.Config.Probability",
+    GachaRedDot = require "Common.Config.GachaRedDot",
+    AttriTTNode = require "Common.Config.AttriTTNode", -- 天赋列表
+    AttriTTCondition = require "Common.Config.AttriTTCondition",
+    -- GNG
+    GNActivRank = require "Common.Config.GNActivRank",
+    GNActivGuildRank = require "Common.Config.GNActivGuildRank",
+    -- 筛选
+    Itemfilter = require "Common.Config.Itemfilter",
+    ItemMainTypeList = require "Common.Config.ItemMainType",
+    AmuletEquipEffectList = require "Common.Config.AmuletEquipEffect",
+    CommonInfo = require "Common.Config.CommonInfo",
+    -- pvp
+    BattleFieldSessionList = require "Common.Config.BattleFieldSession",
+    FactionRelationList = require "Common.Config.FactionRelation",
+    BattleFieldRankList = require "Common.Config.BattleFieldRank",
+    BattleFieldScoreList = require "Common.Config.BattleFieldScore",
+    BattleFieldBoxList = require "Common.Config.BattleFieldBox",
+    -- 新手引导表
+    GuidSysOpen = require "Common.Config.GuidSysOpen",
+    -- 通用次数配置
+    CommonCount = require "Common.Config.CommonCount",
+    -- 竞技场表
+    ArenaBuy = require "Common.Config.ArenaBuy",
+    ArenaRankAward = require "Common.Config.ArenaRankAward",
+    -- 野外boss
+    FieldBoss = require "Common.Config.FieldBoss",
+    -- 通用说明栏
+    Intro = require "Common.Config.Intro",
+    CRetMsgList = require "Common.Config.CRetMsg",
+    -- 冒险团捐献
+    DonateOrderList = require "Common.Config.DonateOrderList", -- 委托表
+    DonateOrderReward = require "Common.Config.DonateOrderReward", -- 委托进度奖励表
+    DonateItemSet = require "Common.Config.DonateItemSet", -- 委托道具集表
+    LifeSkillJobList = require "Common.Config.LifeSkillJob",
+    LifeSkillMineList = require "Common.Config.LifeSkillMine",
+    LifeSkillCreateList = require "Common.Config.LifeSkillCreate",
+    -- 爬塔
+    TowerCopy = require "Common.Config.TowerCopy",
+    TowerStage = require "Common.Config.TowerStage",
+    -- 签到信息
+    SignSeasonList = require "Common.Config.SignSeason", -- 签到
+    SignAccrueList = require "Common.Config.SignAccrue", -- 累计签到
+    -- 伙伴装备效果
+    EffectList = require "Common.Config.Effect",
+    ---伙伴经验卡
+    PartnerCard = require "Common.Config.PartnerCard",
+    -- 活动
+    STDTaskList = require "Common.Config.STDTask",
+    STDPointsList = require "Common.Config.STDPoints",
+    --副本入口
+    LevelEnterWindow = require "Common.Config.LevelEnterWindow",
+    -- 日常活跃度
+    DailyPlayActivTaskList = require "Common.Config.DailyPlayActivTask",
+    DailyPlayActivRewardList = require "Common.Config.DailyPlayActivReward",
+    ModelAnimancerList = require "Common.Config.ModelAnimancer",
+    TimeRewardList = require "Common.Config.TimeReward",
+    FunctionPreview = require "Common.Config.FunctionPreview",
+    RankCommonList = require "Common.Config.RankCommon",
+    PartnerType = require "Common.Config.PartnerType",
+    ItemTypeList = require "Common.Config.ItemType",
+    BeginnerTargetTask = require "Common.Config.BeginnerTargetTask",
+    MindRepair = require "Common.Config.MindRepair",
+    ---需要二次数据处理初始化方法
+    Init = function()
+        InitWorldLine()
+        InitDrop()
+        InitSystemJump()
+        InitDropShow()
+        InitEctypeTarget()
+        InitPartnerNature()
+        InitQualifications()
+        InitEquipSlot()
+        InitPartnerAssistSlot()
+        InitPartnerAssist()
+        InitQualificationsExpend()
+        InitStarExpend()
+        InitPartnerSkillDesc()
+        InitParConversion()
+        InitIntroMap()
+        -- InitMonsterAttr();
+        -- InitSummonAttr();
+        -- InitAttr();
+
+        InitSecretRankClient()
+        InitAmulet()
+        InitCopyBoss()
+        InitCopyRule()
+        -- InitBuffDesc();
+
+        InitJobDatas()
+
+        InitNpcDialogGroup()
+        InitItemMainType()
+        InitAllCurrency()
+    end,
+    GetPartnerAssitConfig = function(job_id, slot, qualifications)
+        return GetPartnerAssitConfig(job_id, slot, qualifications)
+    end,
+    GetOpeningTimeConfig = function(openDay)
+        return GetOpeningTimeConfig(openDay)
+    end,
+    GetPartnerAssitConfigByID = function(job_id, slot, id)
+        return GetPartnerAssitConfigByID(job_id, slot, id)
+    end,
+    GetRingTaskGroupByLevel = function(lv)
+        return GetRingTaskGroupByLevel(lv)
+    end,
+    GetDropAward = function(awardid)
+        return GetDropAward(awardid)
+    end,
+    GetRingTaskConfigById = function(taskid)
+        return GetRingTaskConfigById(taskid)
+    end,
+    GetMaxPolishNum = function(rarity)
+        return GetMaxPolishNum(rarity)
+    end,
+    GetMaxAdvGradeExpLv = function()
+        return GetMaxAdvGradeExpLv()
+    end,
+    GetNpcDialogIdByGroupID = function(groupID)
+        return GetNpcDialogIdByGroupID(groupID)
+    end,
+    GetGNActivRank = function(openDay)
+        return GetGNActivRank(openDay)
+    end,
+    GetGNActivGuildRank = function(openDay)
+        return GetGNActivGuildRank(openDay)
+    end,
+    GetGVEEffectLevel = function(openDay)
+        return GetGVEEffectLevel(openDay)
+    end,
+    GetBPGradeMaxLv = function(awardGroup)
+        return GetBPGradeMaxLv(awardGroup)
+    end,
+    GetBPGrade = function(awardGroup, lv)
+        return GetBPGrade(awardGroup, lv)
+    end,
+    GetTaskReward = function(taskID)
+        return GetTaskReward(taskID)
+    end,
+    -- 根据赛季ID获取秘境赛季的奖励
+    GetSecretRankClientBySeasonIDAndRank = function(SeasonID, Rank)
+        return GetSecretRankClientBySeasonIDAndRank(SeasonID, Rank)
+    end,
+    GetDonateOrderReward = function(advLv)
+        return GetDonateOrderReward(advLv)
+    end,
+    GetDonateOrderRewardAdvLv = function(advLv)
+        return GetDonateOrderRewardAdvLv(advLv)
+    end,
+    GetDonateOrderRewardEach = function(playerLv)
+        return GetDonateOrderRewardEach(playerLv)
+    end,
+    GetDonateOrderRewardEachAdvLv = function(advLv)
+        return GetDonateOrderRewardEachAdvLv(advLv)
+    end,
+    -- 根据组ID获取条件配置
+    GetCMconditionByGroupID = function(groupID)
+        return GetCMconditionByGroupID(groupID)
+    end,
+    -- 根据属性ID获取属性配置
+    GetAttrByID = function(ID)
+        return GetAttrByID(ID)
+    end,
+    GetAddIndexLevelLimitCfg = function(id, index)
+        return GetAddIndexLevelLimitCfg(id, index)
+    end
+}
+
+function GetTaskReward(taskID)
+    local taskReward = ConfigDataAccessor.TaskReward[taskID]
+
+    local Awards = {}
+
+    for i = 1, #taskReward.Reward, 2 do
+        local id = taskReward.Reward[i]
+        local num = taskReward.Reward[i + 1]
+        if num ~= nil then
+            if Awards[id] == nil then
+                Awards[id] = num
+            else
+                Awards[id] = Awards[id] + num
+            end
+        end
+    end
+
+    for i = 1, #taskReward.RewardHid, 2 do
+        local id = taskReward.RewardHid[i]
+        local num = taskReward.RewardHid[i + 1]
+        if num ~= nil then
+            if Awards[id] == nil then
+                Awards[id] = num
+            else
+                Awards[id] = Awards[id] + num
+            end
+        end
+    end
+
+    return Awards
+end
+
+function GetBPGrade(awardGroup, lv)
+    local data = nil
+    for k, v in pairs(ConfigDataAccessor.BPGrade) do
+        if v.AwardGroup == awardGroup and lv == v.BPGrade then
+            data = v
+        end
+    end
+
+    return data
+end
+
+function GetBPGradeMaxLv(awardGroup)
+    local maxLv = 0
+    for k, v in pairs(ConfigDataAccessor.BPGrade) do
+        if v.AwardGroup == awardGroup and maxLv < v.BPGrade then
+            maxLv = v.BPGrade
+        end
+    end
+
+    return maxLv
+end
+
+function InitNpcDialogGroup()
+    local data = require "Common.Config.NpcDialogGroup"
+
+    -- NPC随机开场白
+    ConfigDataAccessor.NpcDialogGroup = {}
+
+    for k, v in pairs(data) do
+        if ConfigDataAccessor.NpcDialogGroup[v.GroupID] == nil then
+            ConfigDataAccessor.NpcDialogGroup[v.GroupID] = {}
+        end
+        table.insert(ConfigDataAccessor.NpcDialogGroup[v.GroupID], v)
+    end
+end
+
+function GetNpcDialogIdByGroupID(groupID)
+    local group = ConfigDataAccessor.NpcDialogGroup[groupID]
+
+    if group == nil then
+        return 0
+    end
+
+    local leftDatas = {}
+    for i = 1, #group do
+        local data = group[i]
+        if data.DelCondition > 0 then
+            local isMet = GameManager.Instance:IsConditionMete(data.DelCondition) -- 判断是否满足
+            -- 不满足删除的才加进去
+            if not (isMet) then
+                table.insert(leftDatas, data)
+            end
+        else
+            if data.GroupID > 0 then
+                local isMet = GameManager.Instance:IsConditionMete(data.OpenCondition) -- 判断是否满足
+                -- 满足删除的才加进去
+                if isMet then
+                    table.insert(leftDatas, data)
+                end
+            end
+        end
+    end
+
+    if #leftDatas > 0 then
+        -- 按照权重随机
+        local talkIdx = math.random(1, #leftDatas)
+        return leftDatas[talkIdx].DialogID
+    end
+
+    return 0
+end
+
+function GetMaxAdvGradeExpLv()
+    if ConfigDataAccessor.MaxAdvGradeExpLv ~= nil then
+        return ConfigDataAccessor.MaxAdvGradeExpLv
+    end
+
+    ConfigDataAccessor.MaxAdvGradeExpLv = 1
+    for k, v in pairs(ConfigDataAccessor.AdvGradeExp) do
+        if v.ID > ConfigDataAccessor.MaxAdvGradeExpLv then
+            ConfigDataAccessor.MaxAdvGradeExpLv = v.ID
+        end
+    end
+    return ConfigDataAccessor.MaxAdvGradeExpLv
+end
+
+--获取每次的奖励【玩家等级版本】
+function GetDonateOrderRewardEach(playerLv)
+    local minLv = 0
+    local aim_id = 0
+    for k, v in pairs(ConfigDataAccessor.DonateOrderReward) do
+        if v.LvLimit <= playerLv and minLv < v.LvLimit then
+            minLv = v.LvLimit
+            aim_id = k
+        end
+    end
+
+    -- 找个最大的
+    if aim_id == 0 then
+        for k, v in pairs(ConfigDataAccessor.DonateOrderReward) do
+            if v.LvLimit >= minLv then
+                minLv = v.LvLimit
+                aim_id = k
+            end
+        end
+    end
+
+    -- 还是没找到就找个最小的
+    if aim_id == 0 then
+        minLv = 9999999
+        for k, v in pairs(ConfigDataAccessor.DonateOrderReward) do
+            if v.LvLimit <= minLv then
+                minLv = v.LvLimit
+                aim_id = k
+            end
+        end
+    end
+
+    local rews = nil
+    for k, v in pairs(ConfigDataAccessor.DonateOrderReward) do
+        if v.LvLimit == minLv and v.RewardType == 1 then
+            rews = v
+        end
+    end
+
+    return rews
+end
+
+--获取每次的奖励【冒险等级版本】
+function GetDonateOrderRewardEachAdvLv(advLv)
+    local minLv = 0
+    local aim_id = 0
+    for k, v in pairs(ConfigDataAccessor.DonateOrderReward) do
+        if v.AdvantureLvLimit <= advLv and minLv < v.AdvantureLvLimit then
+            minLv = v.AdvantureLvLimit
+            aim_id = k
+        end
+    end
+
+    -- 找个最大的
+    if aim_id == 0 then
+        for k, v in pairs(ConfigDataAccessor.DonateOrderReward) do
+            if v.AdvantureLvLimit >= minLv then
+                minLv = v.AdvantureLvLimit
+                aim_id = k
+            end
+        end
+    end
+
+    -- 还是没找到就找个最小的
+    if aim_id == 0 then
+        minLv = 9999999
+        for k, v in pairs(ConfigDataAccessor.DonateOrderReward) do
+            if v.AdvantureLvLimit <= minLv then
+                minLv = v.AdvantureLvLimit
+                aim_id = k
+            end
+        end
+    end
+
+    local rews = nil
+    for k, v in pairs(ConfigDataAccessor.DonateOrderReward) do
+        if v.AdvantureLvLimit == minLv and v.RewardType == 1 then
+            rews = v
+        end
+    end
+
+    return rews
+end
+
+function GetDonateOrderReward(playerLv)
+    local minLv = 0
+    local aim_id = 0
+    for k, v in pairs(ConfigDataAccessor.DonateOrderReward) do
+        if v.LvLimit <= playerLv and minLv < v.LvLimit then
+            minLv = v.LvLimit
+            aim_id = k
+        end
+    end
+
+    -- 找个最大的
+    if aim_id == 0 then
+        for k, v in pairs(ConfigDataAccessor.DonateOrderReward) do
+            if v.LvLimit >= minLv then
+                minLv = v.LvLimit
+                aim_id = k
+            end
+        end
+    end
+
+    -- 还是没找到就找个最小的
+    if aim_id == 0 then
+        minLv = 9999999
+        for k, v in pairs(ConfigDataAccessor.DonateOrderReward) do
+            if v.LvLimit <= minLv then
+                minLv = v.LvLimit
+                aim_id = k
+            end
+        end
+    end
+
+    local rews = {}
+    for k, v in pairs(ConfigDataAccessor.DonateOrderReward) do
+        if v.LvLimit == minLv and v.RewardType == 2 then
+            table.insert(rews, v)
+        end
+    end
+
+    return rews
+
+    -- return ConfigDataAccessor.DonateOrderReward[aim_id].AdvantureLvLimit;
+end
+
+function GetDonateOrderRewardAdvLv(advLv)
+    local minLv = 0
+    local aim_id = 0
+    for k, v in pairs(ConfigDataAccessor.DonateOrderReward) do
+        if v.AdvantureLvLimit <= advLv and minLv < v.AdvantureLvLimit then
+            minLv = v.AdvantureLvLimit
+            aim_id = k
+        end
+    end
+
+    -- 找个最大的
+    if aim_id == 0 then
+        for k, v in pairs(ConfigDataAccessor.DonateOrderReward) do
+            if v.AdvantureLvLimit >= minLv then
+                minLv = v.AdvantureLvLimit
+                aim_id = k
+            end
+        end
+    end
+
+    -- 还是没找到就找个最小的
+    if aim_id == 0 then
+        minLv = 9999999
+        for k, v in pairs(ConfigDataAccessor.DonateOrderReward) do
+            if v.AdvantureLvLimit <= minLv then
+                minLv = v.AdvantureLvLimit
+                aim_id = k
+            end
+        end
+    end
+
+    local rews = {}
+    for k, v in pairs(ConfigDataAccessor.DonateOrderReward) do
+        if v.AdvantureLvLimit == minLv and v.RewardType == 2 then
+            table.insert(rews, v)
+        end
+    end
+
+    return rews
+
+    -- return ConfigDataAccessor.DonateOrderReward[aim_id].AdvantureLvLimit;
+end
+
+function GetGVEEffectLevel(openDay)
+    local minDay = 0
+    local aim_id = 0
+    for k, v in pairs(ConfigDataAccessor.GVETime) do
+        if v.OpenDay <= openDay and minDay < v.OpenDay then
+            minDay = v.OpenDay
+            aim_id = k
+        end
+    end
+
+    -- 找个最大的
+    if aim_id == 0 then
+        for k, v in pairs(ConfigDataAccessor.GVETime) do
+            if v.OpenDay >= minDay then
+                minDay = v.OpenDay
+                aim_id = k
+            end
+        end
+    end
+
+    -- 还是没找到就找个最小的
+    if aim_id == 0 then
+        minDay = 9999999
+        for k, v in pairs(ConfigDataAccessor.GVETime) do
+            if v.OpenDay <= minDay then
+                minDay = v.OpenDay
+                aim_id = k
+            end
+        end
+    end
+
+    return ConfigDataAccessor.GVETime[aim_id].EffectLevel
+end
+
+function GetGNActivGuildRank(openDay)
+    local minDay = 0
+    local aim_id = 0
+    for k, v in pairs(ConfigDataAccessor.GNActivGuildRank) do
+        if v.OpenDays <= openDay and minDay < v.OpenDays then
+            minDay = v.OpenDays
+            aim_id = k
+        end
+    end
+
+    -- 找个最大的
+    if aim_id == 0 then
+        for k, v in pairs(ConfigDataAccessor.GNActivGuildRank) do
+            if v.OpenDays >= minDay then
+                minDay = v.OpenDays
+                aim_id = k
+            end
+        end
+    end
+
+    -- 还是没找到就找个最小的
+    if aim_id == 0 then
+        minDay = 9999999
+        for k, v in pairs(ConfigDataAccessor.GNActivGuildRank) do
+            if v.OpenDays <= minDay then
+                minDay = v.OpenDays
+                aim_id = k
+            end
+        end
+    end
+
+    return ConfigDataAccessor.GNActivGuildRank[aim_id]
+end
+
+function GetGNActivRank(openDay)
+    local minDay = 0
+    local aim_id = 0
+    for k, v in pairs(ConfigDataAccessor.GNActivRank) do
+        if v.OpenDays <= openDay and minDay < v.OpenDays then
+            minDay = v.OpenDays
+            aim_id = k
+        end
+    end
+
+    -- 找个最大的
+    if aim_id == 0 then
+        for k, v in pairs(ConfigDataAccessor.GNActivRank) do
+            if v.OpenDays >= minDay then
+                minDay = v.OpenDays
+                aim_id = k
+            end
+        end
+    end
+
+    -- 还是没找到就找个最小的
+    if aim_id == 0 then
+        minDay = 9999999
+        for k, v in pairs(ConfigDataAccessor.GNActivRank) do
+            if v.OpenDays <= minDay then
+                minDay = v.OpenDays
+                aim_id = k
+            end
+        end
+    end
+
+    return ConfigDataAccessor.GNActivRank[aim_id]
+end
+
+function GetOpeningTimeConfig(openDay)
+    local minDay = 0
+    local aim_id = 0
+    for k, v in pairs(ConfigDataAccessor.OpeningTime) do
+        if v.ID <= openDay and minDay < v.ID then
+            minDay = v.ID
+            aim_id = k
+        end
+    end
+
+    -- 找个最大的
+    if aim_id == 0 then
+        for k, v in pairs(ConfigDataAccessor.OpeningTime) do
+            if v.ID >= minDay then
+                minDay = v.ID
+                aim_id = k
+            end
+        end
+    end
+
+    -- 还是没找到就找个最小的
+    if aim_id == 0 then
+        minDay = 9999999
+        for k, v in pairs(ConfigDataAccessor.OpeningTime) do
+            if v.ID <= minDay then
+                minDay = v.ID
+                aim_id = k
+            end
+        end
+    end
+
+    return ConfigDataAccessor.OpeningTime[aim_id]
+end
+
+function GetMaxPolishNum(rarity)
+    if ConfigDataAccessor.MaxPolishNum == nil then
+        ConfigDataAccessor.MaxPolishNum = {}
+        ConfigDataAccessor.MaxPolishNum[3] = 0
+        ConfigDataAccessor.MaxPolishNum[4] = 0
+        ConfigDataAccessor.MaxPolishNum[5] = 0
+    end
+    if ConfigDataAccessor.MaxPolishNum[rarity] == 0 then
+        local maxNum = 0
+
+        for k, v in pairs(ConfigDataAccessor.AmuletPoint) do
+            if v.AmuletLevel == 1 and v.AmuletQuality == rarity and v.Point > maxNum then
+                maxNum = v.Point
+            end
+        end
+
+        ConfigDataAccessor.MaxPolishNum[rarity] = maxNum
+    end
+
+    return ConfigDataAccessor.MaxPolishNum[rarity]
+end
+
+function GetRingTaskConfigById(taskid)
+    for k, v in pairs(ConfigDataAccessor.RingTask) do
+        if v.TaskID == taskid then
+            return v
+        end
+    end
+end
+
+function GetRingTaskGroupByLevel(lv)
+    local minLv = 0
+    local aim_id = 0
+    for k, v in pairs(ConfigDataAccessor.RingTaskGroup) do
+        if v.UnlockLevl <= lv and minLv < v.UnlockLevl then
+            minLv = v.UnlockLevl
+            aim_id = k
+        end
+    end
+
+    -- 找个最大的
+    if aim_id == 0 then
+        for k, v in pairs(ConfigDataAccessor.RingTaskGroup) do
+            if v.UnlockLevl >= minLv then
+                minLv = v.UnlockLevl
+                aim_id = k
+            end
+        end
+    end
+
+    -- 还是没找到就找个最小的
+    if aim_id == 0 then
+        minLv = 9999999
+        for k, v in pairs(ConfigDataAccessor.RingTaskGroup) do
+            if v.UnlockLevl <= minLv then
+                minLv = v.UnlockLevl
+                aim_id = k
+            end
+        end
+    end
+
+    return ConfigDataAccessor.RingTaskGroup[aim_id]
+end
+
+function GetPartnerAssitConfig(job_id, slot, qualifications)
+    local select = nil
+    local list = ConfigDataAccessor.PartnerAssist[job_id][slot]
+    if list ~= nil and #list > 0 then
+        for k, v in pairs(list) do
+            local suit = true
+            for k1, v1 in pairs(qualifications) do
+                if suit and v1 < v.Require[k1] then
+                    suit = false
+                end
+            end
+
+            if suit then
+                if select == nil then
+                    select = v
+                else
+                    if v.Require[1] > select.Require[1] then
+                        select = v
+                    end
+                end
+            end
+        end
+    end
+
+    return select
+end
+
+function GetPartnerAssitConfigByID(job_id, slot, id)
+    local list = ConfigDataAccessor.PartnerAssist[job_id][slot]
+    if list ~= nil and #list > 0 then
+        for k, v in pairs(list) do
+            if id == v.Id then
+                return v
+            end
+        end
+    end
+
+    return nil
+end
+
+function InitStarExpend()
+    -- 伙伴升星表
+    ConfigDataAccessor.StarExpend = {}
+    local list = require "Common.Config.StarExpend"
+    for k, v in pairs(list) do
+        if ConfigDataAccessor.StarExpend[v.Quality] == nil then
+            ConfigDataAccessor.StarExpend[v.Quality] = {}
+        end
+
+        ConfigDataAccessor.StarExpend[v.Quality][v.Star] = v
+    end
+end
+
+function InitQualificationsExpend()
+    ConfigDataAccessor.QualificationsExpend = {}
+    local list = require "Common.Config.QualificationsExpend"
+    for k, v in pairs(list) do
+        if ConfigDataAccessor.QualificationsExpend[v.QualificationsExpendID] == nil then
+            ConfigDataAccessor.QualificationsExpend[v.QualificationsExpendID] = {}
+        end
+
+        ConfigDataAccessor.QualificationsExpend[v.QualificationsExpendID][v.BreakStep] = v
+    end
+end
+
+function InitPartnerSkillDesc()
+    ConfigDataAccessor.PartnerSkillDesc = {}
+    local list = require "Common.Config.PartnerSkillDesc"
+    for k, v in pairs(list) do
+        if ConfigDataAccessor.PartnerSkillDesc[v.SkillID] == nil then
+            ConfigDataAccessor.PartnerSkillDesc[v.SkillID] = {}
+        end
+        ConfigDataAccessor.PartnerSkillDesc[v.SkillID][v.Level] = v
+    end
+end
+
+function InitPartnerAssist()
+    ConfigDataAccessor.PartnerAssist = {}
+    local list = require "Common.Config.Assist"
+    for k, v in pairs(list) do
+        if ConfigDataAccessor.PartnerAssist[v.Job_id] == nil then
+            ConfigDataAccessor.PartnerAssist[v.Job_id] = {}
+        end
+        if ConfigDataAccessor.PartnerAssist[v.Job_id][v.Slot] == nil then
+            ConfigDataAccessor.PartnerAssist[v.Job_id][v.Slot] = {}
+        end
+        table.insert(ConfigDataAccessor.PartnerAssist[v.Job_id][v.Slot], v)
+    end
+end
+
+function InitPartnerAssistSlot()
+    ConfigDataAccessor.PartnerAssistSlot = {}
+    local list = require "Common.Config.PartnerAssistSlot"
+    for k, v in pairs(list) do
+        if ConfigDataAccessor.PartnerAssistSlot[v.Job_id] == nil then
+            ConfigDataAccessor.PartnerAssistSlot[v.Job_id] = {}
+        end
+        ConfigDataAccessor.PartnerAssistSlot[v.Job_id][v.Slot] = v
+    end
+end
+
+function InitQualifications()
+    ConfigDataAccessor.Qualifications = {}
+    local list = require "Common.Config.Qualifications"
+    for k, v in pairs(list) do
+        if ConfigDataAccessor.Qualifications[v.QualificationID] == nil then
+            ConfigDataAccessor.Qualifications[v.QualificationID] = {}
+        end
+        ConfigDataAccessor.Qualifications[v.QualificationID][v.BreakStep] = v
+    end
+end
+
+function InitPartnerNature()
+    ConfigDataAccessor.PartnerNature = {}
+    local list = require "Common.Config.PartnerNature"
+    for k, v in pairs(list) do
+        if ConfigDataAccessor.PartnerNature[v.Group] == nil then
+            ConfigDataAccessor.PartnerNature[v.Group] = {}
+        end
+        ConfigDataAccessor.PartnerNature[v.Group][v.Level] = v
+    end
+end
+
+function InitParConversion()
+    ConfigDataAccessor.ParConversion = {}
+    local list = require "Common.Config.ParConversion"
+    for k, v in pairs(list) do
+        if ConfigDataAccessor.ParConversion[v.QualificationID] == nil then
+            ConfigDataAccessor.ParConversion[v.QualificationID] = {
+                QualificationID = v.QualificationID,
+                Name = v.Name,
+                AttrID = v.Nature,
+                Natures = {}
+            }
+        end
+        if ConfigDataAccessor.ParConversion[v.QualificationID].Natures[v.Nature] == nil then
+            ConfigDataAccessor.ParConversion[v.QualificationID].Natures[v.Nature] = {}
+        end
+
+        table.insert(
+            ConfigDataAccessor.ParConversion[v.QualificationID].Natures[v.Nature],
+            {
+                Range = v.Range,
+                Ratio = v.Ratio
+            }
+        )
+    end
+end
+
+function InitIntroMap()
+    ConfigDataAccessor.IntroMap = {}
+    local list = require "Common.Config.Intro"
+    for k, v in pairs(list) do
+        ConfigDataAccessor.IntroMap[string.lower(v.Name)] = v
+    end
+end
+
+function GetDropAward(AwardID)
+    local idx = 0
+    local dropCfg = ConfigDataAccessor.Drop[AwardID]
+    local tempList = {}
+    if dropCfg ~= nil then
+        for k, v in pairs(dropCfg) do
+            for k2, v2 in pairs(v) do
+                local dropIdxCfg = v2
+                local baseId = dropIdxCfg.ItemIDs[2]
+                local num = dropIdxCfg.NumMin
+                if tempList[baseId] == nil then
+                    tempList[baseId] = num
+                else
+                    tempList[baseId] = tempList[baseId] + num
+                end
+            end
+        end
+    end
+    return tempList
+end
+
+-- 转换系统跳转表
+function InitSystemJump()
+    ConfigDataAccessor.SystemJumpEnum = {}
+    for k, v in pairs(ConfigDataAccessor.SystemJump) do
+        ConfigDataAccessor.SystemJumpEnum[v.WayString] = v
+    end
+    local a = 1
+end
+
+function InitWorldLine()
+    ConfigDataAccessor.WorldLineDic = {}
+
+    local worldLines = ConfigDataAccessor.WorldLine
+
+    for k, v in pairs(worldLines) do
+        if v.NodeType == 1 or v.NodeType == 2 then
+            ConfigDataAccessor.WorldLineDic[k] = {}
+        end
+    end
+
+    for k, v in pairs(ConfigDataAccessor.WorldLineDic) do
+        for k2, v2 in pairs(worldLines) do
+            if (v2.NodeType ~= 1 and v2.NodeType ~= 2) and v2.PreNode == k then
+                ConfigDataAccessor.WorldLineDic[k][k2] = {}
+                table.insert(ConfigDataAccessor.WorldLineDic[k][k2], k2)
+            end
+        end
+    end
+
+    for k, v in pairs(ConfigDataAccessor.WorldLineDic) do
+        for k2, v2 in pairs(v) do
+            local id = FindNextWorldLineItem(k2)
+            while id > 0 do
+                table.insert(v2, id)
+                id = FindNextWorldLineItem(id)
+            end
+        end
+    end
+end
+
+function FindNextWorldLineItem(k)
+    local id = 0
+    local worldLines = ConfigDataAccessor.WorldLine
+    for k2, v2 in pairs(worldLines) do
+        if v2.NodeType ~= 1 and v2.PreNode == k then
+            id = k2
+        end
+    end
+
+    return id
+end
+
+---初始化掉落表
+function InitDrop()
+    ConfigDataAccessor.Drop = {}
+
+    local listDrop = require "Common.Config.Drops"
+    local listDropIndex = require "Common.Config.DropIndex"
+
+    for k, v in pairs(listDrop) do
+        if ConfigDataAccessor.Drop[v.DropID] == nil then
+            ConfigDataAccessor.Drop[v.DropID] = {}
+        end
+
+        for k2, v2 in pairs(listDropIndex) do
+            if v.IndexID == v2.IndexID then
+                if ConfigDataAccessor.Drop[v.DropID][v2.IndexID] == nil then
+                    ConfigDataAccessor.Drop[v.DropID][v2.IndexID] = {}
+                end
+                table.insert(ConfigDataAccessor.Drop[v.DropID][v2.IndexID], v2)
+            end
+        end
+    end
+end
+
+---初始化掉落表
+function InitDropShow()
+    ConfigDataAccessor.DropShow = {}
+    local list = require "Common.Config.DropShow"
+    for k, v in pairs(list) do
+        if ConfigDataAccessor.DropShow[v.IndexID] == nil then
+            ConfigDataAccessor.DropShow[v.IndexID] = {}
+        end
+
+        table.insert(ConfigDataAccessor.DropShow[v.IndexID], v)
+    end
+end
+
+---初始化副本目标
+function InitEctypeTarget()
+    ConfigDataAccessor.EctypeTarget = {}
+    local list = require "Common.Config.EctypeTarget"
+    for k, v in pairs(list) do
+        if ConfigDataAccessor.EctypeTarget[v.GoalId] == nil then
+            ConfigDataAccessor.EctypeTarget[v.GoalId] = {}
+        end
+
+        table.insert(ConfigDataAccessor.EctypeTarget[v.GoalId], v)
+    end
+end
+
+-----初始化怪物属性表 根据UseTemplate为key
+-- function  InitSummonAttr()
+-- ConfigDataAccessor.SummonAttr={}
+-- local list=require"Common.Config.SummonAttr"
+-- for k, v in pairs(list) do
+-- ConfigDataAccessor.SummonAttr[v.UseTemplate]= v;
+-- end
+-- end
+
+function GetAddIndexLevelLimitCfg(id, index)
+    local list = ConfigDataAccessor.LevelLimit;
+    local targetIndex = id + index;
+    if targetIndex > 0 then
+        return ConfigDataAccessor.LevelLimit[targetIndex];
+    end
+    return nil;
+end
+
+---根据组ID获取条件配置
+---@param groupID any 组ID
+---@return 条件配置
+function GetCMconditionByGroupID(groupID)
+    local list = {}
+    for _, v in pairs(ConfigDataAccessor.CMcondition) do
+        if v.GroupID == groupID then
+            table.insert(list, v)
+        end
+    end
+    return list
+end
+
+function InitAttr()
+    -- 根据OwnModule分类
+    ConfigDataAccessor.AttrList = {}
+    local list = Attribute
+
+    for k, v in pairs(list) do
+        if ConfigDataAccessor.AttrList[v.OwnModule] == nil then
+            ConfigDataAccessor.AttrList[v.OwnModule] = {}
+        end
+
+        table.insert(ConfigDataAccessor.AttrList[v.OwnModule], v)
+    end
+end
+
+---comment 根据属性ID获取属性配置
+---@param ID any 属性ID
+function GetAttrByID(ID)
+    for k, v in pairs(ConfigDataAccessor.Attribute) do
+        if v.AttrId == ID then
+            return v
+        end
+    end
+    return nil
+end
+
+function InitSecretRankClient()
+    ConfigDataAccessor.SecretRankClient = {}
+    local list = require "Common.Config.SecretRank"
+
+    for k, v in pairs(list) do
+        if ConfigDataAccessor.SecretRankClient[v.RankAward] == nil then
+            ConfigDataAccessor.SecretRankClient[v.RankAward] = {}
+        end
+
+        table.insert(ConfigDataAccessor.SecretRankClient[v.RankAward], v)
+    end
+end
+
+---comment 根据赛季ID获取秘境赛季的奖励
+---@param SeasonID any 赛季ID
+---@param Rank any 排名
+function GetSecretRankClientBySeasonIDAndRank(SeasonID, Rank)
+    local SeasonSecretCfg = ConfigDataAccessor.SeasonSecret[SeasonID]
+    if SeasonSecretCfg ~= nil then
+        local SeasonCfgTb = ConfigDataAccessor.SecretRankClient[SeasonSecretCfg.RankAward]
+        if SeasonCfgTb ~= nil then
+            for key, value in pairs(SeasonCfgTb) do
+                if Rank <= value.Rank then
+                    return value
+                end
+            end
+        end
+    end
+    return nil
+end
+
+function InitAmulet()
+    -- 纹章表
+    ConfigDataAccessor.AmuletEquip = require "Common.Config.AmuletEquip"
+    -- 装备纹章技能表
+    ConfigDataAccessor.AmuletEquipEffect = require "Common.Config.AmuletEquipEffect"
+    -- 被动战斗文本信息表
+    ConfigDataAccessor.PassiveDesc = require "Common.Config.PassiveDesc"
+    -- 纹章配置表
+    ConfigDataAccessor.HeraldryEquip = require "Common.Config.HeraldryEquip"
+
+    -- 获取一个类型的某个等级的纹章
+    ConfigDataAccessor.GetHeraldryEquip = function(resonanceSlot, lv)
+        for k, v in pairs(ConfigDataAccessor.HeraldryEquip) do
+            local Ese = v
+            if Ese.ResonanceSlot == resonanceSlot and Ese.HeraldryLevel == lv then
+                return Ese
+            end
+        end
+        return nil
+    end
+
+    -- 纹章成长表
+    ConfigDataAccessor.HeraldryGrow = require "Common.Config.HeraldryGrow"
+
+    -- 获取纹章最大等级
+    ConfigDataAccessor.GetHeraldryGrowMaxLv = function()
+        local maxLv = 1
+        for k, v in pairs(ConfigDataAccessor.HeraldryGrow) do
+            local Ese = v
+            if Ese.GrowLv > maxLv then
+                maxLv = Ese.GrowLv
+            end
+        end
+        return maxLv
+    end
+
+    -- 获取某个等级的文本信息
+    ConfigDataAccessor.GetPassiveDesc = function(skill_id, lv)
+        for k, v in pairs(ConfigDataAccessor.PassiveDesc) do
+            local Ese = v
+            if Ese.SkillID == skill_id and Ese.Level == lv then
+                return Ese
+            end
+        end
+        return nil
+    end
+
+    -- 获取被动的最大等级
+    ConfigDataAccessor.GetPassiveDescMaxLv = function(skill_id)
+        local maxLv = 1
+        for k, v in pairs(ConfigDataAccessor.PassiveDesc) do
+            local Ese = v
+            if Ese.Level > maxLv and Ese.SkillID == skill_id then
+                maxLv = Ese.Level
+            end
+        end
+        return maxLv
+    end
+
+    -- 纹章等级表
+    ConfigDataAccessor.AmuletEquipLevel = require "Common.Config.AmuletEquipLevel"
+    -- 获取某个等级，类型的 等级表
+    ConfigDataAccessor.GetAmuletEquipLevel = function(lv, type)
+        for k, v in pairs(ConfigDataAccessor.AmuletEquipLevel) do
+            local Ese = v
+            if Ese.AmuletLevel == lv and Ese.AmuletType == type then
+                return Ese
+            end
+        end
+        return nil
+    end
+
+    -- 纹章点数（洗练，强化的）消耗表
+    ConfigDataAccessor.AmuletPoint = require "Common.Config.AmuletPoint"
+    -- 获取某个等级，品质，点位序号的 消耗信息
+    ConfigDataAccessor.GetAmuletPoint = function(lv, quality, idx)
+        for k, v in pairs(ConfigDataAccessor.AmuletPoint) do
+            local Ese = v
+            if Ese.AmuletLevel == lv and Ese.AmuletQuality == quality and Ese.Point == idx then
+                return Ese
+            end
+        end
+        return nil
+    end
+
+    -- 纹章定轨的消耗表
+    ConfigDataAccessor.AmuletExtract = require "Common.Config.AmuletExtract"
+    -- 获取某个等级，品质，次数的 消耗信息
+    ConfigDataAccessor.GetAmuletExtract = function(lv, quality, num)
+        local selectedMaxEse = nil
+
+        -- 先找到最小的
+        for k, v in pairs(ConfigDataAccessor.AmuletExtract) do
+            local Ese = v
+            if Ese.AmuletLevel == lv and Ese.AmuletQuality == quality and Ese.ExtractNum == 1 then
+                selectedMaxEse = Ese
+                break
+            end
+        end
+
+        for k, v in pairs(ConfigDataAccessor.AmuletExtract) do
+            local Ese = v
+            if Ese.AmuletLevel == lv and Ese.AmuletQuality == quality then
+                if num >= Ese.ExtractNum and Ese.ExtractNum >= selectedMaxEse.ExtractNum then
+                    selectedMaxEse = Ese
+                end
+            end
+        end
+        return selectedMaxEse
+    end
+end
+
+function InitAllCurrency()
+    ConfigDataAccessor.Currency = {}
+    for k, v in pairs(ConfigDataAccessor.Item) do
+        local ItemType = v.ItemType
+        local SubType = v.SubType
+
+        if ItemType == 101 or (ItemType == 1 and SubType == 3) then
+            table.insert(ConfigDataAccessor.Currency, v.Id)
+        end
+    end
+end
+
+function InitItemMainType()
+    local mainType = require "Common.Config.ItemMainType"
+    ConfigDataAccessor.ItemType = require "Common.Config.ItemType"
+    ConfigDataAccessor.ItemMainType = {}
+    for k, v in pairs(mainType) do
+        local ItemType = v.ItemType
+        v.SubTypes = {}
+        for k1, v1 in pairs(ConfigDataAccessor.ItemType) do
+            if v1.ItemType == ItemType then
+                v.SubTypes[v1.SubType] = v1
+            end
+        end
+        ConfigDataAccessor.ItemMainType[ItemType] = v
+    end
+end
+
+--[[
+IsAll 全部 不按类型区分
+ItemType 道具大类型
+SubType 道具子类型
+]]
+function GetItemTypes(IsAll, ItemType, SubType)
+    local list = {}
+    local temp = ConfigDataAccessor.ItemMainType[ItemType]
+    if temp ~= nil then
+        for k, v in pairs(temp.SubTypes) do
+            if IsAll or (k == SubType) then
+                table.insert(list, v)
+            end
+        end
+    end
+    return list
+end
+
+function InitEquipSlot()
+    ConfigDataAccessor.EquipSlotUpExpend = require "Common.Config.EquipSlotUpExpend" -- 装备强化表【消耗，基础成功率，补偿成功率，成功率上限，需要按部位整理】
+    ConfigDataAccessor.EquipSlotIntensify = require "Common.Config.EquipSlotIntensify" -- 装备强化属性表【需要按照职业，部位整理】
+    ConfigDataAccessor.EquipSlotUpLimit = require "Common.Config.EquipSlotUpLimit" -- 装备强化上限表【需要读取条件表】
+    ConfigDataAccessor.EquipSlotResonance = require "Common.Config.EquipSlotResonance" -- 装备强化共鸣表【只是单纯显示用】
+
+    ConfigDataAccessor.EquipResetExpend = require "Common.Config.EquipResetExpend" -- 装备洗练表
+
+    ConfigDataAccessor.MaxEquipSlotLv = nil
+    ConfigDataAccessor.MaxEquipSlotResonanceLv = nil
+
+    -- 获取某个部位的强化表
+    ConfigDataAccessor.GetEquipResetExpend = function(slot_id, lv)
+        for k, v in pairs(ConfigDataAccessor.EquipResetExpend) do
+            -- for i = 1,#ConfigDataAccessor.EquipResetExpend do
+            local Ese = v
+            if Ese.Level == lv then
+                for j = 1, #Ese.SubType do
+                    if Ese.SubType[j] == slot_id then
+                        return Ese
+                    end
+                end
+            end
+        end
+        return nil
+    end
+
+    -- 获取某个部位的强化表
+    ConfigDataAccessor.GetMaxEquipSlotLv = function()
+        if ConfigDataAccessor.MaxEquipSlotLv ~= nil then
+            return ConfigDataAccessor.MaxEquipSlotLv
+        end
+
+        local maxNum = 0
+        for i = 1, #ConfigDataAccessor.EquipSlotIntensify do
+            local Ese = ConfigDataAccessor.EquipSlotIntensify[i]
+            if Ese.Slot_id == 1 and Ese.Level > maxNum then
+                maxNum = Ese.Level
+            end
+        end
+
+        ConfigDataAccessor.MaxEquipSlotLv = maxNum
+        return ConfigDataAccessor.MaxEquipSlotLv
+    end
+
+    -- 获取某个部位的强化表
+    ConfigDataAccessor.GetEquipSlotUpExpend = function(slot_id, lv)
+        for i = 1, #ConfigDataAccessor.EquipSlotUpExpend do
+            local Ese = ConfigDataAccessor.EquipSlotUpExpend[i]
+            if Ese.Level == lv then
+                for j = 1, #Ese.SubType do
+                    if Ese.SubType[j] == slot_id then
+                        return Ese
+                    end
+                end
+            end
+        end
+        return nil
+    end
+
+    -- 获取某个部位的强化属性表
+    ConfigDataAccessor.GetEquipSlotIntensify = function(slot_id, lv, job_id)
+        for i = 1, #ConfigDataAccessor.EquipSlotIntensify do
+            local Esi = ConfigDataAccessor.EquipSlotIntensify[i]
+            if Esi.Level == lv and Esi.Slot_id == slot_id then
+                for j = 1, #Esi.Job_id do
+                    if Esi.Job_id[j] == job_id then
+                        return Esi
+                    end
+                end
+            end
+        end
+        return nil
+    end
+
+    -- 获取某个部位的强化属性表
+    ConfigDataAccessor.GetEquipSlotResonance = function(resonanceLv, job_id)
+        for i = 1, #ConfigDataAccessor.EquipSlotResonance do
+            local Esi = ConfigDataAccessor.EquipSlotResonance[i]
+            if Esi.ResonanceLv == resonanceLv then
+                for j = 1, #Esi.Job_id do
+                    if Esi.Job_id[j] == job_id then
+                        return Esi
+                    end
+                end
+            end
+        end
+        return nil
+    end
+
+    -- 获取最大共鸣等级
+    ConfigDataAccessor.GetMaxEquipSlotResonanceLv = function(job_id)
+        if ConfigDataAccessor.MaxEquipSlotResonanceLv ~= nil then
+            return ConfigDataAccessor.MaxEquipSlotResonanceLv
+        end
+
+        local maxNum = 0
+        for i = 1, #ConfigDataAccessor.EquipSlotResonance do
+            local Ese = ConfigDataAccessor.EquipSlotResonance[i]
+            if Ese.ResonanceLv > maxNum then
+                for j = 1, #Ese.Job_id do
+                    if Ese.Job_id[j] == job_id then
+                        maxNum = Ese.ResonanceLv
+                    end
+                end
+            end
+        end
+
+        ConfigDataAccessor.MaxEquipSlotResonanceLv = maxNum
+        return ConfigDataAccessor.MaxEquipSlotResonanceLv
+    end
+end
+
+-- 初始化 job 职业相关的 数据
+function InitJobDatas()
+    -- 职业对应的转职信息
+    -- {10 = [10,11,12]  , 11 = [10,11,12] , 12 = [10,11,12] }
+    ConfigDataAccessor.JobTransferLists = {}
+
+    for k, v in pairs(ConfigDataAccessor.Job) do
+        -- 如果 有职业转换 列表并且数量大于0
+        if v.TransferJob ~= nil and #v.TransferJob > 0 then
+            local jobs = {}
+            table.insert(jobs, 1, v.ID)
+            for i = 1, #v.TransferJob, 1 do
+                table.insert(jobs, #jobs + 1, v.TransferJob[i])
+            end
+
+            -- 将 转职数据 存入 JobTransferLists 中, 格式为 {10 = [10,11,12]  , 11 = [10,11,12] , 12 = [10,11,12] }
+            for i = 1, #jobs, 1 do
+                ConfigDataAccessor.JobTransferLists[jobs[i]] = jobs
+            end
+        end
+    end
+end
+
+-- 初始化BUFF描述表
+function InitBuffDesc()
+    ConfigDataAccessor.BuffDescList = {}
+
+    local list = require "Common.Config.BuffDesc"
+
+    for k, v in pairs(list) do
+        if ConfigDataAccessor.BuffDescList[v.SkillID] == nil then
+            ConfigDataAccessor.BuffDescList[v.SkillID] = {}
+        end
+
+        ConfigDataAccessor.BuffDescList[v.SkillID][v.Level] = v
+    end
+end
+
+function InitCopyBoss()
+    ConfigDataAccessor.CopyBoss = {}
+    local list = require "Common.Config.CopyBOSS"
+
+    for k, v in pairs(list) do
+        if ConfigDataAccessor.CopyBoss[v.BOSSGroupID] == nil then
+            ConfigDataAccessor.CopyBoss[v.BOSSGroupID] = {}
+        end
+
+        table.insert(ConfigDataAccessor.CopyBoss[v.BOSSGroupID], v)
+    end
+end
+
+function InitCopyRule()
+    ConfigDataAccessor.CopyRule = {}
+    local list = require "Common.Config.CopyRule"
+
+    for k, v in pairs(list) do
+        if ConfigDataAccessor.CopyRule[v.RuleGroupID] == nil then
+            ConfigDataAccessor.CopyRule[v.RuleGroupID] = {}
+        end
+
+        table.insert(ConfigDataAccessor.CopyRule[v.RuleGroupID], v)
+    end
+end
+
+return ConfigDataAccessor

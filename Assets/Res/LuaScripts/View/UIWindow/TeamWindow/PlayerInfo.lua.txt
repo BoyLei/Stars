@@ -1,0 +1,54 @@
+local PlayerInfo = {}
+
+PlayerInfo.__index = PlayerInfo
+
+function PlayerInfo:New(go)
+    local self = {};
+    setmetatable(self, PlayerInfo);
+
+    self.transform = go.transform;
+    self.gameObject = go;
+
+    self.headIcon = self.transform:Find("HeadIcon"):GetComponent(typeof(Image));
+    self.nameText = self.transform:Find("Name"):GetComponent(typeof(Text));
+    self.levelText = self.transform:Find("Level"):GetComponent(typeof(Text));
+    self.numText = self.transform:Find("Num"):GetComponent(typeof(Text));
+	self.jobBg = self.transform:Find("JobBg"):GetComponent(typeof(Image));
+	self.jobIcon = self.transform:Find("JobBg/JobIcon"):GetComponent(typeof(Image));
+
+    return self;
+end
+
+function PlayerInfo:Init(data, count)
+	local jobDataCell = ConfigDataAccessor.Job[data.JobId];
+	if jobDataCell ~= nil then
+		local avatarDataCell= ConfigDataAccessor.Avatar[jobDataCell.AvatarID];
+		if avatarDataCell ~= nil then
+			local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID];
+			if headCfg ~= nil then
+				if self.headIcon ~= nil then
+					--self.headIcon.sprite = AtlasManager.Instance:GetSprite(headCfg.HeadAtlasName,headCfg.MinHead);
+					ResourceHelper:LoadIconByAtlasAsync(self.headIcon, headCfg.HeadAtlasName, headCfg.MinHead, false)
+				end
+
+				if self.jobIcon ~= nil then
+                    ResourceHelper:LoadIconByAtlasAsync(self.jobIcon, headCfg.HeadAtlasName, headCfg.JobIcon, false)
+                end
+
+                local jobshi = math.floor(data.JobId / 10)
+                if self.jobBG ~= nil then
+                    local jobTypeBgName = "Icon_ArmBg" .. jobshi
+                    ResourceHelper:LoadIconByAtlasAsync(self.jobBG, ResourceHelper.AtlasPathRole, jobTypeBgName, false)
+                end
+			end
+		end
+	end
+	
+    self.nameText.text = data.UserName;
+    --self.levelText.text = data.Level .. "级";
+	self.levelText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {data.Level});
+
+    self.numText.text = count .. "/5";
+end
+
+return PlayerInfo

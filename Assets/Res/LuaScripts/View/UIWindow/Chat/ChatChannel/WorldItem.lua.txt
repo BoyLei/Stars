@@ -1,0 +1,249 @@
+local WorldItem = {}
+WorldItem.__index = WorldItem
+
+WorldItem.chatMsgNotice = nil;
+
+function WorldItem:New(obj)
+    local self = {}
+    setmetatable(self, WorldItem)
+
+    self:InitControls(obj)
+
+    return self
+end
+
+function WorldItem:InitControls(obj)
+    self.GameObject = obj
+    self.Transform = obj.transform
+
+    self.ItemContentSizeFitter = self.Transform:GetComponent(typeof(ContentSizeFitter))
+	self.ItemCanvasGroup = self.Transform:GetComponent(typeof(CanvasGroup));
+    
+    --头像框
+    self.headIconBg = self.Transform:Find("HeadData/HeadIconBg"):GetComponent(typeof(Image))
+    self.BtnHeadIconBg = self.Transform:Find("HeadData/HeadIconBg"):GetComponent(TButton)
+    --头像
+    self.headIcon = self.Transform:Find("HeadData/HeadIconBg/HeadIcon"):GetComponent(typeof(Image))
+    --等级
+    self.levelTxt = self.Transform:Find("HeadData/HeadIconBg/LevelBg/Level"):GetComponent(typeof(Text))
+    -- 
+    self.TextLayoutContentSizeFitter = self.Transform:Find("HeadData/TextLayout"):GetComponent(typeof(ContentSizeFitter))
+    --称号
+    self.titleTxt = self.Transform:Find("HeadData/TextLayout/Title"):GetComponent(typeof(Text))
+    --名字
+    self.nameTxt = self.Transform:Find("HeadData/TextLayout/Name"):GetComponent(typeof(Text))
+    self.nameTxtContentSizeFitter = self.Transform:Find("HeadData/TextLayout/Name"):GetComponent(typeof(ContentSizeFitter))
+    --标签
+    self.labelTxt = self.Transform:Find("HeadData/TextLayout/Label"):GetComponent(typeof(Text))
+    --聊天内容
+    self.contentText = self.Transform:Find("ContentText").gameObject
+    self.msgTxt = self.Transform:Find("ContentText/RichText"):GetComponent(typeof(TextMeshProUGUI))
+    self.msgTxt2 = self.Transform:Find("ContentText/RichText/RichText2"):GetComponent(typeof(TextMeshProUGUI))
+    self.contentText:SetActive(false)
+    self.TextContentSizeFitter = self.Transform:Find("ContentText/RichText"):GetComponent(typeof(ContentSizeFitter))
+    --大表情
+    self.contentBigEmoji = self.Transform:Find("ContentBigEmoji").gameObject
+    self.bigEmoji = self.Transform:Find("ContentBigEmoji/BigEmoji"):GetComponent(typeof(Image))
+    self.contentBigEmoji:SetActive(false)
+
+    --超连接
+    self.linkOpener = self.Transform:Find("ContentText/RichText/RichText2"):GetComponent(typeof(LinkOpener))
+    self.BtnHeadIconBg.onClick:RemoveAllListeners()
+    self.BtnHeadIconBg.onClick:AddListener(function ()self:OnClickHead()end );
+    self.OnPlayerInfoFunc = function(PID)
+        self:OnPlayerInfo(PID);
+    end
+    self.AddFriendFunc = function(PID)
+        self:AddFriend(PID);
+    end
+    -- 加入黑名单好友
+    self.OnTeamFunc = function(PID)
+        self:OnTeam(PID);
+    end
+    -- 删除好友
+    self.OnGuildInviteFunc = function(PID)
+        self:OnGuildInvite(PID);
+    end
+end
+
+function WorldItem:InitItem()
+end
+
+function WorldItem:SetItem(chatMsgNotice)
+    if chatMsgNotice == nil then
+        return
+    end
+	self:ClearAllAnim();
+	self:SetItemCanvasGroup(false);
+
+    self.chatMsgNotice = chatMsgNotice;
+    self.PlayerID = chatMsgNotice.PID
+    self.EID = chatMsgNotice.EID
+    local str = chatMsgNotice.Data
+    local name = chatMsgNotice.ChatName
+    local lv = chatMsgNotice.ChatLevel
+    local extraData = chatMsgNotice.SendData
+    local str2 = ExtraData.GetNewStr(chatMsgNotice.Data2);
+    if str2 ~= nil then
+        str = str2;
+    end
+
+    local bigEmoji = ExtraData.GetBigEmoji(extraData)
+    if bigEmoji < 0 then
+        self.contentBigEmoji:SetActive(false)
+        self.contentText:SetActive(true)
+        -- if str2 ~= nil then
+            
+        -- end
+        self.msgTxt.text = ExtraData.SrvToClient(str, extraData)
+        self.msgTxt2.text = self.msgTxt.text
+        self.linkOpener:SetLinks(extraData)
+    else
+        self.contentBigEmoji:SetActive(true)
+        self.contentText:SetActive(false)
+        --self.bigEmoji.sprite = todo 设置大表情
+        ResourceHelper:LoadIconByAtlasAsync(
+            self.bigEmoji,
+            ResourceHelper.AtlasPathEmo1,
+            "Emoticon_big_0" .. bigEmoji + 1,
+            false
+        )
+    end
+
+    self.levelTxt.text = lv
+
+    local name2 = name
+    -- if utf8len(name2) > 7 then
+    --     name2 = SubStringUTF8(name2, 1, 7) .. "..."
+    -- end
+
+    -- 头像
+    local jobDataCell = ConfigDataAccessor.Job[chatMsgNotice.JobID];
+    if jobDataCell ~= nil then
+        local avatarDataCell = ConfigDataAccessor.Avatar[jobDataCell.AvatarID];
+        if avatarDataCell ~= nil then
+            local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID];
+            if headCfg ~= nil then
+                ResourceHelper:LoadIconByAtlasAsync(
+                    self.headIcon,
+                    headCfg.HeadAtlasName,
+                    headCfg.MinHead,
+                    false
+                )
+            end
+        end
+    end
+
+    self.nameTxt.text = name2
+
+    self.labelTxt.text = ""
+
+    self.nameTxtContentSizeFitter:SetLayoutHorizontal()
+    self.TextLayoutContentSizeFitter:SetLayoutHorizontal()
+
+    self.TextContentSizeFitter:SetLayoutVertical()
+    
+    self.ItemContentSizeFitter:SetLayoutVertical()
+
+    self.tw_close = DOVirtual.DelayedCall(0.01, function()
+		self:SetItemCanvasGroup(true);
+    end);
+end
+
+function WorldItem:SetItemCanvasGroup(b)
+	local alpha = 0;
+	if b == true then
+		alpha = 1;
+	end
+	self.ItemCanvasGroup.alpha = alpha;
+	self.ItemCanvasGroup.blocksRaycasts = b;
+end
+
+function WorldItem:ClearAllAnim()
+	if self.tw_close ~= nil then
+		self.tw_close:Kill();
+		self.tw_close = nil;
+	end
+end
+
+function  WorldItem:OnClickHead()
+    if self.PlayerID and self.PlayerID ~= 0 and self.PlayerID ~= BusinessManager.Instance:GetUserPID() then
+        local btnStrs = {}
+        local btnCBs = {}
+        -- local btnStrs = {LanguageHelp:GetLanguageByKey("Local_Str_Player_Info")}
+        -- local btnCBs = { self.OnPlayerInfoFunc}
+        -- if BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.Friend) then
+        --     table.insert(btnStrs,LanguageHelp:GetLanguageByKey("Local_Str_add_friends"))
+        --     table.insert(btnCBs,function ()
+        --         self:AddFriendFunc(self.PlayerID)
+        --     end)
+        -- end
+
+        -- --if BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.TeamFind) then
+        -- --    table.insert(btnStrs,LanguageHelp:GetLanguageByKey("Local_Str_Team"))
+        -- --    table.insert(btnCBs,function ()
+        -- --        self:OnTeamFunc(self.PlayerID)
+        -- --    end)
+        -- --end
+        -- if BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.Guild) and  BusinessManager.Instance:IsHaveGuildPower(3) then
+        --     table.insert(btnStrs,LanguageHelp:GetLanguageByKey("Local_Str_GuildInvite"))
+        --     table.insert(btnCBs,function ()
+        --         self:OnGuildInvite(self.PlayerID)
+        --     end)
+        -- end
+        -- LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnOpenFriendTipsWidget", { nil, btnStrs, btnCBs, self.BtnHeadIconBg.gameObject.transform });
+        LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnOtherOpenFriendTipsWidget", {self.PlayerID, btnStrs, btnCBs, self.BtnHeadIconBg.gameObject.transform, false});
+    end
+end
+
+-- 玩家信息
+function WorldItem:OnPlayerInfo()
+    if self.PlayerID == nil then return; end
+    LuaModuleDispatcher:SendMessage(ModuleDef.PlayerPreviewModule, "SendGetOtherPlayerNameplateReq", {self.PlayerID})
+end
+
+function WorldItem:AddFriend ()
+    if self.PlayerID == nil then return; end
+    local FriendModule = ModuleManager.Instance:GetModule(ModuleDef.FriendModule);
+    if FriendModule then
+        local luatable = FriendModule:GetLuaTable()
+        local friendRelation = luatable:GetFriendRelation(self.PlayerID);
+        if friendRelation == 0 then
+            local pids = { self.PlayerID };
+            local key = "ItemRecommendFriend_" .. self.PlayerID;
+            LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnSendApplyToAddFriendReq",
+                    { pids, key, self.OnApplyToAddFriendRespFun });
+        elseif friendRelation == 1 then
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_PlayerIsFriend"));
+        elseif friendRelation == 2 then
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_friend_request_fail_5"));
+        end
+    end
+end
+
+function WorldItem:OnTeam()
+    if self.PlayerID == nil then return; end
+    local module = ModuleManager.Instance:GetModule(ModuleDef.TeamModule)
+    if module then
+        local luatable = module:GetLuaTable()
+        local isCaptain = luatable:EntityIsCaptain(GameManager.Instance.mainPlayerId);
+        if isCaptain then
+            local joinTeamReq = luatable:GetInviteData(self.EID)
+            CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace,
+                    joinTeamReq, false)
+        else
+            if luatable.tinfo and luatable.tinfo.TeamID ~= 0 then
+                Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_OnlyCaptainInvite"));
+            else
+                Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_CreateTeam"));
+            end
+        end
+    end
+end
+
+function WorldItem:OnGuildInvite(PID)
+    if self.PlayerID == nil then return; end
+    LuaModuleDispatcher:SendMessage(ModuleDef.GuildModule, "OnInviteToGuild", {PID})
+end
+
+return WorldItem

@@ -1,0 +1,252 @@
+--[[
+*文件名   :   AvgMindPopWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/09 17:09:51"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+AvgMindPopWidget = class("AvgMindPopWidget", UIPanel)
+
+function AvgMindPopWidget:Awake()
+    self:InitItems()
+end
+
+function AvgMindPopWidget:BindModule(m)
+    self.module = m
+end
+
+function AvgMindPopWidget:InitItems()
+    self.transform = self.prefab.transform
+    self.gameObject = self.transform.gameObject
+
+    self.speed = 0.85
+    --动画相关
+    self.anim = self.transform:GetComponent(typeof(Animator))
+
+    self.canClose = false
+
+    local btnCloseInfo = self.transform:Find("Background"):GetComponent(typeof(JButton))
+    btnCloseInfo.OnClick = (function()
+        if self.canClose then
+            if not (self.IsSend) then
+                self:OnCloseInfoClick()
+            end
+        end
+    end)
+
+    btnCloseInfo.OnLongPressDown = (function()
+        if self.canClose then
+            if self.IsSend then
+
+            --[[
+                                self.anim:Play("Go3")
+                DOVirtual.DelayedCall(
+                    1.5,
+                    function()
+                        self:OnCloseInfoClick()
+                    end
+                )
+                ]]
+            end
+        end
+    end)
+
+    self.title = self.transform:Find("Cut4Cam90/AssemblyRatio2/TT/Title"):GetComponent(typeof(Text))
+
+    self.content = self.transform:Find("Cut4Cam90/AssemblyRatio2/TalkContent"):GetComponent(typeof(Text))
+
+    self.go_Head = self.transform:Find("Cut4Cam90/AssemblyRatio2/headBg").gameObject
+    self.go_PressEff = self.transform:Find("Cut4Cam90/AssemblyRatio2/Bg/BgFx2").gameObject
+    self.go_PressEff:SetActive(false)
+    self.Head = self.transform:Find("Cut4Cam90/AssemblyRatio2/headBg/head"):GetComponent(typeof(Image))
+
+    self.Slider1 = self.transform:Find("Cut4Cam90/AssemblyRatio2/sliderBg/slider"):GetComponent(typeof(Image))
+    self.Slider2 = self.transform:Find("Cut4Cam90/AssemblyRatio2/sliderBg/progress"):GetComponent(typeof(Image))
+    self.Slider1.fillAmount = 0
+    self.Slider2.fillAmount = 0
+
+    self.dir = 0
+
+    self.UpdateFun = function()
+        self:Update()
+    end
+end
+
+function AvgMindPopWidget:Update()
+    if not (self.IsSend) then
+        return
+    end
+    if not (self.canClose) then
+        return
+    end
+
+    local timeDelta = Time.fixedDeltaTime
+    if Input.GetMouseButton(0) then
+        self.dir = 1
+    else
+        self.dir = 0
+    end
+
+    if self.dir == 1 then
+        self.progress = self.progress + self.speed * timeDelta
+        self.go_PressEff:SetActive(true)
+    else
+        self.progress = self.progress - self.speed * timeDelta
+        self.go_PressEff:SetActive(false)
+    end
+
+    if self.progress > 1 then
+        self.canClose = true
+        self:OnCloseInfoClick()
+        return
+    end
+
+    if self.progress < 0 then
+        self.progress = 0
+    end
+    --self.Slider1.fillAmount = self.progress
+    self.Slider2.fillAmount = self.progress
+end
+
+function AvgMindPopWidget:Start()
+    print("AvgMindPopWidget:Start")
+end
+
+function AvgMindPopWidget:OnEnable()
+end
+
+function AvgMindPopWidget:OnDisable()
+end
+
+function AvgMindPopWidget:OnDestroy()
+end
+
+function AvgMindPopWidget:OnOpen(arg)
+    MonoHelper.AddUpdateListener(self.UpdateFun)
+
+    SoundManager.Instance:PlayEventName("UI_Telepathy_Show_01", nil, nil)
+
+    self.TalkId = tonumber(arg)
+
+    self.canClose = false
+    self.go_Head:SetActive(false)
+
+    local data = ConfigDataAccessor.TeleDialog[self.TalkId]
+
+    if #data.Next_dialog_id > 0 then
+        self.TalkId = data.Next_dialog_id[1]
+    end
+
+    self.IsSend = false
+    if data.Dialog_type == 5 then
+        self.anim:Play("Go")
+
+        --接收心灵传讯,第一行和第二行是这里用的
+        self.title.text = BusinessManager.Instance:ReplacePlayerName(data.Dialog_desc)
+        local next_data = ConfigDataAccessor.TeleDialog[self.TalkId]
+        self.TalkId = next_data.Next_dialog_id[1]
+
+        self.content.text = BusinessManager.Instance:ReplacePlayerName(next_data.Dialog_desc)
+
+        --显示头像
+        local headID = data.Spine_id
+        while data.Next_dialog_id[1] ~= 0 do
+            if headID ~= "" and headID ~= "1" then
+                break
+            end
+            data = ConfigDataAccessor.TeleDialog[data.Next_dialog_id[1]]
+            headID = data.Spine_id
+        end
+
+        if headID ~= "" and headID ~= "1" then
+            --加载头像
+            local sid = math.floor(tonumber(headID))
+            local avatarDataCell = ConfigDataAccessor.Avatar[sid]
+            if avatarDataCell ~= nil then
+                local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID]
+                if headCfg ~= nil then
+                    ResourceHelper:LoadIconByAtlasAsync(self.Head, headCfg.HeadAtlasName, headCfg.MinHead, false)
+                end
+            end
+        end
+
+        --进度条时机
+        self.Slider1.fillAmount = 0
+        self.Slider2.fillAmount = 0
+        DOVirtual.DelayedCall(
+            0.7,
+            function()
+                self.Slider1:DOFillAmount(1, 0.5)
+            end
+        )
+
+        --出现头像的时机
+        DOVirtual.DelayedCall(
+            0.8,
+            function()
+                self.go_Head:SetActive(true)
+            end
+        )
+    else
+        self.Slider1.fillAmount = 0
+        self.Slider2.fillAmount = 0
+        --进度条时机
+        self.Slider1.fillAmount = 0
+        self.Slider2.fillAmount = 0
+        DOVirtual.DelayedCall(
+            0.7,
+            function()
+                self.Slider1:DOFillAmount(1, 0.5)
+            end
+        )
+        self.progress = 0
+
+        self.anim:Play("Go2")
+
+        --不显示头像
+        --发送心灵传续（10）
+        self.IsSend = true
+
+        --发送心灵传讯,第一行是首句，第二行为固定
+        self.title.text = BusinessManager.Instance:ReplacePlayerName(data.Dialog_desc)
+        self.content.text = LanguageHelp:GetLanguageByKey("AvgMindPopWidget_3")
+    end
+
+    --播放出现动画播完了才能继续下面的
+    DOVirtual.DelayedCall(
+        4.0,
+        function()
+            self.canClose = true
+        end
+    )
+end
+
+function AvgMindPopWidget:OnClose(arg)
+    self:CloseWidget()
+end
+
+function AvgMindPopWidget:OnCloseInfoClick()
+    self.canClose = false
+    self.go_PressEff:SetActive(false)
+    DOVirtual.DelayedCall(
+        0.3,
+        function()
+            LuaModuleDispatcher:SendMessage(ModuleDef.AvgLuaModule, "OnOpenAvgMindWindow", {self.TalkId})
+        end
+    )
+
+    self.anim:Play("Out")
+    DOVirtual.DelayedCall(
+        0.6,
+        function()
+            UIManager.Instance:CloseWidget("Avg/AvgMindPopWidget", nil, true)
+        end
+    )
+    MonoHelper.RemoveUpdateListener(self.UpdateFun)
+end
+
+function AvgMindPopWidget:CloseWidget()
+end
+
+return AvgMindPopWidget

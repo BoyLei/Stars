@@ -1,0 +1,48 @@
+--[[
+*文件名   :   #CLASSNAME#
+*内  容   :
+*说  明   :
+*创建日期 :   "#CREATETIME#"
+*创建人   :   "#AUTHOR#"
+*版权所有 :   游卡网络科技技术有限公司
+---]]
+
+TestWindow=class("TestWindow",UIPanel)
+TestWindow.Button=nil;
+TestWindow.txt=nil;
+function  TestWindow:OnShow()
+	
+	print("TestWindow:OnShow"..self.prefab.name)
+	
+end
+
+function TestWindow:Awake()
+	print("TestWindow:Awake")	
+	local Background=self:Find("Tabs Bar/Background Group")
+	print(Background.name)
+	
+	local left=self:Find("Left",Background);
+	print(" ======"..left.name)
+
+end 
+
+function TestWindow:OnEnable()
+	print("TestWindow:OnEnable")
+end
+
+function TestWindow:OnDisable()
+	print("TestWindow:OnDisable")
+end
+
+function TestWindow:OnDestroy()
+	print("TestWindow:OnDestroy")
+end
+function TestWindow:OnOpen(arg)
+	print("TestWindow:OnOpen")
+	self:OnShow();
+end
+
+function TestWindow:OnClose(arg)
+	print("TestWindow:OnClose"..arg)
+end
+return  TestWindow

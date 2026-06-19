@@ -1,0 +1,389 @@
+local SevenDayPanel = {}
+SevenDayPanel.__index = SevenDayPanel
+
+local TaskItem = require("View/UIWindow/SignInWindow/TaskItem")
+local TaskRewardItem = require("View/UIWindow/SignInWindow/TaskRewardItem")
+
+function SevenDayPanel:New(obj,parentview)
+    local self = {};
+    setmetatable(self, SevenDayPanel);
+    self.parent = parentview
+    self:InitControls(obj)
+
+    return self;
+end
+
+function SevenDayPanel:InitControls(obj)
+    self.gameObject = obj;
+    self.transform = obj.transform;
+
+    self.allTaskRewardItems = {};
+    for i=1, 6 do
+        local rewardItem = self.transform:Find("Rewards/Viewport/Content/Item"..i).gameObject;
+        local taskRewardItem = TaskRewardItem:New(rewardItem);
+        self.allTaskRewardItems[i] = taskRewardItem;
+    end
+
+    self.leftTimeText = self.transform:Find("ActivityTime/LeftTime"):GetComponent(typeof(Text));
+
+    self.taskNumText = self.transform:Find("TaskNum/TaskNum"):GetComponent(typeof(Text));
+	
+	self.taskItem = self.transform:Find("Tasks/Viewport/Content/Item").gameObject;
+	self.allDaySel = {};
+	self.allDayLock = {};
+	self.allDayFinish = {};
+    self.allDayRedPoint = {}
+    for i=1, 7 do
+        local btn = self.transform:Find("Days/Day"..i):GetComponent(typeof(Button));
+        btn.onClick:AddListener(function() 
+			if self.allDayLock[i].activeSelf then
+					Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_70"));
+					return;
+			end
+			for k,v in pairs(self.allDaySel) do
+				v:SetActive(k == i);
+			end
+				
+            self:SetCurDay(i, self.taskItem);
+        end);
+		
+		self.allDaySel[i] = btn.transform:Find("Sel").gameObject;
+		self.allDayLock[i] = btn.transform:Find("Lock").gameObject;
+		self.allDayFinish[i] = btn.transform:Find("Finish").gameObject;
+        self.allDayRedPoint[i] = btn.transform:Find("RedPoint").gameObject;
+    end
+	
+	self.st = 0;
+	
+	self.taskSlider = self.transform:Find("Slider"):GetComponent(typeof(Slider));
+	self.taskSlider.value=0;
+
+    self.curSelDay = 1;
+end
+
+local minipro = 5
+local startpro = 10
+local endpro = 50
+local durapro = (endpro - startpro)/4 --中间每个单位对应的百分比
+local maxpro = 55
+function SevenDayPanel:Init(data)
+    if data == nil then return end
+	
+	self.st = data.ActiveDateTime;
+	
+	local result = data.Score
+	
+	local pc = result --*(100/55)/100 --50/55 --data.Score/55;
+	local outvalue = 0
+	if pc < minipro then   --or pc > endpro then 
+		outvalue = (result/5)*0.05
+	elseif pc < startpro then 
+		outvalue = 0.05 + ((result - 5)/(startpro - minipro))*(0.9*1/5)
+	elseif pc < endpro then
+		outvalue = 0.05 + (0.9*1/5) + ((result - 10)/(endpro - startpro))*(0.9*4/5)
+	else
+		outvalue= 0.05 + (0.9*1/5) + (0.9*4/5) + ((result - 50)/(maxpro - endpro))*0.05
+	end
+ 	self.taskSlider.value = outvalue;
+	
+	local dt = (TimeUtils.DateTimeToStampMilli(TimeUtils.GetServerTime()) - self.st)/1000;
+	for j = 1, 7 do
+		self.allDayLock[j]:SetActive(dt < (j-1)*3600*24);
+		self.allDayFinish[j]:SetActive(self:IsDayFinish(j));
+	end
+	for k,v in pairs(self.allDaySel) do
+		v:SetActive(k == self.curSelDay);
+	end
+	self:SetCurDay(self.curSelDay, self.taskItem);
+
+	if self.TimeTickFunc ~= nil then
+		MonoHelper.RemoveSecTimeUpdateListener(self.TimeTickFunc);
+		self.TimeTickFunc = nil;
+	end
+    self.TimeTickFunc = function()
+        self:SetLeftTime(data.ActiveDateTime);
+        -- if self.parent:CalSeventDayLastTime(data.ActiveDateTime) <= 0 then 
+        --     self.parent:OnClose()
+        -- end
+	end
+    self:SetLeftTime(data.ActiveDateTime);
+    MonoHelper.AddSecTimeUpdateListener(self.TimeTickFunc);
+    self.taskNumText.text = data.Score;
+
+    --七日奖励
+    local cl = data.GetList.CountList;
+	local index = 1;
+
+    local tb = ConfigDataAccessor.STDPointsList;
+	local keys = {}
+	for k,v in pairs(tb) do
+		table.insert(keys, k)
+	end
+	table.sort(keys)
+    for _,v in pairs(keys) do
+        local exist = false;
+        for i=0, cl.Count-1 do
+            if cl[i] == tb[v].PointsNum then
+                exist = true;
+                break;
+            end
+        end
+        self.allTaskRewardItems[index]:Init(tb[v], exist, data.Score);
+		index = index + 1;
+    end
+end
+
+function SevenDayPanel:CheckDayIsOpen(dayindex)
+    local dt = (TimeUtils.DateTimeToStampMilli(TimeUtils.GetServerTime()) - self.st)/1000;
+    return dt > (dayindex-1)*3600*24
+end
+
+function SevenDayPanel:SetLeftTime(st)
+    --if self.module.signInWindowView == nil then
+        --return;
+    --end
+    local t = self.parent:CalSeventDayLastTime(st) --math.floor((st + 3600*24*15*1000) - TimeUtils.DateTimeToStampMilli(TimeUtils.GetServerTime()))/1000;
+    if t < 0 then
+        t = 0;
+    end
+
+    if self.leftTimeText == nil then
+        self.leftTimeText = self.transform:Find("ActivityTime/LeftTime"):GetComponent(typeof(Text));
+    end
+    if self.leftTimeText ~= nil then
+        self.leftTimeText.text = self:FormatShowTime(t);
+    end
+end
+
+function SevenDayPanel:FormatShowTime(timeInSec)
+    local day=0;
+    local hour=0;
+    local min=0;
+    if (timeInSec / 86400) > 0 then
+        day = math.floor(timeInSec / 86400);
+        --_text = showTime.ToString() + "天";
+    end
+
+    timeInSec = timeInSec - 86400*day;
+    if (timeInSec / 3600) > 0 then
+        hour = math.floor(timeInSec / 3600);
+        --_text = showTime.ToString() + "小时";
+    end
+
+    timeInSec = timeInSec - 3600*hour;
+    
+    if (timeInSec / 60) > 0 then
+        min = math.ceil(timeInSec / 60);
+        --_text = showTime.ToString() + "分钟";
+    end
+
+    --return string.format("%d天%d小时%d分钟", day, hour, min);
+    return StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Time"), {day, hour, min});
+
+end
+
+function SevenDayPanel:IsDayFinish(day)
+    local stdTaskList = ConfigDataAccessor.STDTaskList;
+    local tb = {}
+    for _,v in pairs(stdTaskList) do
+        if v.TaskDay == day then
+            table.insert(tb, v)
+        end
+    end
+    
+    for k,v in pairs(tb) do
+		local idNow=v.TaskID;
+		if not TaskHelper.IsTaskFinsh(idNow) then
+			return false;
+		end
+	end
+    return true;
+end
+
+function SevenDayPanel:SetCurDay(day)
+    self.curSelDay = day;
+    local stdTaskList = ConfigDataAccessor.STDTaskList;
+    local tb = {}
+    for _,v in pairs(stdTaskList) do
+        if v.TaskDay == day then
+            table.insert(tb, v)
+        end
+    end
+
+    if self.allTaskItems ~= nil then
+        for _,v in pairs(self.allTaskItems) do
+            GameObject.Destroy(v.gameObject);
+        end
+    end
+    self.allTaskItems = {};
+    
+    local sortTb = {};
+    for k,v in pairs(tb) do
+        sortTb[k] = v;
+    end;
+
+    table.sort(sortTb,function(a,b)
+        local idNow1=a.TaskID;
+        local idNow2=b.TaskID;
+        
+        local state1 = 0;
+        if TaskHelper.ContainTask(idNow1) then
+			local TaskInfo = TaskHelper.GetRunningTask(idNow1)
+			if TaskInfo~=nil then
+				if TaskInfo.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStageRunning then
+					state1=1;
+				elseif TaskInfo.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStageFinished then
+					state1=2;
+				end
+			end
+		end
+
+        local state2 = 0;
+        if TaskHelper.ContainTask(idNow2) then
+			local TaskInfo = TaskHelper.GetRunningTask(idNow2)
+			if TaskInfo~=nil then
+				if TaskInfo.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStageRunning then
+					state2=1;
+				elseif TaskInfo.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStageFinished then
+					state2=2;
+				end
+			end
+		end
+        
+        if state1 > state2 then
+            return true
+        end
+        return false
+    end)
+
+    for k,v in pairs(sortTb) do
+		local _go = newObject(self.taskItem)
+        _go.transform:SetParent(self.taskItem.transform.parent)
+        _go.transform.localPosition = Vector3.zero
+        _go.transform.localScale = Vector3.one
+		_go:SetActive(true);
+
+        local item = TaskItem:New(_go);
+		
+		local state=0;
+
+		local idNow=v.TaskID;
+		--任务状态
+		if TaskHelper.ContainTask(idNow) then
+			--正在进行
+			local TaskInfo = TaskHelper.GetRunningTask(idNow)
+			if TaskInfo~=nil then
+				if TaskInfo.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStageRunning then
+					--任务进行中
+					state=1;
+				elseif TaskInfo.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStageFinished then
+					--任务已完成未提交
+					state=2;
+					-- if v.TaskCycle==1 then
+					-- 	--任务已完成未提交
+					-- 	self.go_red1:SetActive(true);
+					-- elseif v.TaskCycle==2 then
+					-- 	--任务已完成未提交
+					-- 	self.go_red2:SetActive(true);
+					-- end
+
+					-- if self.idxNow==v.TaskCycle then
+					-- 	table.insert(self.SubmitIds, idNow);
+					-- end
+				end
+			end
+		elseif TaskHelper.IsTaskFinsh(idNow) then
+			--已经完成
+			state=0;
+		end
+		
+        item:Init(v, state);
+        self.allTaskItems[k] = item;
+	end
+    self:UpdateCurRedPoint()
+end
+
+function SevenDayPanel:UpdateCurRedPoint()
+    if self.alltasktb == nil then 
+        self.alltasktb = {}
+        local alltask = ConfigDataAccessor.STDTaskList;
+		for index = 1,7 do 
+	        for k,v in pairs(alltask) do 
+	            if self.alltasktb[index] == nil then 
+	                self.alltasktb[index] = {}
+	            end
+	            local tb = self.alltasktb[index]
+	            if v.TaskDay == index then
+	                table.insert(tb, v)
+	            end
+	        end
+		end
+    end
+    
+    for i = 1,#self.alltasktb do 
+        local hasredpoint = false
+        if self:CheckDayIsOpen(i) then 
+            for k,v in ipairs(self.alltasktb[i]) do 
+                local state=0;
+                local idNow=v.TaskID;
+                --任务状态
+                if TaskHelper.ContainTask(idNow) then
+                    --正在进行
+                    local TaskInfo = TaskHelper.GetRunningTask(idNow)
+                    if TaskInfo~=nil then
+                        if TaskInfo.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStageRunning then
+                            --任务进行中
+                            state=1;
+                        elseif TaskInfo.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStageFinished then
+                            --任务已完成未提交
+                            state=2;
+                            -- if v.TaskCycle==1 then
+                            -- 	--任务已完成未提交
+                            -- 	self.go_red1:SetActive(true);
+                            -- elseif v.TaskCycle==2 then
+                            -- 	--任务已完成未提交
+                            -- 	self.go_red2:SetActive(true);
+                            -- end
+        
+                            -- if self.idxNow==v.TaskCycle then
+                            -- 	table.insert(self.SubmitIds, idNow);
+                            -- end
+                        end
+                    end
+                elseif TaskHelper.IsTaskFinsh(idNow) then
+                    --已经完成
+                    state=0;
+                end
+                if state == 2 then 
+                    hasredpoint = true
+                    self.allDayRedPoint[i]:SetActive(true)
+                    break
+                end
+            end
+            if not hasredpoint then 
+                self.allDayRedPoint[i]:SetActive(false)
+            end
+        else
+            self.allDayRedPoint[i]:SetActive(false)
+        end
+    end
+end
+--function SevenDayPanel:SetLeftTime(st)
+    ----if self.module.signInWindowView == nil then
+        ----return;
+    ----end
+    --local t = math.floor((st + 3600*24*30) - TimeUtils.DateTimeToStampMilli(TimeUtils.GetServerTime())/1000);
+    --if t < 0 then
+        --t = 0;
+    --end
+    --self.leftTimeText.text = self:FormatShowTime(t);
+--end
+
+function SevenDayPanel:OnClose()
+    if self.TimeTickFunc ~= nil then
+        MonoHelper.RemoveSecTimeUpdateListener(self.TimeTickFunc);
+		self.TimeTickFunc = nil;
+    end
+end
+
+return SevenDayPanel

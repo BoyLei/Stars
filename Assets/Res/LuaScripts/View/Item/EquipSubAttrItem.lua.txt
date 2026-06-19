@@ -1,0 +1,96 @@
+--[[
+*文件名   :   EquipSubAttrItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/24 15:31:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local EquipSubAttrItem = {}
+
+EquipSubAttrItem.__index = EquipSubAttrItem
+
+function EquipSubAttrItem:New(_go)
+    local self = {}
+    setmetatable(self, EquipSubAttrItem)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.Name = self.transform:GetComponent(typeof(Text))
+    self.rare = self.transform:Find("rare"):GetComponent(typeof(Image))
+
+    return self --返回自身
+end
+
+--设置Item
+function EquipSubAttrItem:RefeshAttrProb(data)
+    local add = data.Value
+    local type = data.PropType
+
+    --决定颜色
+    local quality = data.Quality
+
+    local cfgID = data.CfgID
+
+    if type == 4 then
+        --特殊副属性，给技能用的 （ID是技能ID ）
+        local name = ConfigDataAccessor.EquipSub[cfgID].Name
+        local num = ConfigDataAccessor.EquipSub[cfgID].Num[1]
+        self.Name.text = GetQualityColor(quality) .. name .. " +" .. num .. "</color>"
+    else
+        local name = ConfigDataAccessor.EquipSub[cfgID].Name
+        self.Name.text = GetQualityColor(quality) .. name .. " +" .. add .. "</color>"
+    end
+
+    if quality <= 1 then
+        --self.rare.gameObject:SetActive(false);
+    else
+        --self.rare.gameObject:SetActive(true);
+        --self.rare.color=GetQualityColorRGB(quality);
+    end
+end
+
+--刷新配置表的属性
+function EquipSubAttrItem:RefeshCfgAttrProb(num)
+    if num > 1 then
+        --self.Name.text=GetQualityColor(1).."神秘属性 (1~"..num.."条)".."</color>";
+        self.Name.text = GetQualityColor(1) .. StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_EquipSubAttrItem_Name2"), {num}) .. "</color>"
+    else
+        --self.Name.text=GetQualityColor(1).."神秘属性 (1条)".."</color>";
+        self.Name.text = GetQualityColor(1) .. LanguageHelp:GetLanguageByKey("Local_Str_EquipSubAttrItem_Name3") .. "</color>"
+    end
+
+    self.rare.gameObject:SetActive(false)
+end
+
+--设置Item
+function EquipSubAttrItem:RefeshParEquipAttrProb(id)
+    local cfg = ConfigDataAccessor.PartnerEquipEffect[id]
+    local name = cfg.Name
+    local desc = cfg.Desc
+
+    self.belong = self.transform:Find("root/belong"):GetComponent(typeof(Text))
+    self.title = self.transform:Find("root/skillNameBg/title"):GetComponent(typeof(Text))
+    self.desc = self.transform:Find("desc"):GetComponent(typeof(Text))
+
+    self.title.text = name
+    self.desc.text = desc
+
+    --[[
+
+    if cfg.PartnerID>0 then
+        local config=ConfigDataAccessor.Partner[cfg.PartnerID];
+
+        self.belong.gameObject:SetActive(true);
+        --self.belong.text=config.Name.."<color= #E4E5D4FF>专属</color>"
+        self.belong.text=StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_EquipSubAttrItem_belong"), {config.Name});
+
+    else
+        self.belong.gameObject:SetActive(false);
+    end
+    ]]
+    self.belong.gameObject:SetActive(false)
+end
+
+return EquipSubAttrItem

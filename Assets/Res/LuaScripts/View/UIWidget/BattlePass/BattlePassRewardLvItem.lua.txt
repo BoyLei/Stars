@@ -1,0 +1,125 @@
+--[[
+*文件名   :   BattlePassRewardLvItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/25 18:01:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local BattlePassRewardLvItem = {}
+
+BattlePassRewardLvItem.__index = BattlePassRewardLvItem
+
+local ItemGrid=require("View/Item/ItemGrid");
+
+
+function BattlePassRewardLvItem:New(_go) 
+    local self = {};    
+    setmetatable(self, BattlePassRewardLvItem); 
+    
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+
+    self.ItemGrid_free=ItemGrid:New(self.transform:Find("ItemGrid_free").gameObject);--第一个不填会默认创建一个
+	self.ItemGrid_free:InitItem(false,function(it) 
+		self:OnItemClick(it);
+	end)
+
+    self.texLv=self.transform:Find("lv"):GetComponent(typeof(Text));
+    self.nowBg=self.transform:Find("NowBg").gameObject;
+    
+    --道具
+    self.items={}
+    for i=1,2 do
+        local it = ItemGrid:New(self.transform:Find("Grid/ItemGrid"..i).gameObject);
+        it:InitItem(false,function(ritem)  
+            self:OnItemClick(ritem)
+        end);
+        table.insert( self.items,it);
+    end
+
+
+    self.CanGet=false;
+    self.Lv=1;
+
+    return self;    --返回自身
+end
+
+
+
+function BattlePassRewardLvItem:OnItemClick(ritem)
+    if self.CanGet then
+        --发送领取消息
+        local battlePassGetLevelRewardReq = CS.ProtoMsg.BattlePassGetLevelRewardReq();
+        battlePassGetLevelRewardReq.IsBatch = false;
+        battlePassGetLevelRewardReq.BPLevel = self.Lv;
+        CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, battlePassGetLevelRewardReq, false);
+    
+    else
+        LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", {ritem.BaseID, false, 0, ritem.transform, 0})
+    end
+end
+
+function BattlePassRewardLvItem:SetItem(data)
+
+    self.CanGet=data.CanGet;
+    self.Lv=data.Lv;
+    self.AwardGroup=data.AwardGroup;
+    --self.texLv.text= self.Lv.."级";
+    self.texLv.text= StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {self.Lv});
+
+
+    self.nowBg:SetActive(data.IsNowLv);
+
+
+    local cfg=ConfigDataAccessor.GetBPGrade(self.AwardGroup,self.Lv);
+
+    if cfg~= nil then
+
+        self.ItemGrid_free:SetItemNum(cfg.FreeAward,cfg.FreeAwardNum);
+
+
+        self.ItemGrid_free.go_Lock:SetActive(false);--锁
+        self.ItemGrid_free.go_New:SetActive(false);--已领取
+        self.ItemGrid_free:MakeSelected(false)--可领取
+
+        if not(data.IsInRange) then
+            --未解锁
+            --self.ItemGrid_free.go_Lock:SetActive(true);--锁
+        else
+            if data.Progress==1 then
+                self.ItemGrid_free:MakeSelected(true)--可领取
+            else
+                self.ItemGrid_free.go_New:SetActive(true);--已领取
+            end
+        end
+
+
+
+
+        --奖励道具
+        for i=1,#self.items do
+            self.items[i].gameObject:SetActive(false);
+        end
+        for i=1,#cfg.PayAward do
+            self.items[i].gameObject:SetActive(true);
+
+            self.items[i]:SetItemNum(cfg.PayAward[i],cfg.PayAwardNum[i]);
+
+            --self.items[i].go_Lock:SetActive(data.IsLockAdvance or not(data.IsInRange));--锁
+            self.items[i].go_Lock:SetActive(data.IsLockAdvance);--锁
+
+            self.items[i].go_New:SetActive(not(self.CanGet) and data.IsInRange and not(data.IsLockAdvance));--已领取
+            self.items[i]:MakeSelected(self.CanGet and not(data.IsLockAdvance))--可领取
+
+        end
+    end
+
+end
+
+
+
+
+return BattlePassRewardLvItem;

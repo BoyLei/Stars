@@ -1,0 +1,83 @@
+--[[
+*文件名   :   InscriptionPartBItem
+*内  容   :   鸣器item
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local InscriptionPartBItem = {}
+
+InscriptionPartBItem.__index = InscriptionPartBItem
+
+function InscriptionPartBItem:New(_go)
+    local self = {}
+    setmetatable(self, InscriptionPartBItem)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.skillIcon = self.transform:Find("Icon"):GetComponent(typeof(Image))
+
+    self.title = self.transform:Find("title"):GetComponent(typeof(Text))
+
+    self.num = self.transform:Find("Num"):GetComponent(typeof(Text))
+
+    self.go_selected = self.transform:Find("Selected").gameObject
+    self.go_equiped = self.transform:Find("Equiped").gameObject
+
+    --self:MakeSelected(false);
+
+    --点击自己
+    local btnClick = self.transform:GetComponent(typeof(JButton))
+    if btnClick ~= nil then
+        btnClick.OnClick = (function()
+            if self.OnClick ~= nil then
+                self.OnClick(self)
+            end
+        end)
+    end
+
+    return self --返回自身
+end
+
+function InscriptionPartBItem:InitItem(onClick)
+    self.OnClick = onClick
+end
+
+function InscriptionPartBItem:MakeSelected(b)
+    self.IsSelceted = b
+    self.go_selected:SetActive(b)
+
+    self.Data.IsSelected = self.IsSelceted
+end
+
+function InscriptionPartBItem:SetItem(data)
+    if data ~= nil then
+        self.Data = data
+
+        --显示图标
+        local WarSkillId = data.WarSkillId --技能id
+
+        if WarSkillId > 0 then
+            local Points = data.Points
+            local lv = data.Lv
+
+            local cfg = ConfigDataAccessor.Etch[data.EtchId]
+            self.skillIcon.gameObject:SetActive(true)
+            ResourceHelper:LoadIconAsync(self.skillIcon, ResourceHelper.AtlasPathEtchSkill, cfg.EtchIcon, false)
+
+            local cfgUp = ConfigDataAccessor.EtchUP[Points]
+            self.title.text = cfg.EtchName
+            self.title.color = GetQualityColorRGB(cfgUp.EtchQuality)
+
+            self.num.text = Points
+
+            self.go_equiped:SetActive(data.EquipedSort > 0)
+        end
+
+        self:MakeSelected(self.Data.IsSelected)
+    end
+end
+
+return InscriptionPartBItem

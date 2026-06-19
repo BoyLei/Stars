@@ -1,0 +1,52 @@
+--[[
+*文件名   :   BossEventOpenWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/12/06 10:33:06"
+*创建人   :   "quzhenxin"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+BossEventOpenWidget = class("BossEventOpenWidget", UIPanel)
+
+function BossEventOpenWidget:Awake()
+    self.m_Item = self:Find("Item"):GetComponent(typeof(AutoAlpha))
+    self.m_Level = self:Find("Item/Level"):GetComponent(typeof(Text))
+    self.m_transform = self.prefab.transform
+end
+
+function BossEventOpenWidget:Start()
+end
+
+function BossEventOpenWidget:OnEnable()
+end
+
+function BossEventOpenWidget:OnDisable()
+end
+
+function BossEventOpenWidget:OnDestroy()
+end
+
+function BossEventOpenWidget:OnOpen(arg)
+    --local num = tostring(arg);
+    --self.m_Level.text = num;
+    if not self.m_transform.gameObject.activeSelf then
+        self.m_transform.gameObject:SetActive(true)
+    end
+    if not self.m_Item.activeInHierarchy then
+        self.m_Item.gameObject:SetActive(true)
+    end
+    self.m_Item:Play(
+        function()
+            self:OnPlayBack()
+        end
+    )
+end
+
+function BossEventOpenWidget:OnClose(arg)
+end
+
+function BossEventOpenWidget:OnPlayBack()
+    self.m_transform.gameObject:SetActive(false)
+end
+
+return BossEventOpenWidget

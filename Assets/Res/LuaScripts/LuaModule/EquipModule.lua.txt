@@ -1,0 +1,295 @@
+--[[
+*文件名   :   EquipModule
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/18 16:39:39"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+EquipModule = class("EquipModule",BaseLuaModule)
+
+local EquipWindowPath = "Equip/EquipWindow"
+
+EquipModule.IsOpenTips=false;
+
+--LuaModule 消息模块
+EquipModule.ModuleMessages=
+{
+	--打开
+	--ModuleManager.Instance.SendMessage(ModuleDef.EquipModule, "OnOpenEquip", new object[] { xxxx }); 
+	["OnOpenEquip"]=function(...)
+		EquipModule:OnOpenEquipMsg(...);
+	end,
+
+	--关闭
+	--ModuleManager.Instance.SendMessage(ModuleDef.EquipModule, "OnCloseEquip", new object[] { xxxx }); 
+	["OnCloseEquip"]=function(...)
+		EquipModule:OnCloseEquipMsg(...);
+	end,
+
+	--刷新
+	--ModuleManager.Instance.SendMessage(ModuleDef.EquipModule, "OnRefeshEquip", new object[] { xxxx }); 
+	["OnRefeshEquip"]=function(...)
+		EquipModule:OnRefeshEquipMsg(...);
+	end,
+
+
+	--选中
+	--ModuleManager.Instance.SendMessage(ModuleDef.EquipModule, "OnSelectEquip", new object[] { xxxx }); 
+	["OnSelectEquip"]=function(...)
+		EquipModule:OnSelectEquipMsg(...);
+	end,
+
+	--选中
+	--ModuleManager.Instance.SendMessage(ModuleDef.EquipModule, "OnSelectEquip", new object[] { xxxx }); 
+	["OnSelectEquipIdx"]=function(...)
+		EquipModule:OnSelectEquipIdxMsg(...);
+	end,
+
+	--是否显示完美度
+	--ModuleManager.Instance.SendMessage(ModuleDef.EquipModule, "OnSelectEquip", new object[] { xxxx }); 
+	["OnShowPerfect"]=function(...)
+		EquipModule:OnShowPerfectMsg(...);
+	end,
+}
+
+
+
+
+function EquipModule:OnShowPerfectMsg(...)
+	
+	local tb=...
+
+
+	if self.equipWindowView ~= nil then
+
+		local isShowPerfect=0;
+		--列表
+		if type(tb)=="table" then
+			--Lua调用
+			isShowPerfect=tb[1];
+		else
+			--C#调用
+			isShowPerfect=tb[0];
+		end
+
+
+
+		--显示
+		self.equipWindowView:SetIsShowPerfect(isShowPerfect);
+	end
+
+end
+
+function EquipModule:OnSelectEquipIdxMsg(...)
+	
+	local tb=...
+
+
+	if self.equipWindowView ~= nil then
+
+		local idx=0;
+		--列表
+		if type(tb)=="table" then
+			--Lua调用
+			idx=tb[1];
+		else
+			--C#调用
+			idx=tb[0];
+		end
+
+		--显示
+		self.equipWindowView:SelectEquipByIdx(idx);
+	end
+
+end
+
+function EquipModule:OnSelectEquipMsg(...)
+	
+	local tb=...
+
+
+	if self.equipWindowView ~= nil then
+
+		local entityID=0;
+		--列表
+		if type(tb)=="table" then
+			--Lua调用
+			entityID=tb[1];
+		else
+			--C#调用
+			entityID=tb[0];
+		end
+
+		--显示
+		self.equipWindowView:SelectEquipByEntityID(entityID);
+	end
+
+end
+
+function EquipModule:OnRefeshEquipMsg()
+	
+
+
+	self.IsOpenTips=false
+
+	
+	if self.equipWindowView ~= nil then
+		--显示
+		self.equipWindowView:RefeshEquips();
+
+		CheckAllEquipsRedPoint();
+	end
+
+
+end
+
+
+function EquipModule:OnCloseEquipMsg()
+	
+	if self.equipWindowView ~= nil then
+		self.equipWindowView:CloseWindow();
+	end
+end
+
+--监听打开奖励面板
+function EquipModule:OnOpenEquipMsg(...)
+	local tb=...
+	self.OpenFrom=0;--0为背包页面打开，1为角色面板打开
+	--列表
+	if type(tb)=="table" then
+		--Lua调用
+		self.OpenFrom=tb[1];
+	else
+		--C#调用
+		self.OpenFrom=tb[0];
+	end
+	
+	-- local equipWindowCs =UIManager.Instance:OpenWindow(EquipWindowPath);
+	-- if self.equipWindowView == nil then
+	-- 	self.equipWindowView=equipWindowCs:GetLuaPanel().ScriptTable;	
+	-- 	self.equipWindowView:BindModule(self);
+	-- 	self.equipWindowView:InitItems();
+	-- 	self.evtOnCloseEquip = LuaModuleDispatcher:Event(ModuleDef.EquipModule, "OnCloseEquipEvt")
+	-- end
+	-- self:OnRefeshEquipMsg();
+
+	self.AsyncLoadEquipWindowCb = function(ui)
+		if ui ~= nil then
+			if self.equipWindowView == nil then
+				self.equipWindowView=ui:GetLuaPanel().ScriptTable;	
+				self.equipWindowView:BindModule(self);
+				self.equipWindowView:InitItems();
+				self.evtOnCloseEquip = LuaModuleDispatcher:Event(ModuleDef.EquipModule, "OnCloseEquipEvt")
+			end
+			self:OnRefeshEquipMsg();
+		end
+		self.AsyncLoadEquipWindowCb = nil;
+	end
+	UIManager.Instance:OpenWindowAsync(EquipWindowPath, self.AsyncLoadEquipWindowCb);
+end
+
+
+function EquipModule:OpenItemTips(baseID,entityID)
+	--print("EquipModule:OpenItemTips:"..baseID);
+	LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",{ baseID,true ,entityID,self.equipWindowView.tips_anchor,self.OpenFrom+1,nil,nil,nil,nil,ModuleDef.BagModule,{}});
+end
+
+function EquipModule:CloseItemTips()
+	print("EquipModule:CloseItemTips");
+	LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips",{  });
+end
+
+
+
+function EquipModule:OpenEquipBagTag( subType)
+
+	--两个饰品还没解锁
+	if subType<=8 then
+		LuaModuleDispatcher:SendMessage(ModuleDef.BagModule, "OnOpenBagTag",{ 3,subType }); 
+	end
+end
+
+function EquipModule:OpenAmuletBagTag( )
+
+	LuaModuleDispatcher:SendMessage(ModuleDef.BagModule, "OnOpenBagTag",{ 5,0 }); 
+
+end
+
+--关闭回调
+function EquipModule:OnCloseEquipEvt(arg)
+	self.evtOnCloseEquip:Invoke()
+	--self.equipWindowView =nil;
+end
+
+
+--关闭
+function EquipModule:OnCloseEquip()
+	self:OnCloseEquipEvt();
+
+	
+
+end
+
+
+--LuaModule 创建
+function EquipModule:OnModuleCreate(arg)
+	LuaModuleDispatcher:Register(ModuleDef.EquipModule,self)
+
+	self.OnItemFirstInitHandler = function()
+		self:OnItemFirstInit();
+	end
+	self.OnHaveNewEquipHandler = function(entityID)
+		self:OnHaveNewEquip(entityID);
+	end
+	CS.StarProject.GlobalEvent.OnHaveNewEquip:AddListener(self.OnHaveNewEquipHandler);
+	CS.StarProject.GlobalEvent.OnItemFirstInit:AddListener(self.OnItemFirstInitHandler);
+
+end
+
+
+
+function EquipModule:OnItemFirstInit()
+
+	--红点
+	BusinessManager.Instance:CheckIsHaveCanEquipedEquipRedpoint();
+end
+
+function EquipModule:OnHaveNewEquip(entityID)
+
+	--检查装备红点
+	self:OnItemFirstInit();
+
+end
+
+
+function EquipModule:OnItemSpaceListRefesh(data)
+
+	print("OnItemSpaceListRefesh");	
+
+end
+
+
+
+--LuaModule 消息处理
+function EquipModule:OnModuleMessage(msg,...)
+	self.ModuleMessages[msg](...);
+end
+
+
+--LuaModule显示
+function EquipModule:OnModuleShow(arg)
+
+end
+
+--LuaModule 释放
+function EquipModule:OnModuleRelease()
+	CS.StarProject.GlobalEvent.OnHaveNewEquip:RemoveListener(self.OnHaveNewEquipHandler);
+	CS.StarProject.GlobalEvent.OnItemFirstInit:RemoveListener(self.OnItemFirstInitHandler);
+
+	LuaModuleDispatcher:UnRegister(ModuleDef.EquipModule)
+end
+
+
+return  EquipModule
+

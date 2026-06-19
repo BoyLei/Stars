@@ -1,0 +1,186 @@
+--[[
+*文件名   :   EmblemMenuRandHeraldry
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] local EmblemMenuRandHeraldry = {}
+
+EmblemMenuRandHeraldry.__index = EmblemMenuRandHeraldry
+
+local ItemGrid = require("View/Item/ItemGrid")
+
+function EmblemMenuRandHeraldry:New(_go, emblemMenu)
+    local self = {}
+    setmetatable(self, EmblemMenuRandHeraldry)
+
+    self.EmblemMenu = emblemMenu
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    -- 铭刻按钮
+    local BtnElite = self.transform:Find("BtnElite"):GetComponent(typeof(JButton))
+    BtnElite.OnClick = (function()
+        self:OnEliteClick()
+    end)
+
+    -- 详细信息按钮
+    local BtnView = self.transform:Find("BtnView"):GetComponent(typeof(JButton))
+    BtnView.OnClick = (function()
+        self:OnBtnViewClick()
+    end)
+
+    -- 消耗显示
+    -- 金币
+    self.useCoinSp = self.transform:Find("Money/Icon"):GetComponent(typeof(Image))
+    self.useCoinNum = self.transform:Find("Money/Num"):GetComponent(typeof(Text))
+
+    -- 道具
+    self.items = {}
+    for i = 1, 4 do
+        local it = ItemGrid:New(self.transform:Find("Items/ItemGrid" .. i).gameObject)
+        it:InitItem(
+            false,
+            function(ritem)
+                self:OnItemClick(ritem)
+            end
+        )
+        table.insert(self.items, it)
+    end
+
+    -- 监听重铸回调
+    self.message1 = function(data)
+        self:OnRandHeraldryRet(data)
+    end
+
+    self.gameObject:SetActive(false)
+
+    return self -- 返回自身
+end
+
+function EmblemMenuRandHeraldry:OnMessage()
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.RandHeraldryRetID, self.message1, nil)
+end
+
+function EmblemMenuRandHeraldry:OffMessage()
+    CS.SGF.Network.NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.RandHeraldryRetID, self.message1, nil)
+end
+
+function EmblemMenuRandHeraldry:OnBtnViewClick()
+    self.EmblemMenu:ShowAllEmblem(self.BaseID)
+end
+
+function EmblemMenuRandHeraldry:OnItemClick(ritem)
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", {ritem.BaseID, false, 0, ritem.transform, 0})
+end
+
+function EmblemMenuRandHeraldry:OnRandHeraldryRet(data)
+    print("重铸回调")
+
+    -- 成功
+    Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_137"))
+    self.EmblemMenu:ShowRandHeraldryAnim()
+
+    -- 刷新面板
+    self.EmblemMenu:Refesh()
+end
+
+function EmblemMenuRandHeraldry:OnEliteClick()
+    print("开始重铸")
+
+    if self.IsMoneyEnough then
+        CS.StarProjectDef.UIAPI.ShowMsgBox(
+            6,
+            function(str)
+                if str == "SURE" then
+                    local randHeraldryReq = CS.ProtoMsg.RandHeraldryReq()
+                    randHeraldryReq.AmuletID = self.EntityID
+
+                    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, randHeraldryReq, false)
+                end
+            end
+        )
+    else
+        Util.ShowMessage(self.IsMoneyEnoughStr)
+    end
+end
+
+function EmblemMenuRandHeraldry:Show(b, idx)
+    self.gameObject:SetActive(b)
+    if b then
+        self:OnMessage()
+        self:Refesh(idx)
+    else
+        self:OffMessage()
+    end
+end
+
+function EmblemMenuRandHeraldry:Refesh(idx)
+    local data = BusinessManager.Instance:GetHeroEquipedAmulet(idx)
+
+    if data == nil then
+        self:Show(false)
+    else
+        self.Idx = idx
+
+        self.BaseID = data.BaseID
+        self.EntityID = data.EntityID
+        local baseID = data.BaseID
+
+        local itemCfg = ConfigDataAccessor.Item[baseID]
+        local amuletEquipCfg = ConfigDataAccessor.AmuletEquip[baseID]
+        local amuletEquipLevelCfg = ConfigDataAccessor.GetAmuletEquipLevel(amuletEquipCfg.EquipLevel, itemCfg.SubType)
+
+        local HeraldryType = amuletEquipLevelCfg.HeraldryType -- 可能出现的槽位类型，用于二级界面显示
+
+        local MoneyCost = amuletEquipLevelCfg.MoneyCost
+        local ItemCost = amuletEquipLevelCfg.ItemCost
+
+        local expend = {}
+        expend.Money = MoneyCost
+        expend.Item_id = {}
+        expend.Item_num = {}
+
+        expend.Item_id[1] = ItemCost[1]
+        expend.Item_num[1] = ItemCost[2]
+
+        self:CalculateNeeds(expend)
+    end
+end
+
+function EmblemMenuRandHeraldry:CalculateNeeds(expend)
+    self.IsMoneyEnoughStr = LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_255")
+    self.IsMoneyEnough = true
+    -- 道具消耗（货币）
+    local cfgM = ConfigDataAccessor.Item[expend.Money[1]]
+    -- LoadIcon(self.useCoinSp,cfgM.Icon);
+    ResourceHelper:LoadIconAsync(self.useCoinSp, "", cfgM.Icon, false)
+
+    local haveMoneyNum = BusinessManager.Instance:GetCurrencyNum(expend.Money[1])
+    if haveMoneyNum >= (expend.Money[2]) then
+        -- self.useCoinNum.text=""..haveMoneyNum.."/"..expend.Money[2];
+        self.useCoinNum.text = expend.Money[2]
+    else
+        self.IsMoneyEnough = false
+        self.useCoinNum.text = "<color=#ff0000>" .. (expend.Money[2]) .. "</color>"
+
+        -- self.IsMoneyEnoughStr=cfgM.Name.."不足";
+        self.IsMoneyEnoughStr = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_ShopItem_buyErrorMsg"), {cfgM.Name})
+    end
+
+    -- 消耗道具
+    for i = 1, #self.items do
+        self.items[i].gameObject:SetActive(false)
+    end
+    for i = 1, #expend.Item_id do
+        self.items[i].gameObject:SetActive(true)
+        local isItemEnough = self.items[i]:SetItemNum(expend.Item_id[i], expend.Item_num[i], true)
+        if not (isItemEnough) then
+            self.IsMoneyEnough = false
+        end
+    end
+end
+
+return EmblemMenuRandHeraldry

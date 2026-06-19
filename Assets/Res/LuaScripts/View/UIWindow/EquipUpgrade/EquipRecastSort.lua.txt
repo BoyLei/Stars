@@ -1,0 +1,359 @@
+--[[
+*文件名   :   EquipRecastSort
+*内  容   :	装备熔铸
+*说  明   :
+*创建日期 :   "2023/02/03 13:09:51"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local EquipRecastSort = {}
+EquipRecastSort.__index = EquipRecastSort
+
+local SortList = require("View/Item/SortList")
+
+local EquipRecastSelectedBox = require("View/Uiwindow/EquipUpgrade/EquipRecastSelectedBox")
+local EquipRecastSortSubAttrItem = require("View/Uiwindow/EquipUpgrade/EquipRecastSortSubAttrItem")
+
+function EquipRecastSort:New(_go, equipRecastEquip)
+    local self = {}
+    setmetatable(self, EquipRecastSort)
+
+    self.transform = _go.transform
+    self.gameObject = _go
+
+    self.EquipRecastEquip = equipRecastEquip
+
+    --等级选择单选
+
+    --选择等级下拉框
+    self.EquipLevel = {0, 20, 30, 40, 50} --加入等级下拉框
+
+    self.SortList = SortList:New(self.transform:Find("SortMenu/SortList").gameObject)
+    --self.SortList:Init({LanguageHelp:GetLanguageByKey("Local_Str_SelectorWindow_LV"),"等级10以上","等级20以上","等级30以上","等级40以上","等级50以上"},function (idx)
+    self.SortList:Init(
+        {
+            LanguageHelp:GetLanguageByKey("Local_Str_SelectorWindow_LV"),
+            StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_SelectorWindow_LV2"), {20}),
+            StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_SelectorWindow_LV2"), {30}),
+            StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_SelectorWindow_LV2"), {40}),
+            StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_SelectorWindow_LV2"), {50})
+        },
+        function(idx)
+            self:OnSelectSortList(idx)
+        end
+    )
+    self.SortListTex = self.transform:Find("SortMenu/BtnSort/tex"):GetComponent(typeof(Text))
+    self.SortListIdx = 1
+    self.SortListTex.text = self.SortList.SortNames[self.SortListIdx]
+    self.transform:Find("SortMenu/BtnSort"):GetComponent(typeof(JButton)).OnClick = (function()
+        self.SortList:Show(true, self.SortListIdx)
+    end)
+    self.SortList:Show(false)
+
+    self.SelectedSortLv = 0 --选择的等级
+
+    --稀有度选择多选
+    self.go_SelectedQuality = {}
+    self.selectedQuality = {1, 1, 1, 1, 1}
+    for i = 1, #self.selectedQuality do
+        table.insert(self.go_SelectedQuality, self.transform:Find("QualityPart/QualityCheckItem" .. i .. "/selected").gameObject)
+        self.transform:Find("QualityPart/QualityCheckItem" .. i):GetComponent(typeof(JButton)).OnClick = (function()
+            self:OnQualityClick(i)
+        end)
+    end
+
+    --部位选择多选
+    self.go_SelectedSubType = {}
+    self.selectedSubType = {1, 1, 1, 1, 1, 1, 1, 1}
+    for i = 1, #self.selectedSubType do
+        table.insert(self.go_SelectedSubType, self.transform:Find("EquipPart/EquipCheckItem" .. i .. "/selected").gameObject)
+        self.transform:Find("EquipPart/EquipCheckItem" .. i):GetComponent(typeof(JButton)).OnClick = (function()
+            self:OnSubTypeClick(i)
+        end)
+    end
+
+    --词条选择多选
+    self.selectedSubAttr = {}
+    self.equipRecastSelectedBox = EquipRecastSelectedBox:New(self.transform:Find("SelectedBox/Cut4Cam90").gameObject, self)
+
+    --道具列表
+    self.EquipRecastItemList = {}
+    --无限列表
+    self.go_EquipRecastItem = self.transform:Find("SubAttrs/Mask/List/SortSubAttrsItem").gameObject
+
+    self.tr_ItemRoot = self.transform:Find("SubAttrs/Mask/List/")
+    self.go_EquipRecastItem:SetActive(false)
+    self.go_EquipRecastItem.transform:SetParent(self.transform)
+    self.EquipedAmuletScorllView = self.transform:Find("SubAttrs"):GetComponent(typeof(SuperScrollViewController))
+    self.EquipedAmuletScorllView:NewScroll(
+        self.go_EquipRecastItem,
+        0,
+        function(tr, idx)
+            self:OnEquipRecastItemRefesh(tr, idx)
+        end
+    )
+
+    --点击空白关闭
+    local btnCloseEmpty = self.transform:Find("Cover"):GetComponent(typeof(JButton))
+    btnCloseEmpty.OnClick = (function()
+        self:Show(false)
+    end)
+
+    --点击关闭
+    local btnClose = self.transform:Find("BtnClose"):GetComponent(typeof(JButton))
+    btnClose.OnClick = (function()
+        self:Show(false)
+    end)
+
+    --点击重置
+    local btnReset = self.transform:Find("BtnReset"):GetComponent(typeof(JButton))
+    btnReset.OnClick = (function()
+        self:OnBtnResetClick()
+    end)
+
+    --点击确认
+    local btnConfirm = self.transform:Find("BtnConfirm"):GetComponent(typeof(JButton))
+    btnConfirm.OnClick = (function()
+        self:OnBtnConfirmClick()
+    end)
+
+    self:Show(false)
+
+    return self --返回自身
+end
+
+function EquipRecastSort:OnSubTypeClick(idx)
+    if self.selectedSubType[idx] == 1 then
+        self.selectedSubType[idx] = 0
+        self.go_SelectedSubType[idx]:SetActive(false)
+    else
+        self.selectedSubType[idx] = 1
+        self.go_SelectedSubType[idx]:SetActive(true)
+    end
+    --self.EquipRecastEquip:Refesh(); --不实时刷新
+end
+
+function EquipRecastSort:OnQualityClick(idx)
+    if self.selectedQuality[idx] == 1 then
+        self.selectedQuality[idx] = 0
+        self.go_SelectedQuality[idx]:SetActive(false)
+    else
+        self.selectedQuality[idx] = 1
+        self.go_SelectedQuality[idx]:SetActive(true)
+    end
+    --self.EquipRecastEquip:Refesh(); --不实时刷新
+end
+
+--重置
+function EquipRecastSort:ResetSort()
+    self.SelectedSortLv = 0 --选择的等级
+    self.selectedQuality = {1, 1, 1, 1, 1}
+    --选择的稀有度
+    self.selectedSubType = {1, 1, 1, 1, 1, 1, 1, 1}
+    --部位选择多选
+
+    self:CleanSelectedSubAttr() --选择的副属性
+end
+
+--重置
+function EquipRecastSort:OnBtnResetClick()
+    self:ResetSort()
+
+    self:Refesh()
+
+    --self.EquipRecastEquip:Refesh(); --不实时刷新
+end
+
+--确认
+function EquipRecastSort:OnBtnConfirmClick()
+    self:Show(false)
+    self.EquipRecastEquip:Refesh()
+end
+
+--下拉框筛选
+function EquipRecastSort:OnSelectSortList(idx)
+    self.SortListIdx = idx
+    self.SortListTex.text = self.SortList.SortNames[idx]
+    self.SelectedSortLv = self.EquipLevel[self.SortListIdx]
+
+    --self.EquipRecastEquip:Refesh(); --不实时刷新
+end
+
+function EquipRecastSort:Show(b)
+    self.gameObject:SetActive(b)
+
+    if b then
+        self:Refesh()
+    end
+end
+
+function EquipRecastSort:Refesh()
+    --等级选择
+    for i = 1, #self.EquipLevel do
+        if self.EquipLevel[i] == self.SelectedSortLv then
+            self.SortListIdx = i
+            self.SortListTex.text = self.SortList.SortNames[i]
+        end
+    end
+
+    --品质选择
+    for i = 1, #self.selectedQuality do
+        self.go_SelectedQuality[i]:SetActive(self.selectedQuality[i] == 1)
+    end
+
+    --装备部位
+    for i = 1, #self.selectedSubType do
+        self.go_SelectedSubType[i]:SetActive(self.selectedSubType[i] == 1)
+    end
+
+    --词条
+    self:RefeshItems()
+end
+
+------------------------------
+------------------------------无限列表相关
+
+function EquipRecastSort:CleanSelectedSubAttr()
+    for k, _ in pairs(self.selectedSubAttr) do
+        self.selectedSubAttr[k] = nil
+    end --选择的副属性
+end
+
+function EquipRecastSort:SetSelectedSubAttr(tb)
+    self:CleanSelectedSubAttr()
+
+    for i = 1, #tb do
+        if tb[i].IsSelected then
+            table.insert(self.selectedSubAttr, tb[i].CfgID)
+        end
+    end
+
+    self:RefeshItems()
+
+    --self.EquipRecastEquip:Refesh(); --不实时刷新
+end
+
+--刷新装备列表
+function EquipRecastSort:RefeshItems()
+    self:ClearItemData()
+
+    for k, v in pairs(self.selectedSubAttr) do
+        table.insert(self.ItemDataList, v)
+    end
+
+    for i = #self.ItemDataList + 1, 7 do
+        table.insert(self.ItemDataList, 0)
+    end
+
+    self:SortItem(self.ItemDataList)
+
+    self.EquipedAmuletScorllView:ContinueScroll(#self.ItemDataList)
+
+    --刷新上层排序
+end
+
+function EquipRecastSort:CleanAllSelected()
+    --无限列表
+    for i = 1, #self.EquipRecastItemList do
+        self.EquipRecastItemList[i]:MakeSelected(false)
+    end
+end
+
+function EquipRecastSort:OnEquipRecastItemRefesh(tr, idx)
+    for i = 1, #self.EquipRecastItemList do
+        if self.EquipRecastItemList[i].transform == tr then
+            self.EquipRecastItemList[i]:SetItem(self.ItemDataList[idx + 1]) --idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+        end
+    end
+
+    --tr.gameObject:SetActive(true);
+    local bi = EquipRecastSortSubAttrItem:New(tr.gameObject)
+    bi:InitItem(
+        function(ritem)
+            self:OnItemClick(ritem)
+        end,
+        function(ritem)
+            self:OnDelClick(ritem)
+        end
+    )
+    bi.gameObject:SetActive(true)
+    bi:SetItem(self.ItemDataList[idx + 1]) --idx是从0开始，如果ItemDataList是lua的table需要idx+1
+
+    table.insert(self.EquipRecastItemList, bi)
+end
+
+function EquipRecastSort:OnDelClick(bitem)
+    --点击删除
+
+    local newTable = {}
+    for i = 1, #self.selectedSubAttr do
+        if self.selectedSubAttr[i] ~= bitem.CfgID then
+            table.insert(newTable, self.selectedSubAttr[i])
+        end
+    end
+    self:CleanSelectedSubAttr()
+    self.selectedSubAttr = newTable
+    self:RefeshItems()
+end
+
+function EquipRecastSort:OnItemClick(bitem)
+    --打开二级界面
+    self.equipRecastSelectedBox:Show(true)
+end
+
+function EquipRecastSort:ClearItemData()
+    if self.ItemDataList == nil then
+        self.ItemDataList = {}
+    else
+        --self.ItemDataList ={}
+        for k, _ in pairs(self.ItemDataList) do
+            self.ItemDataList[k] = nil
+        end
+    end
+end
+
+function EquipRecastSort:SortItem(tbl)
+    do
+        return
+    end
+
+    if #tbl > 1 then
+        --[[
+		table.sort(tbl, function(a, b)
+			if a.Heroid < b.Heroid then
+				-- 按是否装备降序
+				return true
+			elseif a.Heroid == b.Heroid then
+				-- 如果是否装备相等，按Type升序
+				if a.Type < b.Type then
+					return true
+				elseif a.Type == b.Type then
+					-- 如果Type相等，按稀有度降序
+					return a.Quality > b.Quality
+				end
+			end
+			return false
+		end)
+
+		]]
+        table.sort(
+            tbl,
+            function(a, b)
+                if a.Data.Heroid > b.Data.Heroid then
+                    -- 按是否装备降序
+                    return true
+                elseif a.Data.Heroid == b.Data.Heroid then
+                    -- 如果是否装备相等，按Quality升序
+                    return a.Quality > b.Quality
+                end
+                return false
+            end
+        )
+    end
+end
+
+------------------------------无限列表相关
+------------------------------
+
+return EquipRecastSort

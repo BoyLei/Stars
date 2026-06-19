@@ -1,0 +1,252 @@
+--[[
+*文件名   :   TreasureModule
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/08/10 13:29:35"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]] TreasureModule = class("TreasureModule", BaseLuaModule)
+local TreasureCratingWindowPath = "Treasure/Prefab/TreasureCratingWindow"
+-- LuaModule 消息模块
+TreasureModule.ModuleMessages = {
+    ["OnDisable"] = function(...)
+        TreasureModule:OnDisable(...);
+    end,
+    ["OnCustomEnterEctype"] = function(...)
+        TreasureModule:OnCustomEnterEctype(...)
+    end,
+    ["OnCustomLevelEctype"] = function(...)
+        TreasureModule:OnCustomLevelEctype(...)
+    end,
+    ["OnCratingTreasureMapReq"] = function(...)
+        TreasureModule:OnCratingTreasureMapReq(...);
+    end,
+
+    ["OnOpenTreasureMapReq"] = function(...)
+        TreasureModule:OnOpenTreasureMapReq(...);
+    end,
+
+    ["OnOpenTreasureCrating"] = function(...)
+        TreasureModule:OnOpenTreasureCrating(...);
+    end,
+
+    ["OnBreakDigTreasureReq"] = function(...)
+        TreasureModule:OnBreakDigTreasureReq(...);
+    end
+
+}
+
+-- LuaModule 创建
+function TreasureModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.TreasureModule, self)
+
+    -- 藏宝地图结算消息
+    self.TreasureEndNtf = function(data)
+        self:OnTreasureEndNtf(data)
+    end
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.TreasureEndNtfID, self.TreasureEndNtf, self)
+
+    -- lobby-c 合成高级藏宝图回复
+    self.CraftingTreasureMapRet = function(data)
+        self:OnCratingTreasureMapRet(data)
+    end
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.CraftingTreasureMapRetID, self.CraftingTreasureMapRet, self)
+
+    -- lobby-c 打开藏宝图 回复
+    self.OpenTreasureMapRet = function(data)
+        self:OnOpenTreasureMapRet(data)
+    end
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.OpenTreasureMapRetID, self.OpenTreasureMapRet, self)
+
+    self.DigTreasureEndNtf = function(data)
+        self:OnDigTreasureEndNtf(data)
+    end
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.DigTreasureEndNtfID, self.DigTreasureEndNtf, self)
+
+end
+
+-- LuaModule 消息处理
+function TreasureModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...);
+end
+
+function TreasureModule:OnDisable(...)
+
+end
+
+-- LuaModule显示
+function TreasureModule:OnModuleShow(arg)
+
+end
+
+-- LuaModule 释放
+function TreasureModule:OnModuleRelease()
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.TreasureEndNtfID, self.TreasureEndNtf, self);
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.CraftingTreasureMapRetID, self.CraftingTreasureMapRet, self);
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.OpenTreasureMapRetID, self.OpenTreasureMapRet, self);
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.DigTreasureEndNtfID, self.DigTreasureEndNtf, self)
+    LuaModuleDispatcher:UnRegister(ModuleDef.TreasureModule)
+end
+
+function TreasureModule:OnTreasureEndNtf(data)
+    local msg = data.data
+    if msg.Second > 0 then
+        UIAPI.ShowUniversalSettlement(msg.IsSuccess > 0, msg.Second, msg.CommonList, nil, function()
+            self:OnQuitTreasureScene();
+        end, msg.MType);
+    else
+        self:OnQuitTreasureScene();
+    end
+end
+
+function TreasureModule:OnQuitTreasureScene()
+    GameManager.Instance:BackToWorld();
+end
+
+function TreasureModule:OnCratingTreasureMapRet(data)
+    local msg = data.data
+    local CraftNum = msg.CraftNum
+    local Success = msg.Success
+    if Success then
+        local rewardsList = {}
+        local rw = {};
+        rw.BaseID = 100002;
+        rw.Num = CraftNum;
+        table.insert(rewardsList, rw);
+        LuaModuleDispatcher:SendMessage(ModuleDef.RewardsPopModule, "OnOpenRewardsPop", {rewardsList});
+        -- Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_58"))
+        CS.StarProject.GlobalEvent.OnCraftingTreasure:Invoke(CraftNum)
+    end
+
+end
+
+function TreasureModule:OnOpenTreasureMapRet(data)
+    local msg = data.data
+    local EntityID = msg.EID
+    local Success = msg.Success
+    if Success then
+
+        local isNull = BusinessManager.Instance:IsTreasuring();
+        if not isNull then
+            print("玩家身上 挖宝数据 为空");
+        end
+        local item = BusinessManager.Instance:GetItemByItemEntityId(EntityID)
+        if item ~= nil then
+            local treasureData = item.TData;
+            if treasureData ~= nil then
+
+                if treasureData.TreasureEID == 0 then
+                    print("EntityID == 0 ")
+                    return;
+                end
+
+                if treasureData.TreasureMapID == 0 then
+                    print("MapID== 0 ")
+                    return;
+
+                end
+
+                if treasureData.TreasureInterID == 0 then
+                    print("交互物件 Index== 0 ")
+                    return;
+                end
+
+                local config = ConfigDataAccessor.Item[item.BaseID]
+                if config ~= nil then
+                    if config.ItemType == 20 then
+                        if config.SubType == 0 or config.SubType == 2 then
+                            TaskHelper.FindPostion(treasureData.TreasureMapID, Vector3(treasureData.TreasurePos.X,
+                                treasureData.TreasurePos.Y, treasureData.TreasurePos.Z), 1, function(result)
+                                if result then
+
+                                    local entityid = GameManager.Instance:GetInterEntityID(treasureData.TreasureInterID);
+                                    if (entityid ~=0) then
+
+                                        LuaModuleDispatcher:SendMessage(ModuleDef.InterActionModule, "QueryInter",
+                                            entityid);
+                                    end
+
+                                end
+                            end);
+                        elseif config.SubType == 1 then
+                            if treasureData.TreasureMapID ~= GameManager.Instance:GetCurMapId() then
+                                GameManager.Instance:ChangeMap(treasureData.TreasureMapID);
+                            end
+                        end
+                    end
+                end
+            end
+
+        end
+
+    end
+end
+
+function TreasureModule:OnDigTreasureEndNtf(data)
+    local msg = data.data
+    CS.StarProject.GlobalEvent.OnEndTreasure:Invoke(msg.SubType)
+    print("挖宝结束")
+end
+
+function TreasureModule:OnCratingTreasureMapReq(...)
+    local tb = ...
+    local isAll = false;
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        isAll = tb[1];
+    else
+        -- C#调用
+        isAll = tb[0];
+    end
+    if isAll == nil then
+        isAll = false;
+    end
+    local battleSocket = NetworkManager.Instance.gameSocket;
+    local message = CS.ProtoMsg.CraftingTreasureMapReq();
+    message.IsAll = isAll
+    battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message, false);
+end
+
+function TreasureModule:OnOpenTreasureCrating(...)
+    -- UIManager.Instance:OpenWindow(TreasureCratingWindowPath,nil,CS.StarProjectDef.MainPageCommond.HideBoth);
+    UIManager.Instance:OpenWindowAsync(TreasureCratingWindowPath, nil, nil, CS.StarProjectDef.MainPageCommond.HideBoth);
+end
+
+function TreasureModule:OnBreakDigTreasureReq(...)
+
+    local battleSocket = NetworkManager.Instance.gameSocket;
+    local message = CS.ProtoMsg.BreakDigTreasureReq();
+    battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message, false);
+
+end
+
+function TreasureModule:OnOpenTreasureMapReq(...)
+    local tb = ...
+    local entityid = 0;
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        entityid = tb[1];
+    else
+        -- C#调用
+        entityid = tb[0];
+    end
+    local battleSocket = NetworkManager.Instance.gameSocket;
+    local message = CS.ProtoMsg.OpenTreasureMapReq();
+    message.EID = entityid
+    battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message, false);
+end
+function TreasureModule:OnCustomEnterEctype(...)
+    local MapSpaceType = GameManager.Instance.M_Map:GetMapType();
+    if MapSpaceType == CS.ProtoMsg.SpaceType.SpaceMirrorTreasure then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_59"))
+    end
+end
+
+function TreasureModule:OnCustomLevelEctype(...)
+    UIManager.Instance:CloseWidget("Common/Prefab/UniversalSettlementWindow");
+end
+
+return TreasureModule
+

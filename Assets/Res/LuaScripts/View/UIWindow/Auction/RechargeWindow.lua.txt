@@ -1,0 +1,270 @@
+--[[
+*文件名   :   RechargeWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/09 17:09:51"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] RechargeWindow = class("RechargeWindow", UIPanel)
+RechargeWindow.IsOpen = false;
+
+local AuctionUI = require("View/UIWindow/Auction/AuctionUI");
+
+-- 交易行
+local ExchangeUI = require("View/UIWindow/Exchange/ExchangeUI");
+
+local CurrencyBar = require("View/Item/CurrencyBar")
+
+function RechargeWindow:BindModule(m)
+    self.module = m;
+end
+
+-- 记录的 一些 节点/组件等
+-- self.uiPanelRoot             -- 所有左边按钮生成的 面板 的 根节点
+-- self.rechargeBtn
+-- self.auctionBtn
+
+-- 记录的一些全局 变量
+-- self.selectBtn               -- 当前 选择的 按钮
+-- self.panels                  -- 本地记录的 面板 映射, 不同的 按钮点击 会显示不同的 界面, 所以此处做个 记录
+-- self.curPanel                -- 当前的 panel 界面, 避免重复 创建
+
+function RechargeWindow:Awake()
+    self.transform = self.prefab.transform;
+    self.gameObject = self.transform.gameObject;
+
+    self.uiPanelRoot = self.transform:Find("Cut4Cam90/AssemblyRatio2/UIPanelRoot");
+
+    self.rechargeBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/LeftMenu/Scroll View/Mask/List/RechargeBtn");
+    self.auctionBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/LeftMenu/Scroll View/Mask/List/AuctionBtn");
+
+    self.m_BtnExchage = self.transform:Find("Cut4Cam90/AssemblyRatio2/LeftMenu/BtnExchage")
+        :GetComponent(typeof(JButton));
+    self.m_BtnCash = self.transform:Find("Cut4Cam90/AssemblyRatio2/LeftMenu/BtnCash"):GetComponent(typeof(JButton));
+    -- 判断是否开启支付
+    if not (GameManager.Instance:IsUnLockPayFunction()) then
+        self.m_BtnCash.gameObject:SetActive(false);
+    end
+
+    self.currencyBar = CurrencyBar:New(nil, self.transform:Find("Cut4Cam90/AssemblyRatio2/CurrencyAhchor"));
+
+    local jrechargeBtn = self.rechargeBtn.transform:GetComponent(typeof(JButton));
+    jrechargeBtn.OnClick = (function()
+        self:OnSelectRecharge(false);
+    end);
+
+    local jauctionBtn = self.auctionBtn.transform:GetComponent(typeof(JButton));
+    jauctionBtn.OnClick = (function()
+        -- 点击按钮的时候, 就采用默认的 进入类型
+        self:OnSelectAuction(false, false, nil, nil);
+    end);
+
+    self.m_BtnExchage.OnClick = function()
+        LuaModuleDispatcher:SendMessage(ModuleDef.BankModule, "OnOpenBankWindow", {});
+    end
+
+    self.m_BtnCash.OnClick = function()
+        UIManager.Instance:OpenWidget("Shop/BuyCashWidget", false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone,
+            false, false);
+    end
+    -- 一个面板的 map 映射
+    self.panels = {};
+
+    local go = self.uiPanelRoot:Find("ExchangeUI").gameObject;
+    local panel = ExchangeUI.new(go, self.AtlasPath);
+    go:SetActive(false)
+    self.panels[self.rechargeBtn] = panel;
+
+    -- 当前的面板
+    self.curPanel = nil;
+
+end
+
+-- 当 左侧 按钮 点击的接口
+function RechargeWindow:RefreshSelectBtn(btn, force)
+
+    -- 先判断 是否是 之前的 按钮
+    local same = btn == self.selectBtn;
+
+    if same and not force then
+        return false;
+    end
+
+    btn.transform:Find("Selected").gameObject:SetActive(true);
+    btn.transform:Find("UnSelected").gameObject:SetActive(false);
+
+    if self.selectBtn ~= nil then
+        self.selectBtn:Find("Selected").gameObject:SetActive(false);
+        self.selectBtn:Find("UnSelected").gameObject:SetActive(true);
+    end
+
+    self.selectBtn = btn;
+
+    return true;
+end
+
+function RechargeWindow:ResetAllBtn()
+    self.rechargeBtn.transform:Find("Selected").gameObject:SetActive(false);
+    self.rechargeBtn.transform:Find("UnSelected").gameObject:SetActive(true);
+    self.auctionBtn.transform:Find("Selected").gameObject:SetActive(false);
+    self.auctionBtn.transform:Find("UnSelected").gameObject:SetActive(true);
+end
+
+--- 点击 拍卖行 按钮 
+---@param sendReq "是否发送请求协议"
+---@param force "是否强制刷新按钮"
+---@param auctionType "进入时 的 AuctionType 类型.目前是 冒险团拍卖/世界拍卖"
+---@param otherType "进入时 的 其它类型.目前是 冒险团待拍仓库"
+function RechargeWindow:OnSelectAuction(sendReq, force, auctionType, otherType)
+
+    local btn = self.auctionBtn;
+    local result = self:RefreshSelectBtn(btn, force);
+
+    if not result then
+        return;
+    end
+
+    if self.curPanel ~= nil then
+        self.curPanel:Close();
+    end
+
+    AuctionUI:GetNew(self.uiPanelRoot, function(auction)
+
+        local panel = self.panels[btn];
+
+        if panel == nil then
+            panel = auction;
+            panel:BindModule(self.module);
+
+        end
+        self.panels[btn] = panel;
+        panel.gameObject:SetActive(true);
+        self.curPanel = panel;
+
+        -- 显示 默认开启的活动
+        if auctionType == nil and otherType == nil then
+            local defaultAuctionType = self.module:GetCurDefaultAuctionType();
+            panel:Show(defaultAuctionType, sendReq);
+            return;
+        end
+
+        if auctionType ~= nil then
+            panel:Show(auctionType, sendReq);
+            return;
+        end
+
+        if otherType ~= nil then
+            panel:ShowOtherType(otherType, sendReq);
+            return;
+        end
+    end);
+
+end
+
+function RechargeWindow:OnSelectRecharge(force)
+
+    local btn = self.rechargeBtn;
+    local result = self:RefreshSelectBtn(btn, force);
+
+    if not result then
+        return;
+    end
+
+    if self.curPanel ~= nil then
+        self.curPanel:Close();
+    end
+
+    local panel = self.panels[btn];
+    panel.prefab:SetActive(true);
+    panel:OnOpen()
+    self.curPanel = panel;
+
+end
+
+-- 刷新 当前 弹窗的 UI 的数据, 
+-- Note: 
+-- 弹窗 需要 继承 公共的 接口 UpdateData
+function RechargeWindow:UpdateData(data)
+
+    -- 需要 面板的 子类 都 实现 UpdateData 接口, 但是 目前不知道 lua 怎么写接口！！！
+    if self.curPanel ~= nil then
+        self.curPanel:UpdateData(data);
+    end
+end
+
+-- 刷新 当前 弹窗 的单个数据 
+-- Note: 
+-- 弹窗 需要 继承 公共的 接口 UpdateItemData
+function RechargeWindow:UpdateItemData(type, data)
+
+    -- 需要 面板的 子类 都 实现 UpdateData 接口, 但是 目前不知道 lua 怎么写接口！！！
+    if self.curPanel ~= nil then
+        self.curPanel:UpdateItemData(type, data);
+    end
+end
+
+function RechargeWindow:UpdateDivvyCount()
+
+    if self.curPanel ~= nil then
+        self.curPanel:UpdateDivvyCount();
+    end
+end
+
+function RechargeWindow:OnDestroy()
+
+    if self.panels[self.rechargeBtn] ~= nil then
+        self.panels[self.rechargeBtn]:OnDestroy();
+        self.panels[self.rechargeBtn] = nil;
+    end
+
+    if self.panels[self.auctionBtn] ~= nil then
+        self.panels[self.auctionBtn]:OnDestroy();
+        self.panels[self.auctionBtn] = nil;
+    end
+end
+
+function RechargeWindow:OnShow(data)
+
+    if data.OtherType == AuctionOtherSelectType.UnionWarehouse then
+
+        self:OnSelectAuction(false, false, nil, nil);
+
+    elseif data.AuctionType ~= CS.ProtoMsg.AuctionType.AtDefault then
+
+        self:OnSelectAuction(true, false, data.AuctionType, data.OtherType);
+
+    else
+        self:OnSelectRecharge(true);
+    end
+
+    -- 刷新货币
+    local coins = {4, 3, 2, 1}
+    self.currencyBar:RefeshBar(coins);
+    self.currencyBar:PlayAnim(true);
+
+end
+
+function RechargeWindow:OnOpen(arg)
+    self.IsOpen = true;
+    self.currencyBar:OnListener()
+end
+
+function RechargeWindow:OnClose(arg)
+    self.currencyBar:OffListener()
+    self:CloseWindow();
+    self.module.rechargeWindow = nil;
+end
+
+function RechargeWindow:CloseWindow()
+    if self.curPanel ~= nil then
+        self.curPanel:Close();
+    end
+    self.curPanel = nil;
+    self.selectBtn = nil;
+    self:ResetAllBtn();
+    LuaModuleDispatcher:SendMessage(ModuleDef.RechargeModule, "OnWindowClose", nil);
+    self.module.rechargeWindow = nil;
+    ModuleManager.Instance:HideModule(ModuleDef.RechargeModule);
+end
+
+return RechargeWindow

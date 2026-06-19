@@ -1,0 +1,328 @@
+--[[
+*文件名   :   ToppedPreviewWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/02/22 15:57:36"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+ToppedPreviewWidget=class("ToppedPreviewWidget",UIPanel)
+local ToppedPreviewItem= require("View/UIWindow/PartnerWindow/ToppedPreviewItem")
+ToppedPreviewWidget.m_bg=nil;
+ToppedPreviewWidget.m_Root=nil;
+ToppedPreviewWidget.m_StageNum=nil;
+ToppedPreviewWidget.m_Condition1=nil;
+ToppedPreviewWidget.m_Condition2=nil;
+ToppedPreviewWidget.m_ConditionImage1=nil;
+ToppedPreviewWidget.m_ConditionImage2=nil;
+ToppedPreviewWidget.m_Cost=nil;
+ToppedPreviewWidget.m_Finish=nil;
+ToppedPreviewWidget.m_Num=nil;
+ToppedPreviewWidget.m_CostIcon=nil;
+ToppedPreviewWidget.m_PreviewItem=nil;
+ToppedPreviewWidget.m_PreviewScrollView=nil;
+ToppedPreviewWidget.m_PropScrollView=nil;
+ToppedPreviewWidget.m_ItemGrid=nil;
+
+ToppedPreviewWidget.Data=nil;
+ToppedPreviewWidget.CurStage=nil;
+ToppedPreviewWidget.PreviewDatas=nil;
+ToppedPreviewWidget.parent=nil;
+ToppedPreviewWidget.Close=nil;
+ToppedPreviewWidget.SelectStage=nil;
+ToppedPreviewWidget.PreviewItems={}
+ToppedPreviewWidget.QualificationID=-1;
+ToppedPreviewWidget.QualificationsExpendID=-1;
+
+
+ToppedPreviewWidget.PropItems={}
+ToppedPreviewWidget.Props={}
+ToppedPreviewWidget.IsBreak=false;
+--消耗
+ToppedPreviewWidget.m_ItemPreview=nil;
+ToppedPreviewWidget.m_ItemPreviewGo=nil;
+ToppedPreviewWidget.CostItems={}
+
+function ToppedPreviewWidget:Awake()
+	self.m_bg=self:Find("bg"):GetComponent(typeof(RectTransform));
+	self.m_Root=self:Find("Root"):GetComponent(typeof(RectTransform));
+	self.m_StageNum=self:Find("Root/Left/Num"):GetComponent(typeof(Text));
+	self.m_Condition1=self:Find("Root/Left/Condition1/Text"):GetComponent(typeof(Text));
+	self.m_Condition2=self:Find("Root/Left/Condition2/Text"):GetComponent(typeof(Text));
+	self.m_ConditionImage1=self:Find("Root/Left/Condition1/Image"):GetComponent(typeof(Image));
+	self.m_ConditionImage2=self:Find("Root/Left/Condition2/Image"):GetComponent(typeof(Image));
+	self.m_Cost=self:Find("Root/Cost").gameObject;
+	self.m_Finish=self:Find("Root/Finish").gameObject;
+
+	self.m_Num=self:Find("Root/Cost/Money/Num"):GetComponent(typeof(Text));
+	self.m_CostIcon=self:Find("Root/Cost/Money/Image"):GetComponent(typeof(Image));
+	self.m_PreviewItem=self:Find("Root/Preview/PreviewItem").gameObject
+	self.m_PreviewScrollView=self:Find("Root/Preview/PreviewScrollView"):GetComponent(typeof(SuperScrollViewController));
+	self.Close=self:Find("Close"):GetComponent(typeof(Button));
+	self.m_ItemGrid=self:Find("Root/Right/ItemGrid").gameObject;
+	self.m_PropScrollView=self:Find("Root/Right/PropScrollView"):GetComponent(typeof(SuperScrollViewController));
+
+	self.m_ItemPreviewGo=self:Find("Root/Cost/ItemPreview").gameObject
+
+	self.m_PreviewScrollView:NewScroll(self.m_PreviewItem, 0, function (tr,idx)
+			self:OnPreviewItemRefesh(tr,idx);
+		end);
+
+
+	self.m_PropScrollView:NewScroll(self.m_ItemGrid, 0, function (tr,idx)
+			self:OnPropItemRefesh(tr,idx);
+		end);
+	self.m_ItemPreview=StructAccessor.ItemPreview.new(self.m_ItemPreviewGo);
+
+end
+
+
+
+function ToppedPreviewWidget:Start()
+	self.Close.onClick:AddListener(function() self:OnClickCloseBtn() end);
+end
+
+function ToppedPreviewWidget:OnFresh(data,tr)
+	--id=,nowMax=,nxt=
+	local PropName=tr.transform:Find("Text"):GetComponent(typeof(Text));
+	local UpSprite=tr.transform:Find("up").gameObject;
+	local AoiAttr= ConfigDataAccessor.ParConversion[data.id]
+	if AoiAttr~=nil then
+		if self.IsBreak then
+			PropName.text=AoiAttr.Name.."		"..data.nowMax
+		else
+			PropName.text=AoiAttr.Name.." "..data.nowMax.." >>".."<color=#00ff00>"..data.nxt.."</color>"
+		end
+		UpSprite:SetActive(not self.IsBreak)
+	end
+end
+
+function ToppedPreviewWidget:OnPropItemRefesh(tr,idx)
+	if self.PropItems==nil then
+		return;
+	end
+	for i=1,#self.PropItems do
+		if self.PropItems[i].transform == tr then
+			local data=self.Props[idx+1];
+			self:OnFresh(data,tr);
+
+			return
+		end
+	end
+
+	tr.gameObject:SetActive(true);
+	local data=self.Props[idx+1];
+	self:OnFresh(data,tr);
+	table.insert(self.PropItems, tr);
+end
+
+
+function ToppedPreviewWidget:OnPreviewItemRefesh(tr,idx)
+	if self.PreviewItems==nil then
+		return;
+	end
+	for i=1,#self.PreviewItems do
+		if self.PreviewItems[i].transform == tr then
+			self.PreviewItems[i]:UpdateContent(self.PreviewDatas[idx+1],self.SelectStage);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+			return
+		end
+	end
+	local bi = ToppedPreviewItem.new(tr.gameObject,self.AtlasPath,function(index)
+			self:OnSelect(index)
+		end);
+	bi.prefab:SetActive(true);
+	bi:UpdateContent(self.PreviewDatas[idx+1],self.SelectStage,self.CurStage);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+	table.insert(self.PreviewItems, bi);
+end
+
+
+function ToppedPreviewWidget:OnSelect(index)
+	self.PreviewItems[self.SelectStage+1]:OnHideSelect();
+	self.SelectStage=index;
+	self:SetSelectInfo();
+end
+
+function ToppedPreviewWidget:OnClickCloseBtn()
+	UIManager.Instance:CloseWidget("Partner/Prefab/ToppedPreviewWidget",self.parent);
+end
+
+function ToppedPreviewWidget:OnEnable()
+
+end
+
+function ToppedPreviewWidget:OnDisable()
+
+end
+
+function ToppedPreviewWidget:OnDestroy()
+
+end
+
+
+function ToppedPreviewWidget:SetSelectInfo()
+	self.IsBreak=false;
+	local qualificate=ConfigDataAccessor.Qualifications[self.QualificationID][self.SelectStage]
+	if qualificate==nil then
+		return
+	end
+	self.m_StageNum.text=tostring(self.SelectStage)
+	if self.SelectStage>0 then
+		--self.m_Condition1.text="阶段"..(self.SelectStage-1).."资质全部达到上限"
+		self.m_Condition1.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_ToppedPreviewWidget_Condition1"), {(self.SelectStage-1)});
+
+		--self.m_Condition2.text="伙伴星级达到"..qualificate.Star
+		self.m_Condition2.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_ToppedPreviewWidget_Condition2"), {qualificate.Star});
+
+		local isFull=true;
+		local prequalificate=ConfigDataAccessor.Qualifications[self.QualificationID][self.SelectStage-1]
+		if prequalificate~=nil then
+
+			for i = 1, #prequalificate.QualiFications do
+				local AoiAttr= LocalDataManager.Instance:GetAttrPropByAttrIdx(prequalificate.QualiFications[i])
+				if AoiAttr~=nil then
+					local t=self.Data.AMD.Aptitudes[prequalificate.QualiFications[i]]
+					local v=0;
+					if t~=nil then
+						v=t.BaseValue
+					end
+					if prequalificate.Value_max[i] >v then
+						isFull=false;
+						break;
+					end
+				end
+			end
+		end
+		
+		if  isFull then
+			self.m_Condition1.color=Color(0.8627451,0.9019608,0.7843137,1);
+			self:GetSprite("Partner_icon_cancel",function (sp)
+					self.m_ConditionImage1.sprite=sp
+			end)
+		else
+			self.m_Condition1.color=Color(0.5450981,0.5450981,0.5450981,1);
+			self:GetSprite("Partner_icon_cancel2",function (sp)
+					self.m_ConditionImage1.sprite=sp
+			end)
+		end
+
+		if self.Data.CurStar<qualificate.Star then
+			self.m_Condition2.color=Color(0.5450981,0.5450981,0.5450981,1);
+			self:GetSprite("Partner_icon_cancel2",function (sp)
+					self.m_ConditionImage2.sprite=sp
+			end)
+		else
+			self.m_Condition2.color=Color(0.8627451,0.9019608,0.7843137,1);
+			self:GetSprite("Partner_icon_cancel",function (sp)
+					self.m_ConditionImage2.sprite=sp
+			end)
+
+		end
+		self.m_ConditionImage1.gameObject:SetActive(true)
+		self.m_ConditionImage2.gameObject:SetActive(true)
+	else
+		self.m_ConditionImage1.gameObject:SetActive(false)
+		self.m_ConditionImage2.gameObject:SetActive(false)
+
+		self.m_Condition1.text=""
+		self.m_Condition2.text=""
+	end
+
+	---消耗
+	if self.SelectStage<=self.CurStage then
+		--self.m_Cost:SetActive(false)
+		self.m_Finish:SetActive(true)
+		self.IsBreak=true;
+	else
+		---
+		local expend=ConfigDataAccessor.QualificationsExpend[self.QualificationsExpendID][self.SelectStage]
+		if expend~=nil then
+			local itemcfg= ConfigDataAccessor.Item[expend.Money[1]];
+			if itemcfg~=nil then
+				ResourceHelper:LoadIconAsync(self.m_CostIcon, "", itemcfg.Icon, false)
+
+				-- ResourceManager.Instance:LoadSpriteAsync(itemcfg.Icon,function (sp)
+				-- 		if sp~=nil and self.m_CostIcon~=nil then
+				-- 			self.m_CostIcon.sprite=sp;
+				-- 		end
+				-- 	end)
+			end
+			self.m_Num.text=tostring(expend.Money[2])
+			self.CostItems={}
+			for i = 1, #expend.Item_id do
+				table.insert(self.CostItems,{ItemID=expend.Item_id[i],ItemNum=expend.Item_num[i]})
+			end
+			self.m_ItemPreview:SetItems(self.CostItems);
+		end
+
+		--self.m_Cost:SetActive(true)
+		self.self.m_Finish:SetActive(false)
+		self.IsBreak=false;
+	end
+
+	---属性
+	self.Props={}
+	local temp={}
+	local nowqualificate=ConfigDataAccessor.Qualifications[self.QualificationID][self.CurStage]
+	if nowqualificate==nil then
+		return
+	end
+
+	for i = 1, #nowqualificate.QualiFications do
+		temp[nowqualificate.QualiFications[i]]={id=nowqualificate.QualiFications[i],nowMax=nowqualificate.Value_max[i],nxt=nowqualificate.Value_max[i]}
+	end
+
+	for i = 1, #qualificate.QualiFications do
+		temp[qualificate.QualiFications[i]].nxt=qualificate.Value_max[i]
+	end
+
+	for k, v in pairs(temp) do
+		table.insert(self.Props,v);
+	end
+	table.sort(self.Props,function (p1,p2)
+			return p1.id<p2.id;
+		end);
+
+	self.m_PropScrollView:ContinueScroll(#self.Props);
+
+end
+
+function ToppedPreviewWidget:OnOpen(arg)
+	self.Data=arg.data;
+	self.parent=arg.parent
+	self.CurStage=self.Data.AptitudeBreakStep;
+	self.SelectStage=self.CurStage;
+
+	local config=ConfigDataAccessor.Partner[self.Data.Index];
+	if config==nil then
+		return
+	end
+	self.QualificationID=config.QualificationID;
+	self.QualificationsExpendID=config.QualificationsExpendID
+	self.PreviewDatas={}
+
+	local qualificates=ConfigDataAccessor.Qualifications[config.QualificationID]
+	if qualificates==nil then
+		return
+	end
+
+	for k, v in pairs(qualificates) do
+		table.insert(self.PreviewDatas,k)
+	end
+
+	table.sort(self.PreviewDatas,function (a,b)
+			return a<b
+		end);
+
+	self.m_PreviewScrollView:ContinueScroll(#self.PreviewDatas);
+	self:SetSelectInfo();
+end
+
+
+
+function ToppedPreviewWidget:OnClose(arg)
+
+end
+
+
+
+return  ToppedPreviewWidget

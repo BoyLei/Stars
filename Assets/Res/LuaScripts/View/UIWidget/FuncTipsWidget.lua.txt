@@ -1,0 +1,296 @@
+--[[
+*文件名   :   FuncTipsWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/10/31 15:00:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+FuncTipsWidget=class("FuncTipsWidget",UIPanel)
+FuncTipsWidget.IsOpen=false;
+
+local EquipAttrItem=require("View/Item/EquipAttrItem")
+
+local FuncTipsJumpItem=require("View/Item/FuncTipsJumpItem")
+
+function FuncTipsWidget:Awake()
+
+
+	self.transform =self.prefab.transform;
+
+	self.rectSelf=self.transform:GetComponent(typeof(RectTransform));
+
+
+	self.rect=self.transform:Find("AnimRoot/Info"):GetComponent(typeof(RectTransform));
+
+
+	self.onUpdate=function ()
+        self:RefeshPos();
+    end
+
+
+
+
+	--冒险等级属性相关
+
+	self.go_title=self.transform:Find("AnimRoot/Info/Title").gameObject
+	self.go_line=self.transform:Find("AnimRoot/Info/Line").gameObject
+
+    --属性
+    self.attrs={}
+    for i=1,7 do
+        local eai = EquipAttrItem:New(self.transform:Find("AnimRoot/Info/Attr"..i).gameObject);
+        table.insert( self.attrs,eai);
+    end
+
+
+	--跳转相关
+	self.go_add=self.transform:Find("AnimRoot/Info/Add").gameObject;
+    self.jumps={}
+    for i=1,5 do
+        local eai = FuncTipsJumpItem:New(self.transform:Find("AnimRoot/Info/Jump"..i).gameObject);
+        table.insert( self.jumps,eai);
+    end
+	self.add_tex=self.transform:Find("AnimRoot/Info/Add/name"):GetComponent(typeof(Text));
+
+
+	--动画相关
+	--self.anim=self.transform:GetComponent(typeof(Animator));
+
+
+	self.module= nil;
+
+end
+
+
+function FuncTipsWidget:BindModule(m)
+	print(".............")
+	self.module=m;
+end
+
+
+
+function FuncTipsWidget:RefeshTips()
+    MonoHelper.AddUpdateListener(self.onUpdate);
+	
+	self:ClearAllAnim();
+	--self.anim:Play("FuncTipsWidgetAnim_Open");
+
+	self.transform:SetAsLastSibling();
+
+    --主属性
+    for i=1,#self.attrs do
+        self.attrs[i].gameObject:SetActive(false);
+    end
+	self.go_title:SetActive(false);
+	self.go_line:SetActive(false);
+
+	--跳转
+	for i=1,#self.jumps do
+		self.jumps[i].gameObject:SetActive(false);
+	end
+	self.go_add:SetActive(false);
+
+	if self.module.Type==0 then
+		--跳转
+		self.go_add:SetActive(true);
+
+		--开服天数有bug
+		local openServerDay=30;
+		if GameManager.Instance.GloInfoSrv~=nil then
+			openServerDay=GameManager.Instance.GloInfoSrv.GRisk.OffDay;
+		end
+		--这里要判断下数组越界
+		local oTcfg=ConfigDataAccessor.GetOpeningTimeConfig(openServerDay);
+
+		local per=oTcfg.AdvGradeExpAddition;
+		--self.add_tex.text="获取加成：<color=#F57766>"..per.."%</color>";
+		self.add_tex.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_add_tex"), {per});
+
+		local idx=0;
+
+		if BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.Activity) then
+			idx=idx+1;
+			self.jumps[idx].gameObject:SetActive(true);
+			self.jumps[idx]:SetItem(true,LanguageHelp:GetLanguageByKey("Local_Str_DailyActivity"),function ()
+				self:CloseWidget();
+				--UIManager.Instance:CloseAllLoadedWindowNWidget();
+				LuaModuleDispatcher:SendMessage(ModuleDef.GamePlayChoiceModule, "OnOpenGamePlayChoice", { });
+			end);
+		end
+
+		
+		idx=idx+1;
+		self.jumps[idx].gameObject:SetActive(true);
+		self.jumps[idx]:SetItem(true,LanguageHelp:GetLanguageByKey("Local_Str_DailyTask"),function ()
+			self:CloseWidget();
+			--UIManager.Instance:CloseAllLoadedWindowNWidget();
+			UIManager.Instance:OpenWindow("TaskWindow/Prefab/TaskWindow",TaskHelper.GetAllWindow(true),CS.StarProjectDef.MainPageCommond.HideBoth)
+		end);
+
+
+	else
+		--属性
+		self.go_title:SetActive(true);
+		self.go_line:SetActive(true);
+
+		local RiskInfo=	GameManager.Instance.M_MainPlayerCtrlBase.Data.Attrs:GetProtoValue(CS.StarProjectDef.AOIAttrDefine.RiskInfo);
+		if RiskInfo~= nil then
+
+			local curRiskLevel=RiskInfo.CurRiskLevel;
+			local cfg=ConfigDataAccessor.AdvGradeExp[curRiskLevel];
+			if cfg~=nil then
+				local idx=0;
+				--奖励属性
+				for i=1,#cfg.AttrID do
+
+					if cfg.AttrValue[i]>0 then
+
+						idx=idx+1;
+						if idx<=#self.attrs then
+							self.attrs[idx].gameObject:SetActive(true);
+							local data={};
+							data.ID=cfg.AttrID[i]
+							data.Value=cfg.AttrValue[i]
+							self.attrs[idx]:RefeshAttrProb(data);
+						end
+
+					end
+				end
+
+			end
+		end
+	end
+
+
+	--刷新面板位置
+	self:RefeshPos();
+
+
+end
+
+
+--刷新面板位置
+function FuncTipsWidget:RefeshPos()
+
+	self.IsInRight=true;
+
+	local aim=self.module.AimTransform;
+
+	--local uiCam =UIManager.Instance.M_Canvas.worldCamera;
+
+	--获取tip宽高
+	local tip_w = self.rect.sizeDelta.x / 2;
+	local tip_h = self.rect.sizeDelta.y / 2;
+
+
+	--获取目标的屏幕坐标
+	--local screenPoint = CS.PositionConvert.UIPointToScreenPoint(uiCam, aim.position);
+    local screenPoint = aim.position; -- 通过结果可以知道Screen Space - Overlay模式中UI的transform.position代表的是屏幕位置，而不是所谓的世界位置。
+
+
+	--获取目标宽高
+	local aim_rect =aim:GetComponent(typeof(RectTransform));
+	local aim_w = aim_rect.sizeDelta.x ;
+	local aim_h = aim_rect.sizeDelta.y ;
+
+
+	--获取屏幕中点
+	local screenCenter = Vector2(CS.UnityEngine.Screen.width / 2, CS.UnityEngine.Screen.height / 2);
+
+	--计算tip偏移
+	local offset = Vector2(0, 0);
+	if screenPoint.x <= screenCenter.x and screenPoint.y >= screenCenter.y then
+		--左上
+		offset.x = tip_w + aim_w / 2;
+		offset.y = -tip_h + aim_h / 2;
+
+
+		self.IsInRight=false;
+	elseif screenPoint.x <= screenCenter.x and screenPoint.y <= screenCenter.y  then
+		--左下
+		offset.x = tip_w + aim_w / 2;
+		offset.y = tip_h - aim_h / 2;
+
+		self.IsInRight=false;
+	elseif screenPoint.x >= screenCenter.x and screenPoint.y >= screenCenter.y  then
+		--右上
+		offset.x = -tip_w - aim_w / 2;
+		offset.y = -tip_h + aim_h / 2;
+	elseif screenPoint.x >= screenCenter.x and screenPoint.y <= screenCenter.y  then
+		--右下
+		offset.x = -tip_w - aim_w / 2;
+		offset.y = tip_h - aim_h / 2;
+
+	end
+
+	--local parentRect = self.rect.transform.parent:GetComponent(typeof(RectTransform));
+
+
+    --local ap = CS.PositionConvert.ScreenPointToUILocalPoint(uiCam, parentRect, screenPoint) + offset;
+    local ap = CS.PositionConvert.ScreenPointToLocalPointInRectangle(screenPoint)+ offset;
+
+	--不能超出屏幕
+	--[[
+	if ap.y<-70 then
+		ap.y=-70
+	elseif ap.y>70 then
+		ap.y=70
+	end
+	]]
+
+	self.rect.anchoredPosition = ap;
+
+end
+
+
+
+function FuncTipsWidget:Start()
+
+end
+
+function FuncTipsWidget:OnEnable()
+
+end
+
+function FuncTipsWidget:OnDisable()
+
+end
+
+function FuncTipsWidget:OnDestroy()
+
+end
+
+function FuncTipsWidget:OnOpen(arg)
+
+	self.IsOpen=true;
+
+end
+
+function FuncTipsWidget:OnClose(arg)
+	self.IsOpen=false;
+	MonoHelper.RemoveUpdateListener(self.onUpdate);
+end
+
+function FuncTipsWidget:CloseWidget()
+
+	self.IsOpen=false;
+	--self.anim:Play("FuncTipsWidgetAnim_Close");
+	self:ClearAllAnim();
+	self.tw_close=DOVirtual.DelayedCall(0.01,function ()
+			UIManager.Instance:CloseWidget("FuncTips/FuncTipsWidget",nil,true);
+			GameManager.Instance.IsOpenFuncTips=false;
+		end)
+
+
+end
+
+function FuncTipsWidget:ClearAllAnim()
+	if self.tw_close~= nil then
+		self.tw_close:Kill();
+		self.tw_close=nil;
+	end
+end
+
+
+return  FuncTipsWidget

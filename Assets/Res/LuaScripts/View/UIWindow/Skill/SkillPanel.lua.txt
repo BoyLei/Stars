@@ -1,0 +1,854 @@
+local SkillItemNew = require("View/UIWindow/Skill/SkillItemNew");
+local SkillInfoPanel = require("View/UIWindow/Skill/SkillInfoPanel");
+local TalentInfoPanel = require("View/UIWindow/Skill/TalentInfoPanel");
+
+local SkillPanel = {}
+SkillPanel.__index = SkillPanel
+
+function SkillPanel:New(obj, module)
+    local self = {};
+    setmetatable(self, SkillPanel);
+
+    self.gameObject = obj;
+    self.transform = obj.transform;
+
+    self.module = module;
+
+    self:Init()
+
+    return self;
+end
+
+function SkillPanel:Show(curSelSkillId)
+    if curSelSkillId ~= nil then
+        -- self.curSelSkillId = curSelSkillId
+        -- self.isClickTalent = false;
+        self.selectSkillItem = self:GetSkillItem(curSelSkillId);
+    end
+    self.gameObject:SetActive(true);
+
+    self:OnUpdateData();
+
+    -- self.module:MarkOpenSkill();
+end
+
+function SkillPanel:GetSkillItem(SkillID)
+    local playerJob = GameManager.Instance:GetPlayerJob();
+    local jobCfg = GetJobCfg(playerJob);
+    local bornJobs = jobCfg.BornJobSkills;
+
+    for i = 1, 4, 1 do
+        local jobSkillID = bornJobs[i];
+        if jobSkillID == SkillID then
+            return self.assistItems[i]
+        end
+    end
+
+    if jobCfg.TransferJobSkills == nil then
+        return nil;
+    end
+
+    -- 进阶职业 技能6个, 但不一定 一开始所有都开放
+    local tansJobSkills = jobCfg.TransferJobSkills;
+
+    for i = 1, 6, 1 do
+        local jobSkillID = tansJobSkills[i];
+        local skillItem = self.jobItems[i];
+
+        if jobSkillID == SkillID then
+            return skillItem
+        end
+    end
+
+end
+
+function SkillPanel:Close()
+    self.gameObject:SetActive(false);
+end
+
+function SkillPanel:Init()
+    self.m_SkillIContent = self.transform:Find("SkillIContent");
+
+    self.m_SkillItem = self.m_SkillIContent:Find("SkillItem").gameObject;
+
+    self.m_TeXing = self.m_SkillIContent:Find("TeXing");
+
+    self.m_Normal_1 = self.m_SkillIContent:Find("TeXing/Normal_1");
+    self.m_Big_1 = self.m_SkillIContent:Find("TeXing/Big_1");
+
+    self.m_Normal_2 = self.m_SkillIContent:Find("TeXing/Normal_2");
+    self.m_Big_2 = self.m_SkillIContent:Find("TeXing/Big_2");
+
+    self.m_JiChuLine = self.m_SkillIContent:Find("JiChu/Line");
+    -- 基础技能的 位置父节点 pos1 和 pos2
+    self.m_JiChu_Pos1 = self.m_SkillIContent:Find("JiChu/Pos1");
+    self.m_JiChu_Pos2 = self.m_SkillIContent:Find("JiChu/Pos2");
+
+    -- 四个基础技能的父节点
+    self.m_JiChuSkillsPos = {};
+    for i = 1, 4 do
+        local item = self.m_SkillIContent:Find("JiChu/Line/Skill_" .. i);
+        self.m_JiChuSkillsPos[i] = item;
+    end
+
+    self.m_JobChangedGob = self.m_SkillIContent:Find("JobChanged").gameObject;
+    -- 六个转职技能的父节点
+    self.m_JobSkillsPos = {};
+    for i = 1, 6 do
+        local item = self.m_SkillIContent:Find("JobChanged/JobSkill/SkillItem" .. i);
+        self.m_JobSkillsPos[i] = item;
+    end
+
+    self.m_PassiveSkillRoot = self.m_SkillIContent:Find("Passive/PassiveSkill");
+
+    self.m_PassiveName = self.m_SkillIContent:Find("Passive/PassiveSkill/Name"):GetComponent(typeof(Text));
+    self.m_Passive_Pos1 = self.m_SkillIContent:Find("Passive/Pos1");
+    self.m_Passive_Pos2 = self.m_SkillIContent:Find("Passive/Pos2");
+
+    self.m_Passive_Icon = self.m_SkillIContent:Find("Passive/PassiveSkill/BG/Icon"):GetComponent(typeof(Image));
+    self.m_Passive_SelGob = self.m_SkillIContent:Find("Passive/PassiveSkill/BG/Sel").gameObject;
+    local passiveIcon = self.m_Passive_Icon:GetComponent(typeof(JButton));
+
+    passiveIcon.OnClick = function()
+        self:OnPassiveClick();
+    end
+
+    self:InitSkillItems();
+
+    self.m_UsedPointText = self.m_SkillIContent:Find("ChongZhi/UsedPoint/Count"):GetComponent(typeof(Text));
+
+    local pointNameText = self.m_SkillIContent:Find("ChongZhi/Name"):GetComponent(typeof(Text));
+    pointNameText.text = ConfigDataAccessor.Item[112].Name .. ":";
+
+    local pointImage = self.m_SkillIContent:Find("ChongZhi/Icon"):GetComponent(typeof(Image));
+
+    ResourceHelper:LoadIconAsync(pointImage, "", ConfigDataAccessor.Item[112].Icon, false);
+
+    local resetJbtn = self.m_SkillIContent:Find("ChongZhi/Reset"):GetComponent(typeof(JButton));
+
+    resetJbtn.OnClick = function()
+        self:OnClickReset();
+    end
+
+    local JBtn = self.m_SkillIContent:Find("ChongZhi/JBtn"):GetComponent(typeof(JButton));
+    JBtn.OnClick = function()
+        LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",
+            {112, false, 0, JBtn.transform, 0, nil, nil, nil, 0});
+    end
+
+    local skillInfo = self.transform:Find("SkillInfo");
+    self.m_SkillInfo = SkillInfoPanel:New(skillInfo, self.module);
+
+    self.m_SkillInfo:OnTalentClick(function()
+        self:ShowCurTalentInfo();
+    end);
+
+    local talentPanel = self.transform:Find("TalentPanel").gameObject;
+    self.m_TalentInfoPanel = TalentInfoPanel:New(talentPanel, self.module);
+
+    self.m_TalentInfoPanel:OnClose(function()
+        self.isClickTalent = false;
+
+        -- 天赋界面 只要关闭 就要刷新 天赋界面的 "新"
+        self.m_SkillInfo:RefreshTalentShow();
+    end);
+
+    self.m_KeZhuanZhiGob = self.m_SkillIContent:Find("KeZhuanZhi").gameObject;
+
+    self.m_KeZhuanZhi1_Gob = self.m_SkillIContent:Find("KeZhuanZhi/Content1").gameObject;
+
+    self.m_KeZhuanTitle = self.m_SkillIContent:Find("KeZhuanZhi/Content1/Title"):GetComponent(typeof(Text));
+    local zhuanZhiBtn = self.m_SkillIContent:Find("KeZhuanZhi/Btn"):GetComponent(typeof(JButton));
+
+    self.m_KeZhuanZhi2_Gob = self.m_SkillIContent:Find("KeZhuanZhi/Content2").gameObject;
+    local goBtn = self.m_KeZhuanZhi2_Gob.transform:Find("Go"):GetComponent(typeof(JButton));
+
+    zhuanZhiBtn.OnClick = function()
+        self:OnClickZhuanZhi();
+    end
+
+    goBtn.OnClick = function()
+        self:OnClickZhuanZhi();
+    end
+
+end
+
+function SkillPanel:InitSkillItems()
+
+    self.normalItem = nil;
+    self.bigSkillItem = nil;
+    self.assistItems = {};
+    self.jobItems = {};
+
+    self.m_SkillItem:SetActive(true);
+
+    -- 普工
+    self.normalItem = self:CreateSkillItem(self.m_TeXing, 1);
+    self.normalItem:SetSkillType(2);
+
+    -- 大招
+    self.bigSkillItem = self:CreateSkillItem(self.m_TeXing, 2);
+    self.bigSkillItem:SetSkillType(3);
+
+    -- 4个 基础技能
+    for i = 1, 4 do
+        self.assistItems[i] = self:CreateSkillItem(self.m_JiChuSkillsPos[i], i);
+        self.assistItems[i]:SetSkillType(4);
+    end
+
+    -- 6个 职业技能
+    for i = 1, 6 do
+        self.jobItems[i] = self:CreateSkillItem(self.m_JobSkillsPos[i], i);
+        self.jobItems[i]:SetSkillType(5);
+    end
+
+    self.m_SkillItem:SetActive(false);
+
+end
+
+function SkillPanel:Refresh()
+
+    self:RefreshSkillItems();
+
+    self:RefreshSkillPoint();
+
+    self:RefreshSkillInfo();
+
+    self:RefreshTalentInfo();
+
+    self:RefreshLayout();
+
+    self:RefreshKeZhuanZhi();
+
+end
+
+function SkillPanel:RefreshLayout()
+
+    local isShowChangedJob = not self.showCanTransferSkill;
+
+    local normalPos = self.m_Normal_1;
+    local bigPos = self.m_Big_1;
+    local passivePos = self.m_Passive_Pos1;
+    local jiChuPos = self.m_JiChu_Pos1;
+
+    -- 根据是否转职, 切换 坐标 / localScale
+    if isShowChangedJob then
+        normalPos = self.m_Normal_2;
+        bigPos = self.m_Big_2;
+        passivePos = self.m_Passive_Pos2;
+        jiChuPos = self.m_JiChu_Pos2;
+    end
+
+    self.m_JobChangedGob:SetActive(isShowChangedJob);
+    self.m_KeZhuanZhiGob:SetActive(self.showCanTransferSkill);
+
+    self:SetTargetPostion(self.normalItem.transform, normalPos);
+    self:SetTargetPostion(self.bigSkillItem.transform, bigPos);
+    self:SetTargetPostion(self.m_PassiveSkillRoot.transform, passivePos);
+    self:SetTargetPostion(self.m_JiChuLine.transform, jiChuPos);
+
+end
+
+function SkillPanel:SetTargetPostion(origin, target)
+
+    origin.localScale = target.localScale;
+    origin.position = target.position;
+
+end
+
+-- 点击了 普通技能按钮
+function SkillPanel:OnSkillClick(jobSkillID, skillItem)
+
+    -- 如果 选择 jobSkillID 一样, 并且 之前选中的 也不是天赋, 那就是 点击了 之前的技能按钮
+    if self.curSelSkillId == jobSkillID and not self.isClickTalent then
+        return;
+    end
+
+    -- 将之前 选中的 技能SkillItem 状态还原
+    self:RefreshSelectItem(false, false);
+    self.isClickTalent = false;
+    self.curSelSkillId = jobSkillID;
+    self.selectSkillItem = skillItem;
+
+    self:Refresh();
+end
+
+function SkillPanel:ShowCurTalentInfo()
+
+    self:OnTalentClick(self.curSelSkillId, self.selectSkillItem);
+
+end
+
+-- 点击了 天赋按钮
+function SkillPanel:OnTalentClick(jobSkillID, skillItem)
+
+    -- 如果之前选中的 也是这个天赋,那就 return
+    if self.curSelSkillId == jobSkillID and self.isClickTalent then
+        return;
+    end
+
+    -- 将之前 选中的 技能SkillItem 状态还原
+    self:RefreshSelectItem(false, false);
+
+    self.isClickTalent = true;
+    self.curSelSkillId = jobSkillID;
+    self.selectSkillItem = skillItem;
+
+    -- 刷新技能详情界面
+    self:Refresh();
+
+    -- 刷新完天赋界面后, 再去单独刷新 单个的 skillItem "新" 状态
+    self:RefreshJobSkillTalentIsNew(skillItem);
+end
+
+-- 点击了 被动技能
+function SkillPanel:OnPassiveClick()
+
+    if self.passiveSkill == nil then
+        return;
+    end
+
+    if self.curSelSkillId == self.passiveSkill then
+        return;
+    end
+
+    -- 将之前 选中的 技能SkillItem 状态还原
+    self:RefreshSelectItem(false, false);
+    self.isClickTalent = false;
+    self.curSelSkillId = self.passiveSkill;
+    self.selectSkillItem = nil;
+
+    self:Refresh();
+end
+
+-- 刷新 选择的 技能item 的状态
+function SkillPanel:RefreshSelectItem(isSelect, isTalent)
+
+    -- 如果当前没有 选中的 按钮, 那啥都不管
+    if self.selectSkillItem == nil then
+        return;
+    end
+
+    -- 如果 isSelect == false, 那就将 它的选中状态 还原到默认状态
+    -- 如果 是选中状态, 就需要 根据 self.isClickTalent 的状态，设置 是技能选中还是天赋选中
+    self.selectSkillItem:UpdateSelect(isSelect, isTalent);
+end
+
+function SkillPanel:RefreshSkillItems()
+
+    local assistSkillIndex = 0;
+    local jobSkillIndex = 0;
+
+    -- 技能类型枚举  
+    -- 1.普工 2.常规 3.辅助 4.大招 5.闪避 6.转职类型
+    -- 新的 技能 分为
+    --    1.普工/大招  2. 4个常规 技能  3. 6个转职技能
+
+    -- 先拿到玩家当前的职业, 根据职业id, 就能确定 玩家这个职业有哪些 配置技能
+    local playerJob = GameManager.Instance:GetPlayerJob();
+
+    -- 拿到职业对应的 配置
+    local jobCfg = GetJobCfg(playerJob);
+
+    -- 刷新 普工普攻技能
+    self:RefreshNormalSkill(jobCfg);
+
+    -- 刷新初始职业技能
+    self:RefreshJobSkills(jobCfg);
+
+    -- 刷新进阶职业技能
+    self:RefreshJobChangedSkills(jobCfg);
+
+    -- 特性职业技能 , 大招
+    self:RefreshBigSkill(jobCfg);
+
+    -- 刷新职业被动,跟gl 确定 一个职业 可以挂载多个被动,默认采用第一个被动技能
+    self:RefreshPassiveSkill(jobCfg);
+
+    -- 刷新 转职后的状态
+    self:RefreshHasChangedSkill(jobCfg);
+end
+
+-- 刷新 普攻
+function SkillPanel:RefreshNormalSkill(jobCfg)
+
+    if jobCfg.AttackJobSkill == nil then
+        return;
+    end
+
+    self:RefreshSkillItem(self.normalItem, jobCfg.AttackJobSkill, 1);
+
+end
+
+-- 刷新初始职业技能
+function SkillPanel:RefreshJobSkills(jobCfg)
+
+    if jobCfg.BornJobSkills == nil then
+        return;
+    end
+
+    -- 初始职业技能, 是个人都有, 所以 直接遍历刷新
+    local bornJobs = jobCfg.BornJobSkills;
+
+    -- 初始职业技能 最多4个, UI 刷新的话 根据配置 数据刷新, 如果配置 2个，那么剩余两个就关闭
+    for i = 1, 4, 1 do
+        local jobSkillID = bornJobs[i];
+
+        local skillItem = self.assistItems[i];
+        if jobSkillID ~= nil then
+            skillItem.gameObject:SetActive(true);
+            self:RefreshSkillItem(skillItem, jobSkillID, i);
+        else
+            skillItem.gameObject:SetActive(false);
+        end
+    end
+end
+
+-- 刷新转职后的技能
+function SkillPanel:RefreshJobChangedSkills(jobCfg)
+
+    if jobCfg.TransferJobSkills == nil then
+        return;
+    end
+
+    -- 进阶职业 技能6个, 但不一定 一开始所有都开放
+    local tansJobSkills = jobCfg.TransferJobSkills;
+
+    for i = 1, 6, 1 do
+        local jobSkillID = tansJobSkills[i];
+        local skillItem = self.jobItems[i];
+
+        if jobSkillID ~= nil then
+            skillItem.gameObject:SetActive(true);
+
+            self:RefreshSkillItem(skillItem, jobSkillID, (i - 1) % 4 + 1);
+        else
+            skillItem.gameObject:SetActive(false);
+        end
+    end
+end
+
+-- 刷新大招
+function SkillPanel:RefreshBigSkill(jobCfg)
+
+    if jobCfg.UltimateJobSkills == nil then
+        return;
+    end
+
+    local jobSkillID = jobCfg.UltimateJobSkills;
+
+    self.bigSkillItem.gameObject:SetActive(true);
+    if jobSkillID ~= 0 then
+
+        self.bigSkillItem:RefreshIsLock(false);
+
+        self:RefreshSkillItem(self.bigSkillItem, jobSkillID, 2);
+    else
+        self.bigSkillItem:SetNoneSkillLock(true);
+
+    end
+
+end
+
+-- 刷新被动技能
+function SkillPanel:RefreshPassiveSkill(jobCfg)
+
+    self.passiveSkill = nil;
+
+    self:RefreshPassiveIcon();
+
+    if jobCfg.PassiveSkills == nil then
+        return;
+    end
+
+    -- 默认采用第一个被动技能
+    self.passiveSkill = jobCfg.PassiveSkills[1];
+    local pdCfg = ConfigDataAccessor.GetPassiveDesc(self.passiveSkill, 1);
+
+    -- 配置表 可能没配置
+    if pdCfg ~= nil then
+        self.m_PassiveName.text = pdCfg.SkillName;
+    else
+        Log("SkillNew: 被动" .. tostring(self.passiveSkill) .. " 没有配置");
+    end
+
+    local isPassiveSel = self.curSelSkillId == self.passiveSkill;
+    self.m_Passive_SelGob:SetActive(isPassiveSel);
+
+end
+
+-- 刷新被动的 Icon
+function SkillPanel:RefreshPassiveIcon()
+
+    local playerJob = GameManager.Instance:GetPlayerJob();
+    local jobCfg = GetJobCfg(playerJob);
+
+    -- 刷新 职业显示
+    local translateJobs = GetJobTransferDatas(playerJob);
+
+    if translateJobs == nil then
+        return;
+    end
+
+    local baseJobCfg = GetJobCfg(translateJobs[1]);
+
+    if baseJobCfg == nil then
+        return;
+    end
+
+    ResourceHelper:LoadIconAsync(self.m_Passive_Icon, ResourceHelper.AtlasPathSkillPanel, baseJobCfg.JobIcon3, false)
+end
+
+-- TODO: 刷新 转职技能 的状态
+function SkillPanel:RefreshHasChangedSkill(jobCfg)
+    -- 默认 认为 拥有的 转职技能 位 false
+    self.showCanTransferSkill = false;
+
+    -- 又是否可以转职的技能
+    local hadTransferSkill = false;
+
+    -- 是否有可转职的配置
+    local hasTransferSkillCfg = false;
+
+    if jobCfg.TransferJob ~= nil and #jobCfg.TransferJob > 0 then
+        hasTransferSkillCfg = true;
+    end
+
+    local tansJobSkills = jobCfg.TransferJobSkills;
+
+    for i = 1, 6, 1 do
+        local jobSkillID = tansJobSkills[i];
+        local skillItem = self.jobItems[i];
+
+        if jobSkillID ~= nil then
+            hadTransferSkill = true;
+            break
+        end
+    end
+
+    -- 只有 拥有可转职的配置, 同时身上没有可转职的技能的时候,才显示 可转职的界面
+    self.showCanTransferSkill = hasTransferSkillCfg and not hadTransferSkill;
+end
+
+-- 刷新 单个 的 技能SkillItem
+function SkillPanel:RefreshSkillItem(skillItem, jobSkillID, idx)
+    local skillInfo = self.skillList[jobSkillID];
+
+    local open = false;
+    local talentID = 0;
+    local skillLevel = 1;
+
+    for k, v in pairs(self.skillPosList) do
+        if v.JobSkillID == jobSkillID then
+            open = true;
+            break
+        end
+    end
+    if skillInfo ~= nil then
+
+        talentID = skillInfo.TalentID;
+        skillLevel = skillInfo.SkillLevel;
+
+    else
+        -- local talentCfgs = GetJobSkillTalents(jobSkillID);
+
+        -- 天赋 ID 采用 默认的天赋ID
+        -- if talentCfgs ~= nil and #talentCfgs > 0 then
+        --     talentID = talentCfgs[1].ID;
+        -- end
+    end
+
+    skillItem:Refresh(jobSkillID, open, talentID, skillLevel, self.curSelSkillId, idx);
+
+    self:RefreshJobSkillTalentIsNew(skillItem);
+end
+
+-- 刷新技能点
+function SkillPanel:RefreshSkillPoint()
+
+    local skillPoint = GameManager.Instance:GetSkillPoint();
+    -- local skillUsedPoint = GameManager.Instance:GetSkillPointUsed();
+    self.m_UsedPointText.text = skillPoint;
+
+end
+
+-- 对外暴露的 数据刷新的接口
+function SkillPanel:OnUpdateData()
+    self:UpdateData(self.module.skillList, self.module.skillPosList);
+end
+
+-- 刷新 技能数据
+function SkillPanel:UpdateData(skillList, skillPosList)
+    if skillList == nil or skillPosList == nil then
+        return;
+    end
+
+    self.skillList = {}
+    self.skillPosList = {}
+
+    -- 技能位信息
+    for i = 0, skillPosList.Count - 1 do
+        local posID = skillPosList[i].PosID; -- 技能位
+        local skillID = skillPosList[i].JobSkillID; -- 技能ID
+        local skillPosItem = {}
+        skillPosItem.PosID = posID;
+        skillPosItem.JobSkillID = skillID;
+        table.insert(self.skillPosList, skillPosItem);
+    end
+
+    -- 技能信息，所有技能
+    for i = 0, skillList.Count - 1 do
+        local skillID = skillList[i].SkillDBID; -- 技能编号
+        local skillLevel = skillList[i].SkillLevel; -- 技能等级
+        local talentID = skillList[i].TalentID; -- 天赋编号
+        local skillItem = {}
+        skillItem.SkillDBID = skillID;
+        skillItem.SkillLevel = skillLevel;
+        skillItem.TalentID = talentID;
+        self.skillList[skillID] = skillItem;
+    end
+
+    -- 对技能升序排序
+    table.sort(self.skillList, function(a, b)
+        if a ~= b then
+            return (a < b);
+        end
+        return false;
+    end);
+
+    self:Refresh();
+
+end
+
+function SkillPanel:CreateSkillItem(parent, i)
+    local itemNode = GameObject.Instantiate(self.m_SkillItem);
+    itemNode.name = "SkillItem_" .. tostring(i);
+    local skillItem = SkillItemNew:New1(itemNode, self, parent);
+
+    return skillItem;
+end
+
+-- 点击技能点 重置
+function SkillPanel:OnClickReset()
+    local result, costItem, costNum = self:CheckResetConditions();
+    -- 如果条件不足, 那就弹 tips 弹窗
+    if not result then
+        -- 算了，条件不足走服务器弹窗
+        -- self:SendResetSkill();
+        -- CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(
+        --     string.format(LanguageHelp:GetLanguageByKey("Local_Str_No_Item"),)
+        --     );
+        -- return;
+    end
+
+    -- 如果满足, 弹出 通用道具消耗的 提示窗
+    if costItem == nil then
+        CS.StarProjectDef.UIAPI.ShowMsgBox(67, function(str)
+            if str == "SURE" then
+                self:SendResetSkill();
+            end
+        end)
+    else
+
+        local cfg = ConfigDataAccessor.Item[costItem];
+
+        local itemName = costItem;
+        if cfg ~= nil then
+            itemName = cfg.Name;
+        end
+
+        CS.StarProjectDef.UIAPI.ShowMsgBox(66, function(str)
+            if str == "SURE" then
+                self:SendResetSkill();
+            end
+        end, itemName, costNum);
+    end
+
+end
+
+function SkillPanel:SendResetSkill()
+    local message = CS.ProtoMsg.ResetJobSkillPointReq();
+
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message,
+        false);
+end
+
+function SkillPanel:CheckResetConditions()
+    local playerLevel = GameManager.Instance:GetPlayerLevel();
+
+    local cfg = nil;
+
+    for k, v in pairs(ConfigDataAccessor.SkillResetList) do
+
+        cfg = v;
+        if v.ID >= playerLevel then
+            break
+        end
+
+    end
+
+    local itemCosts = cfg.ItemCost;
+
+    -- 如果没有道具消耗的要求
+    if itemCosts == nil or #itemCosts == 0 then
+        -- 没有道具消耗, 返回 true, 并且告诉外面没有道具
+        return true, nil, nil;
+    end
+
+    local itemCostNum = cfg.ItemNum;
+    local costItem = 0;
+    local costNum = 0;
+
+    for i = 1, #itemCosts do
+
+        costItem = itemCosts[i];
+        costNum = itemCostNum[i];
+        if costNum == nil then
+            costNum = 0;
+        end
+        local isEnough = BusinessManager.Instance:IsEnoughCurrency(costItem, costNum);
+
+        if not isEnough then
+            return false, costItem, costNum;
+        end
+    end
+
+    return true, costItem, costNum;
+end
+
+-- 刷新技能详情 面板
+function SkillPanel:RefreshSkillInfo()
+
+    -- 如果当前没有 任何选中的技能信息, 那就 采用默认信息
+    if self.curSelSkillId == nil then
+
+        self:ResetDefault();
+
+        return;
+    end
+
+    local isPassive = self.curSelSkillId == self.passiveSkill;
+
+    if isPassive then
+        self.m_SkillInfo:Refresh(self.curSelSkillId, nil, isPassive);
+
+        -- 被动传的节能类型 1
+        self.m_SkillInfo:SetSkillType(1);
+        return;
+    end
+
+    self.m_SkillInfo:Refresh(self.curSelSkillId, self.skillList[self.curSelSkillId], isPassive);
+
+    self.m_SkillInfo:SetSkillType(self.selectSkillItem.SkillType);
+end
+
+function SkillPanel:ResetDefault()
+
+    -- if self.passiveSkill ~= nil then
+
+    --     self:OnPassiveClick();
+
+    --     return;
+    -- end
+
+    -- 默认 选择第一个技能
+    if self.selectSkillItem then
+        self.selectSkillItem:OnClick()
+        self:ShowCurTalentInfo()
+    else
+        self.assistItems[1]:OnClick();
+    end
+end
+
+-- 刷新天赋 信息
+function SkillPanel:RefreshTalentInfo()
+    if self.curSelSkillId == nil or self.curSelSkillId == 0 or not self.isClickTalent then
+        return;
+    end
+
+    for _, n in pairs(self.skillList) do
+        if n.SkillDBID == self.curSelSkillId then
+            local curSelTalentId = n.TalentID;
+            local curSelLevel = n.SkillLevel;
+
+            self.m_TalentInfoPanel:Show(self.curSelSkillId, curSelTalentId, curSelLevel);
+            self.m_TalentInfoPanel:SetSkillType(self.selectSkillItem.SkillType);
+
+            break
+        end
+    end
+end
+
+-- 刷新可转职
+function SkillPanel:RefreshKeZhuanZhi()
+
+    -- 刷新可转职 描述
+    self.m_KeZhuanTitle.text =
+        StringFormat(LanguageHelp:GetLanguageByKey("SkillNew_33"), {self.module.transferJobLevel});
+
+    local playerLevel = GameManager.Instance:GetPlayerLevel();
+    local isKeZhuanZhi = playerLevel >= self.module.transferJobLevel;
+
+    self.m_KeZhuanZhi1_Gob:SetActive(not isKeZhuanZhi);
+    self.m_KeZhuanZhi2_Gob:SetActive(isKeZhuanZhi);
+end
+
+function SkillPanel:OnClickZhuanZhi()
+
+    local isOpen = CS.StarProject.Service.SystemOpen.SystemOpenManager.Instance:SystemIsOpen(SystemOpenType.TransferJob);
+
+    if not isOpen then
+        Util.ShowMessage(CS.StarProject.Service.SystemOpen.SystemOpenManager.Instance:GetSystemNoOpenTips(
+            SystemOpenType.TransferJob));
+        return;
+    end
+
+    UIManager.Instance:CloseAllLoadedWindowNWidget()
+
+    -- 跳转到转职界面
+    UIManager.Instance:OpenWindowAsync(UIDef.TransJobWindow, null, null, CS.StarProjectDef.MainPageCommond.HideBoth,
+        false, true);
+
+end
+
+-- 刷新 单个的 skillItem "新" 的状态
+function SkillPanel:RefreshJobSkillTalentIsNew(skillItem)
+    local jobSkillID = skillItem.skillId;
+    local skillInfo = self.skillList[jobSkillID];
+
+    -- 玩家等级
+    local playerLevel = GameManager.Instance:GetPlayerLevel();
+
+    -- 玩家这个职业技能 对应的天赋
+    local talentCfgs = GetJobSkillTalents(jobSkillID);
+
+    local hasNew = false;
+
+    local newCount = 0;
+
+    -- 天赋 ID 采用 默认的天赋ID
+    if talentCfgs ~= nil and #talentCfgs > 0 then
+
+        for k, v in pairs(talentCfgs) do
+            -- 天赋开启了
+            if playerLevel >= v.LimitLv then
+                local notHave = not LocalCacheManager.Instance:Has("New_Talent_" .. v.ID);
+                local Have = LocalCacheManager.Instance:Has("New_Talent_" .. v.ID);
+                if notHave then
+                    hasNew = true;
+                    newCount = newCount + 1;
+                end
+            end
+        end
+    end
+
+    if hasNew and newCount < 2 then
+        hasNew = false;
+    end
+    skillItem:RefreshTalentIsNew(hasNew);
+
+    -- 触发一次红点数的刷新
+    self.module:TriggerRefreshNewPoint();
+end
+
+return SkillPanel;

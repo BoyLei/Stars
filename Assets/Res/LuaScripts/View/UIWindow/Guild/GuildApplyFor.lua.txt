@@ -1,0 +1,438 @@
+--[[
+*文件名   :   GuildApplyFor
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] local GuildApplyFor = {}
+
+GuildApplyFor.__index = GuildApplyFor
+
+local GuildApplyForItem = require("View/Uiwindow/Guild/GuildApplyForItem")
+local SortList = require("View/Item/SortList")
+
+function GuildApplyFor:New(_go, guildMember)
+    local self = {}
+    setmetatable(self, GuildApplyFor)
+
+    self.GuildMember = guildMember
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    -- 道具列表
+    self.BagItemList = {}
+    -- 无限列表
+    self.go_BagItem = self.transform:Find("Cut4Cam90/Scroll View/Mask/List/GuildApplyForItem").gameObject
+
+    self.tr_ItemRoot = self.transform:Find("Cut4Cam90/Scroll View/Mask/List")
+    self.go_BagItem:SetActive(false)
+    self.go_BagItem.transform:SetParent(self.transform)
+    self.BagScorllView = self.transform:Find("Cut4Cam90/Scroll View"):GetComponent(typeof(SuperScrollViewController))
+    self.BagScorllView:NewScroll(
+        self.go_BagItem,
+        0,
+        function(tr, idx)
+            self:OnBagItemRefesh(tr, idx)
+        end
+    )
+
+    -- 关闭按钮
+    self.transform:Find("Cut4Cam90/BtnClose"):GetComponent(typeof(JButton)).OnClick = (function()
+        -- 刷新成员列表
+        self.GuildMember:RefeshGuildMemberData()
+
+        self:Show(false)
+    end)
+
+    -- 一键同意
+    self.transform:Find("Cut4Cam90/BtnAcceptAll"):GetComponent(typeof(JButton)).OnClick = (function()
+        self:OnApplyAllClick()
+    end)
+
+    -- 一键拒绝
+    self.transform:Find("Cut4Cam90/BtnRejectAll"):GetComponent(typeof(JButton)).OnClick = (function()
+        self:OnCancelAllClick()
+    end)
+
+    -- 加入等级下拉框
+    self.UpGuildJLevel = {0, 10, 30} -- 加入等级下拉框
+
+    self.SortList = SortList:New(self.transform:Find("Cut4Cam90/SortMenu/SortList").gameObject)
+    -- self.SortList:Init({"加入等级：不限","加入等级：10","加入等级：30"},function (idx)
+    self.SortList:Init(
+        {
+            StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Tips78"), {LanguageHelp:GetLanguageByKey("Local_Str_Tips55")}),
+            StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Tips78"), {"10"}),
+            StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Tips78"), {"30"})
+        },
+        function(idx)
+            self:OnSelectSortList(idx)
+        end
+    )
+    self.SortListTex = self.transform:Find("Cut4Cam90/SortMenu/BtnSort/tex"):GetComponent(typeof(Text))
+    self.SortListIdx = 1
+    self.SortListTex.text = self.SortList.SortNames[self.SortListIdx]
+    self.transform:Find("Cut4Cam90/SortMenu/BtnSort"):GetComponent(typeof(JButton)).OnClick = (function()
+        self.SortList:Show(true, self.SortListIdx)
+    end)
+
+    -- 加入战力下拉框
+    self.SortListPower = SortList:New(self.transform:Find("Cut4Cam90/SortMenuPower/SortList").gameObject)
+    self.SortListPowerTex = self.transform:Find("Cut4Cam90/SortMenuPower/BtnSort/tex"):GetComponent(typeof(Text))
+    self.transform:Find("Cut4Cam90/SortMenuPower/BtnSort"):GetComponent(typeof(JButton)).OnClick = (function()
+        self.SortListPower:Show(true, self.SortListPowerIdx)
+    end)
+
+    -- 拉去申请记录回调
+    self.message1 = function(data)
+        self:OnGuildMyApplyListRet(data)
+    end
+
+    -- 申请记录操作回调
+    self.message2 = function(data)
+        self:OnGuildMySetApplyReqRet(data)
+    end
+
+    -- 修改加入等级回调
+    self.message3 = function(data)
+        self:OnGuildMyUpJoinLvReqRet(data)
+    end
+
+    self:Show(false)
+
+    return self -- 返回自身
+end
+
+function GuildApplyFor:RefeshSortList()
+    if self.GuildMember.GuildInfoWindow.module.GuildInfo == nil then
+        return
+    end
+    -- 加入等级
+    local joinLevel = self.GuildMember.GuildInfoWindow.module.GuildInfo.JoinPlayerLv
+    if self.UpGuildJLevel ~= nil then
+        for i = 1, #self.UpGuildJLevel do
+            if self.UpGuildJLevel[i] == joinLevel then
+                self.SortListIdx = i
+                self.SortListTex.text = self.SortList.SortNames[i]
+            end
+        end
+    end
+
+    -- 加入战力段位
+    local joinPower = self.GuildMember.GuildInfoWindow.module.GuildInfo.JoinPlayerPower
+    if self.UpGuildJPower ~= nil then
+        for i = 1, #self.UpGuildJPower do
+            if self.UpGuildJPower[i] == joinPower then
+                self.SortListPowerIdx = i
+                self.SortListPowerTex.text = self.SortListPower.SortNames[i]
+            end
+        end
+    end
+end
+
+function GuildApplyFor:OnSelectSortList(idx)
+    self.SortListIdx = idx
+    self.SortListTex.text = self.SortList.SortNames[idx]
+
+    -- 修改加入等级
+    local msg = CS.ProtoMsg.GuildMyUpJoinLvReq()
+    msg.JoinLevel = self.UpGuildJLevel[self.SortListIdx]
+    msg.JoinPower = self.UpGuildJPower[self.SortListPowerIdx]
+    SendClient2CenterReq(msg)
+end
+
+function GuildApplyFor:OnSelectSortPowerList(idx)
+    self.SortListPowerIdx = idx
+    self.SortListPowerTex.text = self.SortListPower.SortNames[idx]
+
+    -- 修改加入等级
+    local msg = CS.ProtoMsg.GuildMyUpJoinLvReq()
+    msg.JoinLevel = self.UpGuildJLevel[self.SortListIdx]
+    msg.JoinPower = self.UpGuildJPower[self.SortListPowerIdx]
+    SendClient2CenterReq(msg)
+end
+
+-- 修改加入等级回调
+function GuildApplyFor:OnGuildMyUpJoinLvReqRet(args)
+    local RetMsgID = args.MsgRet.RetMsgID -- 对应的消息号(这个可以判断是哪个协议)
+
+    local RetCode = args.MsgRet.RetCode
+    if RetCode == 0 then
+        -- 成功
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_176"))
+
+        self.GuildMember.GuildInfoWindow.module.GuildInfo.JoinPlayerLv = self.UpGuildJLevel[self.SortListIdx] -- 修改本地数据
+        self.GuildMember.GuildInfoWindow.module.GuildInfo.JoinPlayerPower = self.UpGuildJPower[self.SortListPowerIdx] -- 修改本地数据
+    else
+        -- 不需要处理，交给上层去处理
+        -- args.IsDialog=true
+        -- Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_83"));
+    end
+end
+
+-- 拉去申请记录回调
+function GuildApplyFor:OnGuildMyApplyListRet(data)
+    if data.data ~= nil then
+        -- 成功
+        local UserMd = data.data.PlayerList
+
+        if UserMd ~= nil then
+            RedPointManager.Instance:TriggerConditionTypeBoolValue(RedPointConditionType.Union_Apply, UserMd.Count > 0)
+
+            local UserInfos = UserMd
+
+            if self.ItemDataList == nil then
+                self.ItemDataList = {}
+            else
+                for k, _ in pairs(self.ItemDataList) do
+                    self.ItemDataList[k] = nil
+                end
+            end
+
+            for i = 0, UserInfos.Count - 1 do
+                local v = UserInfos[i]
+
+                local offInfo = v.Offline
+                local gUInfo = v.Apply
+
+                local data = {}
+
+                data.IsRead = v.IsRead
+
+                data.ModelID = offInfo.ModelID
+                data.Level = offInfo.Level
+                data.RiskLevel = offInfo.RiskLevel
+                data.Power = offInfo.Power
+                data.IsOnline = offInfo.IsOnline
+                data.LogOutTime = offInfo.LogOutTime
+                data.UserName = offInfo.UserName
+                data.JobID = offInfo.JobID
+
+                data.PID = gUInfo.PID
+                data.ApplyTime = gUInfo.ApplyTime
+
+                table.insert(self.ItemDataList, data)
+            end
+
+            self:Refesh()
+        end
+    else
+        -- 失败
+        -- Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_14"));
+    end
+end
+
+function GuildApplyFor:OnGuildMySetApplyReqRet(args)
+    local RetMsgID = args.MsgRet.RetMsgID -- 对应的消息号(这个可以判断是哪个协议)
+
+    local RetCode = args.MsgRet.RetCode
+    if RetCode == 0 then
+        -- 成功
+
+        -- 同意回调
+        if self.IsAgree then
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_179"))
+
+            -- 刷新列表
+            self:Show(true)
+        else
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_180"))
+
+            -- 刷新列表
+            self:Show(true)
+        end
+    else
+        -- 不需要处理，交给上层去处理
+        -- args.IsDialog=true
+        -- Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_83"));
+    end
+end
+
+function GuildApplyFor:OnBagItemRefesh(tr, idx)
+    for i = 1, #self.BagItemList do
+        if self.BagItemList[i].transform == tr then
+            self.BagItemList[i]:SetItem(self.ItemDataList[idx + 1]) -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+        end
+    end
+
+    local bi =
+        GuildApplyForItem:New(
+        tr.gameObject,
+        function(ritem)
+            self:OnItemApplyClick(ritem)
+        end,
+        function(ritem)
+            self:OnItemCancelClick(ritem)
+        end
+    )
+
+    bi.gameObject:SetActive(true)
+    bi:SetItem(self.ItemDataList[idx + 1]) -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+
+    table.insert(self.BagItemList, bi)
+end
+
+-- 点击一键同意
+function GuildApplyFor:OnApplyAllClick()
+    -- 同意申请列表
+    local msg = CS.ProtoMsg.GuildMySetApplyReq()
+    msg.IsAgree = true
+    for k, v in pairs(self.ItemDataList) do
+        msg.PIDlist:Add(v.PID)
+    end
+    SendClient2CenterReq(msg)
+    self.IsAgree = true
+end
+
+-- 点击同意
+function GuildApplyFor:OnItemApplyClick(ritem)
+    -- 同意申请列表
+    local msg = CS.ProtoMsg.GuildMySetApplyReq()
+    msg.IsAgree = true
+    msg.PIDlist:Add(ritem.Info.PID)
+    SendClient2CenterReq(msg)
+    self.IsAgree = true
+end
+
+-- 点击一键拒绝
+function GuildApplyFor:OnCancelAllClick()
+    -- 拒绝申请列表
+    local msg = CS.ProtoMsg.GuildMySetApplyReq()
+    msg.IsAgree = false
+    for k, v in pairs(self.ItemDataList) do
+        msg.PIDlist:Add(v.PID)
+    end
+    SendClient2CenterReq(msg)
+    self.IsAgree = false
+end
+
+-- 点击拒绝
+function GuildApplyFor:OnItemCancelClick(ritem)
+    -- 拒绝申请列表
+    local msg = CS.ProtoMsg.GuildMySetApplyReq()
+    msg.IsAgree = false
+    msg.PIDlist:Add(ritem.Info.PID)
+    SendClient2CenterReq(msg)
+    self.IsAgree = false
+end
+
+function GuildApplyFor:Show(b)
+    self.gameObject:SetActive(b)
+    if b then
+        -- RedPointManager.Instance:TriggerConditionTypeBoolValue(RedPointConditionType.Union_Apply, false);
+
+        -- 拉取申请列表
+        local msg = CS.ProtoMsg.GuildMyApplyListReq()
+        SendClient2CenterReq(msg)
+
+        -- 设置战力筛选
+        -- 加入战力下拉框
+        if self.UpGuildJPower == nil then
+            self.UpGuildJPower = {}
+        else
+            for k, _ in pairs(self.UpGuildJPower) do
+                self.UpGuildJPower[k] = nil
+            end
+        end
+
+        local listCfgs = GetRankLevelCfgs()
+        local playerCfg = GetPlayerCurRankLevelCfg(false)
+
+        local strTemp = {} -- 所有的等级
+
+        local MyParentRank = playerCfg.ParentRank
+        local MySubRank = playerCfg.SubRank
+
+        table.insert(self.UpGuildJPower, 0)
+        table.insert(strTemp, LanguageHelp:GetLanguageByKey("Local_Str_Tips78_Power") .. LanguageHelp:GetLanguageByKey("Local_Str_Tips36")) -- 无限制
+
+        for i = 0, listCfgs.Count - 1 do
+            local ParentRank = listCfgs[i].ParentRank
+            local SubRank = listCfgs[i].SubRank
+
+            if
+                (MyParentRank ~= ParentRank and SubRank == 1) or (MyParentRank == ParentRank and SubRank - MySubRank > 0 and SubRank - MySubRank <= 1) or
+                    (MyParentRank == ParentRank and MySubRank - SubRank >= 0 and MySubRank - SubRank <= 3)
+             then
+                local power = listCfgs[i].TotalPower
+                local powerStr = GetTotalPowerRankLevel(power)
+
+                table.insert(self.UpGuildJPower, power)
+                table.insert(strTemp, powerStr)
+            end
+        end
+
+        -- self.SortList:Init({"加入等级：不限","加入等级：10","加入等级：30"},function (idx)
+        self.SortListPower:Init(
+            strTemp,
+            function(idx)
+                self:OnSelectSortPowerList(idx)
+            end
+        )
+        self.SortListPowerIdx = 1
+        self.SortListPowerTex.text = self.SortListPower.SortNames[self.SortListPowerIdx]
+    else
+    end
+end
+
+function GuildApplyFor:OnMessage()
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.GuildMyApplyListRetID, self.message1, nil)
+    CS.SGF.Network.MsgRetManager.Instance:OnMessageEnum(self.message2, CS.MsgIDEnum.GuildMySetApplyReqID)
+    CS.SGF.Network.MsgRetManager.Instance:OnMessageEnum(self.message3, CS.MsgIDEnum.GuildMyUpJoinLvReqID)
+end
+
+function GuildApplyFor:OffMessage()
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.GuildMyApplyListRetID, self.message1, nil)
+    CS.SGF.Network.MsgRetManager.Instance:OffMessageEnum(self.message2, CS.MsgIDEnum.GuildMySetApplyReqID)
+    CS.SGF.Network.MsgRetManager.Instance:OffMessageEnum(self.message3, CS.MsgIDEnum.GuildMyUpJoinLvReqID)
+end
+
+function GuildApplyFor:Refesh()
+    self:SortItem(self.ItemDataList)
+    self.BagScorllView:ContinueScroll(#self.ItemDataList)
+
+    -- 修改本地数据
+    self:RefeshSortList()
+end
+
+function GuildApplyFor:SortItem(tbl)
+    do
+        return
+    end
+
+    if #tbl > 1 then
+        table.sort(
+            tbl,
+            function(a, b)
+                -- 等级降序
+                if a.HeraldryLevel > b.HeraldryLevel then
+                    return true
+                elseif a.HeraldryLevel == b.HeraldryLevel then
+                    -- 可共鸣优先
+                    if a.CanResonanceSlot > b.CanResonanceSlot then
+                        return true
+                    elseif a.CanResonanceSlot == b.CanResonanceSlot then
+                        if a.SortProp < b.SortProp then
+                            -- 按SortProp升序
+                            return true
+                        elseif a.SortProp == b.SortProp then
+                            -- 如果SortProp相等，按Type升序
+                            if a.ItemType < b.ItemType then
+                                return true
+                            elseif a.ItemType == b.ItemType then
+                                -- 如果Type相等，按Id升序
+                                return a.BaseID < b.BaseID
+                            end
+                        end
+                    end
+                end
+                return false
+            end
+        )
+    end
+end
+
+return GuildApplyFor

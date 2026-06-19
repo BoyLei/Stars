@@ -1,0 +1,191 @@
+--[[
+*文件名   :   SystemOpenTips
+*内  容   :   系统开启的 tips， 支持多个 系统开启的 连续tips。 目前策划需要 每次弹出一个 tips后 才高亮一个 对应功能的按钮
+*说  明   :
+*创建日期 :   "2022/11/02 11:43:21"
+*创建人   :   "dl"
+*版权所有 :   游卡网络科技技术有限公司
+]] SystemOpenTips = class("SystemOpenTips", UIPanel)
+SystemOpenTips.IsOpen = false;
+local SystemOpenTipsFlyAnim = require("View/UIWidget/SystemOpenTips/SystemOpenTipsFlyAnim");
+
+function SystemOpenTips:Awake()
+    self.transform = self.prefab.transform;
+    self.gameObject = self.transform.gameObject;
+
+    -- 根目录
+    local basePath = "Cut4Cam90/AssemblyRatio2/AnimRoot/TouchNode";
+    -- 主角等级面板
+    self.TouchNode = self.transform:Find(basePath);
+    self.UINode = self.TouchNode:Find("UINode");
+    self.IconImage = self.UINode:Find("Icon"):GetComponent(typeof(Image));
+
+    self.NameText = self.UINode:Find("Name"):GetComponent(typeof(Text));
+    self.DescText = self.UINode:Find("Desc"):GetComponent(typeof(Text));
+
+    self.Animator = self.transform:GetComponent(typeof(Animator));
+
+    -- 收到的 系统tips 数据List。 每次点击都会 消除一个 ，如果数量为0 的时候，点击 关闭
+    self.SystemDatas = {};
+
+    self.FlayAnimNode = self.UINode:Find("FlayAnimNode");
+    self.FlayAnims = {};
+
+    local btn = self.TouchNode:GetComponent(typeof(Button));
+
+    btn.onClick:AddListener(function(...)
+        -- self:OnClick();
+    end)
+
+end
+
+function SystemOpenTips:Start()
+
+end
+
+function SystemOpenTips:OnEnable()
+
+end
+
+function SystemOpenTips:OnDisable()
+
+end
+
+function SystemOpenTips:OnDestroy()
+
+end
+
+function SystemOpenTips:RefreshDatas(systemDatas)
+
+    for k, v in pairs(systemDatas) do
+        table.insert(self.SystemDatas, v);
+    end
+
+end
+
+function SystemOpenTips:OnShow(systemDatas)
+    self.IsOpen = true;
+    
+    SoundManager.Instance:PlayEventName("UI_System_Unlock_01", nil, nil)
+    self:RefreshDatas(systemDatas);
+
+    self:RefreshUI();
+end
+
+function SystemOpenTips:RefreshUI()
+    -- 刷新ui显示后, 就清理 动画退出状态为 false;
+    self.playingOut = false;
+    self.systemOpenType = nil;
+
+    -- 需要弹tips 的 系统数据
+    local systemData = table.remove(self.SystemDatas, 1);
+
+    if systemData == nil then
+        return;
+    end
+
+    if (systemData.AtlasPath ~= nil and systemData.IconName ~= nil) then
+        ResourceHelper:LoadIconByAtlasAsync(self.IconImage, systemData.AtlasPath, systemData.IconName, false, nil);
+    end
+
+    self.NameText.text = systemData.Name;
+    self.DescText.text = systemData.Desc;
+    self.systemOpenType = systemData.systemOpenType;
+
+    self.Animator:Play("Go", 0, 0);
+
+    DelayInvoker.CancelInvoke(self);
+    DelayInvoker.DelayInvoke(self, 3, function()
+        self:OnClick();
+    end, nil)
+end
+
+function SystemOpenTips:OnClose(arg)
+    self.IsOpen = false;
+end
+
+function SystemOpenTips:CloseWidget()
+    self.IsOpen = false;
+    UIManager.Instance:CloseWidget("SystemOpen/SystemOpenWidget", nil, true);
+
+end
+
+function SystemOpenTips:OnClick()
+    -- 如果正在播退出动画,那就点击无效
+    if self.playingOut then
+        return;
+    end
+
+    DelayInvoker.CancelInvoke(self);
+    DelayInvoker.DelayInvoke(self, 0.2, function()
+
+        self:TriggerFly2SystemIconAnim(function()
+
+            self:PlayNext();
+        end);
+
+    end, nil)
+
+    self.playingOut = true;
+    self.Animator:Play("Out", 0, 0);
+
+end
+
+function SystemOpenTips:PlayNext()
+    self.playingOut = false;
+
+    -- 如果 数据为 0 , 那就点击关闭
+    if #self.SystemDatas == 0 then
+        -- body
+        self:CloseWidget();
+        return;
+    end
+
+    self:RefreshUI();
+end
+
+-- 飞行特效 到 新开放系统的 icon 位置上 
+function SystemOpenTips:TriggerFly2SystemIconAnim(completeCB)
+
+    if self.systemOpenType == nil then
+        return;
+    end
+
+    -- CS.StarProject.GlobalEvent.OnSystemOpenTipFly:Invoke(self.systemOpenType, self.IconImage.transform.position);
+    local nodes = CS.StarProject.Service.SystemOpen.SystemOpenManager.Instance:GetSystemItemNodes(self.systemOpenType);
+
+    if nodes == nil or nodes.Count == 0 then
+        -- 刷新 对应的系统数据
+        CS.StarProject.GlobalEvent.OnSystemOpen:Invoke(self.systemOpenType);
+        completeCB();
+        return;
+    end
+
+    SoundManager.Instance:PlayEventName("UI_Collect_Movement_01", nil, nil)
+    for i = 0, nodes.Count - 1, 1 do
+        self:PlayFlay2TargetIconAnim(i + 1, nodes[i].SystemNode.transform.position);
+    end
+
+    DelayInvoker.DelayInvoke(self, 0.6, function()
+        completeCB();
+    end, nil)
+
+end
+
+function SystemOpenTips:PlayFlay2TargetIconAnim(index, targetPos)
+    if self.FlayAnims[index] == nil then
+        self.FlayAnims[index] = SystemOpenTipsFlyAnim:New(GameObject.Instantiate(self.FlayAnimNode),
+            self.FlayAnimNode.parent);
+    end
+
+    self.FlayAnims[index]:Play(function()
+        -- 刷新 对应的系统数据
+        CS.StarProject.GlobalEvent.OnSystemOpen:Invoke(self.systemOpenType);
+
+    end);
+    -- 先还原坐标位置
+    self.FlayAnims[index].transform.position = self.IconImage.transform.position;
+    self.FlayAnims[index].transform:DOMove(targetPos, 0.4, false);
+end
+
+return SystemOpenTips;

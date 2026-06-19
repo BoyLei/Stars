@@ -1,0 +1,425 @@
+---------------------------------------------------------------------
+-- Star (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2022-12-16 17:52:34
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class PartnerBasePart
+
+PartnerBasePart = class("PartnerBasePart",UIPanel)
+local CostItem=require("View/UIWindow/PartnerWindow/CostItem");
+PartnerBasePart.Selected=nil;
+PartnerBasePart.CallBack=nil;
+PartnerBasePart.Index=0;
+
+PartnerBasePart.m_Slider=nil;
+PartnerBasePart.m_Level=nil;
+PartnerBasePart.m_Exp=nil;
+PartnerBasePart.m_ItemGrid=nil;
+PartnerBasePart.m_PropScrollView=nil;
+PartnerBasePart.m_ConstItem=nil;
+PartnerBasePart.m_CostScrollView=nil;
+PartnerBasePart.m_OneBtn=nil;
+PartnerBasePart.m_FiveBtn=nil;
+PartnerBasePart.m_UnLockCondition=nil;
+--属性
+PartnerBasePart.PropPartnerItems={}
+PartnerBasePart.Props={}
+
+--消耗
+PartnerBasePart.m_ItemPreview=nil;
+PartnerBasePart.m_ItemPreviewGo=nil;
+
+PartnerBasePart.Costs={}
+
+PartnerBasePart.CurLevel=0;
+PartnerBasePart.m_NoLevelBtn=nil;
+PartnerBasePart.m_CanvasGroup=nil;
+function PartnerBasePart:ctor(go,parent,atlas,callBack)
+	self.prefab=go;
+	self.AtlasPath=atlas;
+	self.CallBack=callBack;
+
+	self.m_Slider=self:Find("Slider/Background/Fill"):GetComponent(typeof(Image));
+	self.m_Level=self:Find("Level"):GetComponent(typeof(Text));
+	self.m_Exp=self:Find("Exp"):GetComponent(typeof(Text));
+	self.m_ItemGrid=self:Find("ItemGrid").gameObject;
+	self.m_PropScrollView=self:Find("PropScrollView"):GetComponent(typeof(SuperScrollViewController));
+	self.m_OneBtn=self:Find("OneBtn"):GetComponent(typeof(Button));
+	self.m_FiveBtn=self:Find("FiveBtn"):GetComponent(typeof(Button));
+	self.m_NoLevelBtn=self:Find("NoLevelBtn").gameObject;
+	self.m_ItemPreviewGo=self:Find("ItemPreview").gameObject
+	self.m_UnLockCondition=self:Find("UnLockCondition"):GetComponent(typeof(Text));
+	self.m_OneBtn.onClick:AddListener(function() self:OnClickOneBtn() end);
+	self.m_FiveBtn.onClick:AddListener(function() self:OnClickFiveBtn() end);
+	self.m_CanvasGroup=self:Find("ItemPreview"):GetComponent(typeof(CanvasGroup));
+
+	self.m_PropScrollView:NewScroll(self.m_ItemGrid, 0, function (tr,idx)
+			self:OnPropItemRefesh(tr,idx);
+		end);
+
+
+	self.m_ItemPreview=StructAccessor.ItemPreview.new(self.m_ItemPreviewGo);
+
+end
+
+
+function PartnerBasePart:OnPropItemRefesh(tr,idx)
+	if self.PropPartnerItems==nil then
+		self.PropPartnerItems={};
+	end
+
+	for i=1,#self.PropPartnerItems do
+		if self.PropPartnerItems[i].transform == tr then
+			local Proptext=self.PropPartnerItems[i].transform:Find("Text"):GetComponent(typeof(Text));
+			local ProptValue=self.PropPartnerItems[i].transform:Find("Power"):GetComponent(typeof(Text));
+
+			local data=self.Props[idx+1];
+			local vaule=(data.Base+data.NewCer)*(1+data.Star*0.0001)+data.Equip
+			--print("Key"..data.id.."基础"..data.Base.."资质"..data.NewCer.."星级"..data.Star.."装备"..data.Equip .."最终值"..vaule)
+			--(升级属性+资质*转化率)*(1+星级加成)+装备属性
+			Proptext.text=data.PropName;
+			ProptValue.text=tostring(math.floor(vaule));
+			return
+		end
+	end
+
+	tr.gameObject:SetActive(true);
+	local Proptext=tr.transform:Find("Text"):GetComponent(typeof(Text));
+	local ProptValue=tr.transform:Find("Power"):GetComponent(typeof(Text));
+
+	local data=self.Props[idx+1];
+	local vaule=(data.Base+data.NewCer)*(1+data.Star*0.0001)+data.Equip
+
+	--print("Key"..data.id.."基础"..data.Base.."资质"..data.NewCer.."星级"..data.Star.."装备"..data.Equip .."最终值"..vaule)
+	--(升级属性+资质1*转化率1+资质2*转化率2)*(1+星级加成)+装备属性
+	--(升级属性+资质*转化率)*(1+星级加成)+装备属性
+	Proptext.text=data.PropName;
+	ProptValue.text=tostring(math.floor(vaule));
+	table.insert(self.PropPartnerItems, tr);
+end
+
+--点击事件
+function PartnerBasePart:OnClickHandler()
+	self.CallBack(self.Index);
+end
+
+function PartnerBasePart:OnDestroy()
+	if self.PropPartnerItems==nil then
+		self.PropPartnerItems ={}
+	else
+		for k,_ in pairs(self.PropPartnerItems) do self.PropPartnerItems[k] = nil end
+		--self.ItemDataList ={}
+	end
+	self.m_ItemPreview:OnDestroy();
+	self.m_ItemPreview=nil;
+end
+
+--数据更新
+function PartnerBasePart:OnShow(data,upgrade)
+	self.Index=data.Index;
+	local config=ConfigDataAccessor.Partner[data.Index];
+	if config~=nil then
+		local max=0;
+		local expcfg= ConfigDataAccessor.PartnerExp[data.Level]	;
+		if expcfg~=nil then
+			max=expcfg.Exp;
+		end
+		self.m_Exp.text=data.CurExp.."/"..max
+
+		local v=data.CurExp/max
+
+		if upgrade>0 then
+			local speed=0.2/upgrade
+			self:DoSlider(v,speed,upgrade)
+			--self.m_Slider.value=data.CurExp/max;
+			--for i = 1, upgrade do
+
+			--end
+
+		else
+			--self.m_Slider.fillAmount=v;
+			self.CurLevel=data.Level;
+			--self.m_Level.text=self.CurLevel .. "级"
+			self.m_Level.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {self.CurLevel});
+
+			self.m_Slider:DOFillAmount(v,0.2);
+		end
+
+
+		self:ShowProp(config,data);
+
+		self:ShowItem();
+
+
+		local curRiskLevel = GameManager.Instance.M_MainPlayerCtrlBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Int,CS.StarProjectDef.AOIAttrDefine.PlayerLevel)
+		if expcfg.UnlockLevel> curRiskLevel then
+			--local msg="冒险等级达到";
+			local msg="";
+
+			local curCfg = ConfigDataAccessor.AdvGradeExp[expcfg.UnlockLevel]
+			if curCfg then
+				--"0becff"
+				--msg=msg.. "<color=#0becff>"..curCfg.AdvClass.. GetRomaNum(curCfg.AdvOrder).."</color>可升级";
+				msg=StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_SkillNew_tiaojianText"), {"<color=#0becff>"..curCfg.AdvClass.. GetRomaNum(curCfg.AdvOrder).."</color>"});
+			end
+
+			self.m_CanvasGroup.alpha=0.3
+			self.m_UnLockCondition.text=msg
+			self.m_UnLockCondition.gameObject:SetActive(true)
+			self.m_NoLevelBtn.gameObject:SetActive(true)
+			self.m_OneBtn.gameObject:SetActive(false)
+			self.m_FiveBtn.gameObject:SetActive(false)
+		else
+			local allExp=0;
+			for k, v in pairs(ConfigDataAccessor.PartnerCard) do
+				local itemNum=BusinessManager.Instance:GetCurrencyNum(v.Id)
+				if itemNum==nil then
+					itemNum=0;
+				end
+				if itemNum>0 then
+					allExp=allExp+(itemNum*v.UseExp)
+				end
+			end
+
+			local oneneedexp=(expcfg.Exp-data.CurExp);
+
+			local fiveneedexp=oneneedexp;
+
+			for i = 1, 4 do
+				local expcfg= ConfigDataAccessor.PartnerExp[data.Level+i]	;
+				if expcfg~=nil then
+					fiveneedexp=fiveneedexp+expcfg.Exp;
+				end
+			end
+
+			self.m_UnLockCondition.gameObject:SetActive(false)
+			self.m_NoLevelBtn.gameObject:SetActive(false)
+			self.m_OneBtn.gameObject:SetActive(true)
+			self.m_FiveBtn.gameObject:SetActive(true)
+			self.m_CanvasGroup.alpha=1
+
+
+			if allExp>= oneneedexp then
+				self.m_OneBtn.image.color=ColorDefine.Instance:GetColor("ffffeb")
+			else
+				self.m_OneBtn.image.color=ColorDefine.Instance:GetColor("888888")
+			end
+
+			if allExp>= fiveneedexp then
+
+				self.m_FiveBtn.image.color=ColorDefine.Instance:GetColor("ffffeb")
+			else
+				self.m_FiveBtn.image.color=ColorDefine.Instance:GetColor("888888")
+
+			end
+		end
+	end
+	self.prefab:SetActive(true);
+end
+
+function PartnerBasePart:DoSlider(v,speed,count)
+	if count>0 then
+		local p=	self.m_Slider:DOFillAmount(1,speed);
+		p.onComplete=function()
+			local p2=self.m_Slider:DOFillAmount(0,speed);
+			p2.onComplete=function()
+				count=count-1;
+				self:DoSlider(v,speed,count)
+				self.CurLevel=self.CurLevel+1;
+				--self.m_Level.text=self.CurLevel .. "级"
+				self.m_Level.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {self.CurLevel});
+
+			end
+		end
+	else
+		self.m_Slider:DOFillAmount(v,speed);
+		count=count-1;
+	end
+
+end
+
+--GameManager.Instance.GetCurrencyNum(ItemID)
+function PartnerBasePart:ShowItem()
+	self.Costs={}
+	for k, v in pairs(ConfigDataAccessor.PartnerCard) do
+		local itemNum=BusinessManager.Instance:GetCurrencyNum(v.Id)
+		if itemNum==nil then
+			itemNum=0;
+		end
+		table.insert(self.Costs,{ItemID=v.Id,ItemNum=tostring(itemNum)})
+	end
+
+	self.m_ItemPreview:SetItems(self.Costs);
+end
+
+
+
+
+function PartnerBasePart:CalculateToAddEquipValue(data,temp)
+
+	--装备
+	if data~= nil then
+		for i=1,3 do
+			local data=BusinessManager.Instance:GetPartnerEquipedEquip(data.ID,i);
+			if data~= nil then
+				local Nature=ConfigDataAccessor.PartnerEquip[data.BaseID].Nature;
+				local Value=ConfigDataAccessor.PartnerEquip[data.BaseID].Value;
+				for j=1,#Nature do
+					local t=temp[Nature[j]];
+					if t~=nil then
+						t.Equip=t.Equip+Value[j];
+						temp[Nature[j]]=t;
+					end
+				end
+
+				--[[
+				for j=1,#Nature do
+				for k, v in pairs(temp) do
+				if Nature[j]== k then
+				print(" "..k..","..Value[j]);
+				temp[k]=temp[k]+Value[j];
+				break;
+				end
+				end
+				end
+				]]
+			end
+		end
+	end
+
+
+end
+
+
+function PartnerBasePart:ShowProp(config,data)
+	--(升级属性+资质*转化率)*(1+星级加成)+装备属性
+	self.Props={}
+
+	local temp={}
+	local  PartnerNature=ConfigDataAccessor.PartnerNature[config.Nature][data.Level]
+	if PartnerNature~=nil then
+
+		for i = 1, #PartnerNature.AttrID do
+			local AoiAttr= LocalDataManager.Instance:GetAttrPropByAttrIdx(PartnerNature.AttrID[i])
+			if AoiAttr~=nil then
+
+				local config1=  ConfigDataAccessor.GetAttrByID(PartnerNature.AttrID[i]);
+				local attrName1 = "";
+				if config1 ~= nil then
+					attrName1 = config1.Name;
+				end
+
+				temp[PartnerNature.AttrID[i]]={Equip=0,id=PartnerNature.AttrID[i],PropName=attrName1,Base=PartnerNature.AttrValue[i],NewCer=0,Cer=0,CerRatio=0,Star=0}
+			end
+		end
+
+		---伙伴身上的资质
+		--for k, v in pairs(data.AMD.Aptitudes) do
+		--local convert= ConfigDataAccessor.ParConversion[k];
+		--for j = 1, #convert.Nature do
+		--if temp[convert.Nature[j]]~=nil then
+		----temp[convert.Nature[j]].Cer=v.BaseValue;
+		----temp[convert.Nature[j]].CerRatio=convert.Ratio[j]
+		--local t=math.floor(v.BaseValue*convert.Ratio[j]*0.0001)
+		--temp[convert.Nature[j]].NewCer=temp[convert.Nature[j]].NewCer+t
+		----v.Cer*v.CerRatio*0.0001
+		--end
+		--end
+		--end
+
+
+		for k, v in pairs(data.AMD.Aptitudes) do
+			local convert= ConfigDataAccessor.ParConversion[k];
+			if convert~=nil then
+				for k1, v1 in pairs(convert.Natures) do
+					if temp[k1]~=nil then
+						--比v 小的最大值
+						local te=nil;
+						for k2, v2 in pairs(v1) do
+							if v.BaseValue<v2.Range or v.BaseValue==v2.Range  then
+								if te==nil then
+									te=v2
+								else
+									if v2.Range>te.Range then
+										te=v2
+									end
+								end
+							end
+						end
+
+						if te~=nil then
+							local t=math.floor(v.BaseValue*te.Ratio*0.0001)
+							temp[k1].NewCer=temp[k1].NewCer+t
+						end
+					end
+				end
+			end
+		end
+
+		---星级
+		local starExpend= ConfigDataAccessor.StarExpend[config.Quality][data.CurStar]
+		if starExpend~=nil then
+			for k = 1, GetTableLen(starExpend.Nature) do
+				if temp[starExpend.Nature[k]]~=nil then
+					temp[starExpend.Nature[k]].Star=starExpend.Value[k];
+				end
+			end
+		end
+
+		--装备相关
+		self:CalculateToAddEquipValue(data,temp)
+	end
+
+
+	for k, v in pairs(temp) do
+		table.insert(self.Props,v)
+	end
+	table.sort(self.Props,function (p1,p2)
+			return p1.id<p2.id;
+		end);
+
+
+	self.m_PropScrollView:ContinueScroll(#self.Props);
+
+end
+
+function PartnerBasePart:OnHide()
+	self.prefab:SetActive(false)
+end
+
+function PartnerBasePart:CheckCondition()
+	local expcfg= ConfigDataAccessor.PartnerExp[self.CurLevel];
+	if expcfg~=nil then
+
+		local curRiskLevel = GameManager.Instance.M_MainPlayerCtrlBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Int,CS.StarProjectDef.AOIAttrDefine.PlayerLevel)
+		if expcfg.UnlockLevel> curRiskLevel then
+			--local msg="冒险等级"..expcfg.AdvGrade.."可解锁"
+			local msg=StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_SecretAreaWindow_NotEnterTips2"), {expcfg.UnlockLevel})
+
+			Util.ShowMessage(msg);
+			return false;
+		end
+
+	end
+
+	return true
+end
+
+function PartnerBasePart:OnClickOneBtn()
+	if not self:CheckCondition() then
+		return
+	end
+	LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OnPartnerUpgradeReq",{self.Index,1});
+end
+
+function PartnerBasePart:OnClickFiveBtn()
+	if not self:CheckCondition() then
+		return
+	end
+	LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OnPartnerUpgradeReq",{self.Index,5});
+end
+return  PartnerBasePart;

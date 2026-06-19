@@ -1,0 +1,87 @@
+---------------------------------------------------------------------
+-- Stars (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-08-31 13:52:28
+---------------------------------------------------------------------
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+---@class RedeemCodeWidget
+RedeemCodeWidget = class("RedeemCodeWidget", UIPanel)
+
+function RedeemCodeWidget:Awake()
+    self.transform = self.prefab.transform
+    self.gameObject = self.transform.gameObject
+
+    local FrameTransForm = self.transform:Find("Cut4Cam90/AssemblyRatio2/Content").transform
+    ---------------------------------------------顶部按钮
+    -- 关闭按钮
+    local JBtnCancel = FrameTransForm:Find("BtnCancel"):GetComponent(typeof(JButton))
+    self.CancelBtnFun = function()
+        self.Close()
+    end
+    JBtnCancel.OnClick = self.CancelBtnFun
+    -- 关闭按钮
+    local JBtnOK = FrameTransForm:Find("BtnOk"):GetComponent(typeof(JButton))
+    self.OkBtnFun = function()
+        self:OnJBtnOKFun()
+    end
+    JBtnOK.OnClick = self.OkBtnFun
+    -- 输入框
+    self.Input = FrameTransForm:Find("InputField"):GetComponent(typeof(InputField))
+end
+
+function RedeemCodeWidget:Start()
+end
+
+function RedeemCodeWidget:OnEnable()
+end
+
+function RedeemCodeWidget:OnDisable()
+end
+
+function RedeemCodeWidget:OnDestroy()
+end
+
+function RedeemCodeWidget:OnOpen(arg)
+    self.Input.text = "";
+end
+
+function RedeemCodeWidget:OnClose(arg)
+
+end
+
+function RedeemCodeWidget:CloseWidget()
+    self.Close()
+end
+
+----------------------------------------------------- 按钮点击事件 【STAR】 ------------------------------------------
+
+function RedeemCodeWidget:ContainsChinese(str)
+    for uchar in string.gmatch(str, "[%z\1-\127\194-\244][\128-\191]*") do
+        local byte = string.byte(uchar)
+        if byte > 127 then
+            return "1"
+        end
+    end
+    return "0"
+end
+
+-- 关闭游戏按钮
+function RedeemCodeWidget:OnJBtnOKFun()
+    local goodsExchangeReq = CS.ProtoMsg.GoodsExchangeReq();
+    goodsExchangeReq.Account = BusinessManager.Instance:GetAccountID();
+    goodsExchangeReq.Code = self.Input.text;
+    goodsExchangeReq.Channel = BusinessManager.Instance:GetChannelID();
+    goodsExchangeReq.Area = BusinessManager.Instance:GetAreaID();
+    goodsExchangeReq.IsChineseCode = self:ContainsChinese(self.Input.text);
+    goodsExchangeReq.PID = BusinessManager.Instance:GetUserPID();
+    SendClient2CenterReq(goodsExchangeReq);
+
+    -- Util.ShowMessageByCode(CRetMsgEnum.Tips_CDKey_Failed)
+    -- CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage("敬请期待")
+    self.Close();
+end
+
+----------------------------------------------------- 按钮点击事件 【END】 ------------------------------------------
+
+return RedeemCodeWidget

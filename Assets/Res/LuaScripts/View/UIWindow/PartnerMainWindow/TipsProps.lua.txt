@@ -1,0 +1,128 @@
+--[[
+*文件名   :   TipsProps
+*内  容   :
+*说  明   :
+*创建日期 :   "2024/05/30 15:43:57"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+TipsProps=class("TipsProps",UIPanel)
+TipsProps.m_1=nil;
+TipsProps.m_CloseBtn=nil;
+TipsProps.m_2=nil;
+TipsProps.m_3=nil;
+TipsProps.m_title=nil;
+TipsProps.PropItems={}
+local CloseBtnFunc=nil;
+
+
+function TipsProps:ctor(go)
+	self.prefab = go;
+	self.m_1=self:Find("Prop/1").gameObject;
+	self.m_CloseBtn=self:Find("CloseBtn"):GetComponent(typeof(JButton));
+	self.m_2=self:Find("Prop/2").gameObject;
+	self.m_3=self:Find("Prop/3").gameObject;
+	self.m_title=self:Find("Prop/title"):GetComponent(typeof(Text));
+	self.PropItems={}
+	table.insert(self.PropItems,{
+			Root=self.m_1,
+			PropName=self:Find("Prop/1/PropName"):GetComponent(typeof(Text)),
+			PropValue=self:Find("Prop/1/PropValue"):GetComponent(typeof(Text)),
+			Icon=self:Find("Prop/1/Icon"):GetComponent(typeof(Image))
+		})
+
+	table.insert(self.PropItems,{
+			Root=self.m_2,
+			PropName=self:Find("Prop/2/PropName"):GetComponent(typeof(Text)),
+			PropValue=self:Find("Prop/2/PropValue"):GetComponent(typeof(Text)),
+			Icon=self:Find("Prop/2/Icon"):GetComponent(typeof(Image))
+		})
+
+	table.insert(self.PropItems,{
+			Root=self.m_3,
+			PropName=self:Find("Prop/3/PropName"):GetComponent(typeof(Text)),
+			PropValue=self:Find("Prop/3/PropValue"):GetComponent(typeof(Text)),
+			Icon=self:Find("Prop/3/Icon"):GetComponent(typeof(Image))
+		})
+
+	CloseBtnFunc=function() self:OnClickCloseBtn(); end;
+	self.m_CloseBtn.OnClick= CloseBtnFunc;
+
+end
+
+
+function TipsProps:OnEnable()
+
+end
+
+function TipsProps:OnDisable()
+
+end
+
+function TipsProps:OnDestroy()
+
+end
+
+function TipsProps:OnOpen(id,cur,data)
+	self.prefab:SetActive(true)
+	self.Cals={}
+	local nends={}
+	local props= CalculatePartnerProp(data)
+	local convert= ConfigDataAccessor.ParConversion[id];
+	if convert~=nil then
+		self.m_title.text=StringFormat(LanguageHelp:GetLanguageByKey("partner_sys_23"),{convert.Name}) 
+		for k, v in pairs(convert.Natures) do
+			table.insert(nends,k)
+		end
+	end
+	
+	for k, v in pairs(self.PropItems) do
+		v.Root:SetActive(false)
+	end
+
+	for i, v in ipairs(props) do
+		for k, v2 in pairs(nends) do
+			if v.id== v2 then
+				self.Cals[v.id]=v
+			end
+		end
+		
+	end
+	local index=1;
+	local cnt=#self.PropItems
+	for k, v in pairs(self.Cals) do
+		local vaule=(v.Base+v.NewCer)*(1+v.Star*0.0001)+v.Equip
+		if index<=cnt then
+
+			self:SetItem(k,math.floor(vaule),index)
+			index=index+1
+		end
+		print(k.."====="..(vaule).."===="..math.floor(vaule).."==="..math.ceil(vaule))
+	end
+end
+
+function TipsProps:SetItem(id,value,index)
+	local item=self.PropItems[index]
+	item.Root:SetActive(true)
+
+	local cfg= ConfigDataAccessor.GetAttrByID(id)
+	if cfg~=nil then
+		item.PropName.text=cfg.Name;
+		self:GetSpriteByAtlas("UI/Icons/Atlas/IconAttribute",cfg.Icon,function (sp)
+				item.Icon.sprite=sp
+			end)
+	end
+	item.PropValue.text=value
+end
+
+function TipsProps:OnClose(arg)
+
+end
+
+function TipsProps:OnClickCloseBtn()
+	self.prefab:SetActive(false)
+end
+
+
+
+return  TipsProps

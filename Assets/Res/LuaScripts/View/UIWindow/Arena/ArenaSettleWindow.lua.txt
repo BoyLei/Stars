@@ -1,0 +1,193 @@
+--[[
+*文件名   :   ArenaSettleWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/11/29 17:54:40"
+*创建人   :   "caojie"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+ArenaSettleWindow=class("ArenaSettleWindow",UIPanel)
+
+ArenaSettleWindow.m_RewardItemPreviewGo=nil;
+ArenaSettleWindow.m_RewardItemPreview=nil;
+
+local CloseBtnFunc=nil;
+local ContinueChallengeBtnFunc=nil;
+
+function ArenaSettleWindow:InitAllComponent()
+	self.m_Success=self:Find("Cut4Cam90/AssemblyRatio2/Success").gameObject;
+	self.m_Fail=self:Find("Cut4Cam90/AssemblyRatio2/Fail").gameObject;
+	-- RankChangeRoot
+	self.m_RankChangeRoot=self:Find("Cut4Cam90/AssemblyRatio2/RankChangeRoot").gameObject;
+	self.m_UpRankRoot=self:Find("Cut4Cam90/AssemblyRatio2/RankChangeRoot/UpRankRoot").gameObject;
+	self.m_UpRankText=self:Find("Cut4Cam90/AssemblyRatio2/RankChangeRoot/UpRankRoot/UpRankText"):GetComponent(typeof(Text));
+	self.m_NoChangeRankRoot=self:Find("Cut4Cam90/AssemblyRatio2/RankChangeRoot/NoChangeRankRoot").gameObject;
+
+	-- RankContentRoot
+	self.m_RankContentRoot=self:Find("Cut4Cam90/AssemblyRatio2/RankContentRoot").gameObject;
+	self.m_MyHeadIconImage=self:Find("Cut4Cam90/AssemblyRatio2/RankContentRoot/MyRankItemPlayer/Normal/RoleIcon/MyHeadIconImage"):GetComponent(typeof(Image));
+	self.m_MyJobTypeIconImage=self:Find("Cut4Cam90/AssemblyRatio2/RankContentRoot/MyRankItemPlayer/Normal/JobTypeIcon/MyJobTypeIconImage"):GetComponent(typeof(Image));
+	self.m_MyNickNameText=self:Find("Cut4Cam90/AssemblyRatio2/RankContentRoot/MyRankItemPlayer/Normal/MyNickNameText"):GetComponent(typeof(Text));
+	self.m_MyLevelText=self:Find("Cut4Cam90/AssemblyRatio2/RankContentRoot/MyRankItemPlayer/Normal/MyLevelText"):GetComponent(typeof(Text));
+	self.m_MyRankText=self:Find("Cut4Cam90/AssemblyRatio2/RankContentRoot/MyRankItemPlayer/Normal/MyRankText"):GetComponent(typeof(Text));
+
+	self.m_TargetHeadIconImage=self:Find("Cut4Cam90/AssemblyRatio2/RankContentRoot/TargetRankItemPlayer/Normal/RoleIcon/TargetHeadIconImage"):GetComponent(typeof(Image));
+	self.m_TargetJobTypeIconImage=self:Find("Cut4Cam90/AssemblyRatio2/RankContentRoot/TargetRankItemPlayer/Normal/JobTypeIcon/TargetJobTypeIconImage"):GetComponent(typeof(Image));
+	self.m_TargetNickNameText=self:Find("Cut4Cam90/AssemblyRatio2/RankContentRoot/TargetRankItemPlayer/Normal/TargetNickNameText"):GetComponent(typeof(Text));
+	self.m_TargetLevelText=self:Find("Cut4Cam90/AssemblyRatio2/RankContentRoot/TargetRankItemPlayer/Normal/TargetLevelText"):GetComponent(typeof(Text));
+	self.m_TargetRankText=self:Find("Cut4Cam90/AssemblyRatio2/RankContentRoot/TargetRankItemPlayer/Normal/TargetRankText"):GetComponent(typeof(Text));
+
+	-- RewardsRoot
+	self.m_RewardsRoot=self:Find("Cut4Cam90/AssemblyRatio2/RewardsRoot").gameObject;
+	self.m_CloseBtn=self:Find("Cut4Cam90/AssemblyRatio2/RewardsRoot/QuitBtn"):GetComponent(typeof(JButton));
+	self.m_NoReward=self:Find("Cut4Cam90/AssemblyRatio2/RewardsRoot/NoReward").gameObject;
+	self.m_ContinueChallengeBtn=self:Find("Cut4Cam90/AssemblyRatio2/RewardsRoot/CotinueChallenge/ContinueChallengeBtn"):GetComponent(typeof(JButton));
+	self.m_RemainCountText=self:Find("Cut4Cam90/AssemblyRatio2/RewardsRoot/CotinueChallenge/RemainCountText"):GetComponent(typeof(Text));
+
+	self.m_RewardItemPreviewGo=self:Find("Cut4Cam90/AssemblyRatio2/RewardsRoot/ItemPreview").gameObject;
+	self.m_RewardItemPreview=StructAccessor.ItemPreview.new(self.m_RewardItemPreviewGo);
+	-- self.m_ChallengeRewardTipText=self:Find("Cut4Cam90/AssemblyRatio2/BottomRoot/ChallengeRewardTipRoot/ChallengeRewardTipText"):GetComponent(typeof(Text));
+end
+
+function ArenaSettleWindow:SetCurUIHandler()
+	CloseBtnFunc = function() self:OnClickCloseBtn(); end;
+	ContinueChallengeBtnFunc = function() self:OnClickContinueChallengeBtn(); end;
+
+	self.m_CloseBtn.OnClick = CloseBtnFunc;
+	self.m_ContinueChallengeBtn.OnClick = ContinueChallengeBtnFunc;
+end
+
+function ArenaSettleWindow:BindModule(m)
+	self.Module = m
+end
+
+function ArenaSettleWindow:Awake()
+	self:InitAllComponent();
+	self:SetCurUIHandler();
+end
+
+function ArenaSettleWindow:RenderAllView(isInit)
+	local data = self.Args
+	self.m_Success:SetActive(data.IsWin)
+	self.m_Fail:SetActive(not data.IsWin)
+
+	-- 先展示排名变化再展示奖励列表
+	self:RenderRankContent(data)
+	self.m_RankContentRoot:SetActive(true)
+	self.m_RewardsRoot:SetActive(false)
+	self.m_UpRankRoot:SetActive(data.IsRankChanged)
+	self.m_NoChangeRankRoot:SetActive(not data.IsRankChanged)
+	self.m_UpRankText.text = tostring(data.TargetRank - data.MyRank)
+
+	self.m_NoReward:SetActive(not data.HasReward)
+	self:RenderRewardPart(data)
+	--self.m_RemainCountText.text = string.format(LanguageHelp:GetLanguageByKey("Local_Str_strRemain"), data.RemainCount) 
+	self.m_RemainCountText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_strRemain"), {data.RemainCount});
+
+	self.timer = DOVirtual.DelayedCall(4, function ()
+		self.m_RankContentRoot:SetActive(false)
+		self.m_RewardsRoot:SetActive(true)
+	end)
+end
+
+-- 职业图标&立绘显示
+function ArenaSettleWindow:RenderJobImage(jobId, imageBg, imgIcon, imageHead)
+	-- 职业类型icon设置
+	local jobshi = math.floor(jobId / 10)
+	if imageBg ~= nil then
+		local jobTypeBgName = "Icon_ArmBg" .. jobshi
+		ResourceHelper:LoadIconByAtlasAsync(imageBg, ResourceHelper.AtlasPathRole, jobTypeBgName, false)
+	end
+
+	if imgIcon ~= nil then
+		local jobTypeName = "Icon_Arm" .. jobshi
+		ResourceHelper:LoadIconByAtlasAsync(imgIcon, ResourceHelper.AtlasPathRole, jobTypeName, false)
+	end
+
+	-- 头像
+	if imageHead ~= nil then
+		local jobCfg = ConfigDataAccessor.Job[jobId]
+    	if jobCfg ~= nil then
+	        local avatarDataCell = ConfigDataAccessor.Avatar[jobCfg.AvatarID]
+	        if avatarDataCell ~= nil then
+	            local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID]
+	            if headCfg ~= nil then
+	            	ResourceHelper:LoadIconByAtlasAsync(imageHead, headCfg.HeadAtlasName, headCfg.MinHead, false)
+	            end
+	        end
+        end
+    end
+end
+
+function ArenaSettleWindow:RenderRankContent(data)
+	self.m_MyNickNameText.text = data.MyName
+	--self.m_MyLevelText.text = string.format(strLevel, data.MyLevel)
+	self.m_MyLevelText.text=LanguageHelp:GetLanguageByKey("Local_Str_Level")..": "..data.MyLevel;
+
+	--self.m_MyRankText.text = string.format(strRank, data.MyRank)
+	self.m_MyRankText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_ArenaSettleWindow_strRank"), {data.MyRank});
+
+	self:RenderJobImage(data.MyJobId, nil, self.m_MyJobTypeIconImage, self.m_MyHeadIconImage)
+
+	self.m_TargetNickNameText.text = data.TargetName
+	--self.m_TargetLevelText.text = string.format(strLevel, data.TargetLevel)
+	self.m_TargetLevelText.text=LanguageHelp:GetLanguageByKey("Local_Str_Level")..": "..data.TargetLevel;
+
+	--self.m_TargetRankText.text = string.format(strRank, data.TargetRank)
+	self.m_TargetRankText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_ArenaSettleWindow_strRank"), {data.TargetRank});
+
+	self:RenderJobImage(data.TargetJobId, nil, self.m_TargetJobTypeIconImage, self.m_TargetHeadIconImage)
+end
+
+function ArenaSettleWindow:RenderRewardPart(data)
+	local hasRewardData = data ~= nil and data.FinalDrop ~= nil and data.FinalDrop.Count > 0
+	self.m_RewardItemPreviewGo:SetActive(hasRewardData)
+	if not hasRewardData then return end
+
+	self.CostItems={}
+	for i = 0, data.FinalDrop.Count-1 do
+		local v = data.FinalDrop[i]
+		table.insert(self.CostItems,{ItemID=v.Index,ItemNum=v.Count})
+	end
+
+	self.m_RewardItemPreview:SetItems(self.CostItems);
+end
+
+function ArenaSettleWindow:Start()
+
+end
+
+function ArenaSettleWindow:OnEnable()
+
+end
+
+function ArenaSettleWindow:OnDisable()
+
+end
+
+function ArenaSettleWindow:OnDestroy()
+
+end
+
+function ArenaSettleWindow:OnOpen(arg)
+	self.Args = arg
+	self:RenderAllView()
+end
+
+function ArenaSettleWindow:OnClose(arg)
+	if self.timer ~= nil then
+		self.timer:Kill()
+	end
+end
+
+function ArenaSettleWindow:OnClickCloseBtn()
+	LuaModuleDispatcher:SendMessage(ModuleDef.SecretAreaModule, "SendLeaveInstanceReq", nil);
+	self:Close()
+end
+
+function ArenaSettleWindow:OnClickContinueChallengeBtn()
+	local message = CS.ProtoMsg.ArenaGetMyBaseInfoReq()
+    NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message, false)
+end
+
+return  ArenaSettleWindow

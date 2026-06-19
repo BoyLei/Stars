@@ -1,0 +1,110 @@
+--[[
+*文件名   :   ExtractAmuletItem
+*内  容   :   定轨页面纹章选择列表中的Item
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local ExtractAmuletItem = {}
+
+ExtractAmuletItem.__index = ExtractAmuletItem
+
+local ExtractGroup=require("View/Uiwindow/Amulet/ExtractGroup")
+
+function ExtractAmuletItem:New(_go,canClick) 
+    local self = {};    
+    setmetatable(self, ExtractAmuletItem); 
+    
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+	self.Name=self.transform:Find("Have/Name"):GetComponent(typeof(Text));
+	self.Lv=self.transform:Find("Have/Lv"):GetComponent(typeof(Text));
+    self.Icon=self.transform:Find("Have/Icon"):GetComponent(typeof(Image));
+    self.Rare=self.transform:Find("Have/BgRare"):GetComponent(typeof(Image));
+
+
+	self.ExtractGroup=ExtractGroup:New(self.transform:Find("ExtractGroup").gameObject,false);
+
+    self.go_Selected=self.transform:Find("selected").gameObject;
+    self.go_Selected:SetActive(false);
+
+	--点击事件
+	self.btnClick=self.transform:GetComponent(typeof(JButton));
+	self.btnClick.OnClick=(function() 
+		if self.OnItemClick ~= nil then
+
+			self.OnItemClick(self); 
+
+		end
+	end);
+
+    return self;    --返回自身
+end
+
+
+function ExtractAmuletItem:InitItem(onItemClick)
+	self.OnItemClick=onItemClick;
+end
+
+
+function ExtractAmuletItem:SetItem(data,skillId)
+
+
+	self.Data=data;
+
+    if data~= nil then
+
+		--清除选中
+		self.ExtractGroup:ClearAllSelected();
+		self:MakeSelected(false);
+
+
+		self.gameObject:SetActive(true);
+
+		self.ExtractGroup:Refesh(data);
+
+		self.ExtractGroup:DarkAllCombatSkills();
+		self.ExtractGroup:HightCombatSkills(skillId);
+
+		self.EntityID=data.EntityID;
+        self.BaseID=data.BaseID;
+
+        local cfg=ConfigDataAccessor.Item[self.BaseID];
+		--LoadIcon(self.Icon,cfg.Icon);
+        ResourceHelper:LoadIconAsync(self.Icon, "", cfg.Icon, false)
+		
+        self.Name.text=cfg.Name
+
+        --稀有度底板
+        local quality=cfg.Quality; 
+        --self.Rare.sprite= AtlasManager.Instance:GetSprite("ui/common/atlas/commonitem","Bag_Grid_sq"..quality);
+        ResourceHelper:LoadIconByAtlasAsync(
+            self.Rare,
+            ResourceHelper.AtlasPathCommonItem,
+            "Bag_Grid_sq" .. quality,
+            false
+        )
+        --self.Lv.text="等级: "..ConfigDataAccessor.AmuletEquip[self.BaseID].EquipLevel;--纹章等级
+        self.Lv.text=LanguageHelp:GetLanguageByKey("Local_Str_Level")..": "..ConfigDataAccessor.AmuletEquip[self.BaseID].EquipLevel;--纹章等级
+
+		--self.Lv.text=cfg.Name;--纹章等级
+
+	else
+		self.gameObject:SetActive(false);
+
+    end
+
+
+end
+
+
+--是否被选中
+function ExtractAmuletItem:MakeSelected(b)
+	
+    self.go_Selected:SetActive(b);
+end
+
+return ExtractAmuletItem;

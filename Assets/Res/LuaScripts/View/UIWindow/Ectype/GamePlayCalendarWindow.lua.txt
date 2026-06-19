@@ -1,0 +1,272 @@
+--[[
+*文件名   :   GamePlayCalendarWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/11/29 17:54:40"
+*创建人   :   "caojie"
+*版权所有 :   游卡网络科技技术有限公司
+]] GamePlayCalendarWindow = class("GamePlayCalendarWindow", UIPanel)
+
+GamePlayCalendarWindow.AllCalendarData = {}
+GamePlayCalendarWindow.DateTitleGoList = {}
+GamePlayCalendarWindow.AllDayGamePlayList = {}
+GamePlayCalendarWindow.AllWeekItemList = {}
+GamePlayCalendarWindow.SelectWeekIndex = 1
+
+function GamePlayCalendarWindow:InitAllComponent()
+    self.m_CloseBtn = self:Find("Cut4Cam90/AssemblyRatio2/T/CloseBtn"):GetComponent(typeof(JButton));
+    self.m_DateTitle = self:Find("Cut4Cam90/AssemblyRatio2/T/CalendarContent/DateTitle")
+    self.m_GamePlayItem = self:Find("Cut4Cam90/AssemblyRatio2/T/CalendarContent/GamePlayItem").gameObject;
+    self.m_GamePlaySelectEffect = self:Find("Cut4Cam90/AssemblyRatio2/T/CalendarContent/GamePlaySelectEffect").gameObject;
+    
+    self.m_SortBtn = self:Find("Cut4Cam90/AssemblyRatio2/T/SortBtn"):GetComponent(typeof(JButton));
+    self.m_WeekText = self:Find("Cut4Cam90/AssemblyRatio2/T/SortBtn/WeekText"):GetComponent(typeof(Text));
+    self.m_DownArrowImage = self:Find("Cut4Cam90/AssemblyRatio2/T/SortBtn/DownArrowImage").gameObject;
+    self.m_UpArrowImage = self:Find("Cut4Cam90/AssemblyRatio2/T/SortBtn/UpArrowImage").gameObject;
+    self.m_SortBtn = self:Find("Cut4Cam90/AssemblyRatio2/T/SortBtn"):GetComponent(typeof(JButton));
+    self.m_SortListRoot = self:Find("Cut4Cam90/AssemblyRatio2/T/SortListRoot").gameObject
+    self.m_CloseSortListBtn = self:Find("Cut4Cam90/AssemblyRatio2/T/SortListRoot/CloseSortListBtn"):GetComponent(typeof(JButton));
+    self.m_SortListContent = self:Find("Cut4Cam90/AssemblyRatio2/T/SortListRoot/SortListContent")
+    self.m_SortListItem = self:Find("Cut4Cam90/AssemblyRatio2/T/SortListRoot/SortListContent/SortListItem").gameObject;
+
+    self.m_TipsRoot = self:Find("Cut4Cam90/AssemblyRatio2/TipsRoot").gameObject;
+    self.m_TipsRootRT = self:Find("Cut4Cam90/AssemblyRatio2/TipsRoot"):GetComponent(typeof(RectTransform));
+    self.m_CloseTipsBtn = self:Find("Cut4Cam90/AssemblyRatio2/TipsRoot/CloseTipsBtn"):GetComponent(typeof(JButton));
+    self.m_GamePlayRawImage = self:Find("Cut4Cam90/AssemblyRatio2/TipsRoot/GamePlayRawImage"):GetComponent(typeof(RawImage));
+    self.m_GamePlayDescText = self:Find("Cut4Cam90/AssemblyRatio2/TipsRoot/GamePlayDescText"):GetComponent(typeof(Text));
+    self.m_JumpBtn = self:Find("Cut4Cam90/AssemblyRatio2/TipsRoot/JumpBtn"):GetComponent(typeof(JButton));
+
+    self.DateTitleGoList = {}
+    self.AllDayGamePlayList = {}
+    self.AllWeekItemList = {}
+    for i=1,7 do
+        local tempData = {}
+        local titleItem = self.m_DateTitle:GetChild(i-1)
+        tempData.Normal = titleItem:Find("Normal")
+        tempData.NormalDateText = titleItem:Find("Normal/DateText"):GetComponent(typeof(Text));
+        tempData.Select = titleItem:Find("Select")
+        tempData.SelectDateText = titleItem:Find("Select/DateText"):GetComponent(typeof(Text));
+        tempData.Content = titleItem:Find("ScrollView/Viewport/Content")
+        tempData.ScrollView = titleItem:Find("ScrollView"):GetComponent(typeof(ScrollRect));;
+        table.insert(self.DateTitleGoList, tempData)
+
+        table.insert(self.AllDayGamePlayList, {})
+    end
+
+    local weeks = 4
+    RefreshGoCachePool(self.m_SortListItem, self.m_SortListContent, weeks)
+    for i=1,weeks do
+        local tempData = {}
+        local item = self.m_SortListContent:GetChild(i-1)
+        tempData.SortListItemBtn = item:GetComponent(typeof(JButton));
+        tempData.Normal = item:Find("Normal")
+        tempData.SortNormalText = item:Find("Normal/SortNormalText"):GetComponent(typeof(Text));
+        tempData.Selected = item:Find("Selected")
+        tempData.SortSelectedText = item:Find("Selected/SortSelectedText"):GetComponent(typeof(Text));
+        tempData.SortListItemBtn.OnClick = function()
+            self:OnClickSortListItemBtn(i)
+        end
+        table.insert(self.AllWeekItemList, tempData)
+    end
+end
+
+function GamePlayCalendarWindow:SetCurUIHandler()
+    self.m_CloseBtn.OnClick = function()
+        self:OnClickCloseBtn();
+    end;
+
+    self.m_CloseTipsBtn.OnClick = function()
+        self:OnClickCloseTipsBtn();
+    end;
+
+    self.m_CloseSortListBtn.OnClick = function()
+        self:OnClickCloseSortListBtn();
+    end;
+
+    self.m_SortBtn.OnClick = function()
+        self:OnClickSortBtn();
+    end;
+end
+
+function GamePlayCalendarWindow:BindModule(m)
+    self.Module = m
+end
+
+function GamePlayCalendarWindow:Awake()
+    self:InitAllComponent()
+    self:SetCurUIHandler()
+end
+
+function GamePlayCalendarWindow:OnDestroy()
+
+end
+
+function GamePlayCalendarWindow:RenderAllView(isInit)
+    self:RenderWeekTitle()
+    self:RenderAllDayGamePlay()
+end
+
+function GamePlayCalendarWindow:RenderWeekTitle()
+    local curWeekData = self.AllCalendarData[self.SelectWeekIndex]
+    if curWeekData then 
+        self.m_WeekText.text = curWeekData.WeekStr
+    end
+end
+
+function GamePlayCalendarWindow:RenderWeekListContent()
+    for i=1,#self.AllWeekItemList do
+        local weekData = self.AllCalendarData[i]
+        local isCurWeek = self.SelectWeekIndex == i
+        local cache = self.AllWeekItemList[i]
+        cache.Normal.gameObject:SetActive(not isCurWeek)
+        cache.SortNormalText.text = weekData.WeekStr
+        cache.Selected.gameObject:SetActive(isCurWeek)
+        cache.SortSelectedText.text = weekData.WeekStr
+    end
+end
+
+function GamePlayCalendarWindow:RenderAllDayGamePlay()
+    local curWeekData = self.AllCalendarData[self.SelectWeekIndex]
+    for i=1, #curWeekData do
+        local data = curWeekData[i]
+        local titleItem = self.DateTitleGoList[i]
+        -- Title显示
+        titleItem.Normal.gameObject:SetActive(not data.IsToday)
+        titleItem.Select.gameObject:SetActive(data.IsToday)
+        titleItem.NormalDateText.text = data.DateStr
+        titleItem.SelectDateText.text = data.DateStr
+        titleItem.ScrollView.enabled = #data.GamePlayDataList > 5
+
+        -- 玩法显示
+        RefreshGoCachePool(self.m_GamePlayItem, titleItem.Content, #data.GamePlayDataList)
+        for j=1, #data.GamePlayDataList do
+            if self.AllDayGamePlayList[i][j] == nil then
+                self.AllDayGamePlayList[i][j] = {}
+                local gamePlayItem = titleItem.Content:GetChild(j-1)
+                self.AllDayGamePlayList[i][j].GamePlayBtn = gamePlayItem:GetComponent(typeof(JButton))
+                self.AllDayGamePlayList[i][j].Normal = gamePlayItem:Find("Normal").gameObject
+                self.AllDayGamePlayList[i][j].NormalGPNameText = gamePlayItem:Find("Normal/NormalGPNameText"):GetComponent(typeof(Text))
+                self.AllDayGamePlayList[i][j].NormalGPTimeText = gamePlayItem:Find("Normal/NormalGPTimeText"):GetComponent(typeof(Text))
+                self.AllDayGamePlayList[i][j].Today = gamePlayItem:Find("Today").gameObject
+                self.AllDayGamePlayList[i][j].TodayGPNameText = gamePlayItem:Find("Today/TodayGPNameText"):GetComponent(typeof(Text))
+                self.AllDayGamePlayList[i][j].TodayGPTimeText = gamePlayItem:Find("Today/TodayGPTimeText"):GetComponent(typeof(Text))
+                self.AllDayGamePlayList[i][j].GamePlaySelect = gamePlayItem:Find("GamePlaySelect")
+            end
+
+            local cacheData = self.AllDayGamePlayList[i][j]
+            local curGamePlayData = data.GamePlayDataList[j]
+            cacheData.Normal:SetActive(not data.IsToday)
+            cacheData.NormalGPNameText.text = curGamePlayData.GamePlayName
+            cacheData.NormalGPTimeText.text = curGamePlayData.GamePlayDisplayTime
+            cacheData.Today:SetActive(data.IsToday)
+            cacheData.TodayGPNameText.text = curGamePlayData.GamePlayName
+            cacheData.TodayGPTimeText.text = curGamePlayData.GamePlayDisplayTime
+            cacheData.GamePlayBtn.OnClick = function()
+                self:OnClickGamePlayBtn(curGamePlayData, i, cacheData.GamePlaySelect)
+            end
+        end
+    end
+end
+
+local TipsPos = 
+{
+    [1] = Vector3(-313,-88,0),
+    [2] = Vector3(-112.8,-88,0),
+    [3] = Vector3(91.4,-88,0),
+    [4] = Vector3(300,-88,0),
+    [5] = Vector3(506,-88,0),
+    [6] = Vector3(109.7,-88,0),
+    [7] = Vector3(321,-88,0)
+}
+function GamePlayCalendarWindow:OnClickGamePlayBtn(gamePlayData, weekDay, selectRoot)
+    -- ShowTips
+    ResourceHelper:LoadRawIconAsync(self.m_GamePlayRawImage, gamePlayData.GamePlayTexture, false)
+    self.m_GamePlayDescText.text = gamePlayData.GamePlayDesc
+    self.m_JumpBtn.OnClick = function()
+        local event = gamePlayData.GamePlayData
+        if event.id>0 then
+            -- 野外boss打开自己的界面
+            if event.gameID == 4 then
+                LuaModuleDispatcher:SendMessage(ModuleDef.EventModule, "OnOpenWildBoss")
+            else
+                UIManager.Instance:OpenWindowAsync("Event/EventPopWindow",nil,event,CS.StarProjectDef.MainPageCommond.HideBoth);
+            end
+        end
+    end;
+    self.m_TipsRootRT.localPosition = TipsPos[weekDay]
+    self.m_TipsRoot:SetActive(true)
+    -- SetSelectRoot 
+    self.m_GamePlaySelectEffect:SetActive(true)
+    self.m_GamePlaySelectEffect.transform:SetParent(selectRoot)
+    self.m_GamePlaySelectEffect.transform.localPosition = Vector3.zero
+end
+
+function GamePlayCalendarWindow:Start()
+
+end
+
+function GamePlayCalendarWindow:OnEnable()
+
+end
+
+function GamePlayCalendarWindow:OnDisable()
+
+end
+
+function GamePlayCalendarWindow:OnDestroy()
+
+end
+
+function GamePlayCalendarWindow:OnOpen(arg)
+    self.AllCalendarData = arg
+    self.SelectWeekIndex = 1
+    self.m_UpArrowImage:SetActive(false)
+    self.m_DownArrowImage:SetActive(true)
+    self.m_SortListRoot:SetActive(false)
+    self.m_TipsRoot:SetActive(false)
+    self.m_GamePlaySelectEffect:SetActive(false)
+end
+
+function GamePlayCalendarWindow:OnClose(arg)
+
+end
+
+function GamePlayCalendarWindow:OnClickSortListItemBtn(index)
+    if self.SelectWeekIndex == index then
+        self.m_SortListRoot:SetActive(false)
+        self.m_UpArrowImage:SetActive(false)
+        self.m_DownArrowImage:SetActive(true)
+        return
+    end
+
+    self.SelectWeekIndex = index
+    self:RenderAllView()
+    self.m_SortListRoot:SetActive(false)
+    self.m_UpArrowImage:SetActive(false)
+    self.m_DownArrowImage:SetActive(true)
+end
+
+function GamePlayCalendarWindow:OnClickCloseBtn()
+    self:Close()
+end
+
+function GamePlayCalendarWindow:OnClickSortBtn()
+    self:RenderWeekListContent()
+    self.m_UpArrowImage:SetActive(true)
+    self.m_DownArrowImage:SetActive(false)
+    self.m_SortListRoot:SetActive(true)
+end
+
+function GamePlayCalendarWindow:OnClickCloseSortListBtn()
+    self.m_UpArrowImage:SetActive(false)
+    self.m_DownArrowImage:SetActive(true)
+    self.m_SortListRoot:SetActive(false)
+end
+
+function GamePlayCalendarWindow:OnClickCloseTipsBtn()
+    self.m_TipsRoot:SetActive(false)
+    self.m_GamePlaySelectEffect:SetActive(false)
+end
+
+
+return GamePlayCalendarWindow

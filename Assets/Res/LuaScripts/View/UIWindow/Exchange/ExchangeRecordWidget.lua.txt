@@ -1,0 +1,215 @@
+--[[
+*文件名   :   ExchangeRecordWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/10/17 16:09:13"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+ExchangeRecordWidget=class("ExchangeRecordWidget",UIPanel)
+local ShopItem=require("View/UIWindow/Exchange/ShopItem")
+local SellItem=require("View/UIWindow/Exchange/SellItem")
+ExchangeRecordWidget.m_BuyBtn=nil;
+ExchangeRecordWidget.m_Buyselected=nil;
+ExchangeRecordWidget.m_Buynoselected=nil;
+ExchangeRecordWidget.m_SellBtn=nil;
+ExchangeRecordWidget.m_Sellselected=nil;
+ExchangeRecordWidget.m_Sellnoselected=nil;
+ExchangeRecordWidget.m_CloseBtn=nil;
+ExchangeRecordWidget.m_BuyRecord=nil;
+ExchangeRecordWidget.m_SellRecord=nil;
+ExchangeRecordWidget.m_BuyScrollView=nil;
+ExchangeRecordWidget.m_BuyItemGrid=nil;
+ExchangeRecordWidget.m_SellScrollView=nil;
+ExchangeRecordWidget.m_SellItemGrid=nil;
+ExchangeRecordWidget.TabIndex=0;
+
+ExchangeRecordWidget.BuyItemList={}
+ExchangeRecordWidget.BuyItemDatas={}
+
+
+ExchangeRecordWidget.SellItemList={}
+ExchangeRecordWidget.SellItemDatas={}
+
+local BuyBtnFunc=nil;
+local SellBtnFunc=nil;
+local CloseBtnFunc=nil;
+
+
+function ExchangeRecordWidget:Awake()
+	self.m_BuyBtn=self:Find("ToggleGroup/BuyBtn"):GetComponent(typeof(JButton));
+	self.m_Buyselected=self:Find("ToggleGroup/BuyBtn/selected").gameObject;
+	self.m_Buynoselected=self:Find("ToggleGroup/BuyBtn/noselected").gameObject;
+	self.m_SellBtn=self:Find("ToggleGroup/SellBtn"):GetComponent(typeof(JButton));
+	self.m_Sellselected=self:Find("ToggleGroup/SellBtn/selected").gameObject;
+	self.m_Sellnoselected=self:Find("ToggleGroup/SellBtn/noselected").gameObject;
+	self.m_CloseBtn=self:Find("ToggleGroup/CloseBtn"):GetComponent(typeof(JButton));
+	self.m_BuyRecord=self:Find("Root/BuyRecord").gameObject;
+	self.m_SellRecord=self:Find("Root/SellRecord").gameObject;
+	self.m_BuyScrollView=self:Find("Root/BuyRecord/Scroll View"):GetComponent(typeof(SuperScrollViewController));
+	self.m_BuyItemGrid=self:Find("Root/BuyRecord/ItemGrid").gameObject;
+	self.m_SellScrollView=self:Find("Root/SellRecord/Scroll View"):GetComponent(typeof(SuperScrollViewController));
+	self.m_SellItemGrid=self:Find("Root/SellRecord/ItemGrid").gameObject;
+	
+	self.BuyItemList={}
+	self.BuyItemDatas={}
+
+	self.SellItemList={}
+	self.SellItemDatas={}
+	
+	self.m_BuyScrollView:NewScroll(self.m_BuyItemGrid, 0, function (tr,idx)
+			self:OnBuyItemRefesh(tr,idx);
+		end);
+	
+	self.m_SellScrollView:NewScroll(self.m_SellItemGrid, 0, function (tr,idx)
+			self:OnSellItemRefesh(tr,idx);
+		end);
+	BuyBtnFunc=function() self:OnClickBuyBtn(); end;
+	SellBtnFunc=function() self:OnClickSellBtn(); end;
+	CloseBtnFunc=function() self:OnClickCloseBtn(); end;
+
+end
+
+function ExchangeRecordWidget:Start()
+	self.m_BuyBtn.OnClick= BuyBtnFunc;
+	self.m_SellBtn.OnClick= SellBtnFunc;
+	self.m_CloseBtn.OnClick= CloseBtnFunc;
+	
+	local BankLogBySellRetEvent=LuaModuleDispatcher:Event(ModuleDef.ExchangeModule,"BankLogBySellRetEvent");
+	BankLogBySellRetEvent:AddListener(function (data)
+			self:OnBankLogBySellRet(data);
+		end)
+	
+	local BankBuyGoodsRetEvent=LuaModuleDispatcher:Event(ModuleDef.ExchangeModule,"BankLogByBuyRetEvent");
+	BankBuyGoodsRetEvent:AddListener(function (data)
+			self:OnBankBuyGoodsRet(data);
+		end)
+
+end
+
+--出售记录
+function ExchangeRecordWidget:OnBankLogBySellRet(data)
+	
+	--BankLogBase
+	self.SellItemDatas={}
+	if data.Datas~=nil and data.Datas.Count>0 then
+		for i = 1, data.Datas.Count do
+			table.insert(self.SellItemDatas,data.Datas[i-1])
+		end
+	end
+	self.m_SellScrollView:ContinueScroll(#self.SellItemDatas);
+end
+
+--购买记录
+function ExchangeRecordWidget:OnBankBuyGoodsRet(data)
+	self.BuyItemDatas={}
+	if data.Datas~=nil and data.Datas.Count>0 then
+		for i = 1, data.Datas.Count do
+			table.insert(self.BuyItemDatas,data.Datas[i-1])
+		end
+	end
+	self.m_BuyScrollView:ContinueScroll(#self.BuyItemDatas);
+end
+
+function  ExchangeRecordWidget:OnBuyItemRefesh(tr,idx)
+
+	if self.BuyItemList==nil then
+		return;
+	end
+	for i=1,#self.BuyItemList do
+		if self.BuyItemList[i].transform == tr then
+			self.BuyItemList[i]:UpdateContent(self.BuyItemDatas[idx+1]);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+			return
+		end
+	end
+
+	local bi = ShopItem.new(tr.gameObject,self.AtlasPath);
+	bi.prefab:SetActive(true);
+	bi:UpdateContent(self.BuyItemDatas[idx+1]);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+	table.insert(self.BuyItemList, bi);
+end
+
+function  ExchangeRecordWidget:OnSellItemRefesh(tr,idx)
+	if self.SellItemList==nil then
+		return;
+	end
+	for i=1,#self.SellItemList do
+		if self.SellItemList[i].transform == tr then
+			self.SellItemList[i]:UpdateContent(self.SellItemDatas[idx+1]);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+			return
+		end
+	end
+
+	local bi = SellItem.new(tr.gameObject,self.AtlasPath);
+	bi.prefab:SetActive(true);
+	bi:UpdateContent(self.SellItemDatas[idx+1]);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+	table.insert(self.SellItemList, bi);
+end
+
+function ExchangeRecordWidget:OnEnable()
+
+end
+
+function ExchangeRecordWidget:OnDisable()
+
+end
+
+function ExchangeRecordWidget:OnDestroy()
+
+end
+
+function ExchangeRecordWidget:OnOpen(arg)
+	--购买记录
+	LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule,"OnBankLogByBuyReq");
+	--出售记录
+	LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule,"OnBankLogBySellReq");
+	
+	self:ShowTab(1)
+end
+
+
+
+function ExchangeRecordWidget:HideTab()
+	if self.TabIndex==1 then
+		self.m_BuyRecord:SetActive(false)
+		self.m_Buyselected:SetActive(false)
+		self.m_Buynoselected:SetActive(true)
+	elseif self.TabIndex==2 then
+		self.m_SellRecord:SetActive(false)
+		self.m_Sellselected:SetActive(false)
+		self.m_Sellnoselected:SetActive(true)
+	end
+end
+
+function ExchangeRecordWidget:ShowTab(index)
+	self:HideTab()
+	self.TabIndex=index;
+	if self.TabIndex==1 then
+		self.m_BuyRecord:SetActive(true)
+		self.m_Buyselected:SetActive(true)
+		self.m_Buynoselected:SetActive(false)
+	elseif self.TabIndex==2 then
+		self.m_SellRecord:SetActive(true)
+		self.m_Sellselected:SetActive(true)
+		self.m_Sellnoselected:SetActive(false)
+	end
+end
+function ExchangeRecordWidget:OnClose(arg)
+
+end
+
+function ExchangeRecordWidget:OnClickBuyBtn()
+	self:ShowTab(1)
+end
+
+function ExchangeRecordWidget:OnClickSellBtn()
+	self:ShowTab(2)
+end
+
+function ExchangeRecordWidget:OnClickCloseBtn()
+	self.Close();
+end
+
+
+
+return  ExchangeRecordWidget

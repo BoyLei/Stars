@@ -1,0 +1,117 @@
+--[[
+*文件名   :   WorldExpTipsWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/02 11:43:21"
+*创建人   :   "quzhenxin"
+*版权所有 :   游卡网络科技技术有限公司
+]] WorldExpTipsWidget = class("WorldExpTipsWidget", UIPanel)
+
+WorldExpTipsWidget.ExpDecayCfg = {};
+
+function WorldExpTipsWidget:Awake()
+    self.transform = self.prefab.transform
+    self.gameObject = self.transform.gameObject
+
+    self.ExpTips = self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/ScrollView/Viewport/Content/ContentText")
+        :GetComponent(typeof(Text))
+    self.LevelTips = self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/ScrollView/Viewport/Content/ContentText1")
+        :GetComponent(typeof(Text))
+
+    local configData = ConfigDataAccessor.ExpDecay
+    table.apply(configData, function(k, v)
+        self.ExpDecayCfg[k] = v
+    end)
+
+    table.sort(self.ExpDecayCfg, function(a, b)
+        return a.Id < b.Id;
+    end)
+end
+
+-- 打开界面
+function WorldExpTipsWidget:OnOpen(data)
+    local cfg = data;
+    if cfg == nil then
+        return;
+    end
+
+    local expTipsCfg = LanguageHelp:GetLanguageByKey("WorldExpTips_8");
+    local mainPlayerAllExp = GameManager.Instance:GetMainPlayerAllExp_GetAddCount();
+    local playerLevel = GameManager.Instance:GetPlayerLevel()
+    local curExpMax = self:GetCurLevelExp(playerLevel)
+    local percent = (mainPlayerAllExp / curExpMax) * 100;
+    local decayCfg = self:GetExpLimitDecay(percent);
+    local Decay = 100;
+    if decayCfg ~= nil then
+        Decay = decayCfg.Decay;
+    end
+    local lastDecayCfg = self:GetLastExpLimitDecay();
+    local LastDecay = 5;
+    if lastDecayCfg ~= nil then
+        LastDecay = lastDecayCfg.Decay;
+    end
+    local decayText = StringFormat(LanguageHelp:GetLanguageByKey("WorldExpTips_9"), {LastDecay, Decay});
+    local expTipsText = StringFormat(expTipsCfg, {decayText});
+    self.ExpTips.text = expTipsText;
+    -------------------------------------------------------------
+    ------------------------------------------------------------------
+    -------------------------------------------------------------
+    local LevelUpText = "";
+    if cfg.CatchUnlock <= 0 or cfg.CatchMaxLv <= 0 then
+        LevelUpText = LanguageHelp:GetLanguageByKey("WorldExpTips_7");
+    else
+        LevelUpText = StringFormat(LanguageHelp:GetLanguageByKey("WorldExpTips_2"),
+            {cfg.CatchUnlock, cfg.CatchMaxLv, cfg.CatchPercent});
+    end
+    -- self.ExpTips.text = LevelUpText;
+
+    local text = "";
+    local nextCfg = ConfigDataAccessor.GetAddIndexLevelLimitCfg(cfg.Id, 1);
+    if nextCfg ~= nil then
+        local openDay = GameManager.Instance:OpenShowServerDay()
+        local day = nextCfg.DayId - openDay;
+        text = StringFormat(LanguageHelp:GetLanguageByKey("WorldExpTips_5"), {cfg.Level, day, nextCfg.Level});
+    else
+        text = StringFormat(LanguageHelp:GetLanguageByKey("WorldExpTips_6"), {cfg.Level});
+    end
+    local text1 = StringFormat(LanguageHelp:GetLanguageByKey("WorldExpTips_11"), {cfg.StorageLimit});
+    local levelTipsCfg = StringFormat(LanguageHelp:GetLanguageByKey("WorldExpTips_10"), {text, LevelUpText, text1});
+    self.LevelTips.text = levelTipsCfg;
+end
+
+function WorldExpTipsWidget:GetExpLimitDecay(exp)
+    for i = 1, #self.ExpDecayCfg do
+        local data = self.ExpDecayCfg[i]
+        if exp > data.OverLimit and exp < data.OverLimitMax then
+            return data
+        elseif exp > data.OverLimit and data.OverLimitMax == 0 then
+            return data
+        end
+    end
+    return nil;
+end
+
+function WorldExpTipsWidget:GetLastExpLimitDecay()
+    if self.ExpDecayCfg ~= {} then
+        return self.ExpDecayCfg[#self.ExpDecayCfg];
+    end
+    return nil;
+end
+
+function WorldExpTipsWidget:GetCurLevelExp(level)
+    if level == 0 then
+        return 0
+    end
+    local cfg = ConfigDataAccessor.LevelExp[level]
+    if cfg ~= nil then
+        return cfg.Exp
+    end
+    return 0
+end
+
+-- 关闭界面
+function WorldExpTipsWidget:OnClose()
+    -- 清理资源，关闭界面的逻辑
+end
+
+return WorldExpTipsWidget

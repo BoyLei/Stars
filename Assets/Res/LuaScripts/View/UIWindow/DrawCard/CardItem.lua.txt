@@ -1,0 +1,159 @@
+local CardItem = {}
+CardItem.__index = CardItem
+
+function CardItem:New(obj)
+    local self = {};
+    setmetatable(self, CardItem);
+
+    self:InitControls(obj)
+
+    return self;
+end
+
+function CardItem:InitControls(obj)
+    self.gameObject = obj;
+    self.transform = obj.transform;
+
+    self.ssr = self.transform:Find("SSR");
+    self.sr = self.transform:Find("SR");
+    self.r = self.transform:Find("R");
+    self.n = self.transform:Find("N");
+    self.change = self.transform:Find("Change");
+    self.name = self.transform:Find("Name"):GetComponent(typeof(TextMeshPro));
+    -- self.partner = self.transform:Find("Partner"):GetComponent(typeof(Image));
+    self.new = self.transform:Find("New").gameObject;
+
+    self.bg = self.change:Find("Bg"):GetComponent(typeof(SpriteRenderer));
+    self.icon = self.change:Find("Bg/Icon"):GetComponent(typeof(SpriteRenderer));
+    self.num = self.change:Find("Bg/Num"):GetComponent(typeof(TextMeshPro));
+
+    self.change1 = self.transform:Find("Change/Fx /FX_UI_Change_Yellow").gameObject;
+    self.change2 = self.transform:Find("Change/Fx /FX_UI_Change_Purple").gameObject;
+    self.change3 = self.transform:Find("Change/Fx /FX_UI_Change_Blue").gameObject;
+    self.change4 = self.transform:Find("Change/Fx /FX_UI_Change_Green").gameObject;
+
+    -- local bgBtn = self.change:Find("AnimRoot/Bg"):GetComponent(typeof(Button));
+    -- bgBtn.onClick:AddListener(function()
+    --     if self.curItemId ~= nil then
+    --         local itemTipsModule = ModuleManager.Instance:GetModule(ModuleDef.ItemTipsModule);
+    --         local tipsWidgetView = itemTipsModule:GetLuaTable().tipsWidgetView;
+	-- 		if tipsWidgetView == nil then
+	-- 				LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",
+	-- 					{self.curItemId, false, 0, self.transform, 0});
+	-- 				tipsWidgetView = itemTipsModule:GetLuaTable().tipsWidgetView;
+	-- 		else
+	-- 				LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenByDrawCard",
+	-- 					{self.curItemId, false, 0, self.transform, 0});
+	-- 				tipsWidgetView = itemTipsModule:GetLuaTable().tipsWidgetView;
+	-- 		end
+            
+    --         -- local can = tipsWidgetView.transform:GetComponent(typeof(Canvas));
+    --         -- can.enabled = true;
+    --         -- local gr = tipsWidgetView.transform:GetComponent(typeof(GraphicRaycaster));
+    --         -- gr.enabled = true;
+
+    --         local cam = DrawCardUI.Instance.cam;
+    --         tipsWidgetView.transform.parent = DrawCardUI.Instance.parentTrans;
+    --         tipsWidgetView.transform.localScale = Vector3.one;
+	-- 		tipsWidgetView.transform.localPosition = Vector3.zero;
+    --         tipsWidgetView.transform.localRotation = Quaternion.Euler(Vector3(0, 0, 0))
+    --         tipsWidgetView:RefeshPos2(cam);
+    --     end
+    -- end);
+end
+
+function CardItem:Init(org, final)
+    local isnew = (final==nil or final.Index == org.Index);
+
+    local lv = nil;
+    -- if isnew then
+    local partnerData = ConfigDataAccessor.Partner[org.Index];
+    lv = partnerData.Quality;
+    -- end
+
+    self.cardid = org.Index;
+    self:ShowQuality(isnew, lv);
+
+    local itemData = nil;
+	if not isnew then
+		itemData = ConfigDataAccessor.Item[final.Index];
+	end
+    self.name.text = ConfigDataAccessor.Partner[org.Index].Name;
+
+    self.curItemId = nil;
+    if not isnew then
+        -- LoadIcon(self.icon,itemData.Icon);
+        ResourceHelper:LoadIconAsync(self.icon, "", itemData.Icon, false)
+
+        -- self.bg.sprite= AtlasManager.Instance:GetSprite("ui/common/atlas/commonitem","Bag_Grid_sq"..itemData.Quality);
+        ResourceHelper:LoadIconByAtlasAsync(self.bg, ResourceHelper.AtlasPathCommonItem,
+            "Bag_Grid_sq" .. itemData.Quality, false)
+        self.num.text = tostring(final.Count);
+
+        self.curItemId = itemData.Id;
+    end
+end
+
+function CardItem:ShowQuality(isnew, lv)
+    self.ssr.gameObject:SetActive(lv == 4);
+    self.sr.gameObject:SetActive(lv == 3);
+    self.r.gameObject:SetActive(lv == 2);
+    self.n.gameObject:SetActive(lv == 1);
+
+    self.change.gameObject:SetActive(false);
+    if not isnew then
+        if self.tw ~= nil then
+            self.tw:Kill();
+            self.tw = nil;
+        end
+        self.tw = DOVirtual.DelayedCall(3, function()
+            self.change.gameObject:SetActive(true);
+
+            self.change1:SetActive(lv == 4);
+            self.change2:SetActive(lv == 3);
+            self.change3:SetActive(lv == 2);
+            self.change4:SetActive(lv == 1);
+        end)
+    end
+
+    -- self.name.gameObject:SetActive(not isnew);
+
+    local curType = nil;
+    if self.ssr.gameObject.activeSelf then
+        curType = self.ssr.gameObject;
+    elseif self.sr.gameObject.activeSelf then
+        curType = self.sr.gameObject;
+    elseif self.r.gameObject.activeSelf then
+        curType = self.r.gameObject;
+    else
+        curType = self.n.gameObject;
+    end
+
+    if curType ~= nil then
+        local partnerImg = curType.transform:Find("image/Partner"):GetComponent(typeof(SpriteRenderer));
+        -- local pd = ConfigDataAccessor.GetPassiveDesc(ID, lvNow)
+        if ConfigDataAccessor.Partner[self.cardid] ~= nil then
+            local aid = ConfigDataAccessor.Partner[self.cardid].AvatarID;
+            local headCfg = ConfigDataAccessor.ModelHead[aid];
+            -- if pd ~= nil then
+			-- 	ResourceManager.Instance:LoadSpriteAsync(pd, function(sp)
+			-- 			if sp ~= nil then
+			-- 				partnerImg.sprite = sp
+			-- 			end
+			-- 		end)
+            -- end
+
+            if headCfg ~= nil then
+                ResourceHelper:LoadSpriteAtlasAsync(partnerImg,  ResourceHelper.HeadAtlasPath .. headCfg.HalfDrawing , headCfg.HalfDrawing.."_Half" , false,function() 
+                end)
+            end
+        end
+
+        --partnerImg.transform.localPosition = Vector3.zero;
+        --partnerImg.transform.localScale = Vector3.one;
+    end
+
+    self.new:SetActive(isnew);
+end
+
+return CardItem

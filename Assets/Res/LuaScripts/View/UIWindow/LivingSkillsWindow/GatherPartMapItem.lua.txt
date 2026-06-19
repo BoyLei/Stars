@@ -1,0 +1,77 @@
+GatherPartMapItem=class("GatherPartMapItem",UIPanel);
+GatherPartMapItem.m_Selected=nil;
+GatherPartMapItem.m_BgRare=nil;
+GatherPartMapItem.m_Icon=nil;
+GatherPartMapItem.m_Name=nil;
+GatherPartMapItem.m_Level=nil;
+GatherPartMapItem.m_Btn=nil;
+GatherPartMapItem.m_GoBtn=nil;
+GatherPartMapItem.OnSelectCallBack=nil;
+GatherPartMapItem.ItemID=0;
+GatherPartMapItem.CurrentLevel=0;
+GatherPartMapItem.ID=0;
+local SelectionFunc=nil;
+local GotoFunc=nil;
+GatherPartMapItem.Data=nil;
+
+function GatherPartMapItem:ctor(go, atlas)
+	self.prefab = go;
+	self.AtlasPath = atlas;
+	self.m_Selected=self:Find("Selected").gameObject;
+	self.m_BgRare=self:Find("BgRare"):GetComponent(typeof(Image));
+	self.m_Icon=self:Find("Icon"):GetComponent(typeof(Image));
+	self.m_Name=self:Find("Name"):GetComponent(typeof(Text));
+	self.m_Level=self:Find("Level"):GetComponent(typeof(Text));
+	self.m_Btn=self.prefab:GetComponent(typeof(JButton));
+	self.m_GoBtn=self:Find("GotoBtn"):GetComponent(typeof(JButton));
+	
+	SelectionFunc=function() self:OnClickSelectBtn(); end;
+	self.m_Btn.OnClick= SelectionFunc;
+	
+	GotoFunc=function() self:OnClickGotoBtn(); end;
+	self.m_GoBtn.OnClick= GotoFunc;
+end
+
+function GatherPartMapItem:OnClickGotoBtn()
+
+end
+
+function GatherPartMapItem:OnClickSelectBtn()
+	if self.m_Selected.activeInHierarchy then
+		return
+	end
+	if self.OnSelectCallBack~=nil then
+		self.OnSelectCallBack(self.Data);
+		self:Select(true)
+	end
+
+end
+
+function GatherPartMapItem:Select(select)
+	self.m_Selected:SetActive(select)
+end
+
+function GatherPartMapItem:UpdateContent(arg,select,cb)
+	self.Data=arg;
+	self.ID=self.Data.ID
+	self.OnSelectCallBack=cb;
+	self.ItemID=self.Data.Config.BasicOutput;
+	self.CurrentLevel=arg.Level;
+	self:Select(self.Data.Config.ID==select);
+	local config=ConfigDataAccessor.Item[self.ItemID]
+	if config~=nil then
+		self.m_Name.text=GetQualityColor(config.Quality).. config.Name.."</color>"
+
+		local quality=config.Quality;
+		ResourceHelper:LoadIconByAtlasAsync(
+			self.m_BgRare,
+			ResourceHelper.AtlasPathCommonItem,
+			"Bag_Grid_sq"..quality,
+			false
+		)
+		ResourceHelper:LoadIconAsync(self.m_Icon, "", config.Icon, true)
+	end
+
+end
+
+return  GatherPartMapItem

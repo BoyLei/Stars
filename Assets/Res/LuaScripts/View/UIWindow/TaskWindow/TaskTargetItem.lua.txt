@@ -1,0 +1,37 @@
+--[[
+*文件名   :   TaskTargetItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/10/25 11:09:17"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+TaskTargetItem=class("TaskTargetItem",UIPanel)
+TaskTargetItem.Content=nil;
+TaskTargetItem.Image=nil;
+
+function TaskTargetItem:ctor(go,atlas)
+	self.prefab = go;
+	self.AtlasPath = atlas;
+	self.Content=self:Find("Text"):GetComponent(typeof(Text));
+	self.Image=self:Find("Image"):GetComponent(typeof(Image));
+end
+
+
+function TaskTargetItem:OnShow(data)
+	self.Content.text=data.TaskDesc
+	local color=data:GetStateColor()
+	self.Image.color=color;
+	self.prefab:SetActive(true)
+end
+
+function TaskTargetItem:OnSpecShow(desc,color)
+	self.Content.text=desc
+	self.Image.color=color;
+	self.prefab:SetActive(true)
+end
+
+function TaskTargetItem:OnHide()
+	self.prefab:SetActive(false)
+end
+return  TaskTargetItem

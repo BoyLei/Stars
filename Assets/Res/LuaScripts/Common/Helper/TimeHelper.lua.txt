@@ -1,0 +1,700 @@
+function SecondToDate(sec)
+    local date = {}
+    date.day = math.floor(sec / 86400)
+    date.hours = math.floor(math.fmod(sec, 86400) / 3600)
+    date.minutes = math.floor(math.fmod(sec, 3600) / 60)
+    date.seconds = math.floor(math.fmod(sec, 60))
+    return date
+end
+
+function SecondToHMS(sec)
+    local date = {}
+    date.hours = math.floor(sec / 3600)
+    date.minutes = math.floor(math.fmod(sec, 3600) / 60)
+    date.seconds = math.floor(math.fmod(sec, 60))
+    return date
+end
+
+function SecondToFormat(sec)
+    local date = SecondToHMS(sec)
+    if date.hours > 0 then
+        -- return string.format("%2d时", date.hours)
+        return string.format("%2d", date.hours) .. LanguageHelp:GetLanguageByKey("Local_Str_Time_hour");
+    elseif date.minutes > 0 then
+        -- return string.format("%2d分", date.minutes)
+        return string.format("%2d", date.minutes) .. LanguageHelp:GetLanguageByKey("Local_Str_Time_minute");
+    else
+        -- return string.format("%2d秒", date.seconds)
+        return string.format("%2d", date.seconds) .. LanguageHelp:GetLanguageByKey("Local_Str_Time_second");
+    end
+end
+
+function DateToStringColon(date)
+    if not date then
+        return nil
+    end
+    local tb = {}
+    local hasLast = false
+    if date.day and date.day > 0 then
+        hasLast = true
+        table.insert(tb, string.format("%2d:", date.day))
+    end
+    if hasLast or date.hours > 0 then
+        hasLast = true
+        table.insert(tb, string.format("%2d:", date.hours))
+    end
+    if hasLast or date.minutes > 0 then
+        table.insert(tb, string.format("%2d:", date.minutes))
+        hasLast = true
+    end
+    if hasLast or date.seconds >= 0 then
+        table.insert(tb, string.format("%2d", date.seconds))
+    end
+    return table.concat(tb)
+end
+
+function CommonDateToString(date)
+    if not date then
+        return nil
+    end
+    local tb = {}
+    if date.day and date.day > 0 then
+        -- table.insert(tb, string.format("%2d天", date.day))
+        table.insert(tb, string.format("%2d", date.day) .. LanguageHelp:GetLanguageByKey("Local_Str_Time_day"));
+        if date.hours > 0 then
+            -- table.insert(tb, string.format("%2d时", date.hours))
+            table.insert(tb, string.format("%2d", date.hours) .. LanguageHelp:GetLanguageByKey("Local_Str_Time_hour"));
+        end
+    elseif date.day == 0 then
+        if date.hours > 0 then
+            -- table.insert(tb, string.format("%2d时", date.hours))
+            table.insert(tb, string.format("%2d", date.hours) .. LanguageHelp:GetLanguageByKey("Local_Str_Time_hour"));
+        end
+        if date.minutes > 0 then
+            -- table.insert(tb, string.format("%2d分", date.minutes))
+            table.insert(tb,
+                string.format("%2d", date.minutes) .. LanguageHelp:GetLanguageByKey("Local_Str_Time_minute"));
+        end
+        if date.seconds >= 0 then
+            -- table.insert(tb, string.format("%2d秒", date.seconds))
+            table.insert(tb,
+                string.format("%2d", date.seconds) .. LanguageHelp:GetLanguageByKey("Local_Str_Time_second"));
+        end
+    end
+    return table.concat(tb)
+end
+
+function DateToString(date)
+    if not date then
+        return nil
+    end
+    local tb = {}
+    local hasLast = false
+    if date.day and date.day > 0 then
+        hasLast = true
+        -- table.insert(tb, string.format("%2d天", date.day))
+        table.insert(tb, string.format("%2d", date.day) .. LanguageHelp:GetLanguageByKey("Local_Str_Time_day"));
+    end
+    if hasLast or date.hours > 0 then
+        hasLast = true
+        -- table.insert(tb, string.format("%2d时", date.hours))
+        table.insert(tb, string.format("%2d", date.hours) .. LanguageHelp:GetLanguageByKey("Local_Str_Time_hour"));
+    end
+    if hasLast or date.minutes > 0 then
+        -- table.insert(tb, string.format("%2d分", date.minutes))
+        table.insert(tb, string.format("%2d", date.minutes) .. LanguageHelp:GetLanguageByKey("Local_Str_Time_minute"));
+        hasLast = true
+    end
+    if hasLast then
+        if date.seconds > 0 then
+            -- table.insert(tb, string.format("%2d秒", date.seconds))
+            table.insert(tb,
+                string.format("%2d", date.seconds) .. LanguageHelp:GetLanguageByKey("Local_Str_Time_second"));
+        end
+    else
+        if date.seconds >= 0 then
+            -- table.insert(tb, string.format("%2d秒", date.seconds))
+            table.insert(tb,
+                string.format("%2d", date.seconds) .. LanguageHelp:GetLanguageByKey("Local_Str_Time_second"));
+        end
+    end
+    return table.concat(tb)
+end
+
+function SecToStringColon(sec) -- 把秒数转化为“XX:XX:XX”形式，如果时针分针为0也保持为00
+    local tb = {}
+    local hasLast = false
+    local hours = math.floor(math.fmod(sec, 86400) / 3600)
+    local minutes = math.floor(math.fmod(sec, 3600) / 60)
+    local seconds = math.floor(math.fmod(sec, 60))
+    -- if  hours>0 then
+    --    hasLast = true
+
+    -- end
+    -- if minutes > 0 then
+
+    --    hasLast = true
+    -- end
+    if seconds >= 0 then
+        table.insert(tb, string.format("%.2d:", hours))
+        table.insert(tb, string.format("%.2d:", minutes))
+        table.insert(tb, string.format("%.2d", seconds))
+    end
+    return table.concat(tb)
+end
+
+-- 把秒数转化为“XX”形式，如果时针分针为0也保持为00
+-- 例子
+-- SecToStringColon2(3600)  return 1时
+-- SecToStringColon2(1600)  return 27分
+-- SecToStringColon2(600)  return 10分
+-- SecToStringColon3(8)  return 1分
+function SecToStringColon4(sec)
+    local hasLast = false;
+    local days = math.floor(sec / 86400);
+    if days > 0 then
+        -- return string.format("%.1d天", days);
+        return string.format("%.1d", days) .. LanguageHelp:GetLanguageByKey("Local_Str_Time_day");
+    end
+
+    local hours = math.floor(sec / 3600);
+    if hours > 0 then
+        -- return string.format("%.1d时", hours);
+        return string.format("%.1d", hours) .. LanguageHelp:GetLanguageByKey("Local_Str_Time_hour");
+    end
+
+    local minutes = math.floor(sec / 60);
+    if minutes > 0 then
+        -- return string.format("%.1d分", minutes);
+        return string.format("%.1d", minutes) .. LanguageHelp:GetLanguageByKey("Local_Str_Time_minute");
+    end
+
+    local seconds = sec;
+    if seconds > 0 then
+        -- return string.format("%.1d秒", seconds);
+        -- return "1分"
+        return "1" .. LanguageHelp:GetLanguageByKey("Local_Str_Time_minute");
+    end
+end
+
+-- 把秒数转化为“XX:XX:XX”形式，如果时针分针为0也保持为00
+-- 例子
+-- SecToStringColon2(3600)  return 1时0分0秒
+-- SecToStringColon2(1600)  return 26分40秒
+-- SecToStringColon2(600)  return 10分0秒
+-- SecToStringColon2(8)  return 0分8秒
+function SecToStringColon2(sec)
+    local tb = {};
+    local hasLast = false;
+    local hours = math.floor(math.fmod(sec, 86400) / 3600);
+    local minutes = math.floor(math.fmod(sec, 3600) / 60);
+    local seconds = math.floor(math.fmod(sec, 60));
+    if hours > 0 then
+        -- table.insert(tb, string.format("%.1d时", hours));
+        table.insert(tb, string.format("%.1d", hours) .. LanguageHelp:GetLanguageByKey("Local_Str_Time_hour"));
+    end
+    -- if minutes > 0 or hours > 0 then
+    -- table.insert(tb,string.format("%.1d分",minutes));
+    -- end
+    if seconds > 0 or minutes > 0 or hours > 0 then
+        if minutes > 0 then
+            -- table.insert(tb, string.format("%.1d分", minutes));
+            table.insert(tb, string.format("%.1d", minutes) .. LanguageHelp:GetLanguageByKey("Local_Str_Time_minute"));
+        end
+        -- table.insert(tb, string.format("%.1d秒", seconds));
+        table.insert(tb, string.format("%.1d", seconds) .. LanguageHelp:GetLanguageByKey("Local_Str_Time_second"));
+    end
+    return table.concat(tb);
+end
+
+-- 把秒数转化为“XX:XX”形式，如果 小时数>0 , 显示为xx:xx:xx;
+-- 如果时针分针为0也保持为00
+function SecToStringColon3(sec)
+    local tb = {}
+    local hasLast = false
+    local hours = math.floor(math.fmod(sec, 86400) / 3600)
+    local minutes = math.floor(math.fmod(sec, 3600) / 60)
+    local seconds = math.floor(math.fmod(sec, 60))
+
+    if seconds >= 0 then
+        if hours > 0 then
+            table.insert(tb, string.format("%.2d:", hours))
+        end
+        table.insert(tb, string.format("%.2d:", minutes))
+        table.insert(tb, string.format("%.2d", seconds))
+    end
+    return table.concat(tb)
+end
+
+-- 把秒数转化为“XX:XX:XX”形式，如果时针分针为0也保持为00
+-- 例子
+-- SecToStringColon2(86401)  return 1天
+-- SecToStringColon2(3600)  return 1:00:00
+-- SecToStringColon2(1600)  return 26:40
+-- SecToStringColon2(600)  return 10:00
+-- SecToStringColon2(8)  return 00:08
+function SecToStringColon5(sec)
+    local tb = {};
+    local hasLast = false;
+    local days = math.floor(sec / 86400);
+    local hours = math.floor(math.fmod(sec, 86400) / 3600);
+    local minutes = math.floor(math.fmod(sec, 3600) / 60);
+    local seconds = math.floor(math.fmod(sec, 60));
+    if days > 1 then
+        -- return string.format("%.1d天", days);
+        return string.format("%.1d", days) .. LanguageHelp:GetLanguageByKey("Local_Str_Time_day");
+    else
+        if hours > 0 then
+            table.insert(tb, string.format("%.2d:", hours));
+        end
+        -- if minutes > 0 or hours > 0 then
+        -- table.insert(tb,string.format("%.1d分",minutes));
+        -- end
+        if seconds > 0 or minutes > 0 or hours > 0 then
+            if minutes > 0 then
+                table.insert(tb, string.format("%.2d:", minutes));
+            end
+            table.insert(tb, string.format("%.2d", seconds));
+        end
+    end
+
+    return table.concat(tb);
+end
+
+function SecToStringColonWithHAndM(sec)
+    return os.date("%H:%M", sec)
+end
+
+-- 把当前时间转化为“2019/6/18 17:20”格式
+function NowTimeToFullString()
+    -- local nowTime = GameUtils.GetNowDateTime()
+    local nowTime = GameManager.Instance:GetServerTimeStamp()
+    return TimeToFullString(nowTime)
+end
+
+-- 年月日
+function TimeToFullString3(nowTime)
+    local str = string.format("%s/%02d/%02d", nowTime.Year, nowTime.Month, nowTime.Day);
+    return str
+end
+
+function TimeToFullString4(nowTime)
+    local str = string.format("%02d:%02d", nowTime.Hour, nowTime.Minute)
+    return str
+end
+
+function TimeToFullString(nowTime)
+    local str = string.format("%s/%s/%s %02d:%02d", nowTime.Year, nowTime.Month, nowTime.Day, nowTime.Hour, nowTime.Minute)
+    return str
+end
+
+function TimeToFullString2(nowTime)
+    local str = string.format("%s/%02d/%02d %02d:%02d:%02d", nowTime.Year, nowTime.Month, nowTime.Day, nowTime.Hour,
+        nowTime.Minute, nowTime.Second)
+    return str
+end
+
+---comment 时间戳格式化
+---@param nowTime any 毫秒
+---@return string 2024年1月16日 10:20
+function TimeToFullString3(nowTime)
+    -- local str = string.format("%s年%02d月%02d日 %02d:%02d", nowTime.Year, nowTime.Month, nowTime.Day, nowTime.Hour,nowTime.Minute)
+    local str = string.format("%s", nowTime.Year) .. LanguageHelp:GetLanguageByKey("Local_Str_Time_year") ..
+                    string.format("%02d", nowTime.Month) .. LanguageHelp:GetLanguageByKey("Local_Str_Time_month") ..
+                    string.format("%02d", nowTime.Day) .. LanguageHelp:GetLanguageByKey("Local_Str_Time_day") ..
+                    string.format(" %02d:%02d", nowTime.Hour, nowTime.Minute)
+
+    return str
+end
+
+function MillsSecToFullString(mills)
+    local data = TimeUtils.MilliStampToDateTime(mills)
+    return TimeToFullString(data)
+end
+
+--- 2024/01/16
+function MillsSecToFullString2(mills)
+    local data = TimeUtils.MilliStampToDateTime(mills)
+    return TimeToFullString2(data)
+end
+
+-- 时分秒
+function MillsSecToFullString3(mills)
+    local data = TimeUtils.MilliStampToDateTime(mills)
+    return TimeToFullString3(data)
+end
+
+function MillsSecToFullString5(mills)
+    local data = TimeUtils.MilliStampToDateTime(mills)
+    return TimeToFullString4(data)
+end
+
+---comment 时间戳格式化
+---@param mills any 毫秒
+---@return string 2024年1月16日 10:20
+function MillsSecToFullString4(mills)
+    local data = TimeUtils.MilliStampToDateTime(mills)
+    return TimeToFullString3(data)
+end
+
+function GetTimeHourMin(mills)
+    local nowTime = TimeUtils.MilliStampToDateTime(mills)
+    local str = string.format("%02d:%02d", nowTime.Hour, nowTime.Minute)
+    return str
+end
+
+function NumOfDaysAndMouthWithSec() -- 把当前时间转化为这个月天数
+    local tb = {}
+    local Sec = TimeManager:GetServerRealTime()
+    local yearNum = os.date("%Y", Sec)
+    local mouthNum = os.date("%m", Sec)
+    tb[1] = yearNum
+    tb[2] = mouthNum
+    local _curYear = tonumber(yearNum)
+    local _curMonth = tonumber(mouthNum)
+    if not _curYear or _curYear <= 0 or not _curMonth or _curMonth <= 0 then
+        return
+    end
+    local _curDate = {}
+    _curDate.year = _curYear
+    _curDate.month = _curMonth + 1
+    _curDate.day = 0
+    local _maxDay = os.date("%d", os.time(_curDate))
+    tb[3] = _maxDay
+    return tb
+end
+
+-- 取相隔最近的星期几的几点的剩余时间（秒）,weekDay表示星期几,time指的是刷新是几点
+function CalculationNextFreshTime(weekDay, time)
+    if weekDay > 8 then
+        return
+    end
+    local nowTime = TimeManager:GetServerRealTime()
+    local nowYear = tonumber(os.date("%Y", nowTime))
+    local nowMonth = tonumber(os.date("%m", nowTime))
+    local nowDay = tonumber(os.date("%d", nowTime))
+    local nowHour = tonumber(os.date("%H", nowTime))
+    local resumeDay = 0
+    local todayWeekDay = os.date("*t", nowTime).wday - 1
+    if weekDay == 8 then
+        local refreshDate = os.time({
+            day = nowDay,
+            month = nowMonth,
+            year = nowYear,
+            hour = time,
+            minute = 0,
+            second = 0
+        })
+        if refreshDate > nowTime then
+            return refreshDate - nowTime
+        else
+            return refreshDate - nowTime + 86400
+        end
+        return refreshDate
+    else
+        if todayWeekDay < weekDay then
+            resumeDay = weekDay - todayWeekDay
+            local refreshDate = os.time({
+                day = nowDay + resumeDay,
+                month = nowMonth,
+                year = nowYear,
+                hour = time,
+                minute = 0,
+                second = 0
+            })
+            return refreshDate - nowTime
+        elseif todayWeekDay == weekDay then
+            local refreshDate = os.time({
+                day = nowDay,
+                month = nowMonth,
+                year = nowYear,
+                hour = time,
+                minute = 0,
+                second = 0
+            })
+            if refreshDate >= nowTime then
+                return refreshDate - nowTime
+            else
+                -- 加上下个星期当天的刷新时间
+                return refreshDate - nowTime + 604800
+            end
+        else
+            resumeDay = (weekDay + 7) - todayWeekDay
+            local refreshDate = os.time({
+                day = nowDay + resumeDay,
+                month = nowMonth,
+                year = nowYear,
+                hour = time,
+                minute = 0,
+                second = 0
+            })
+            return refreshDate - nowTime
+        end
+    end
+end
+
+-- 获取当日目标时间戳
+function GetAimTime(curTimeSec, aim_hour, aim_min)
+    local year = os.date("%Y", curTimeSec)
+    local month = os.date("%m", curTimeSec)
+    local day = os.date("%d", curTimeSec)
+    local time = os.time({
+        year = year,
+        month = month,
+        day = day,
+        hour = aim_hour,
+        min = aim_min,
+        sec = 0
+    })
+    return time + 1
+end
+
+-- 获取次日凌晨时间戳
+function GetWeeHourTime(curTimeSec)
+    local year = os.date("%Y", curTimeSec)
+    local month = os.date("%m", curTimeSec)
+    local day = os.date("%d", curTimeSec)
+    local time = os.time({
+        year = year,
+        month = month,
+        day = day,
+        hour = 23,
+        min = 59,
+        sec = 59
+    })
+    return time + 1
+end
+
+-- 获取指定天数后的凌晨时间戳
+function GetAfterDaysWeeHourTime(curTimeSec, afterDays)
+    if afterDays <= 0 then
+        return
+    end
+
+    local year = os.date("%Y", curTimeSec)
+    local month = os.date("%m", curTimeSec)
+    local day = os.date("%d", curTimeSec)
+    local time = os.time({
+        year = year,
+        month = month,
+        day = day,
+        hour = 23,
+        min = 59,
+        sec = 59
+    })
+    local addSecond = (afterDays - 1) * 86400 + 1
+    return time + addSecond
+end
+
+-- 获取指定参数后的时间戳
+function GetFutureTimeSec(curTimeSec, afterDays, afterHours, afterMins, afterSecs)
+    local addSecond = (afterDays * 86400) + (afterHours * 3600) + (afterMins * 60) + afterSecs
+    return curTimeSec + addSecond
+end
+
+-- 获得服务器刷新天数的剩余时间
+function GetLeftTimeSecond(serverTimestap, addSecond)
+    local stamp = math.floor(serverTimestap / 1000);
+    local nextDayStamp = GetWeeHourTime(stamp);
+
+    local leftTimeToNextDay = nextDayStamp - stamp + addSecond;
+
+    return leftTimeToNextDay;
+end
+
+-- 获得服务器刷新天数的剩余时间
+function GetLeftTimeToRefesh(serverTimestap, addSecond)
+    local leftSecond = GetLeftTimeSecond(serverTimestap, addSecond);
+
+    return SecToStringColon2(leftSecond);
+end
+
+function GetTimeStamp(t)
+    return os.date("%Y-%m-%d %H:%M", t)
+end
+
+-- 流失的时间转换秒
+function LossTimeSecToString(sec)
+    if sec < 60 then
+        -- return math.floor(sec) .. "秒前"
+        return math.floor(sec) .. LanguageHelp:GetLanguageByKey("Local_Str_Time_second") ..
+                   LanguageHelp:GetLanguageByKey("Local_Str_Time_ago");
+    end
+
+    if sec >= 60 and sec < 3600 then
+        local minutes = math.floor(sec / 60)
+        -- return minutes .. "分钟前"
+        return minutes .. LanguageHelp:GetLanguageByKey("Local_Str_Time_minute") ..
+                   LanguageHelp:GetLanguageByKey("Local_Str_Time_ago");
+
+    end
+
+    if sec >= 86400 then
+        local date = math.floor(sec / 86400)
+        -- return date .. "天前"
+        return date .. LanguageHelp:GetLanguageByKey("Local_Str_Time_day") ..
+                   LanguageHelp:GetLanguageByKey("Local_Str_Time_ago");
+
+    end
+
+    if sec >= 3600 and sec < 86400 then
+        local hour = math.floor(sec / 3600)
+        -- return hour .. "小时前"
+        return hour .. LanguageHelp:GetLanguageByKey("Local_Str_Time_hour") ..
+                   LanguageHelp:GetLanguageByKey("Local_Str_Time_ago");
+
+    end
+end
+
+function LossTimeSecToString2(diffValue)
+    if diffValue < 0 then
+        return "";
+    end
+    local minute = 60;
+    local hour = minute * 60;
+    local day = hour * 24;
+    local month = day * 30;
+    local year = day * 12;
+
+    local minC = math.ceil(diffValue / minute); -- 分
+    local hourC = math.floor(diffValue / hour); -- 时
+    local dayC = math.floor(diffValue / day); -- 天
+    local weekC = math.floor(diffValue / (7 * day)); -- 周
+    local monthC = math.floor(diffValue / month); -- 月
+    local yearC = math.floor(diffValue / year); -- 年
+
+    if yearC >= 1 then
+        -- return yearC .. "年前";
+        return yearC .. LanguageHelp:GetLanguageByKey("Local_Str_Time_year") ..
+                   LanguageHelp:GetLanguageByKey("Local_Str_Time_ago");
+
+    elseif monthC >= 1 then
+        -- return monthC .. "月前";
+        return monthC .. LanguageHelp:GetLanguageByKey("Local_Str_Time_month") ..
+                   LanguageHelp:GetLanguageByKey("Local_Str_Time_ago");
+
+    elseif weekC >= 1 then
+        -- return weekC .. "周前";
+        return weekC .. LanguageHelp:GetLanguageByKey("Local_Str_Time_week") ..
+                   LanguageHelp:GetLanguageByKey("Local_Str_Time_ago");
+
+    elseif dayC >= 1 then
+        -- return dayC .. "天前";
+        return dayC .. LanguageHelp:GetLanguageByKey("Local_Str_Time_day") ..
+                   LanguageHelp:GetLanguageByKey("Local_Str_Time_ago");
+
+    elseif hourC >= 1 then
+        -- return hourC .. "小时前";
+        return hourC .. LanguageHelp:GetLanguageByKey("Local_Str_Time_hour") ..
+                   LanguageHelp:GetLanguageByKey("Local_Str_Time_ago");
+
+    elseif minC >= 1 then
+        -- return minC .. "分钟前";
+        return minC .. LanguageHelp:GetLanguageByKey("Local_Str_Time_minute") ..
+                   LanguageHelp:GetLanguageByKey("Local_Str_Time_ago");
+    else
+        return "";
+    end
+end
+
+---comment 转换年月日时分接口
+---@param diffValue 秒
+---@return {year:1,month:1,day:1,hour:1,minute:1,second:0}
+function LossTimeSecToString3(diffValue)
+    if diffValue < 0 then
+        return nil;
+    end
+    local minute = 60;
+    local hour = minute * 60;
+    local day = hour * 24;
+    -- local month = day * 30;
+    -- local year = day * 12;
+
+    -- local minC = tonumber(math.ceil(diffValue / minute));   -- 分
+    local dayC = tonumber(math.floor(diffValue / day)); -- 天
+    -- local monthC = tonumber(math.floor(diffValue / month)); -- 月
+    -- local yearC = tonumber(math.floor(diffValue / year));   -- 年
+
+    local tb = {}
+    tb.year = 0;
+    tb.month = 0;
+    tb.day = 0;
+    tb.hour = 0;
+    tb.minute = 0;
+    tb.second = 0
+    -- tb.year = tonumber(yearC)
+    -- tb.month = tonumber(monthC)
+    -- tb.day = tonumber(dayC)
+    -- tb.hour = tonumber(hourC)
+    -- tb.minute = tonumber(minC)
+    -- tb.second = 0
+
+    if dayC > 0 then
+        tb.day = dayC;
+        diffValue = diffValue - day * dayC;
+    end
+
+    local hourC = tonumber(math.floor(diffValue / hour)); -- 时
+    if hourC > 0 then
+        tb.hour = hourC;
+        diffValue = diffValue - hour * hourC;
+    end
+
+    return tb
+end
+
+---comment 转成年月日接口
+---@param unixTime any 秒时间戳
+---@return nil
+function FormatUnixTime2Date(unixTime)
+    if unixTime == nil or unixTime < 0 then
+        return nil;
+    end
+    local tb = {}
+    tb.year = tonumber(os.date("%Y", unixTime))
+    tb.month = tonumber(os.date("%m", unixTime))
+    tb.day = tonumber(os.date("%d", unixTime))
+    tb.hour = tonumber(os.date("%H", unixTime))
+    tb.minute = tonumber(os.date("%M", unixTime))
+    tb.second = tonumber(os.date("%S", unixTime))
+    return tb
+end
+
+---comment 获取指定月份总共有多少天
+---@param _year any 年
+---@param _month any 月
+---@return string|osdate
+function GetTotalDaysByYearAndMonth(_year, _month)
+    local _date = {}
+    _date.year = _year
+    _date.month = _month + 1
+    _date.day = 0
+    _date.hour = 0
+    _date.min = 0
+    _date.sec = 0
+    local _days = os.date("%d", os.time(_date)) -- 下个月的第0天即当月的最后一天
+    return _days
+end
+
+function GetWeekTime(timestamp)
+    local weekday = tonumber(os.date("%w", timestamp))
+
+    if weekday == 0 then
+        return LanguageHelp:GetLanguageByKey("Local_Str_Sunday");
+    elseif weekday == 1 then
+        return LanguageHelp:GetLanguageByKey("Local_Str_Monday");
+    elseif weekday == 2 then
+        return LanguageHelp:GetLanguageByKey("Local_Str_Tuesday");
+    elseif weekday == 3 then
+        return LanguageHelp:GetLanguageByKey("Local_Str_Wednesday");
+    elseif weekday == 4 then
+        return LanguageHelp:GetLanguageByKey("Local_Str_Thursday");
+    elseif weekday == 5 then
+        return LanguageHelp:GetLanguageByKey("Local_Str_Friday");
+    elseif weekday == 6 then
+        return LanguageHelp:GetLanguageByKey("Local_Str_Saturday");
+    end
+
+    return weekday;
+
+end

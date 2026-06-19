@@ -1,0 +1,246 @@
+--[[
+*文件名   :   BeginnerTargetModule
+*内  容   :
+*说  明   :	  新手目标模块
+*创建日期 :   ""
+*创建人   :   ""
+*版权所有 :   游卡网络科技技术有限公司
+]] BeginnerTargetModule = class("BeginnerTargetModule", BaseLuaModule)
+
+BeginnerTargetModule.CurChapterData = {}
+
+local IsAlreadySyncAllSecretData = false -- 是否已经全量同步过秘境数据
+-- LuaModule 消息模块
+BeginnerTargetModule.ModuleMessages = {
+    ["RefreshLevelRedPoint"] = function(...)
+        BeginnerTargetModule:OnRefreshLevelRedPoint(...)
+    end,
+    ["SendBeginnerRewardReq"] = function(...)
+        BeginnerTargetModule:SendBeginnerRewardReq(...)
+    end,
+    ["Refresh"] = function(...)
+        BeginnerTargetModule:InitData(...)
+    end,
+    ["OnDisable"] = function(...)
+
+    end,
+}
+
+-- LuaModule 创建
+function BeginnerTargetModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.BeginnerTargetModule, self)
+    self.CurChapterData.StageDone = 0
+    self.CurChapterData.LastTime = 0
+    self.CurChapterData.IsEnd = false
+    self.LobbyGamePlayMDEvent = function(data)
+        self:OnLobbyGamePlayMD(data)
+    end
+    FixMessageManager.Instance:OnMessage(FixUpdateDef.LobbyGamePlayMD, self.LobbyGamePlayMDEvent);
+    self.InitDataFunc = function()
+        self:InitData()
+    end
+    self.onSystemOpen = function(type, isOpen)
+        if isOpen and type == CS.StarProjectDef.SystemOpenType.BeginnerTarget then
+            self:InitData()
+        end
+    end
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.NewbieGetStageAwardReqID, self.InitDataFunc, nil)
+
+    self.TaskStageChangeFunc = function(type, taskid)
+        self:TaskStageChange(type, taskid)
+    end
+    CS.StarProject.GlobalEvent.TaskStageChange:AddListener(self.TaskStageChangeFunc);
+    CS.StarProject.GlobalEvent.OnSystemOpen:AddListener(self.onSystemOpen);
+    self:InitData()
+end
+function BeginnerTargetModule:OnLobbyGamePlayMD(data)
+    local IsPartial = true; -- 是否差量
+    if data.AllDatas ~= nil and data.AllDatas.Count > 0 then
+        IsPartial = false;
+    end
+
+    if IsAlreadySyncAllSecretData == false and IsPartial == true then
+        -- 如果没有收到全量同步、先收到了差量，就过滤
+        return;
+    end
+
+    local pid = GameManager.Instance.mainPlayerId;
+    local md = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.LobbyGamePlayMD):GetMDByPid(pid);
+    if md == nil then
+        md = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.LobbyGamePlayMD):GetMD();
+    end
+    if md ~= nil then
+        if not IsPartial then
+            IsAlreadySyncAllSecretData = true;
+        end
+        local chapterData = md.NewbieTarget
+        if chapterData then
+            self.CurChapterData.StageDone = chapterData.StageDone
+            if chapterData.LastTime then
+                self.CurChapterData.LastTime = chapterData.LastTime
+            else
+                self.CurChapterData.LastTime = 0
+            end
+        end
+        self:InitData()
+    end
+end
+
+function BeginnerTargetModule:TaskStageChange(type, taskid)
+    local contains = false
+    if self.CurChapterData and self.CurChapterData.TaskDataList then
+        for i, v in pairs(self.CurChapterData.TaskDataList) do
+            if v.TaskID ==  taskid then
+                contains = true
+                break
+            end
+        end
+    end
+    if contains then
+        DOVirtual.DelayedCall(0.5, function()
+            self:InitData();
+        end)
+    end
+end
+function BeginnerTargetModule:InitData()
+    local config  =  ConfigDataAccessor.BeginnerTargetTask
+    local curChatper = self.CurChapterData.StageDone
+    local isEnd = false
+    local finishConfig = config[curChatper]
+    if finishConfig then
+        curChatper = finishConfig.NextTaskGroup
+        if curChatper == 0 then
+            curChatper = self.CurChapterData.StageDone
+            isEnd = true
+        end
+    else
+        curChatper = 1
+    end
+
+    self.CurChapterData.IsEnd = isEnd
+    self.CurChapterData.CurStage = curChatper
+
+    local curConfig = config[curChatper]
+    if curConfig then
+        self.CurChapterData.GroupName = curConfig.GroupName
+        self.CurChapterData.nextChapter = curConfig.NextTaskGroup
+        local maxTaskNum = 0
+        local getRewardNum = 0
+        local taskList = {}
+        if curConfig.TaskID then
+            maxTaskNum = #curConfig.TaskID
+            for i, taskID in pairs(curConfig.TaskID) do
+                local taskData = {}
+                local state = 0
+                local jumpId = 0
+                if TaskHelper.ContainTask(taskID) then
+                    local TaskInfo = TaskHelper.GetRunningTask(taskID)
+                    if TaskInfo ~= nil then
+                        if TaskInfo.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStageRunning then
+                            state = 1;
+                            local taskTarget = TaskHelper.GetTaskTarget(taskID)
+                            if taskTarget ~= nil then
+                                if taskTarget.FindPath.FindPathType == CS.Task.E_FindPath.JumpTo then
+                                    jumpId = taskTarget.FindPath.JumpID;
+                                end
+                            end
+
+                        elseif TaskInfo.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStageFinished then
+                            state = 2;
+                        end
+                    end
+                elseif TaskHelper.IsTaskFinsh(taskID) then
+                    state = 0;
+                    getRewardNum = getRewardNum + 1
+                end
+                taskData.TaskID = taskID;
+                taskData.JumpID = jumpId;
+                taskData.State = state;
+                table.insert(taskList,taskData)
+            end
+        end
+        table.sort(taskList,function (a,b)
+            return a.State>b.State
+        end)
+        self.CurChapterData.TaskDataList = taskList
+        self.CurChapterData.Type = 0--未完成 可领奖 已领奖
+        self.CurChapterData.CommonAward = curConfig.GroupReward
+        self.CurChapterData.CommonAwardNum = curConfig.GroupRewardNum
+        self.CurChapterData.CurProcess = getRewardNum
+        self.CurChapterData.MaxProcess = maxTaskNum
+    end
+    self:OnRefreshLevelRedPoint()
+    CS.StarProject.GlobalEvent.OnBeginnerRefresh:Invoke(6)--活动页签6是冒险旅程
+end
+function BeginnerTargetModule:GetChapterData()
+    return self.CurChapterData
+end
+-- LuaModule 释放
+function BeginnerTargetModule:OnModuleRelease()
+    CS.StarProject.GlobalEvent.TaskStageChange:RemoveListener(self.TaskStageChangeFunc);
+    CS.StarProject.GlobalEvent.OnSystemOpen:RemoveListener(self.onSystemOpen);
+    FixMessageManager.Instance:OffMessage(FixUpdateDef.LobbyGamePlayMD, self.LobbyGamePlayMDEvent);
+    CS.StarProject.GlobalEvent.TaskStageChange:RemoveListener(self.TaskStageChangeFunc);
+    LuaModuleDispatcher:UnRegister(ModuleDef.BeginnerTargetModule)
+end
+
+-- LuaModule显示
+function BeginnerTargetModule:OnModuleShow(arg)
+end
+
+-- LuaModule 消息处理
+function BeginnerTargetModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...)
+end
+
+function BeginnerTargetModule:OnDisable(...)
+    IsAlreadySyncAllSecretData = false;
+end
+function BeginnerTargetModule:SendBeginnerRewardReq(...)
+    local tb = ...
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        local battleSocket = NetworkManager.Instance.gameSocket
+        local message = CS.ProtoMsg.NewbieGetStageAwardReq()--PersonTowerAwardReq()
+        message.Stage = self.CurChapterData.CurStage
+        battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message, false)
+    end
+end
+function BeginnerTargetModule:GetRedPointNum()
+    return self.CurChapterData.RedPoint
+end
+function BeginnerTargetModule:OnRefreshLevelRedPoint()
+    if self.CurChapterData then
+        if self.CurChapterData.IsEnd  then
+            RedPointManager.Instance:TriggerConditionTypeBoolValue(RedPointConditionType.BeginnerTarget, false);
+            self.CurChapterData.RedPoint = false
+        else
+            local isShowRed = false
+            if self.CurChapterData.TaskDataList then
+                for i, v in pairs(self.CurChapterData.TaskDataList) do
+                    if v.State == 2 then
+                        isShowRed = true
+                    end
+                end
+            end
+            if not isShowRed then
+                isShowRed = true
+                if self.CurChapterData.TaskDataList then
+                    for i, v in pairs(self.CurChapterData.TaskDataList) do
+                        if v.State ~= 0 then
+                            isShowRed = false
+                        end
+                    end
+                end
+                RedPointManager.Instance:TriggerConditionTypeBoolValue(RedPointConditionType.BeginnerTarget, isShowRed);
+            else
+                RedPointManager.Instance:TriggerConditionTypeBoolValue(RedPointConditionType.BeginnerTarget, isShowRed);
+            end
+            self.CurChapterData.RedPoint = isShowRed
+        end
+        LuaModuleDispatcher:SendMessage(ModuleDef.ActivityModule, "RefreshRedDot", {})
+    end
+end
+------------------------------ 发送协议
+return BeginnerTargetModule

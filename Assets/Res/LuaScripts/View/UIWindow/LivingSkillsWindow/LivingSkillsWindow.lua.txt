@@ -1,0 +1,203 @@
+--[[
+*文件名   :   LivingSkillsWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2024/01/12 10:29:00"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+LivingSkillsWindow=class("LivingSkillsWindow",UIPanel)
+local CurrencyBar = require("View/Item/CurrencyBar")
+local FabricatePart = require("View/UIWindow/LivingSkillsWindow/FabricatePart")
+local GatherPart = require("View/UIWindow/LivingSkillsWindow/GatherPart")
+
+LivingSkillsWindow.m_GatherBtn=nil;
+LivingSkillsWindow.m_FabricateBtn=nil;
+LivingSkillsWindow.m_CloseBtn=nil;
+LivingSkillsWindow.m_CurrencyAhchor=nil;
+LivingSkillsWindow.m_Item1=nil;
+LivingSkillsWindow.m_Item2=nil;
+LivingSkillsWindow.m_GatherPart=nil;
+LivingSkillsWindow.m_FabricatePart=nil;
+LivingSkillsWindow.m_TipsGo=nil;
+LivingSkillsWindow.m_TipsBtn=nil;
+LivingSkillsWindow.m_TipsText=nil;
+
+LivingSkillsWindow.SubType=1;
+LivingSkillsWindow.m_Selects={}
+LivingSkillsWindow.m_UnSelects={}
+LivingSkillsWindow.Pages={}
+LivingSkillsWindow.Bgs={}
+
+local GatherBtnFunc=nil;
+local FabricateBtnFunc=nil;
+local CloseBtnFunc=nil;
+local Item1Func=nil;
+local Item2Func=nil;
+local TipsBtnCloseFunc=nil;
+
+
+function LivingSkillsWindow:Awake()
+	self.m_GatherBtn=self:Find("Cut4Cam90/AssemblyRatio2/Menu/tab/GatherBtn"):GetComponent(typeof(JButton));
+	self.m_FabricateBtn=self:Find("Cut4Cam90/AssemblyRatio2/Menu/tab/FabricateBtn"):GetComponent(typeof(JButton));
+	self.m_CloseBtn=self:Find("Cut4Cam90/AssemblyRatio2/LeftTop/CloseBtn"):GetComponent(typeof(JButton));
+	self.m_CurrencyAhchor=self:Find("Cut4Cam90/AssemblyRatio2/CurrencyAhchor").gameObject;
+	self.m_Item1=self:Find("Cut4Cam90/AssemblyRatio2/Top/Item1"):GetComponent(typeof(JButton));
+	self.m_Item2=self:Find("Cut4Cam90/AssemblyRatio2/Top/Item2"):GetComponent(typeof(JButton));
+	self.m_GatherPart=self:Find("Cut4Cam90/AssemblyRatio2/Root/GatherPart").gameObject;
+	self.m_FabricatePart=self:Find("Cut4Cam90/AssemblyRatio2/Root/FabricatePart").gameObject;
+
+
+	self.m_TipsGo=self:Find("Cut4Cam90/AssemblyRatio2/Tips").gameObject;;
+	self.m_TipsBtn=self:Find("Cut4Cam90/AssemblyRatio2/Tips/Colse"):GetComponent(typeof(JButton));
+	self.m_TipsText=self:Find("Cut4Cam90/AssemblyRatio2/Tips/Frame/Text"):GetComponent(typeof(Text));
+
+	table.insert(self.m_Selects,self:Find("Cut4Cam90/AssemblyRatio2/Menu/tab/GatherBtn/select").gameObject)
+	table.insert(self.m_Selects,self:Find("Cut4Cam90/AssemblyRatio2/Menu/tab/FabricateBtn/select").gameObject)
+
+	table.insert(self.m_UnSelects,self:Find("Cut4Cam90/AssemblyRatio2/Menu/tab/GatherBtn/unselect").gameObject)
+	table.insert(self.m_UnSelects,self:Find("Cut4Cam90/AssemblyRatio2/Menu/tab/FabricateBtn/unselect").gameObject)
+
+	self.m_currencyBar=CurrencyBar:New(nil, self.m_CurrencyAhchor.transform);
+
+	self.Pages={}
+	table.insert(self.Pages,GatherPart.new(self.m_GatherPart,self.AtlasPath,function (key)
+				self:OnShowTips(key)
+			end))
+	table.insert(self.Pages,FabricatePart.new(self.m_FabricatePart,self.AtlasPath,function (key)
+				self:OnShowTips(key)
+			end))
+
+	self.Bgs={}
+	table.insert(self.Bgs,self:Find("BackGround/Image/bg1").gameObject)
+	table.insert(self.Bgs,self:Find("BackGround/Image/bg2").gameObject)
+
+	self.SubType=1;
+	GatherBtnFunc=function() self:OnClickGatherBtn(); end;
+	FabricateBtnFunc=function() self:OnClickFabricateBtn(); end;
+	CloseBtnFunc=function() self:OnClickCloseBtn(); end;
+	Item1Func=function() self:OnClickItem1(); end;
+	Item2Func=function() self:OnClickItem2(); end;
+	TipsBtnCloseFunc=function()
+		self.m_TipsGo:SetActive(false)
+	end
+end
+function LivingSkillsWindow:OnShowTips(key)
+	self.m_TipsGo:SetActive(true)
+	self.m_TipsText.text=LanguageHelp:GetLanguageByKey(key)
+end
+
+function LivingSkillsWindow:Start()
+	self.m_GatherBtn.OnClick= GatherBtnFunc;
+	self.m_FabricateBtn.OnClick= FabricateBtnFunc;
+	self.m_CloseBtn.OnClick= CloseBtnFunc;
+	self.m_Item1.OnClick= Item1Func;
+	self.m_Item2.OnClick= Item2Func;
+	self.m_TipsBtn.OnClick= TipsBtnCloseFunc;
+end
+
+function LivingSkillsWindow:OnEnable()
+	self.m_currencyBar:OnListener()
+end
+
+function LivingSkillsWindow:OnDisable()
+	self.m_currencyBar:OffListener()
+end
+
+
+function LivingSkillsWindow:OnDestroy()
+	if self.Pages~=nil then
+		for k, v in pairs(self.Pages) do
+			v:OnDestroy();
+		end
+	end
+end
+
+function LivingSkillsWindow:InitCurrencyBar()
+	-- 刷新货币
+	local coins = {116}
+	self.m_currencyBar:RefeshBar(coins);
+	self.m_currencyBar:PlayAnim(true);
+end
+
+function LivingSkillsWindow:OnSubTypeChange(select)
+
+	--采集
+	if self.SubType==1 then
+		self.m_Selects[1]:SetActive(true)
+		self.m_UnSelects[1]:SetActive(false)
+		self.m_Selects[2]:SetActive(false)
+		self.m_UnSelects[2]:SetActive(true)
+		self.m_GatherPart:SetActive(true)
+		self.Pages[1]:OnOpen(select)
+		self.Pages[2]:OnClose()
+		self.Bgs[1]:SetActive(true)
+		self.Bgs[2]:SetActive(false)
+		self.m_FabricatePart:SetActive(false)
+		return
+
+
+	end
+
+	--制造
+	if self.SubType==2 then
+		self.m_Selects[1]:SetActive(false)
+		self.m_UnSelects[1]:SetActive(true)
+		self.m_Selects[2]:SetActive(true)
+		self.m_UnSelects[2]:SetActive(false)
+		self.Pages[1]:OnClose()
+		self.m_GatherPart:SetActive(false)
+		self.m_FabricatePart:SetActive(true)
+		self.Pages[2]:OnOpen(select)
+		self.Bgs[2]:SetActive(true)
+		self.Bgs[1]:SetActive(false)
+		return
+	end
+
+end
+
+function LivingSkillsWindow:OnOpen(arg)
+	self:InitCurrencyBar()
+	self.SubType=arg.Type;
+	self.m_TipsGo:SetActive(false)
+	self:OnSubTypeChange(arg);
+end
+
+function LivingSkillsWindow:OnClose(arg)
+
+end
+
+function LivingSkillsWindow:OnClickGatherBtn()
+	if self.SubType==1 then
+		return
+	end
+
+	self.SubType=1;
+	self:OnSubTypeChange(nil);
+end
+
+function LivingSkillsWindow:OnClickFabricateBtn()
+	if self.SubType==2 then
+		return
+	end
+	self.SubType=2;
+	self:OnSubTypeChange(nil);
+end
+
+function LivingSkillsWindow:OnClickCloseBtn()
+	self.Close();
+	LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips", {});
+	ModuleManager.Instance:HideModule(ModuleDef.LivingSkillsModule);
+end
+
+function LivingSkillsWindow:OnClickItem1()
+	LuaModuleDispatcher:SendMessage(ModuleDef.LivingSkillsModule, "OpenLivingWarehouseWindow", {});
+end
+
+function LivingSkillsWindow:OnClickItem2()
+
+end
+
+
+
+return  LivingSkillsWindow

@@ -1,0 +1,343 @@
+---------------------------------------------------------------------
+-- Stars (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-08-04 16:08:45
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class ItemFriendApply
+
+ItemFriendApply = class("ItemFriendApply", UIPanel)
+
+function ItemFriendApply:ctor(go, parent, delCB, headCallBack)
+	self.prefab = go;
+	self.delCB = delCB;
+	self.HeadCallBack = headCallBack;
+	-- JBtn 同意
+	local JBtnAgree = self:Find("JBtnAgree"):GetComponent(typeof(JButton));
+	self.JBtnAgreeFun = function()
+		self:OnClickJBtnAgree(1);
+	end
+	JBtnAgree.OnClick = self.JBtnAgreeFun;
+	-- JBtn 拒绝
+	local JBtnReject = self:Find("JBtnReject"):GetComponent(typeof(JButton));
+	self.JBtnRejectFun = function()
+		self:OnClickJBtnAgree(-1);
+	end
+	JBtnReject.OnClick = self.JBtnRejectFun;
+	-- 头像边框
+	self.HeadFrame = self:Find("HeadFrame"):GetComponent(typeof(Image));
+	-- 头像
+	self.HeadIcon = self:Find("HeadFrame/HeadIcon"):GetComponent(typeof(Image));
+	-- JBtn 头像
+	self.JBtnHeadIconFun = function()
+		self:OnClickJBtnHeadIcon();
+	end
+	local JBtnHeadIcon = self:Find("HeadFrame/HeadIcon"):GetComponent(typeof(JButton));
+	JBtnHeadIcon.OnClick = self.JBtnHeadIconFun;
+	-- 玩家等级
+	self.Level = self:Find("HeadFrame/LevelBg/Level"):GetComponent(typeof(Text));
+	-- 玩家名称
+	self.PlayerName = self:Find("PlayerName"):GetComponent(typeof(Text));
+	-- 冒险团名
+	self.GuildName = self:Find("GuildName"):GetComponent(typeof(Text));
+	-- 标签
+	self.Label = self:Find("LabelBg/Label"):GetComponent(typeof(Text));
+
+	self.JobTypeBg = self:Find("HeadFrame/Job"):GetComponent(typeof(Image))
+	self.JobTypeIcon = self:Find("HeadFrame/Job/JobType"):GetComponent(typeof(Image))
+	-- 红点
+	self.RedPoint = self:Find("RedPoint").gameObject;
+	-- 同意好友申请回调
+	self.OnRespondFriendApplyRespFun = function(data)
+		self:OnRespondFriendApplyResp(data, 1);
+	end
+	-- 拒绝好友申请回调
+	self.OnRespondFriendApplyResp2Fun = function(data)
+		self:OnRespondFriendApplyResp(data, -1);
+	end
+	--- 删除好友 事件
+	self.OnDeleteFriendRespFun = function(data)
+		self:OnDeleteFriendResp(data);
+	end
+	--- 好友加入黑名单事件
+	self.OnAddBlackRespFun = function(data)
+		self:OnAddBlackResp(data);
+	end
+	-- 移出黑名单 事件
+	self.OnRemoveBlackRespFun = function(data)
+		self:OnRemoveBlackResp(data);
+	end
+end
+
+--数据更新
+function ItemFriendApply:UpdateContent(data, isNew)
+	self.FriendInfo = data;
+	if self.FriendInfo == nil then
+		self.prefab.gameObject:SetActive(false);
+		return;
+	end
+	-- 头像
+	local jobCfg = ConfigDataAccessor.Job[self.FriendInfo.FromJobID];
+	if jobCfg ~= nil then
+		local avatarDataCell = ConfigDataAccessor.Avatar[jobCfg.AvatarID];
+		if avatarDataCell ~= nil then
+			local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID];
+			if headCfg ~= nil then
+				ResourceHelper:LoadIconByAtlasAsync(
+					self.HeadIcon,
+					headCfg.HeadAtlasName,
+					headCfg.MinHead,
+					false
+				)
+			end
+		end
+	end
+	-- 等级
+	--self.Level.text = self.FriendInfo.FromLevel .. "级";
+	self.Level.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {self.FriendInfo.FromLevel});
+	-- 职业类型icon设置
+	local jobshi = math.floor(self.FriendInfo.FromJobID / 10)
+	local jobTypeBgName = "Icon_ArmBg" .. jobshi;
+	ResourceHelper:LoadIconByAtlasAsync(self.JobTypeBg, ResourceHelper.AtlasPathRole, jobTypeBgName, false)
+	local jobTypeName = "Icon_Arm" .. jobshi;
+	ResourceHelper:LoadIconByAtlasAsync(self.JobTypeIcon, ResourceHelper.AtlasPathRole, jobTypeName, false)
+	-- 名称
+	self.PlayerName.text = self.FriendInfo.FromUserName;
+	-- 冒险团名
+	local GuildName = LanguageHelp:GetLanguageByKey("Local_Str_Tips19");
+	if self.FriendInfo.FromGuildName ~= "" then
+		GuildName = self.FriendInfo.FromGuildName;
+	end
+	self.GuildName.text = GuildName;
+	-- 标签
+	local labelKey = "";
+	if BusinessManager.Instance:GetGuildID() > 0 and BusinessManager.Instance:GetGuildID() == self.FriendInfo.FromGuildID then
+		labelKey = "TeamEmblem_2";
+	end
+	if labelKey == "" then
+		local module = ModuleManager.Instance:GetModule(ModuleDef.TeamModule)
+		local luatable = module:GetLuaTable()
+		local isRecentTeam = luatable:GetIsRecentTeamByPis(self.FriendInfo.FromUserPID)
+		if isRecentTeam then
+			labelKey = "TeamEmblem_1";
+		end
+	end
+	if labelKey ~= "" then
+		self.Label.text = LanguageHelp:GetLanguageByKey(labelKey);
+	end
+	self.Label.transform.parent.gameObject:SetActive(labelKey ~= "");
+	self.RedPoint:SetActive(isNew);
+	self.prefab.gameObject:SetActive(true);
+end
+
+-- 点击头像
+function ItemFriendApply:OnClickJBtnHeadIcon()
+	if self.HeadCallBack == nil then
+		return;
+	end
+	if self.FriendInfo == nil then
+		return;
+	end
+	self.HeadCallBack(self.FriendInfo, self.HeadIcon.transform);
+end
+
+--点击同意 1：同意 -1：拒绝
+function ItemFriendApply:OnClickJBtnAgree(res)
+	if self.FriendInfo == nil then
+		return;
+	end
+
+	local myPid = BusinessManager.Instance:GetUserPID();
+	if myPid == self.FriendInfo.FromUserPID then
+		CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(LanguageHelp:GetLanguageByKey("Local_Str_add_friends_tips3"));
+		return
+	end
+
+	local pids = { self.FriendInfo.FromUserPID };
+	local key = "ItemFriendApply_" .. self.FriendInfo.FromUserPID;
+	local cb = self.OnRespondFriendApplyRespFun;
+	if res == -1 then
+		cb = self.OnRespondFriendApplyResp2Fun;
+	end
+	LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnSendRespondFriendApply", { pids, res, key, cb });
+end
+
+-- 点击同意的回调 【code=0是成功】 【message是错误日志，如果错误了就播放】
+function ItemFriendApply:OnRespondFriendApplyResp(data, res)
+	if data == nil then
+		return;
+	end
+
+	--if data.Result.Code ~= 0 then
+	--CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(data.Result.Message);
+	--return;
+	--end
+
+	if self.delCB == nil then
+		return;
+	end
+
+	if self.FriendInfo == nil then
+		return;
+	end
+
+	if res == 1 then
+		-- 先添加好友缓存
+		LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnAddFriendListByPID", {
+			self.FriendInfo.FromUserPID,
+			self.FriendInfo.FromUserName,
+			self.FriendInfo.FromModelID,
+			self.FriendInfo.FromLevel,
+			self.FriendInfo.FromGuildName,
+			self.FriendInfo.FromJobID,
+		});
+
+		-- 发送私聊信息
+		local chatMsg = LanguageHelp:GetLanguageByKey("Local_Str_add_friends_tips");
+		local chatChannel = CS.ProtoMsg.ChatChannel.ChannelPrivate;
+		local extrainfos = nil;
+		local pid = self.FriendInfo.FromUserPID;
+		LuaModuleDispatcher:SendMessage(ModuleDef.ChatModule, "OnSendChatMsg", { chatMsg, chatChannel, extrainfos, pid });
+		-- 模拟接收系统消息
+		local userName = self.FriendInfo.FromUserName;
+		local msgList = {};
+		local chatMsgNotice = CS.ProtoMsg.ChatMsgNotice();
+		chatMsgNotice.EID = 0;
+		chatMsgNotice.PID = 0;
+		--chatMsgNotice.Data = "你与<color=#b23738><size=21>" .. userName .. "</size></color>成为好友";
+		chatMsgNotice.Data = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_add_friends_tips2"), {userName});
+		chatMsgNotice.Channel = CS.ProtoMsg.ChatChannel.ChannelSystem;
+		chatMsgNotice.ChatTime = TimeUtils.ServerNowStampMilli;
+		chatMsgNotice.ChatLevel = 1;
+		chatMsgNotice.JobID = GameManager.Instance:GetPlayerJob();
+
+		table.insert(msgList, chatMsgNotice);
+		LuaModuleDispatcher:SendMessage(ModuleDef.ChatModule, "OnAnalogReceptionChatMsg", { msgList });
+	end
+
+	self.delCB({ self.FriendInfo.FromUserPID });
+end
+
+-- 发送 删除好友
+function ItemFriendApply:OnDeleteFriend()
+	CS.StarProjectDef.UIAPI.ShowMsgBox(25, function(str)
+		if str == "SURE" then
+			if self.FriendInfo == nil then
+				return;
+			end
+
+			local pid = self.FriendInfo.FromUserPID;
+			local key = "ItemFriendApply_" .. self.FriendInfo.FromUserPID;
+			LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnSendDeleteFriendReq",
+				{ pid, key, self.OnDeleteFriendRespFun });
+		end
+	end);
+end
+
+-- 删除好友回调
+function ItemFriendApply:OnDeleteFriendResp(data)
+	if data == nil then
+		return;
+	end
+	--if data.Result.Code ~= 0 then
+	--CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(data.Result.Message);
+	--return;
+	--end
+
+	if self.FriendInfo == nil then
+		return;
+	end
+	-- 模拟接收系统消息
+	local userName = self.FriendInfo.FromUserName;
+	local msgList = {};
+	local chatMsgNotice = CS.ProtoMsg.ChatMsgNotice();
+	chatMsgNotice.EID = 0;
+	chatMsgNotice.PID = 0;
+	--chatMsgNotice.Data = "你与<color=#b23738><size=21>" .. userName .. "</size></color>已解除好友关系";
+	chatMsgNotice.Data = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_del_friends_tips"), {userName});
+
+	chatMsgNotice.Channel = CS.ProtoMsg.ChatChannel.ChannelSystem;
+	chatMsgNotice.ChatTime = TimeUtils.ServerNowStampMilli;
+	chatMsgNotice.ChatLevel = 1;
+	chatMsgNotice.JobID = GameManager.Instance:GetPlayerJob();
+
+	table.insert(msgList, chatMsgNotice);
+	LuaModuleDispatcher:SendMessage(ModuleDef.ChatModule, "OnAnalogReceptionChatMsg", { msgList });
+	-- 通知好友本地列表
+	LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnDelFriendListByPID", { self.FriendInfo.FromUserPID });
+end
+
+-- 加入黑名单好友
+function ItemFriendApply:OnAddBlackFriend(PID)
+	CS.StarProjectDef.UIAPI.ShowMsgBox(23, function(str)
+		if str == "SURE" then
+			if self.FriendInfo == nil then
+				return;
+			end
+
+			local pid = self.FriendInfo.FromUserPID;
+			local key = "ItemFriendApply_" .. self.FriendInfo.FromUserPID;
+			LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnSendAddBlackReq",
+				{ pid, key, self.OnAddBlackRespFun });
+		end
+	end);
+end
+
+-- 拉入黑名单回调
+function ItemFriendApply:OnAddBlackResp(data)
+	if data == nil then
+		return;
+	end
+
+	if self.FriendInfo == nil then
+		return;
+	end
+
+	if data.Result.Code == 0 then
+		-- 通知好友本地列表
+		LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnAddBlackListByPID",
+			{ self.FriendInfo.FromUserPID, self.FriendInfo.FromJobID, self.FriendInfo.FromLevel,
+				self.FriendInfo.FromUserName, self.FriendInfo.FromGuildName });
+	elseif data.Result.Code == E_FriendReqErrCodeType.BlackCountExceeded then
+		CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(LanguageHelp:GetLanguageByKey("Local_Str_friend_request_fail_7"));
+	end
+end
+
+-- 发送移出黑名单
+function ItemFriendApply:OnRemoveBlack()
+	CS.StarProjectDef.UIAPI.ShowMsgBox(24, function(str)
+		if str == "SURE" then
+			if self.FriendInfo == nil then
+				return;
+			end
+
+			local pid = self.FriendInfo.FromUserPID;
+			local key = "ItemFriendApply_" .. self.FriendInfo.FromUserPID;
+			LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnSendRemoveBlackReq",
+				{ pid, key, self.OnRemoveBlackRespFun });
+		end
+	end);
+end
+
+-- 发送移出黑名单的回调 【code=0是成功】 【message是错误日志，如果错误了就播放】
+function ItemFriendApply:OnRemoveBlackResp(data)
+	if data == nil then
+		return;
+	end
+
+	--if data.Result.Code ~= 0 then
+	--CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(data.Result.Message);
+	--return;
+	--end
+
+	if self.BlackInfo == nil then
+		return;
+	end
+
+	LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnDelBlackListByPID", { self.FriendInfo.FromUserPID });
+end
+
+return ItemFriendApply;

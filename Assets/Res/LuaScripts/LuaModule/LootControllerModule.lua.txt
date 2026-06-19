@@ -1,0 +1,178 @@
+--[[
+*文件名   :   LootControllerModule
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/07 17:08:40"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+LootControllerModule = class("LootControllerModule", BaseLuaModule)
+
+local ObjectPool = require("Common/Helper/ObjectPool")
+
+--LuaModule 消息模块
+LootControllerModule.ModuleMessages = {
+    --添加掉落
+    --ModuleManager.Instance.SendMessage(ModuleDef.LootControllerModule, "OnAddLoot", new object[] { it }); //只要传一个掉落信息
+    ["OnAddLoot"] = function(...)
+        LootControllerModule:OnAddLoot(...)
+    end,
+    ["OnRemoveAllLoot"] = function(...)
+        LootControllerModule:OnRemoveAllLoot(...)
+    end
+}
+
+--删除所有的
+function LootControllerModule:OnRemoveAllLoot(...)
+    self.lootEffectPool:RecycleAll()
+    for i = 1, #self.lootItemPool do
+        self.lootItemPool[i]:RecycleAll()
+    end
+end
+
+--添加掉落事件
+function LootControllerModule:OnAddLoot(...)
+    local tb = ...
+
+    local info = {}
+    --传入道具ID
+    if type(tb) == "table" then
+        --Lua调用
+        info.baseID = tb[1]
+        info.pos = tb[2]
+        info.num = tb[3]
+        info.entityID = tb[4]
+    else
+        --C#调用
+        info.baseID = tb[0]
+        info.pos = tb[1]
+        info.num = tb[2]
+        info.entityID = tb[3]
+    end
+
+    self:AddLoot(info)
+end
+
+function LootControllerModule:AddLoot(info)
+    -- 排除角色经验等货币
+    local IsShowDrop = true
+    local CurrencyCfg = ConfigDataAccessor.CurrencyCfg[info.baseID]
+    if CurrencyCfg ~= nil then
+        IsShowDrop = CurrencyCfg.IsShowDrop
+    end
+
+    if IsShowDrop then
+        local quality = ConfigDataAccessor.Item[info.baseID].Quality
+        if quality == 0 then
+            quality = 1
+        elseif quality == 6 then
+            quality = 5
+        end
+        local lootItem = self.lootItemPool[quality]:Spawn()
+        lootItem:SetItem(info)
+    end
+end
+
+--LuaModule 创建
+function LootControllerModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.LootControllerModule, self)
+    --local _go=GameObject("LootController");
+
+    local _go = ResourceManager.Instance:LoadGameObject("UI/Common/Prefab/LootController")
+    --local _go = ResourceHelperMono.LoadPrefab("Loot/LootController");
+    self.transform = _go.transform
+    self.transform:SetParent(CS.EntityRoot.Instance.DotRemoveRoot.transform)
+    GameObject.DontDestroyOnLoad(_go)
+
+    self:Init()
+
+    self.OnSceneBeginChange = function()
+        self.lootEffectPool:RecycleAll()
+        for i = 1, #self.lootItemPool do
+            self.lootItemPool[i]:RecycleAll()
+        end
+    end
+
+    self.OnSceneLoaded = function()
+        self.lootEffectPool:RecycleAll()
+        for i = 1, #self.lootItemPool do
+            self.lootItemPool[i]:RecycleAll()
+        end
+    end
+
+    CS.StarProject.GlobalEvent.onSceneBeginChange:AddListener(self.OnSceneBeginChange)
+    CS.StarProject.GlobalEvent.onSceneLoaded:AddListener(self.OnSceneLoaded)
+end
+
+function LootControllerModule:Init()
+    self.lootItemPool = {}
+    --掉落物
+    for i = 1, 5 do
+        local _go = self.transform:Find("LootItem" .. i).gameObject
+        local itpool =
+            ObjectPool:New(
+            0,
+            "View.Item.LootItemAdv",
+            _go,
+            _go.transform.parent,
+            function(it)
+                it:InitItem(
+                    function(pos, quality, id, num, entityID)
+                        self:OnCreateLootEffect(pos, quality, id, num, entityID)
+                    end
+                )
+            end,
+            function(it)
+                --回收
+                it:SetUse(false)
+            end
+        )
+        table.insert(self.lootItemPool, itpool)
+    end
+
+    --掉落物飞向角色的特效
+    local _goE = self.transform:Find("LootEffect").gameObject
+    self.lootEffectPool =
+        ObjectPool:New(
+        0,
+        "View.Item.LootEffect",
+        _goE,
+        _goE.transform.parent,
+        --生成回调
+        function(it)
+            it:InitItem()
+        end,
+        function(it)
+            --回收
+            it:SetUse(false)
+        end
+    )
+end
+
+function LootControllerModule:OnCreateLootEffect(pos, quality, id, num, entityID)
+    local tempEffect = self.lootEffectPool:Spawn()
+    tempEffect:SetItem(pos, quality, id, num, entityID)
+end
+
+--
+function LootControllerModule:OnTestModuleMessage(...)
+end
+
+--LuaModule 消息处理
+function LootControllerModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...)
+end
+
+--LuaModule显示
+function LootControllerModule:OnModuleShow(arg)
+end
+
+--LuaModule 释放
+function LootControllerModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.LootControllerModule)
+
+    CS.StarProject.GlobalEvent.onSceneBeginChange:RemoveListener(self.OnSceneBeginChange)
+    CS.StarProject.GlobalEvent.onSceneLoaded:RemoveListener(self.OnSceneLoaded)
+end
+
+return LootControllerModule

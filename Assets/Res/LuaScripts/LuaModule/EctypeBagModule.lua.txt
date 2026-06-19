@@ -1,0 +1,211 @@
+EctypeBagModule = class("EctypeBagModule", BaseLuaModule)
+
+local EctypeBagWindowPath = "Ectype/Prefab/EctypeBagWindow"
+
+-- LuaModule 消息模块
+EctypeBagModule.ModuleMessages = {
+    ["OnOpenEctypeBag"] = function(...)
+        EctypeBagModule:OnOpenWnd(...)
+    end
+}
+
+-- 监听打开出战界面事件
+function EctypeBagModule:OnOpenWnd(...)
+    -- local ectypeBagWindowCS = UIManager.Instance:OpenWindow(EctypeBagWindowPath, nil,
+    --     CS.StarProjectDef.MainPageCommond.HideBoth);
+    -- if self.ectypeBagWindow == nil then
+    --     self.ectypeBagWindow = ectypeBagWindowCS:GetLuaPanel().ScriptTable;
+    --     self.ectypeBagWindow:BindModule(self);
+    --     self.ectypeBagWindow:InitControls();
+    -- end
+
+    -- if self.ectypeBagWindow ~= nil then
+    --     self.ectypeBagWindow:RefreshData();
+    -- end
+
+    self.AsyncLoadEctypeBagWindowCb = function(ui)
+        if ui ~= nil then
+            if self.ectypeBagWindow == nil then
+                self.ectypeBagWindow = ui:GetLuaPanel().ScriptTable
+                self.ectypeBagWindow:BindModule(self)
+                self.ectypeBagWindow:InitControls()
+            end
+
+            if self.ectypeBagWindow ~= nil then
+                self.ectypeBagWindow:RefreshData()
+            end
+        end
+        self.AsyncLoadEctypeBagWindowCb = nil
+    end
+    UIManager.Instance:OpenWindowAsync(EctypeBagWindowPath, self.AsyncLoadEctypeBagWindowCb, nil, CS.StarProjectDef.MainPageCommond.HideBoth)
+end
+
+function EctypeBagModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.EctypeBagModule, self)
+
+    NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.DropTreasureChestID,
+        function(data)
+            self:OnDropTreasureChest(data)
+        end,
+        nil
+    )
+    -- 目前只有日常副本使用临时背包
+    CS.StarProject.GlobalEvent.OnOpenEctypeBag:AddListener(
+        function(isOpen)
+            if self.ectypeBagWindow ~= nil then
+                if isOpen then
+                    BusinessManager.Instance:RemoveItemsBySpaceId(22)
+                    self.ectypeBagWindow:RefreshData()
+                end
+            end
+        end
+    )
+    -- self.dropOpenCount = 0;
+
+    self.OnClickLocalEntityFun = function(Type, ID, TriggerKey, Key)
+        self:OnClickLocalEntity(Type, ID, TriggerKey, Key)
+    end
+    CS.StarProject.GlobalEvent.onClickLocalEntity:AddListener(self.OnClickLocalEntityFun)
+end
+
+function EctypeBagModule:OnClickLocalEntity(Type, ID, TriggerKey, Key)
+    if E_LocalEntitySource.DailyEctype == TriggerKey then
+        if Type == E_LocalEntityType.TreasureBox then
+            -- self.dropOpenCount = self.dropOpenCount + 1;
+            -- if self.dropOpenCount >= 3 then
+            DOVirtual.DelayedCall(
+                4,
+                function()
+                    LuaModuleDispatcher:SendMessage(ModuleDef.EctypeSettleModule, "OnOpenWnd", {})
+                end
+            )
+
+        -- self.dropOpenCount = 0;
+        -- end
+        end
+    end
+end
+
+function EctypeBagModule:OnDropTreasureChest(data)
+    -- 宝箱掉落
+    if data == nil or data.data == nil then
+        return
+    end
+
+    -- if self.ectypeBagWindow ~= nil then
+    self:CreateLocalBox(data.data.Drop, 1, 0, data.data.Position)
+
+    -- --显示宝箱
+    -- local go = CS.StarProject.Service.Resource.ResourceManager.Instance:LoadGameObject("model/ectype/dropbox");
+    -- go.transform.localScale=Vector3(1,1,1);
+    -- go.transform.localPosition=newPos;
+
+    -- local dropBox = go:GetComponent(typeof(DropBox));
+    -- dropBox:SetCallBack(function ()
+    --     self:OnDropNotify(data.data.Drop, newPos);
+    --     self.ectypeBagWindow:RefreshData();
+    -- end, 10);
+    -- end
+end
+
+function EctypeBagModule:CreateLocalBox(CommonDrop, CommonChestNum, ExtraChestNum, pos)
+    local rewards = self:FormattingReward(CommonDrop) -- 格式化奖励
+    local rewardSum = #rewards -- 奖励总数量
+    local ownerId = 0
+    local boxCount = CommonChestNum + ExtraChestNum -- 宝箱总数量
+    local averageBoxNum = math.floor((rewardSum / boxCount)) -- 平均奖励数量
+    local cha = rewardSum - (averageBoxNum * boxCount)
+    local lastNum = averageBoxNum + cha -- 最后一个的数量
+    self.BirthPos = Vector3.zero -- 怪物死亡位置
+    self.BirthPos.x = pos.x
+    self.BirthPos.y = pos.Y
+    self.BirthPos.z = pos.Z
+
+    local pos = GameManager.Instance:GetEntityPosById(GameManager.Instance.mainPlayerId)
+
+    local mapPox = GameManager.Instance:GetMapBossPos()
+    if mapPox ~= Vector3.zero then
+        pos = mapPox
+    end
+
+    --随机下位置
+    local pos2 = BusinessManager.Instance:GetRandomPos(pos, 2.5)
+
+    for i = 0, 0 do
+        local startIndex = 1 + (i * averageBoxNum)
+        local num = averageBoxNum
+        local InteractId = 9999997 -- 宝箱种
+        local rewardList = self:GetRewards(rewards, startIndex, num)
+        CS.StarProject.GlobalEvent.onCreateLocalEntity:Invoke(E_LocalEntityType.TreasureBox, InteractId, E_LocalEntitySource.DailyEctype, pos2, rewardList, true, -1)
+    end
+end
+
+-- 格式化奖励 转换成一维数组的奖励数据结构
+function EctypeBagModule:FormattingReward(CommonDrops)
+    local rewards = {}
+    local infos = CommonDrops.Infos
+    for j = 0, infos.Count - 1 do
+        local data = infos[j]
+        table.insert(rewards, data)
+    end
+    return rewards
+end
+
+-- 拿取奖励 [开始下标、数量]
+function EctypeBagModule:GetRewards(reward, startIndex, num)
+    local drops = LocalDropList()
+    for i = 1, #reward do
+        if i >= startIndex and i < startIndex + num then
+            local dropinfo = reward[i]
+            drops:AddData(dropinfo.Itemid, dropinfo.ItemNum, dropinfo.EntityID)
+        end
+    end
+    return drops
+end
+
+function EctypeBagModule:OnDropNotify(data, pos)
+    local infos = data.Infos
+    pos.y = pos.y + 1.0
+
+    local dropIdx = 0
+
+    for i = 0, infos.Count - 1 do
+        local dropinfo = infos[i]
+
+        local EntityID = dropinfo.EntityID
+        local Itemid = dropinfo.Itemid
+        local ItemNum = dropinfo.ItemNum
+
+        -- 排除角色经验,冒险经验
+        if Itemid ~= 111 and Itemid ~= 101 then
+            dropIdx = dropIdx + 1
+
+            -- 生成掉落表现
+            DOVirtual.DelayedCall(
+                0.15 * dropIdx,
+                function()
+                    -- 生成的掉落物品
+                    LuaModuleDispatcher:SendMessage(ModuleDef.LootControllerModule, "OnAddLoot", {Itemid, pos, ItemNum, EntityID})
+                end
+            )
+        end
+    end
+end
+
+-- LuaModule 消息处理
+function EctypeBagModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...)
+end
+
+-- LuaModule显示
+function EctypeBagModule:OnModuleShow(arg)
+end
+
+-- LuaModule 释放
+function EctypeBagModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.EctypeBagModule)
+    CS.StarProject.GlobalEvent.onClickLocalEntity:RemoveListener(self.OnClickLocalEntityFun)
+end
+
+return EctypeBagModule

@@ -1,0 +1,208 @@
+--[[
+*文件名   :   TalentItemNew
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/07/06 15:42:00"
+*创建人   :   "duanlei"
+*版权所有 :   游卡网络科技技术有限公司
+]] TalentItemNew = {};
+
+TalentItemNew.__index = TalentItemNew
+
+function TalentItemNew:New(_go, _parent)
+    local self = {};
+    setmetatable(self, TalentItemNew);
+
+    self.gameObject = _go;
+    self.transform = _go.transform;
+
+    if _parent ~= nil then
+        self.transform:SetParent(_parent.transform);
+        self.transform.localPosition = Vector3.zero
+        self.transform.localScale = Vector3.one
+    end
+
+    -- 初始化对应的 节点
+    self.m_SelectBg = self.transform:Find("SelectBg").gameObject;
+    self.m_OK = self.transform:Find("SelectBg/OK").gameObject;
+
+    local selectJbtn = self.transform:Find("Select"):GetComponent(typeof(JButton));
+    selectJbtn.OnClick = function()
+        self:OnClick();
+    end
+    self.talentLevel = {};
+    for i = 1, 3, 1 do
+        local levelItem = self.transform:Find("Type/" .. i).gameObject;
+        self.talentLevel[i] = levelItem;
+    end
+
+    self.m_TagLab1 = self.transform:Find("TagLab1").gameObject;
+    self.m_TagLab1_txt = self.transform:Find("TagLab1/Txt"):GetComponent(typeof(Text));
+
+    self.m_TagLab2 = self.transform:Find("TagLab2").gameObject;
+    self.m_TagLab2_txt = self.transform:Find("TagLab2/Txt"):GetComponent(typeof(Text));
+
+    self.m_Name = self.transform:Find("Name"):GetComponent(typeof(Text));
+
+    self.m_Desc = self.transform:Find("ScrollView/Viewport/Content/Desc"):GetComponent(typeof(Text));
+
+    self.m_LockRoot = self.transform:Find("LockRoot").gameObject;
+    self.m_LockLimitText = self.transform:Find("LockRoot/Limit"):GetComponent(typeof(Text));
+
+    self.m_SelButton = self.transform:Find("SelButton"):GetComponent(typeof(JButton));
+
+    self.rootCanvasGroup = self.transform:GetComponent(typeof(CanvasGroup));
+
+    self.m_NewGo = self.transform:Find("New").gameObject;
+
+    self.m_SelButton.OnClick = function()
+        self:OnClick();
+    end
+
+    return self;
+end
+
+function TalentItemNew:UpdateItem(jobSkillID, talentID, lv, selectID)
+    self.jobSkillID = jobSkillID;
+    self.talentID = talentID;
+    self.key = "New_Talent_" .. self.talentID;
+
+    self.selectID = selectID;
+
+    self.talenCfg = GetTalentCfg(talentID);
+    self.skillDescCfg = GetJobSkillLevelDescCfg(talentID, lv);
+
+    self:Refresh();
+end
+
+function TalentItemNew:Refresh()
+    self:RefreshInfo();
+    self:RefreshTag();
+    self:RefreshTalentLevel();
+    self:RefreshSelect();
+    self:RefreshLock();
+    self:RefreshIsNew();
+end
+
+function TalentItemNew:RefreshInfo()
+    if self.talenCfg == nil then
+        return;
+    end
+
+    -- 高磊要求 天赋名称临时 采用 技能描述表的名称, 原因是 他们配置 太多了,后面改！！！
+    self.m_Name.text = self.skillDescCfg.SkillName;
+    -- self.m_Name.text = self.talenCfg.TalentName;
+    self.m_Desc.text = self.talenCfg.TalentDesc;
+end
+
+function TalentItemNew:RefreshTag()
+    if self.talenCfg == nil then
+        return;
+    end
+
+    local talentStr = string.split(self.talenCfg.TalentLabel, ',')
+
+    self.m_TagLab1:SetActive(false);
+
+    if talentStr ~= nil and talentStr[1] ~= nil then
+        self.m_TagLab1:SetActive(true);
+        self.m_TagLab1_txt.text = talentStr[1];
+    end
+
+    self.m_TagLab2:SetActive(false);
+
+    if talentStr ~= nil and talentStr[2] ~= nil then
+        self.m_TagLab2:SetActive(true);
+        self.m_TagLab2_txt.text = talentStr[2];
+    end
+end
+
+function TalentItemNew:RefreshTalentLevel()
+
+    if self.talenCfg == nil then
+        return;
+    end
+
+    local talentType = self.talenCfg.TalentType;
+
+    for k, v in pairs(self.talentLevel) do
+        local isLevel = k == talentType + 1;
+        self.talentLevel[k].gameObject:SetActive(isLevel);
+    end
+end
+
+function TalentItemNew:RefreshSelect()
+    local isSelect = self.selectID == self.talentID;
+
+    self.m_OK:SetActive(isSelect);
+end
+
+-- 刷新解锁
+function TalentItemNew:RefreshLock()
+    local playerLv = GameManager.Instance:GetPlayerLevel();
+
+    local limitLv = self.talenCfg.LimitLv;
+    self.isLock = playerLv < limitLv;
+
+    self.m_SelectBg:SetActive(not self.isLock);
+
+    self.m_LockRoot:SetActive(self.isLock);
+    -- self.m_LockLimitText.text = "角色 " .. tostring(limitLv) .. "级";
+    self.m_LockLimitText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_TalentItemNew_LockLimitText"),
+        {limitLv});
+
+    if self.isLock then
+        self.rootCanvasGroup.alpha = 1;
+    else
+        self.rootCanvasGroup.alpha = 1;
+
+    end
+
+end
+
+-- 刷新天赋 是否是新的
+function TalentItemNew:RefreshIsNew()
+    -- 刷新 新 需要考虑 是否解锁
+
+    if not self.isLock then
+        -- 如果没有锁住 并且 没有点开过这个 天赋界面, 那就 刷新天赋 "新" 的标签
+        local notHave = not LocalCacheManager.Instance:Has(self.key);
+        if notHave then
+            LocalCacheManager.Instance:SetValueType(self.key, true, CacheType.Normal);
+        end
+
+        self.m_NewGo:SetActive(notHave);
+    end
+
+    if self.isLock or self.selectID == self.talentID then
+        self.m_NewGo:SetActive(false);
+        return;
+    end
+
+end
+
+function TalentItemNew:OnClick()
+
+    if self.selectID == self.talentID then
+        return;
+    end
+
+    if self.isLock then
+        CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(
+            LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_289"));
+        return;
+    end
+
+    local message = CS.ProtoMsg.SwitchTalentReq();
+    message.JobSkillID = self.jobSkillID;
+
+    message.TalentID = self.talentID;
+
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message,
+        false);
+
+    -- 点击的时候 刷新一下 "新"  状态
+    self:RefreshIsNew();
+end
+
+return TalentItemNew

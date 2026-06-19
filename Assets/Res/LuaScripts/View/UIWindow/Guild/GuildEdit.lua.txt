@@ -1,0 +1,243 @@
+--[[
+*文件名   :   GuildEdit
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] local GuildEdit = {}
+
+GuildEdit.__index = GuildEdit
+
+local ChoiceBtn = require("View/Item/ChoiceBtn")
+
+function GuildEdit:New(_go, guildInfoWindow)
+    local self = {};
+    setmetatable(self, GuildEdit);
+
+    self.GuildInfoWindow = guildInfoWindow;
+
+    self.gameObject = _go;
+    self.transform = _go.transform;
+
+    self.GuildDesc = self.transform:Find("DescInputField"):GetComponent(typeof(InputField));
+    self.GuildPlaceholder = self.transform:Find("DescInputField/Text Area/Placeholder"):GetComponent(typeof(Text));
+
+    self.Icon = self.transform:Find("icon"):GetComponent(typeof(Image));
+    self.IconBg = self.transform:Find("iconBg"):GetComponent(typeof(Image));
+
+    -- 图标
+    self.IconBtns = {};
+    for i = 1, 6 do
+        local btn = ChoiceBtn:New(self.transform:Find("GuildIconList/Mask/List/GuildIcon" .. i).gameObject,
+            "Have/Selected");
+        btn:InitItem(i, function(idx)
+            self:OnIconBtnClick(idx);
+        end);
+        table.insert(self.IconBtns, btn);
+    end
+
+    -- 背景板
+    self.IconBgBtns = {};
+    for i = 1, 6 do
+        local btn = ChoiceBtn:New(self.transform:Find("GuildBgList/Mask/List/GuildBgIcon" .. i).gameObject,
+            "Have/Selected");
+        btn:InitItem(i, function(idx)
+            self:OnIconBgBtnClick(idx);
+        end);
+        table.insert(self.IconBgBtns, btn);
+    end
+
+    -- 标签
+    self.LabelBtns = {};
+    for i = 1, 3 do
+        self.transform:Find("label" .. i .. "/tt"):GetComponent(typeof(Text)).text =
+            ConfigDataAccessor.GuildLabel[i].LabelDec;
+
+        local btn = ChoiceBtn:New(self.transform:Find("label" .. i).gameObject, "select");
+        btn:InitItem(i, function(idx)
+            self:OnLabelBtnsClick(idx);
+        end);
+        table.insert(self.LabelBtns, btn);
+    end
+
+    -- 关闭
+    self.go_menu = self.transform.parent:Find("RightEditMenu").gameObject;
+    local btnCloseInfo = self.transform.parent:Find("RightEditMenu/BtnClose"):GetComponent(typeof(Button));
+    btnCloseInfo.onClick:AddListener(function()
+        self:OnCloseClick();
+    end);
+
+    -- 点击
+    local btnClick = self.transform:Find("BtnEdit"):GetComponent(typeof(Button));
+    btnClick.onClick:AddListener(function()
+        self:OnEditBtnClick();
+    end);
+
+    -- 修改冒险团公告回调
+    self.message4 = function(data)
+        self:OnGuildMyChangeInfoReqRet(data)
+    end
+
+    self.gameObject:SetActive(false);
+
+    return self; -- 返回自身
+end
+
+function GuildEdit:OnIconBtnClick(idx)
+    self.SelectedBadgeID = idx;
+
+    self:SelectIcon(self.SelectedBadgeID);
+
+    self:RefeshIconPreview();
+end
+
+function GuildEdit:SelectIcon(idx)
+    for i = 1, #self.IconBtns do
+        self.IconBtns[i]:MakeSelected(false);
+    end
+    self.IconBtns[idx]:MakeSelected(true);
+end
+
+function GuildEdit:OnIconBgBtnClick(idx)
+    self.SelectedIconBg = idx;
+
+    self:SelectIconBg(self.SelectedIconBg);
+
+    self:RefeshIconPreview();
+end
+
+function GuildEdit:SelectIconBg(idx)
+    for i = 1, #self.IconBgBtns do
+        self.IconBgBtns[i]:MakeSelected(false);
+    end
+    self.IconBgBtns[idx]:MakeSelected(true);
+end
+
+function GuildEdit:OnLabelBtnsClick(idx)
+    self.SelectedLabelID = idx;
+
+    self:SelectLabel(self.SelectedLabelID);
+end
+
+function GuildEdit:SelectLabel(idx)
+    for i = 1, #self.LabelBtns do
+        self.LabelBtns[i]:MakeSelected(false);
+    end
+    self.LabelBtns[idx]:MakeSelected(true);
+end
+
+function GuildEdit:RefeshIconPreview()
+    -- 冒险团图标
+    ResourceHelper:GetSpriteInAtlasByName(ResourceHelper.AtlasGuild, "Guild_icon_0" .. self.SelectedBadgeID,
+        function(sp)
+            if sp ~= nil then
+                self.Icon.sprite = sp;
+            end
+        end);
+
+    -- 冒险团图标背景(新UI创建)
+    local iconbgNum = self.SelectedIconBg + 6;
+    local iconbgStr = "Guild_icon_0" .. iconbgNum;
+    if iconbgNum > 9 then
+        iconbgStr = "Guild_icon_" .. iconbgNum;
+    end
+    ResourceHelper:GetSpriteInAtlasByName(ResourceHelper.AtlasGuild, iconbgStr, function(sp2)
+        if sp2 ~= nil then
+            self.IconBg.sprite = sp2;
+        end
+    end);
+
+end
+
+-- 点击关闭
+function GuildEdit:OnCloseClick()
+    self:Show(false);
+end
+
+-- 回调
+function GuildEdit:OnGuildMyChangeInfoReqRet(args)
+
+    local RetMsgID = args.MsgRet.RetMsgID; -- 对应的消息号(这个可以判断是哪个协议)
+
+    local RetCode = args.MsgRet.RetCode;
+    if RetCode == 0 then
+
+        -- 修改掉本地缓存
+        if self.GuildDesc.text == "" then
+            self.GuildInfoWindow.module.GuildInfo.BaseInfo.Declaration = self.GuildPlaceholder.text;
+        else
+            self.GuildInfoWindow.module.GuildInfo.BaseInfo.Declaration = self.GuildDesc.text;
+        end
+        self.GuildInfoWindow.module.GuildInfo.BaseInfo.BadgeID = self.SelectedBadgeID;
+        self.GuildInfoWindow.module.GuildInfo.BaseInfo.LabelID = self.SelectedLabelID;
+        self.GuildInfoWindow.module.GuildInfo.BaseInfo.IconBg = self.SelectedIconBg;
+
+        -- 成功
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Tips33"));
+
+        self:Show(false);
+
+    else
+
+        -- 不需要处理，交给上层去处理
+        -- args.IsDialog=true
+        -- Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_83"));
+
+    end
+
+end
+
+function GuildEdit:OnEditBtnClick()
+
+    local desc = self.GuildDesc.text;
+    if desc == "" then
+        desc = self.GuildPlaceholder.text;
+    end
+
+    -- 发送请求
+    local msg = CS.ProtoMsg.GuildMyChangeInfoReq();
+    local baseInfo = CS.ProtoMsg.GuildBaseField();
+    baseInfo.Declaration = desc;
+    baseInfo.Notice = self.GuildInfoWindow.module.GuildInfo.BaseInfo.Notice;
+    baseInfo.BadgeID = self.SelectedBadgeID;
+    baseInfo.LabelID = self.SelectedLabelID;
+    baseInfo.IconBg = self.SelectedIconBg;
+    msg.BaseInfo = baseInfo;
+    SendClient2CenterReq(msg);
+
+end
+
+function GuildEdit:Show(b)
+    self.GuildInfoWindow:ShowMenu(not (b));
+    self.gameObject:SetActive(b);
+    self.go_menu:SetActive(b);
+    if b then
+        self:Refesh();
+        CS.SGF.Network.MsgRetManager.Instance:OnMessageEnum(self.message4, CS.MsgIDEnum.GuildMyChangeInfoReqID);
+    else
+        CS.SGF.Network.MsgRetManager.Instance:OffMessageEnum(self.message4, CS.MsgIDEnum.GuildMyChangeInfoReqID);
+    end
+end
+
+function GuildEdit:OnItemClick(ritem)
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", {ritem.BaseID, false, 0, ritem.transform, 0});
+end
+
+function GuildEdit:Refesh()
+
+    self.GuildDesc.text = self.GuildInfoWindow.module.GuildInfo.BaseInfo.Declaration;
+
+    self.SelectedBadgeID = self.GuildInfoWindow.module.GuildInfo.BaseInfo.BadgeID;
+    self.SelectedLabelID = self.GuildInfoWindow.module.GuildInfo.BaseInfo.LabelID;
+    self.SelectedIconBg = self.GuildInfoWindow.module.GuildInfo.BaseInfo.IconBg;
+
+    self:SelectIcon(self.SelectedBadgeID);
+    self:SelectIconBg(self.SelectedIconBg);
+    self:SelectLabel(self.SelectedLabelID);
+
+    self:RefeshIconPreview();
+
+end
+
+return GuildEdit;

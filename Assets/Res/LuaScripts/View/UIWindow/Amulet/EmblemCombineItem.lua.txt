@@ -1,0 +1,93 @@
+--[[
+*文件名   :   EmblemCombineItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/18 16:55:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local EmblemCombineItem = {}
+
+EmblemCombineItem.__index = EmblemCombineItem
+
+function EmblemCombineItem:New(_go,onItemClick) 
+    local self = {};    
+    setmetatable(self, EmblemCombineItem); 
+
+
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+
+    self.Num=self.transform:Find("num"):GetComponent(typeof(Text));--数量
+    self.Name=self.transform:Find("name"):GetComponent(typeof(Text));--数量
+
+    self.Icon=self.transform:Find("icon"):GetComponent(typeof(Image));
+    self.Rare=self.transform:Find("rare"):GetComponent(typeof(Image));
+
+
+
+    
+    --点击事件
+	self.btnClick=self.Rare:GetComponent(typeof(JButton));
+	self.btnClick.OnClick=(function() 
+        self:OnItemClick(); 
+	end);
+    
+
+
+
+    return self;    --返回自身
+end
+
+function EmblemCombineItem:OnItemClick()
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", {self.BaseID, false, 0, self.Rare.transform, 0})
+end
+
+
+--设置Item
+function EmblemCombineItem:SetItem(baseID,needNum,needHaveNum)
+
+    self.BaseID=baseID;
+    local cfg=ConfigDataAccessor.Item[baseID];
+
+    local heraldryEquipCfg=ConfigDataAccessor.HeraldryEquip[baseID];
+
+    ResourceHelper:LoadIconAsync(self.Icon, "", cfg.Icon, false)
+    
+
+    --稀有度底板
+    local quality=cfg.Quality; 
+    --self.Rare.sprite= AtlasManager.Instance:GetSprite("ui/common/atlas/commonitem","Bag_Grid_sq"..quality);
+    ResourceHelper:LoadIconByAtlasAsync(
+        self.Rare,
+        ResourceHelper.AtlasPathCommonItem,
+        "Bag_Grid_sq" .. quality,
+        false
+    )
+
+    --self.Name.text=cfg.Name.." <size=24>"..heraldryEquipCfg.HeraldryLevel.."级</size>";
+    self.Name.text=cfg.Name;
+
+
+    if needHaveNum then
+
+        local haveNum=BusinessManager.Instance:GetCurrencyNum(baseID);
+
+        self.Enough=haveNum>=needNum;
+        
+        if self.Enough then
+            self.Num.text="<color=#48DB6A>"..haveNum.."</color>/"..needNum;
+        else
+            self.Num.text="<color=#d04545>"..haveNum.."</color>/"..needNum;
+        end
+    else
+        self.Num.text=needNum;
+    end
+
+end
+
+
+
+return EmblemCombineItem;

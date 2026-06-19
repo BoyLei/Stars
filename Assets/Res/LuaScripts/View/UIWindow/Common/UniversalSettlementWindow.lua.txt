@@ -1,0 +1,174 @@
+--[[
+*文件名   :   UniversalSettlementWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/08/18 16:18:02"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+UniversalSettlementWindow=class("UniversalSettlementWindow",UIPanel)
+UniversalSettlementWindow.m_NoAward=nil;
+UniversalSettlementWindow.m_NormalItemPreviewGo=nil;
+UniversalSettlementWindow.m_Extra=nil;
+UniversalSettlementWindow.m_QuitBtn=nil;
+UniversalSettlementWindow.m_QuitTime=nil;
+UniversalSettlementWindow.m_NormalItemPreview=nil;
+UniversalSettlementWindow.m_Win=nil;
+UniversalSettlementWindow.m_Fail=nil;
+
+UniversalSettlementWindow.Second=0;
+UniversalSettlementWindow.QuitCallBack=nil;
+
+local QuitBtnFunc=nil;
+
+
+function UniversalSettlementWindow:Awake()
+	self.m_Win=self:Find("Cut4Cam90/AssemblyRatio2/Center/Win").gameObject;
+	self.m_Fail=self:Find("Cut4Cam90/AssemblyRatio2/Center/Fail").gameObject;
+	self.m_NoAward=self:Find("Cut4Cam90/AssemblyRatio2/Center/Win/NoAward").gameObject;
+	self.m_NormalItemPreviewGo=self:Find("Cut4Cam90/AssemblyRatio2/Center/Win/Award/Normal/ItemPreview").gameObject;
+	self.m_QuitBtn=self:Find("Cut4Cam90/AssemblyRatio2/Center/QuitBtn"):GetComponent(typeof(JButton));
+	self.m_QuitTime=self:Find("Cut4Cam90/AssemblyRatio2/Center/QuitTime"):GetComponent(typeof(Text));
+	self.m_NormalItemPreview=StructAccessor.ItemPreview.new(self.m_NormalItemPreviewGo);
+	self.m_NormalItemPreview:SetSize(1500,120,20)
+	QuitBtnFunc=function()
+		self:OnClickQuitBtn();
+	end;
+
+	self.OnSecTimeUpdate=function()
+		self:OnSecTimeUpdateHandler()
+	end
+
+	self.onCloseDestroy(false);
+end
+
+function UniversalSettlementWindow:Start()
+	self.m_QuitBtn.OnClick= QuitBtnFunc;
+end
+
+function UniversalSettlementWindow:OnEnable()
+
+end
+
+function UniversalSettlementWindow:OnDisable()
+
+end
+function UniversalSettlementWindow:OnSecTimeUpdateHandler()
+	self:ShowTime();
+end
+
+function UniversalSettlementWindow:ShowTime()
+	self.Second=self.Second-1;
+	if self.Second<=0 then
+		self:OnQuit();
+	else
+		--self.m_QuitTime.text=self.Second.."秒后离开场景"
+		self.m_QuitTime.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_QuitTime"), {self.Second});
+	end
+end
+
+function UniversalSettlementWindow:OnDestroy()
+
+end
+
+function UniversalSettlementWindow:SortItems(list,isextra)
+
+	if list~=nil and list.Count>0 then
+		local dic={}
+		for i = 0, list.Count-1 do
+			local v=list[i];
+			if v~=nil then
+				if dic[v.Itemid]==nil then
+					local cfg= ConfigDataAccessor.Item[v.Itemid]
+					dic[v.Itemid]={ItemID=v.Itemid,ItemNum=v.ItemNum,EntityItem=v,Quality=cfg.Quality,IsExtra=isextra,ItemType=cfg.ItemType,CanOverlay=cfg.CanOverlay}
+				else
+					dic[v.Itemid].ItemNum=dic[v.Itemid].ItemNum+v.ItemNum
+				end
+			end
+		end
+
+		local temp={}
+		for k, v in pairs(dic) do
+			if not v.CanOverlay then
+				for i = 1, v.ItemNum do
+					table.insert(temp,{ItemID=v.ItemID,ItemNum=1,EntityItem=v.EntityItem,Quality=v.Quality,IsExtra=v.IsExtra})
+				end
+			else
+				table.insert(temp,{ItemID=v.ItemID,ItemNum=v.ItemNum,EntityItem=v.EntityItem,Quality=v.Quality,IsExtra=v.IsExtra})
+			end
+		end
+
+		table.sort(temp,function (a,b)
+				return  a.Quality>b.Quality
+			end)
+
+		return temp;
+	end
+	return nil;
+
+end
+
+function UniversalSettlementWindow:OnOpen(arg)
+
+	local data=arg;
+	self.Second=data.Second
+	local IsSuccess=data.IsSuccess
+	local CommonList=data.Awards;
+	local ExList=data.ExAwards;
+	self.QuitCallBack=data.CallBack;
+	if IsSuccess then
+		local CostItems={}
+		if CommonList~=nil and CommonList.Count>0 then
+			local temp=	self:SortItems(CommonList,false);
+			if temp~=nil then
+				for i = 1, #temp do
+					table.insert(CostItems,temp[i])
+				end
+			end
+		end
+
+		if ExList~=nil and ExList.Count>0 then
+			local temp=	self:SortItems(ExList,true);
+			if temp~=nil then
+				for i = 1, #temp do
+					table.insert(CostItems,temp[i])
+				end
+			end
+		end
+		self.m_NormalItemPreview:SetItems(CostItems);
+		self.m_Fail:SetActive(false)
+		self.m_Win:SetActive(true)
+	else
+		--失败
+		self.m_Win:SetActive(false)
+		self.m_Fail:SetActive(true)
+	end
+	self:ShowTime();
+	if self.Second~=nil and self.Second >0 then
+		MonoHelper.AddSecTimeUpdateListener(self.OnSecTimeUpdate);
+	end
+end
+
+function UniversalSettlementWindow:OnClose(arg)
+	MonoHelper.RemoveSecTimeUpdateListener(self.OnSecTimeUpdate);
+end
+
+function UniversalSettlementWindow:OnClickQuitBtn()
+	self:OnQuit();
+end
+
+function UniversalSettlementWindow:OnQuit()
+	--LuaModuleDispatcher:SendMessage("DailyTeamModule", "OnQuitDailyTeam");
+	DelayInvoker.DelayInvoke(self, 0.1, function()
+			if self.QuitCallBack~=nil then
+				self.QuitCallBack();
+				self.QuitCallBack=nil;
+			end
+			self.Close();
+		end
+	);
+
+end
+
+
+return  UniversalSettlementWindow

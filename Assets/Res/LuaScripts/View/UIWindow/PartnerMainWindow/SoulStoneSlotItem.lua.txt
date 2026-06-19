@@ -1,0 +1,147 @@
+--[[
+*文件名   :   SoulStoneSlotItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2024/05/31 14:33:12"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+SoulStoneSlotItem=class("SoulStoneSlotItem",UIPanel)
+SoulStoneSlotItem.m_empty=nil;
+SoulStoneSlotItem.m_Sel=nil;
+SoulStoneSlotItem.m_Has=nil;
+SoulStoneSlotItem.m_icon=nil;
+SoulStoneSlotItem.m_Star1=nil;
+SoulStoneSlotItem.m_Star2=nil;
+SoulStoneSlotItem.m_Star3=nil;
+SoulStoneSlotItem.m_Lock=nil;
+SoulStoneSlotItem.m_Text=nil;
+SoulStoneSlotItem.m_di=nil;
+SoulStoneSlotItem.m_SoulStoneSlotItem=nil;
+SoulStoneSlotItem.ID=nil;
+SoulStoneSlotItem.ClickEmptyCall=nil;
+SoulStoneSlotItem.SelectCall=nil;
+SoulStoneSlotItem.Stars=nil;
+SoulStoneSlotItem.ItemID=0;
+SoulStoneSlotItem.EntityID=0;
+SoulStoneSlotItem.IsEmpty=false;
+SoulStoneSlotItem.SlotItem=nil;
+local emptyFunc=nil;
+local SoulStoneSlotItemFunc=nil;
+
+
+function SoulStoneSlotItem:ctor(go,id,clickempty,select)
+	self.prefab=go;
+	self.ID=id;
+	self.ClickEmptyCall=clickempty;
+	self.SelectCall=select;
+	self.SlotItem=nil;
+	self.m_empty=self:Find("empty"):GetComponent(typeof(JButton));
+	self.m_Has=self:Find("Has").gameObject;
+	self.m_di=self:Find("Has/di"):GetComponent(typeof(Image));
+	self.m_Sel=self:Find("Has/Sel").gameObject;
+	self.m_icon=self:Find("Has/icon"):GetComponent(typeof(Image));
+	self.m_Star1=self:Find("Has/Star1").gameObject;
+	self.m_Star2=self:Find("Has/Star2").gameObject;
+	self.m_Star3=self:Find("Has/Star3").gameObject;
+	self.m_Lock=self:Find("Has/Lock").gameObject;
+	self.Stars={}
+	table.insert(self.Stars,self.m_Star1)
+	table.insert(self.Stars,self.m_Star2)
+	table.insert(self.Stars,self.m_Star3)
+
+	self.m_Text=self:Find("Has/Lock/Text"):GetComponent(typeof(Text));
+	self.m_SoulStoneSlotItem=self.prefab:GetComponent(typeof(JButton));
+	emptyFunc=function() self:OnClickempty(); end;
+	SoulStoneSlotItemFunc=function() self:OnClickSoulStoneSlotItem(); end;
+	self.m_Lock:SetActive(false)
+	self:Start();
+end
+
+function SoulStoneSlotItem:SetSelect(visiable)
+	self.m_Sel:SetActive(visiable)
+end
+
+function SoulStoneSlotItem:Start()
+	self.m_empty.OnClick= emptyFunc;
+	self.m_SoulStoneSlotItem.OnClick= SoulStoneSlotItemFunc;
+
+end
+
+function SoulStoneSlotItem:OnEnable()
+
+end
+
+function SoulStoneSlotItem:OnDisable()
+
+end
+
+function SoulStoneSlotItem:OnDestroy()
+
+end
+function SoulStoneSlotItem:SetStars(star)
+	for k, v in pairs(self.Stars) do
+		v:SetActive(k<=star)
+	end
+end
+
+function SoulStoneSlotItem:IsEmptySlot()
+	return self.IsEmpty
+end
+
+function SoulStoneSlotItem:GetItem()
+	return self.SlotItem
+end
+
+function SoulStoneSlotItem:OnOpen(arg)
+
+	self.ItemID=0;
+	self.EntityID=0;
+	self.SlotItem=arg;
+	local isEmpty=arg==nil;
+	self:SetSelect(false)
+	self.IsEmpty=isEmpty;
+	if isEmpty then
+		self.m_empty.gameObject:SetActive(true)
+		self.m_Has:SetActive(false)
+	else
+		self.ItemID=arg.BaseID;
+		self.EntityID=arg.ID;
+		local cfg= ConfigDataAccessor.Item[arg.BaseID]
+		if cfg~=nil then
+			ResourceHelper:LoadIconAsync(self.m_icon, "", cfg.Icon, true)
+			self:GetSpriteByAtlas("UI/Partner/Atlas/Partner1","Partner_btn_"..cfg.Quality,function (sp)
+					self.m_di.sprite=sp
+				end)
+
+		end
+		local pequip= ConfigDataAccessor.PartnerEquip[arg.BaseID]
+		if pequip~=nil then
+			self:SetStars(pequip.AdvancedLevel)
+		end
+		self.m_empty.gameObject:SetActive(false)
+		self.m_Has:SetActive(true)
+	end
+
+
+end
+
+function SoulStoneSlotItem:OnClose(arg)
+
+end
+
+function SoulStoneSlotItem:OnClickempty()
+	if self.ClickEmptyCall~=nil then
+		self.ClickEmptyCall(self.ID)
+	end
+end
+
+function SoulStoneSlotItem:OnClickSoulStoneSlotItem()
+	if self.SelectCall~=nil then
+		self.SelectCall(self.ID,self.SlotItem)
+	end
+end
+
+
+
+return  SoulStoneSlotItem

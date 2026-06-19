@@ -1,0 +1,86 @@
+--[[
+*文件名   :   GamePlayPreviewItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/12/08 11:38:49"
+*创建人   :   "caojie"
+*版权所有 :   游卡网络科技技术有限公司
+]] local GamePlayPreviewItem = {}
+GamePlayPreviewItem.__index = GamePlayPreviewItem
+local ItemGrid = require("View/Item/ItemGrid");
+
+function GamePlayPreviewItem:New(_go)
+    local self = {};
+    setmetatable(self, GamePlayPreviewItem);
+
+    self.gameObject = _go;
+    self.transform = _go.transform;
+
+    self.m_GamePlayIconImage = self.transform:Find("GamePlayIconRoot/GamePlayIconImage"):GetComponent(typeof(Image))
+    self.m_GamePlayTitleText = self.transform:Find("GamePlayTitleText"):GetComponent(typeof(Text))
+    self.m_GamePlayDescText = self.transform:Find("GamePlayDescText"):GetComponent(typeof(Text))
+    self.m_ItemPreviewGo = self.transform:Find("ItemPreview").gameObject
+    self.ItemPreview = StructAccessor.ItemPreview.new(self.m_ItemPreviewGo);
+    self.m_GamePlayLockedRoot = self.transform:Find("GamePlayLockedRoot").gameObject
+    self.m_GamePlayLockedText = self.transform:Find("GamePlayLockedRoot/GamePlayLockedText"):GetComponent(typeof(Text))
+    self.m_GamePlayUnLockRoot = self.transform:Find("GamePlayUnLockRoot").gameObject
+    self.m_ReceivedBtn = self.transform:Find("GamePlayUnLockRoot/ReceivedBtn"):GetComponent(typeof(JButton))
+    self.m_UnReceiveBtn = self.transform:Find("GamePlayUnLockRoot/UnReceiveBtn"):GetComponent(typeof(JButton))
+
+    return self; -- 返回自身
+end
+
+function GamePlayPreviewItem:OnClickUnReceiveBtn(id)
+    local message = CS.ProtoMsg.GetSystemOpenRewardReq()
+    message.Index = id
+    NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message, false)
+end
+
+function GamePlayPreviewItem:OnClickReceivedBtn()
+    -- Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_148"))
+    -- Util.ShowMessage("已领取")
+end
+
+function GamePlayPreviewItem:OnItemClick(ritem)
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", {ritem.BaseID, false, 0, ritem.transform, 0});
+end
+
+function GamePlayPreviewItem:SetItem(data)
+    ResourceHelper:LoadSpriteAtlasAsync(self.m_GamePlayIconImage, "UI/Icons/Atlas/IconSystem", data.SysIcon, false, nil, true)
+    self.m_GamePlayTitleText.text = data.SysName
+    self.m_GamePlayDescText.text = data.SysDesc
+    local isUnlock, strLocked = CheckPlayerGuidanceOpen(data.GuidSysOpenID, "", false, true)
+    self.m_GamePlayLockedText.text = strLocked
+    self.m_GamePlayLockedRoot:SetActive(not isUnlock)
+    self.m_GamePlayUnLockRoot:SetActive(isUnlock)
+    self.m_UnReceiveBtn.gameObject:SetActive(isUnlock and not data.IsReceived)
+    self.m_ReceivedBtn.gameObject:SetActive(isUnlock and data.IsReceived)
+
+    local CostItems = {}
+    table.insert(CostItems, {
+        ItemID = data.ItemId,
+        ItemNum = data.ItemCount
+    })
+
+    self.ItemPreview:SetItems(CostItems)
+    local state = 0
+    if isUnlock then
+        if data.IsReceived then
+            state = 2
+        else
+            state = 1
+        end
+    else
+        state = 0
+    end
+    self.ItemPreview:SetShowGetState(state, true)
+
+    self.m_UnReceiveBtn.OnClick = function()
+        self:OnClickUnReceiveBtn(data.ID)
+    end
+    self.m_ReceivedBtn.OnClick = function()
+        self:OnClickReceivedBtn()
+    end
+end
+
+return GamePlayPreviewItem;

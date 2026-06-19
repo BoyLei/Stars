@@ -1,0 +1,83 @@
+--[[
+*文件名   :   AfternoonGveRankPartPersonalItem
+*内  容   :   Item
+*说  明   :
+*创建日期 :   "2023/05/31 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local AfternoonGveRankPartPersonalItem = {}
+
+AfternoonGveRankPartPersonalItem.__index = AfternoonGveRankPartPersonalItem
+
+
+local ItemGrid=require("View/Item/ItemGrid");
+
+
+function AfternoonGveRankPartPersonalItem:New(_go)
+    local self = {}
+    setmetatable(self, AfternoonGveRankPartPersonalItem)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.Rank = self.transform:Find("Rank"):GetComponent(typeof(Text))
+    self.Name = self.transform:Find("Name"):GetComponent(typeof(Text))
+    self.GuildName = self.transform:Find("GuildName"):GetComponent(typeof(Text))
+    self.Score = self.transform:Find("Score"):GetComponent(typeof(Text))
+
+    self.Icon = self.transform:Find("Icon"):GetComponent(typeof(Image))
+
+    if self.transform:Find("RankBg")~=nil then
+        self.RankBg= self.transform:Find("RankBg"):GetComponent(typeof(Image))
+    end
+
+
+    return self --返回自身
+end
+
+
+function AfternoonGveRankPartPersonalItem:SetItem(data)
+
+    if data.Rank==-1 then
+        self.Rank.text="";
+        self.Name.text="";--玩家名，暂时是错误的
+        self.GuildName.text="";--暂时没有之后补
+        self.Score.text="";
+        self.Icon.gameObject:SetActive(false);
+        if self.RankBg~= nil then
+            self.RankBg.gameObject:SetActive(false);
+        end
+    else
+
+        self.Rank.text=data.Rank;
+        self.Name.text=data.MemberName;--玩家名，暂时是错误的
+        if data.GuildName=="" then
+            self.GuildName.text=LanguageHelp:GetLanguageByKey("Local_Str_Tips16");
+        else
+            self.GuildName.text=data.GuildName;
+        end
+        self.Score.text=data.Score;
+        self.Icon.gameObject:SetActive(true);
+
+        --职业图标
+		local MemberJobID=data.MemberJobID;
+        -- 职业标签图标
+        local jobshi = math.floor(MemberJobID / 10)
+
+        -- 职业类型icon设置
+        --local jobTypeBgName = "Icon_ArmBg" .. jobshi
+        --ResourceHelper:LoadIconByAtlasAsync(self.JobTypeBg, ResourceHelper.AtlasPathRole, jobTypeBgName, false)
+        local jobTypeName = "Icon_Arm" .. jobshi
+        ResourceHelper:LoadIconByAtlasAsync(self.Icon, ResourceHelper.AtlasPathRole, jobTypeName, false)
+
+
+        if self.RankBg~= nil then
+            self.RankBg.gameObject:SetActive(true);
+        end
+    end
+
+end
+
+
+return AfternoonGveRankPartPersonalItem

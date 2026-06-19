@@ -1,0 +1,203 @@
+local SelectBtn = require("View/Item/SelectBtn");
+local SkillPanel = require("View/UIWindow/Skill/SkillPanel");
+local SkillWidgetPanel = require("View/UIWindow/Skill/SkillWidgetPanel");
+
+SkillWindow = class("SkillWindow", UIPanel)
+SkillWindow.IsOpen = false;
+
+function SkillWindow:InitControls()
+    local root = self:Find("Cut4Cam90/AssemblyRatio2");
+    self.m_TouchBg = root:Find("TouchBg"):GetComponent(typeof(JButton));
+
+    local leftBtns = root:Find("BtnWidget/LeftBtns");
+
+    local skillBtn = leftBtns:Find("SkillBtn");
+    local switchBtn = leftBtns:Find("SwitchBtn");
+    local talentBtn = leftBtns:Find("TalentBtn");
+
+    self.m_SkillBtnFx = skillBtn:Find("selected/Fx");
+    self.m_SwitchBtnFx = switchBtn:Find("selected/Fx");
+    self.m_TalentBtnFx = talentBtn:Find("selected/Fx");
+
+    local skillPanel = root:Find("SkillPanel").gameObject;
+    self.m_SkillPanel = SkillPanel:New(skillPanel, self.module);
+
+    local SkillWidget = root:Find("SkillWidget").gameObject;
+    self.m_SkillWidget = SkillWidgetPanel:New(SkillWidget, self.module);
+
+    self.m_SkillSelect = SelectBtn:New(skillBtn.gameObject);
+    self.m_SkillSelect:InitItem(1, function()
+        self:OnClickSkillBtn();
+    end);
+
+    self.m_SwitchSelect = SelectBtn:New(switchBtn.gameObject);
+    self.m_SwitchSelect:InitItem(2, function()
+        self:OnClickSwitchBtn();
+    end);
+
+    self.m_TalentSelect = SelectBtn:New(talentBtn.gameObject);
+    self.m_TalentSelect:InitItem(3, function()
+        LuaModuleDispatcher:SendMessage(ModuleDef.TalentModule, "OnOpenTalentWindow", function()
+            self.Close();
+        end);
+        -- self.Close();
+    end);
+
+    LuaModuleDispatcher:SendMessage(ModuleDef.TalentModule, "CheckHasTalent", function(result)
+        if result == false then
+            talentBtn.gameObject:SetActive(false)
+        end
+    end)
+
+    self.m_loadingFx = false;
+    self.m_fx = nil;
+
+    self.m_fx_parent = nil;
+    self.m_openedPanel = nil;
+
+    self.m_select = nil;
+end
+
+-- 进入的技能界面选中的 界面
+function SkillWindow:Open(panelType, playAnim, curselSkillID)
+
+    if panelType == 1 then
+
+        self.curselskillid = curselSkillID
+        self:OnClickSkillBtn();
+
+    elseif panelType == 2 then
+
+        self:OnClickSwitchBtn();
+
+    elseif panelType == 3 then
+        -- 毛哥的天赋树 目前没放进技能秒板里面
+        print("天赋树 未放入技能面板");
+    end
+end
+
+function SkillWindow:OnClickSkillBtn()
+    -- 设置选中的特效父节点
+    self.m_selectFxParent = self.m_SkillBtnFx;
+
+    self:MarkSelected(self.m_SkillSelect);
+
+    self:PlaySelectFx();
+
+    self:OpenPanel(self.m_SkillPanel);
+end
+
+function SkillWindow:OnClickSwitchBtn()
+    -- 设置选中的特效父节点
+    self.m_selectFxParent = self.m_SwitchBtnFx;
+
+    self:MarkSelected(self.m_SwitchSelect);
+
+    self:PlaySelectFx();
+
+    self:OpenPanel(self.m_SkillWidget);
+
+end
+
+function SkillWindow:MarkSelected(select)
+    if self.m_select ~= nil then
+        self.m_select:MakeSelected(false);
+    end
+
+    self.m_select = select;
+
+    self.m_select:MakeSelected(true);
+end
+
+function SkillWindow:OpenPanel(selectPanel)
+
+    -- 先关闭旧的 界面
+    if self.m_openedPanel ~= nil then
+        self.m_openedPanel:Close();
+    end
+
+    -- 设置选中的特效父节点
+    self.m_openedPanel = selectPanel;
+
+    self.m_openedPanel:Show(self.curselskillid);
+
+end
+
+-- 收到数据刷新的时候的接口
+function SkillWindow:OnUpdateData()
+
+    if self.m_openedPanel == nil then
+        return;
+    end
+
+    self.m_openedPanel:OnUpdateData();
+end
+
+-- 播放选中的特效
+function SkillWindow:PlaySelectFx()
+    if self.loadingFx == true then
+        return;
+    end
+
+    if self.m_fx == nil then
+        self.loadingFx = true;
+        ResourceManager.Instance:PopGameObject("UI/Skill/Fx/FX_ui_EquipUpgradeWindow_Tab", function(_go)
+            self.loadingFx = false;
+
+            if _go == nil then
+                return;
+            end
+            if IsDestroy == true then
+                ResourceManager.Instance:PushGameObject("UI/Skill/Fx/FX_ui_EquipUpgradeWindow_Tab", _go);
+                return;
+            end
+
+            local go = GameObject.Instantiate(_go);
+
+            self.m_fx = go.transform:GetComponent(typeof(UIParticle));
+
+            self:PlayFx();
+        end)
+    else
+        self:PlayFx();
+    end
+end
+
+function SkillWindow:PlayFx()
+    self.m_fx.transform:SetParent(self.m_selectFxParent);
+    self.m_fx.transform.localPosition = Vector3.zero;
+    self.m_fx.transform.localScale = Vector3.one;
+
+    self.m_fx.transform.gameObject:SetActive(true);
+
+    self.m_fx:Clear();
+    self.m_fx:Play();
+end
+
+function SkillWindow:BindModule(m)
+    self.module = m;
+end
+
+function SkillWindow:OnDestroy()
+    self.module:OnWindowClose();
+end
+
+function SkillWindow:OnOpen(arg)
+    self.IsOpen = true;
+end
+
+function SkillWindow:OnClose(arg)
+
+    -- 界面关闭时,清除里面的红点数据
+    if self.m_openedPanel == self.m_SkillPanel then
+        self.module:MarkOpenSkill();
+    end
+
+    self:CloseWindow();
+end
+
+function SkillWindow:CloseWindow()
+    self.IsOpen = false;
+end
+
+return SkillWindow

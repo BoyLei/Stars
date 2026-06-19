@@ -1,0 +1,168 @@
+--[[
+*文件名   :   DetailAttr
+*内  容   :
+*说  明   :
+*创建日期 :   "2024/05/16 10:54:51"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+DetailAttr=class("DetailAttr",UIPanel)
+DetailAttr.m_Fold=nil;
+DetailAttr.m_ItemGrid=nil;
+DetailAttr.m_PropScrollView=nil;
+DetailAttr.OnBackCall=nil;
+local FoldFunc=nil;
+
+
+function DetailAttr:ctor(go)
+	self.prefab=go;
+	self.m_Fold=self:Find("Title/Fold"):GetComponent(typeof(JButton));
+	self.m_ItemGrid=self:Find("ItemGrid").gameObject;
+	self.m_PropScrollView=self:Find("PropScrollView"):GetComponent(typeof(SuperScrollViewController));	
+	self.m_PropScrollView:NewScroll(self.m_ItemGrid, 0, function (tr,idx)
+			self:OnPropItemRefesh(tr,idx);
+		end);
+	FoldFunc=function() self:OnClickFold(); end;
+	self:Start();
+
+end
+
+function DetailAttr:OnPropItemRefesh(tr,idx)
+	if self.PropPartnerItems==nil then
+		self.PropPartnerItems={};
+	end
+
+	for i=1,#self.PropPartnerItems do
+		if self.PropPartnerItems[i].transform == tr then
+			local Proptext=self.PropPartnerItems[i].transform:Find("Text"):GetComponent(typeof(Text));
+			local ProptValue=self.PropPartnerItems[i].transform:Find("Power"):GetComponent(typeof(Text));
+
+			local data=self.Props[idx+1];
+			local vaule=(data.Base+data.NewCer)*(1+data.Star*0.0001)+data.Equip
+			--print("Key"..data.id.."基础"..data.Base.."资质"..data.NewCer.."星级"..data.Star.."装备"..data.Equip .."最终值"..vaule)
+			--(升级属性+资质*转化率)*(1+星级加成)+装备属性
+			Proptext.text=data.PropName;
+			ProptValue.text=tostring(math.floor(vaule));
+			return
+		end
+	end
+
+	tr.gameObject:SetActive(true);
+	local Proptext=tr.transform:Find("Text"):GetComponent(typeof(Text));
+	local ProptValue=tr.transform:Find("Power"):GetComponent(typeof(Text));
+
+	local data=self.Props[idx+1];
+	local vaule=(data.Base+data.NewCer)*(1+data.Star*0.0001)+data.Equip
+
+	--print("Key"..data.id.."基础"..data.Base.."资质"..data.NewCer.."星级"..data.Star.."装备"..data.Equip .."最终值"..vaule)
+	--(升级属性+资质1*转化率1+资质2*转化率2)*(1+星级加成)+装备属性
+	--(升级属性+资质*转化率)*(1+星级加成)+装备属性
+	Proptext.text=data.PropName;
+	ProptValue.text=tostring(math.floor(vaule));
+	table.insert(self.PropPartnerItems, tr);
+end
+
+
+
+function DetailAttr:Start()
+	self.m_Fold.OnClick= FoldFunc;
+end
+
+function DetailAttr:OnEnable()
+
+end
+
+function DetailAttr:OnDisable()
+
+end
+
+function DetailAttr:OnDestroy()
+
+end
+
+function DetailAttr:OnPropItemRefesh(tr,idx)
+	if self.PropPartnerItems==nil then
+		self.PropPartnerItems={};
+	end
+
+
+
+
+	for i=1,#self.PropPartnerItems do
+		if self.PropPartnerItems[i].transform == tr then
+			local icon=tr.transform:Find("Icon"):GetComponent(typeof(Image))
+			local text=tr.transform:Find("Text"):GetComponent(typeof(Text))
+			local Value=tr.transform:Find("Value"):GetComponent(typeof(Text))
+			local data=self.Props[idx+1];
+			local vaule=(data.Base+data.NewCer)*(1+data.Star*0.0001)+data.Equip
+			self:GetSpriteByAtlas("UI/Icons/Atlas/IconAttribute","Attribute_"..data.id,function (sp)
+					icon.sprite=sp
+				end)
+			text.text=data.PropName
+			--print("Key"..data.id.."基础"..data.Base.."资质"..data.NewCer.."星级"..data.Star.."装备"..data.Equip .."最终值"..vaule)
+			--(升级属性+资质*转化率)*(1+星级加成)+装备属性
+			Value.text=tostring(math.floor(vaule));
+			return
+		end
+	end
+
+	local icon=tr.transform:Find("Icon"):GetComponent(typeof(Image))
+	local text=tr.transform:Find("Text"):GetComponent(typeof(Text))
+	local Value=tr.transform:Find("Value"):GetComponent(typeof(Text))
+	local v=self.Props[idx+1];
+	self:GetSpriteByAtlas("UI/Icons/Atlas/IconAttribute","Attribute_"..v.id,function (sp)
+			icon.sprite=sp
+		end)
+	text.text=v.PropName
+	local vaule=(v.Base+v.NewCer)*(1+v.Star*0.0001)+v.Equip
+	--print("Key"..data.id.."基础"..data.Base.."资质"..data.NewCer.."星级"..data.Star.."装备"..data.Equip .."最终值"..vaule)
+	--(升级属性+资质*转化率)*(1+星级加成)+装备属性
+	Value.text=tostring(math.floor(vaule));
+	table.insert(self.PropPartnerItems, tr);
+end
+
+
+function DetailAttr:OnOpen(data,callback)
+	
+	self.OnBackCall=callback;
+	--local config=ConfigDataAccessor.Partner[data.Index];
+	--(升级属性+资质*转化率(分段计算))*(1+星级加成)+装备属性
+	self.Props=CalculatePartnerProp(data)
+	self.m_PropScrollView:ContinueScroll(#self.Props,true,0);
+
+end
+function DetailAttr:CalculateToAddEquipValue(data,temp)
+
+	--装备
+	if data~= nil then
+		for i=1,3 do
+			local data=BusinessManager.Instance:GetPartnerEquipedEquip(data.ID,i);
+			if data~= nil then
+				local Nature=ConfigDataAccessor.PartnerEquip[data.BaseID].Nature;
+				local Value=ConfigDataAccessor.PartnerEquip[data.BaseID].Value;
+				for j=1,#Nature do
+					local t=temp[Nature[j]];
+					if t~=nil then
+						t.Equip=t.Equip+Value[j];
+						temp[Nature[j]]=t;
+					end
+				end
+			end
+		end
+	end
+
+
+end
+
+
+function DetailAttr:OnClose(arg)
+
+end
+
+function DetailAttr:OnClickFold()
+	self.OnBackCall();
+end
+
+
+
+return  DetailAttr

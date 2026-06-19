@@ -1,0 +1,143 @@
+--[[
+*文件名   :   ItemBuyModule
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/30 10:30:39"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+ItemBuyModule = class("ItemBuyModule",BaseLuaModule)
+
+local ItemBuyWindowPath = "Item/ItemBuyWindow"
+
+ItemBuyModule.IsOpenTips=false;
+
+--LuaModule 消息模块
+ItemBuyModule.ModuleMessages=
+{
+	--打开
+	--ModuleManager.Instance.SendMessage(ModuleDef.ItemBuyModule, "OnOpenItemBuy", new object[] { xxxx }); 
+	["OnOpenItemBuy"]=function(...)
+		ItemBuyModule:OnOpenItemBuy(...);
+	end,
+
+}
+
+
+--监听打开奖励面板
+function ItemBuyModule:OnOpenItemBuy(...)
+	local tb=...
+	local item=nil;
+	--列表
+	if type(tb)=="table" then
+		--Lua调用
+		item=tb[1];
+	else
+		--C#调用
+		item=tb[0];
+	end
+	
+	-- local itemBuyWindowCs =UIManager.Instance:OpenWindow(ItemBuyWindowPath);
+	-- if self.itemBuyWindowView == nil then
+	-- 	self.itemBuyWindowView=itemBuyWindowCs:GetLuaPanel().ScriptTable;	
+	-- 	self.itemBuyWindowView:BindModule(self);
+	-- 	self.itemBuyWindowView:InitItems();
+	-- 	self.evtOnCloseItemBuy = LuaModuleDispatcher:Event(ModuleDef.ItemBuyModule, "OnCloseItemBuyEvt")
+	-- end
+	-- self.IsOpenTips=false
+	-- --显示
+	-- self.itemBuyWindowView:RefeshItem(item);
+
+	self.AsyncLoadItemBuyWindowCb = function(ui)
+		if ui ~= nil then
+			if self.itemBuyWindowView == nil then
+				self.itemBuyWindowView=ui:GetLuaPanel().ScriptTable;	
+				self.itemBuyWindowView:BindModule(self);
+				self.itemBuyWindowView:InitItems();
+				self.evtOnCloseItemBuy = LuaModuleDispatcher:Event(ModuleDef.ItemBuyModule, "OnCloseItemBuyEvt")
+			end
+			self.IsOpenTips=false
+			--显示
+			self.itemBuyWindowView:RefeshItem(item);
+		end
+		self.AsyncLoadItemBuyWindowCb = nil;
+	end
+	UIManager.Instance:OpenWindowAsync(ItemBuyWindowPath,self.AsyncLoadItemBuyWindowCb);
+end
+
+
+function ItemBuyModule:OpenItemTips(baseID,entityID,tr)
+	--print("ItemBuyModule:OpenItemTips:"..baseID);
+	LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",{ baseID,false ,entityID,tr,0});
+end
+
+function ItemBuyModule:CloseItemTips()
+	print("ItemBuyModule:CloseItemTips");
+	LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips",{  });
+end
+
+
+--关闭回调
+function ItemBuyModule:OnCloseItemBuyEvt(arg)
+	self.evtOnCloseItemBuy:Invoke()
+	self.itemBuyWindowView=nil;
+end
+
+
+--关闭
+function ItemBuyModule:OnCloseItemBuy()
+	self:OnCloseItemBuyEvt();
+
+	--所有的New置空
+	--BusinessManager.Instance:UnNewAllItems();
+
+end
+
+--购买商品
+function ItemBuyModule:BuyItem(shopID,goodID,goodNum)
+
+	local shopBuyReq = CS.ProtoMsg.ShopBuyReq();
+	shopBuyReq.ShopID = shopID;--商店ID
+	shopBuyReq.GoodID = goodID;--商品ID
+	shopBuyReq.GoodNum = goodNum;--商品数量
+
+	--刷新假掉落回调
+	--local cfg=ConfigDataAccessor.Goods[goodID];
+	--LuaModuleDispatcher:SendMessage(ModuleDef.ShopModule, "OnRefeshDrop",{ cfg.Item_id,goodNum });
+
+	
+	CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, shopBuyReq, false);
+
+
+	--关闭UI
+	self:CloseItemTips()
+end
+
+
+
+--LuaModule 创建
+function ItemBuyModule:OnModuleCreate(arg)
+	LuaModuleDispatcher:Register(ModuleDef.ItemBuyModule,self)
+
+end
+
+
+--LuaModule 消息处理
+function ItemBuyModule:OnModuleMessage(msg,...)
+	self.ModuleMessages[msg](...);
+end
+
+
+--LuaModule显示
+function ItemBuyModule:OnModuleShow(arg)
+
+end
+
+--LuaModule 释放
+function ItemBuyModule:OnModuleRelease()
+	LuaModuleDispatcher:UnRegister(ModuleDef.ItemBuyModule)
+end
+
+
+return  ItemBuyModule
+

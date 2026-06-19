@@ -1,0 +1,64 @@
+--[[
+*文件名   :   TimelinePopItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/10/25 11:09:17"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+TimelinePopItem=class("TimelinePopItem",UIPanel)
+TimelinePopItem.m_Content=nil;
+TimelinePopItem.worldPoint=nil;
+
+function TimelinePopItem:New(go)
+	self.prefab=go;
+	self.m_Content=self:Find("Content"):GetComponent(typeof(Text));
+	self.m_rectBg=self.prefab.transform:GetComponent(typeof(RectTransform));
+	
+	MonoHelper.AddLaterUpdateListener(function ()
+			self:UpdatePos();
+		end);
+	return self;
+end
+
+function TimelinePopItem:UpdatePos()
+
+
+	local uiPos=CS.PositionConvert.ConvertWorldToCanvasPosition(self.worldPoint,true)
+	--self.m_rectBg.anchoredPosition=Vector2.Lerp(self.m_rectBg.anchoredPosition, uiPos, Time.deltaTime*20);
+	self.m_rectBg.anchoredPosition=uiPos;
+
+end
+
+function TimelinePopItem:InitItem()
+	self:SetUse(false);
+end
+
+function TimelinePopItem:SetUse(b)
+	self.IsUsed=b;
+	self.prefab:SetActive(b);
+end
+
+function TimelinePopItem:SetItem(info)
+	local targetID=GameManager.Instance.mainPlayerId;
+	if targetID~= nil and targetID~=0 then
+		local playerName=GameManager.Instance:GetEntityNameById(targetID);
+		if playerName~= nil and playerName~="" then
+			info.Item2 = string.gsub(info.Item2, "@player", playerName)
+		end
+	end
+	
+	self.m_Content.text=info.Item2
+	
+	self.worldPoint=info.Item4
+	self.worldPoint.x=self.worldPoint.x
+	self.worldPoint.y=self.worldPoint.y+1.8
+	self:UpdatePos();
+	local worldPoint=info.Item4
+
+	self:SetUse(true);
+
+
+end
+
+return  TimelinePopItem

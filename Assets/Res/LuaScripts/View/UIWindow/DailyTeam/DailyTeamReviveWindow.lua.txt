@@ -1,0 +1,60 @@
+--[[
+*文件名   :   DailyTeamReviveWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/06/27 16:30:32"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+DailyTeamReviveWindow=class("DailyTeamReviveWindow",UIPanel)
+DailyTeamReviveWindow.m_Time=nil;
+DailyTeamReviveWindow.DeadTime=0;
+
+function DailyTeamReviveWindow:Awake()
+	self.m_Time=self:Find("Cut4Cam90/AssemblyRatio2/Center/Time"):GetComponent(typeof(Text));
+	self.OnSecTimeUpdate=function()
+		self:OnSecTimeUpdateHandler()
+	end
+end
+
+function DailyTeamReviveWindow:Start()
+
+end
+
+function DailyTeamReviveWindow:OnEnable()
+	MonoHelper.AddSecTimeUpdateListener(self.OnSecTimeUpdate);
+end
+
+function DailyTeamReviveWindow:OnDisable()
+	MonoHelper.RemoveSecTimeUpdateListener(self.OnSecTimeUpdate);
+end
+
+function DailyTeamReviveWindow:OnDestroy()
+
+end
+function DailyTeamReviveWindow:OnSecTimeUpdateHandler()
+	self:ShowTime();
+end
+
+function DailyTeamReviveWindow:OnOpen(arg)
+	self.DeadTime=arg;
+	self:ShowTime();
+end
+
+function DailyTeamReviveWindow:ShowTime()
+	local time=math.ceil((self.DeadTime-TimeUtils.ServerNowStampMilli)/1000)
+	if time<=0 then
+		LuaModuleDispatcher:SendMessage(ModuleDef.DailyTeamModule, "OnTeamDailyReviveReq", { });
+	else
+		self.m_Time.text=time.."s"
+
+	end
+end
+
+function DailyTeamReviveWindow:OnClose(arg)
+
+end
+
+
+
+return  DailyTeamReviveWindow

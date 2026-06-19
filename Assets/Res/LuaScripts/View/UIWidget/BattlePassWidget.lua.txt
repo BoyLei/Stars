@@ -1,0 +1,365 @@
+--[[
+*文件名   :   BattlePassWidget
+*内  容   :   现金购买
+*说  明   :
+*创建日期 :   "2022/12/06 10:33:06"
+*创建人   :   "quzhenxin"
+*版权所有 :   游卡网络科技技术有限公司
+]] BattlePassWidget =
+    class("BattlePassWidget", UIPanel)
+
+local SelectBtn = require("View/Item/SelectBtn")
+local BattlePassRewards = require("View/UIWidget/BattlePass/BattlePassRewards")
+local BattlePassTasks = require("View/UIWidget/BattlePass/BattlePassTasks")
+
+function BattlePassWidget:Awake()
+    self.transform = self.prefab.transform
+    self.gameObject = self.transform.gameObject
+
+    -- 动画相关
+    self.anim = self.transform:GetComponent(typeof(Animator))
+
+    self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/BtnClose"):GetComponent(typeof(JButton)).OnClick = (function()
+        self:OnPlayBack()
+    end)
+
+    self.go_first = self.transform:Find("Cut4Cam90/AssemblyRatio2/Menu/tag1").gameObject
+    -- 左边菜单
+    self.transform:Find("Cut4Cam90/AssemblyRatio2/Menu/tag1"):GetComponent(typeof(JButton)).OnClick = (function()
+        self:OnPlayBack()
+        -- 打开首充
+        LuaModuleDispatcher:SendMessage(ModuleDef.CommercializationModule, "OnOpenCommercialization", {1})
+        -- UIManager.Instance:OpenWidget("Shop/FirstPayWidget", false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone,false,false);
+    end)
+
+    self.go_moonCard = self.transform:Find("Cut4Cam90/AssemblyRatio2/Menu/tag2").gameObject
+    self.transform:Find("Cut4Cam90/AssemblyRatio2/Menu/tag2"):GetComponent(typeof(JButton)).OnClick = (function()
+        self:OnPlayBack()
+        -- 打开月卡
+        LuaModuleDispatcher:SendMessage(ModuleDef.CommercializationModule, "OnOpenCommercialization", {2})
+        -- UIManager.Instance:OpenWidget("Shop/MoonCardWidget", false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone,false,false);
+    end)
+
+    -- 通行证中间
+    self.Name = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/View/name"):GetComponent(typeof(Text))
+    self.Char = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/Char"):GetComponent(typeof(Image))
+    self.Info = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/View/RewBtn/tex"):GetComponent(typeof(Text))
+
+    -- 预览伙伴
+    self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/View/RewBtn"):GetComponent(typeof(JButton)).OnClick = (function()
+    end)
+
+    -- 菜单按钮
+    self.MenuBtns = {}
+    local btn1 = SelectBtn:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/View/tag1").gameObject)
+    btn1:InitItem(
+        1,
+        function(idx)
+            self:OnMenuBtnClick(idx)
+        end
+    )
+    table.insert(self.MenuBtns, btn1)
+
+    local btn2 = SelectBtn:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/View/tag2").gameObject)
+    btn2:InitItem(
+        2,
+        function(idx)
+            self:OnMenuBtnClick(idx)
+        end
+    )
+    table.insert(self.MenuBtns, btn2)
+
+    self.idxNow = -1
+
+    -- 通行证顶部
+    self.Slider = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/TopInfo/Slider"):GetComponent(typeof(RectTransform))
+    self.SliderW = self.Slider.sizeDelta.x
+    self.SliderH = self.Slider.sizeDelta.y
+
+    self.Lv = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/TopInfo/Lv"):GetComponent(typeof(Text))
+    self.LeftTime = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/TopInfo/LeftTime"):GetComponent(typeof(Text))
+    self.Exp = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/TopInfo/Exp"):GetComponent(typeof(Text))
+    self.Limit = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/TopInfo/Limit"):GetComponent(typeof(Text))
+
+    -- 购买等级
+    self.go_buyLevel = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/TopInfo/BtnBuyLv").gameObject
+    self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/TopInfo/BtnBuyLv"):GetComponent(typeof(JButton)).OnClick = (function()
+        if self.LvNow == self.MaxLv then
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_MaxLevel2"))
+        else
+            UIManager.Instance:OpenWidget("Shop/BattlePassBuyLvWidget", false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, false)
+        end
+    end)
+
+    self.go_buy = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/TopInfo/BtnBuyLv/canBuy").gameObject
+    self.go_cantBuy = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/TopInfo/BtnBuyLv/cantBuy").gameObject
+
+    -- 两个页面
+    self.Rewards = BattlePassRewards:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/Rewards").gameObject, self)
+    self.Tasks = BattlePassTasks:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/Tasks").gameObject, self)
+
+    self.message1 = function(data)
+        self:OnBattlePassInfoNtf(data)
+    end
+
+    -- 活动倒计时
+    -- 刷新时间
+    self.NeedRefesh = false
+    -- update事件
+    self.UpdateFun = function()
+        self:RefeshLeftTime()
+    end
+end
+
+function BattlePassWidget:OnMenuBtnClick(idx)
+    if self.idxNow == idx then
+        return
+    end
+
+    self.idxNow = idx
+
+    for i = 1, #self.MenuBtns do
+        self.MenuBtns[i]:MakeSelected(false)
+    end
+    self.MenuBtns[idx]:MakeSelected(true)
+
+    self:Refesh()
+end
+
+function BattlePassWidget:Refesh(isCallback)
+    if GameManager.Instance.FirstPaySignInfo ~= nil then
+        local isGetAllFirstChargeItem = (GameManager.Instance.FirstPaySignInfo.GetFirstPayAwardNum >= 3)
+
+        self.go_first:SetActive(not (isGetAllFirstChargeItem))
+    end
+
+    -- 判断是否开启支付
+    if not (GameManager.Instance:IsUnLockPayFunction()) then
+        self.go_first:SetActive(false)
+        self.go_moonCard:SetActive(false)
+        self.go_buyLevel:SetActive(false)
+    end
+
+    self.BattlePassInfo = GameManager.Instance.BattlePassInfo
+
+    -- 上面的信息
+    if self.BattlePassInfo ~= nil then
+        local SeasonId = self.BattlePassInfo.SeasonId
+
+        local seasonCfg = ConfigDataAccessor.BPSeason[SeasonId]
+
+        local awardGroup = seasonCfg.AwardGroup
+
+        local partnerId = seasonCfg.BigPrizePartner
+        -- self.Info.text="冒险企划"..seasonCfg.BigPrizeLevel.."级奖励";
+        self.Info.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Info"), {seasonCfg.BigPrizeLevel})
+
+        local partnerCfg = ConfigDataAccessor.Partner[partnerId]
+        self.Name.text = partnerCfg.Name
+        self.Char.gameObject:SetActive(false)
+        local avatarDataCell = ConfigDataAccessor.Avatar[partnerCfg.AvatarID]
+        if avatarDataCell ~= nil then
+            local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID]
+            if headCfg ~= nil then
+                if self.Char ~= nil then
+                    -- ResourceHelper:LoadIconAsync(self.Char, "", headCfg.HalfDrawing, true,function()
+                    ResourceHelper:LoadSpriteAtlasAsync(
+                        self.Char,
+                        ResourceHelper.HeadAtlasPath .. headCfg.HalfDrawing,
+                        headCfg.HalfDrawing,
+                        false,
+                        function()
+                            self.Char.gameObject:SetActive(true)
+                            self.Char:SetNativeSize()
+                        end
+                    )
+                end
+            end
+        end
+
+        self.MaxLv = ConfigDataAccessor.GetBPGradeMaxLv(awardGroup) -- 最大等级
+        self.LvNow = self.BattlePassInfo.BPLevel
+
+        self.Lv.text = self.LvNow
+
+        self.go_buy:SetActive(self.LvNow ~= self.MaxLv)
+        self.go_cantBuy:SetActive(self.LvNow == self.MaxLv)
+
+        self.NeedRefesh = true
+        self:RefeshLeftTime()
+
+        local nowExp = self.BattlePassInfo.BPExp
+        local nextCfg = ConfigDataAccessor.GetBPGrade(awardGroup, self.LvNow + 1)
+
+        if nextCfg == nil then
+            -- self.Exp.text="Max"
+            -- self.Exp.text="最大"
+            self.Exp.text = LanguageHelp:GetLanguageByKey("Local_Str_BattlePassWidget_Exp")
+            self.Slider.sizeDelta = Vector2(self.SliderW, self.SliderH)
+        else
+            local nextExp = nextCfg.UpGradeCost
+            self.Exp.text = nowExp .. "/" .. nextExp
+
+            local per = nowExp / nextExp
+            self.Slider.sizeDelta = Vector2(self.SliderW * per, self.SliderH)
+        end
+
+        -- self.Limit.text="本周经验上限 "..self.BattlePassInfo.WeekExp.."/"..ConfigDataAccessor.SystemList[185].Value;
+        self.Limit.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_BattlePassWidget_Limit"), {self.BattlePassInfo.WeekExp, ConfigDataAccessor.SystemList[185].Value})
+    end
+    if self.tw1 ~= nil then
+        self.tw1:Kill()
+    end
+    if self.tw2 ~= nil then
+        self.tw2:Kill()
+    end
+    if self.IsFirstIn then
+        self.IsFirstIn = false
+        if self.idxNow == 1 then
+            self.anim:Play("Go")
+            self.Rewards:Show(true)
+            self.Tasks:Show(false)
+        elseif self.idxNow == 2 then
+            self.Rewards:Show(false)
+            self.Tasks:Show(true)
+        end
+    else
+        if self.idxNow == 1 then
+            if isCallback then
+                self.Rewards:Refesh()
+            else
+                self.anim:Play("Rewards")
+                self.Rewards:Show(true)
+
+                self.tw1 =
+                    DOVirtual.DelayedCall(
+                    0.3,
+                    function()
+                        self.Tasks:Show(false)
+                    end
+                )
+            end
+        elseif self.idxNow == 2 then
+            if isCallback then
+                self.Rewards:Refesh()
+            else
+                self.anim:Play("Tasks")
+                self.Tasks:Show(true)
+
+                self.tw2 =
+                    DOVirtual.DelayedCall(
+                    0.3,
+                    function()
+                        self.Rewards:Show(false)
+                    end
+                )
+            end
+        end
+    end
+end
+
+function BattlePassWidget:RefeshLeftTime()
+    if self.NeedRefesh then
+        local serverNowTime = math.floor(GameManager.Instance:GetServerTimeStamp() / 1000)
+        local serverCloseTime = self.BattlePassInfo.EndTime
+        local leftTime = serverCloseTime - serverNowTime
+
+        if leftTime > 0 then
+            -- self.LeftTime.text="剩余时间  "..SecToStringColon4(leftTime);
+            self.LeftTime.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Time_Remaining"), {"  " .. SecToStringColon4(leftTime)})
+        else
+            self.NeedRefesh = false
+            -- 活动结束,刷新出新活动
+            DOVirtual.DelayedCall(
+                1,
+                function()
+                    self:Refesh(true)
+                end
+            )
+        end
+    end
+end
+
+function BattlePassWidget:OnBattlePassInfoNtf(data)
+    DOVirtual.DelayedCall(
+        0.2,
+        function()
+            if self.LvNow ~= data.data.BPLevel then
+                -- 打开升级
+                local dd = {}
+                dd.FromLv = self.LvNow
+                dd.ToLv = data.data.BPLevel
+                UIManager.Instance:OpenWidgetAsync("Shop/BattlePassRankUpWidget", nil, false, dd, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, false)
+            end
+            self:Refesh(true)
+        end
+    )
+end
+
+function BattlePassWidget:Start()
+end
+
+function BattlePassWidget:OnEnable()
+end
+
+function BattlePassWidget:OnDisable()
+end
+
+function BattlePassWidget:OnDestroy()
+end
+
+function BattlePassWidget:RefeshData()
+end
+
+function BattlePassWidget:OnOpen(arg)
+    if type(arg) == "table" then
+        -- Lua调用
+        self.OpenTag1 = arg[1]
+        self.OpenTag2 = arg[2]
+    else
+        -- C#调用
+        self.OpenTag1 = arg[0]
+        self.OpenTag2 = arg[1]
+    end
+
+    self.IsFirstIn = true
+    self.Rewards:SetMessage(true)
+    self.Tasks:SetMessage(true)
+    MonoHelper.AddUpdateListener(self.UpdateFun)
+    self.NeedRefesh = false
+    -- 监听等级变化
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.BattlePassInfoNtfID, self.message1, nil)
+
+    if self.OpenTag1 > 0 then
+        self:OnMenuBtnClick(self.OpenTag1)
+
+        if self.OpenTag1 == 2 then
+            if self.OpenTag2 > 0 then
+                self.Tasks:OnMenuBtnClick(self.OpenTag2)
+                self.OpenTag2 = 0
+            end
+        end
+
+        self.OpenTag1 = 0
+    else
+        self:OnMenuBtnClick(1)
+    end
+end
+
+function BattlePassWidget:OnClose(arg)
+    self.IsFirstIn = false
+    self.Rewards:SetMessage(false)
+    self.Tasks:SetMessage(false)
+    self.idxNow = -1
+    MonoHelper.RemoveUpdateListener(self.UpdateFun)
+    self.NeedRefesh = false
+    -- 监听等级变化
+    CS.SGF.Network.NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.BattlePassInfoNtfID, self.message1, nil)
+end
+
+function BattlePassWidget:OnPlayBack()
+    self.gameObject:SetActive(false)
+    UIManager.Instance:CloseWidget("Shop/BattlePassWidget", nil, false)
+end
+
+return BattlePassWidget

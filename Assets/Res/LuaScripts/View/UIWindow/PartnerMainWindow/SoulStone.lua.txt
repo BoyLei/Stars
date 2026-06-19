@@ -1,0 +1,536 @@
+--[[
+*文件名   :   SoulStone
+*内  容   :
+*说  明   :
+*创建日期 :   "2024/05/31 11:24:21"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+SoulStone=class("SoulStone",UIPanel)
+SoulStone.m_Main=nil;
+SoulStone.m_PartnerInfo=nil;
+SoulStone.m_EquipProp=nil;
+SoulStone.m_Slots=nil;
+SoulStone.m_None=nil;
+SoulStone.m_Has=nil;
+SoulStone.m_hecheng=nil;
+SoulStone.m_UpBtn=nil;
+SoulStone.m_goBtn=nil;
+SoulStone.PartnerData=nil;
+SoulStone.PartnerInfo=nil;
+SoulStone.m_List=nil;
+SoulStone.m_Stars=nil;
+SoulStone.m_SkillName=nil;
+SoulStone.m_SkillLevel=nil;
+SoulStone.m_SkillDesc=nil;
+SoulStone.m_Skillicon=nil;
+SoulStone.m_infomation=nil;
+SoulStone.m_Battle=nil;
+SoulStone.SelectItem=nil;
+SoulStone.m_ItemName=nil
+local UpBtnFunc=nil;
+local goBtnFunc=nil;
+
+local OnClickEmptySlot=nil;
+local OnSelectSlot=nil;
+local  WearParEquipRetEventFunc=nil;
+local TakeOffParEquipRetEventFunc=nil;
+local PartnerEquipUPRetEventFunc=nil;
+function SoulStone:ctor(go,red)
+	self.prefab=go;
+	self.RedPoint=red;
+	self.RedPoint:SetActive(false)
+	self.m_Main=self:Find("Main").gameObject;
+	self.m_EquipProp=self:Find("EquipProp").gameObject;
+	self.m_None=self:Find("Main/None").gameObject;
+	self.m_Has=self:Find("Main/Has").gameObject;
+	self.m_PartnerInfo=self:Find("Main/Top/PartnerInfo").gameObject;
+	self.m_hecheng=self:Find("hecheng").gameObject;
+
+	self.m_infomation=self:Find("Main/Has/Content/infomation").gameObject
+	self.m_SkillName=self:Find("Main/Has/Content/infomation/name"):GetComponent(typeof(Text));
+	self.m_SkillLevel=self:Find("Main/Has/Content/infomation/level"):GetComponent(typeof(Text));
+	self.m_SkillDesc=self:Find("Main/Has/Content/infomation/1"):GetComponent(typeof(Text));
+	self.m_Skillicon=self:Find("Main/Has/Content/infomation/Skillicon"):GetComponent(typeof(Image));
+	self.m_Battle=self:Find("Main/Has/Content/Title/Battle"):GetComponent(typeof(Text));
+	self.m_List={}
+	for i = 1, 4 do
+		table.insert(self.m_List,{
+				Icon=self:Find("Main/Has/Content/List/Item"..i.."/Icon"):GetComponent(typeof(Image)),
+				Text=self:Find("Main/Has/Content/List/Item"..i.."/Text"):GetComponent(typeof(Text)),
+				Value=self:Find("Main/Has/Content/List/Item"..i.."/Value"):GetComponent(typeof(Text)),
+			})
+
+	end
+
+	self.m_ItemGroups={}
+	for i = 1, 3 do
+		table.insert(self.m_ItemGroups,{
+				Sel=self:Find("Main/Has/Content/Icons/"..i.."/Sel").gameObject,
+				Normal=self:Find("Main/Has/Content/Icons/"..i.."/Normal"):GetComponent(typeof(Image)),
+				Now=self:Find("Main/Has/Content/Icons/"..i.."/Now"):GetComponent(typeof(Image)),
+				icon=self:Find("Main/Has/Content/Icons/"..i.."/icon"):GetComponent(typeof(Image)),
+				Btn=self:Find("Main/Has/Content/Icons/"..i):GetComponent(typeof(JButton))
+			})
+	end
+
+	local onClickHandler=function(idex,itemID)
+		for k, v in pairs(self.m_ItemGroups) do
+			v.Sel:SetActive(k==idex)
+		end
+		--self.m_CurSelectItemID=itemID
+		self:SetItem(itemID,false)
+	end
+
+	for k, v in pairs(self.m_ItemGroups) do
+		v.Btn.OnClick=function()
+			onClickHandler(k,v.ItemID)
+		end
+	end
+
+
+	self.m_ItemName=self:Find("Main/Has/Content/Title/Text"):GetComponent(typeof(Text));
+	self.m_UpBtn=self:Find("Main/Has/Content/Buttons/UpBtn"):GetComponent(typeof(JButton));
+	self.m_goBtn=self:Find("Main/Has/Content/Buttons/goBtn"):GetComponent(typeof(JButton));
+	OnClickEmptySlot=function(id)
+		self:ClickEmptySlot(id)
+	end;
+	OnSelectSlot=function(id,itemID,entityid)
+		self:SelectSlot(id,itemID,entityid)
+	end;
+
+	self.m_Slots={}
+	for i = 1, 3 do
+		self.m_Slots[i]=StructAccessor.SoulStoneSlotItem.new(self:Find("Main/Slots/"..i).gameObject,i,OnClickEmptySlot,OnSelectSlot)
+	end
+
+
+	self.PartnerInfo=StructAccessor.PartnerInfo.new(self.m_PartnerInfo)
+	UpBtnFunc=function() self:OnClickUpBtn(); end;
+	goBtnFunc=function() self:OnClickgoBtn(); end;
+
+	WearParEquipRetEventFunc=function(data)
+		self:OnWearParEquipRet(data)
+	end;
+
+	TakeOffParEquipRetEventFunc=function(data)
+		self:OnTakeOffParEquipRet(data)
+	end;
+	PartnerEquipUPRetEventFunc=function(data)
+		self:OnPartnerEquipUPRetEvent(data)
+	end
+	self:Start();
+end
+
+function SoulStone:Start()
+
+
+end
+
+function SoulStone:OnPartnerEquipUPRetEvent(data)
+	self:FreshSolts()
+end
+
+function  SoulStone:FreshSolts()
+	local equip1= BusinessManager.Instance:GetPartnerEquipedEquip(self.PartnerData.ID,1);
+	local equip2= BusinessManager.Instance:GetPartnerEquipedEquip(self.PartnerData.ID,2);
+	local equip3= BusinessManager.Instance:GetPartnerEquipedEquip(self.PartnerData.ID,3);
+	local isEmpty=(equip1==nil) and(equip2==nil) and(equip3==nil)
+	self.m_None:SetActive(isEmpty)
+	self.m_Has:SetActive(not isEmpty)
+	self.m_Slots[1]:OnOpen(equip1)
+	self.m_Slots[2]:OnOpen(equip2)
+	self.m_Slots[3]:OnOpen(equip3)
+	self:SetRedPoint(self.PartnerData)
+	
+end
+
+function SoulStone:SetRedPoint(data)
+	local equip1= BusinessManager.Instance:GetPartnerEquipedEquip(data.ID,1);
+	local equip2= BusinessManager.Instance:GetPartnerEquipedEquip(data.ID,2);
+	local equip3= BusinessManager.Instance:GetPartnerEquipedEquip(data.ID,3);
+	
+	local type1Cnt=0;
+	local type2Cnt=0;
+	local type3Cnt=0;
+	--拿到所有的伙伴装备
+	local items = BusinessManager.Instance:GetItemsByItemType(4, 0)
+	for k, v in pairs(items) do
+		local cfg = ConfigDataAccessor.Item[v.BaseID]
+		if cfg.SubType == 1 then
+			type1Cnt=type1Cnt+1;
+		elseif cfg.SubType == 2 then
+			type2Cnt=type2Cnt+1;
+		elseif cfg.SubType == 3 then
+			type3Cnt=type3Cnt+1;	
+		end
+	end
+
+	local red=(equip1==nil and type1Cnt>0) or (equip2==nil and type2Cnt>0) or (equip3==nil and type3Cnt>0)
+	self.RedPoint:SetActive(red)
+end
+
+
+function SoulStone:OnWearParEquipRet(data)
+	self:FreshSolts()
+end
+
+function SoulStone:OnTakeOffParEquipRet(data)
+	self:FreshSolts()
+end
+
+
+function SoulStone:ClickEmptySlot(id)
+
+	for k, v in pairs(self.m_Slots) do
+		v:SetSelect(k==id)
+	end
+	print("ClickEmptySlot"..id)
+	LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule,"OnPartnerEquipWindow",{
+			self.PartnerData.ID,
+			self.PartnerData.Index,
+			id,
+			0,
+			0,
+			function ()
+				self:OnCallBackForOtherWindow()
+			end
+			})
+end
+
+function SoulStone:SelectSlot(id,item)
+	print("SelectSlot"..id)
+	for k, v in pairs(self.m_Slots) do
+		v:SetSelect(k==id)
+	end
+	self.SelectItem=item
+	self:SetItem(item.BaseID,true)
+
+	self.m_CurSelectID=id;
+	self.m_CurSelectItemID=item.BaseID
+	self.m_CurSelectItemEntityID=item.ID
+	--LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule,"OnPartnerEquipWindow",{self.PartnerData.ID,self.PartnerData.Index,id,itemID})
+
+end
+
+function SoulStone:OnEnable()
+	self.m_UpBtn.OnClick= UpBtnFunc;
+	self.m_goBtn.OnClick= goBtnFunc;
+	local WearParEquipRetEvent=LuaModuleDispatcher:Event(ModuleDef.BattleTeamModule,"WearParEquipRetEvent");
+	WearParEquipRetEvent:AddListener(WearParEquipRetEventFunc)
+
+
+	local TakeOffParEquipRetEvent=LuaModuleDispatcher:Event(ModuleDef.BattleTeamModule,"TakeOffParEquipRetEvent");
+	TakeOffParEquipRetEvent:AddListener(TakeOffParEquipRetEventFunc)
+
+	local PartnerEquipUPRetEvent=LuaModuleDispatcher:Event(ModuleDef.BattleTeamModule,"PartnerEquipUPRetEvent");
+	PartnerEquipUPRetEvent:AddListener(PartnerEquipUPRetEventFunc)
+
+end
+
+function SoulStone:OnDisable()
+	self.m_UpBtn.OnClick= nil;
+	self.m_goBtn.OnClick= nil;
+	local WearParEquipRetEvent=LuaModuleDispatcher:Event(ModuleDef.BattleTeamModule,"WearParEquipRetEvent");
+	WearParEquipRetEvent:RemoveListener(WearParEquipRetEventFunc)
+
+
+	local TakeOffParEquipRetEvent=LuaModuleDispatcher:Event(ModuleDef.BattleTeamModule,"TakeOffParEquipRetEvent");
+	TakeOffParEquipRetEvent:RemoveListener(TakeOffParEquipRetEventFunc)
+
+	local PartnerEquipUPRetEvent=LuaModuleDispatcher:Event(ModuleDef.BattleTeamModule,"PartnerEquipUPRetEvent");
+	PartnerEquipUPRetEvent:RemoveListener(PartnerEquipUPRetEventFunc)
+
+end
+
+function SoulStone:OnDestroy()
+
+end
+
+function SoulStone:BackMain()
+	self.m_Main:SetActive(true)
+end
+function SoulStone:OnOpen(arg)
+	self.PartnerData=arg;
+	self:BackMain();
+	self.PartnerInfo:OnOpen(arg,true,false)
+
+	local equip1= BusinessManager.Instance:GetPartnerEquipedEquip(self.PartnerData.ID,1);
+	local equip2= BusinessManager.Instance:GetPartnerEquipedEquip(self.PartnerData.ID,2);
+	local equip3= BusinessManager.Instance:GetPartnerEquipedEquip(self.PartnerData.ID,3);
+	local isEmpty=(equip1==nil) and(equip2==nil) and(equip3==nil)
+	self.m_None:SetActive(isEmpty)
+	self.m_Has:SetActive(not isEmpty)
+	self.m_Slots[1]:OnOpen(equip1)
+	self.m_Slots[2]:OnOpen(equip2)
+	self.m_Slots[3]:OnOpen(equip3)
+
+	local item=nil;
+	local idx=0;
+	if not isEmpty then
+
+		if equip1~=nil then
+			self.m_Slots[1]:SetSelect(true)
+			item=equip1;
+			idx=1
+		else
+			if equip2~=nil then
+				self.m_Slots[2]:SetSelect(true)
+				item=equip2;
+				idx=2
+			else
+				if equip3~=nil then
+					self.m_Slots[3]:SetSelect(true)
+					item=equip3;
+					idx=3
+				end
+			end
+		end
+	end
+
+	if item~=nil then
+		self.SelectItem=item
+		self.m_CurSelectID=idx
+		self.m_CurSelectItemID=item.BaseID
+		self:SetItem(item.BaseID,true)
+
+	end
+end
+
+function SoulStone:SetItemCompose(index,Id,Current)
+	local item=self.m_ItemGroups[index]
+	if item~=nil then
+
+		local config=ConfigDataAccessor.Item[Id]
+		if config~=nil then
+			ResourceHelper:LoadIconAsync(item.icon, "", config.Icon, false)
+
+			self:GetSpriteByAtlas("UI/Partner/Atlas/Partner1","Partner_frameF_"..config.Quality,function (sp)
+					item.Normal.sprite=sp
+					item.Now.sprite=sp
+				end)
+		end
+		item.ItemID=Id
+		item.Sel:SetActive(index==Current)
+		item.Now.gameObject:SetActive(index==Current)
+	end
+end
+
+function SoulStone:GetNextID(id)
+	for k, v in pairs(ConfigDataAccessor.Compose) do
+		if v.Id==id then
+			return v.TargeID
+		end
+	end
+	return 0
+end
+
+function SoulStone:GetPreviousID(id)
+	for k, v in pairs(ConfigDataAccessor.Compose) do
+		if v.TargeID==id then
+			return v.Id
+		end
+	end
+	return 0
+end
+
+function SoulStone:SetItem(id,needSetItem)
+
+	local equipCfg=ConfigDataAccessor.PartnerEquip[id]
+	if equipCfg~=nil then
+
+		local itemCfg=ConfigDataAccessor.Item[id]
+		if itemCfg~=nil then
+			self.m_ItemName.text=itemCfg.Name
+		end
+		if needSetItem then
+
+			local itemList={}
+			local LastitemID=id
+			local LastIndex=equipCfg.AdvancedLevel
+
+			if LastIndex==1 then
+				itemList[equipCfg.AdvancedLevel]=id
+				itemList[equipCfg.AdvancedLevel+1]=self:GetNextID(itemList[equipCfg.AdvancedLevel])
+				itemList[equipCfg.AdvancedLevel+2]=self:GetNextID(itemList[equipCfg.AdvancedLevel+1])
+			elseif LastIndex==2 then
+				itemList[equipCfg.AdvancedLevel-1]=self:GetPreviousID(id)
+				itemList[equipCfg.AdvancedLevel]=id
+				itemList[equipCfg.AdvancedLevel+1]=self:GetNextID(id)
+			elseif LastIndex==3 then
+				itemList[equipCfg.AdvancedLevel]=id
+				itemList[equipCfg.AdvancedLevel-1]=self:GetPreviousID(id)
+				itemList[equipCfg.AdvancedLevel-2]=self:GetPreviousID(itemList[equipCfg.AdvancedLevel-1])
+			end
+
+			for k, v in pairs(itemList) do
+				self:SetItemCompose(k,v,equipCfg.AdvancedLevel)
+			end
+
+
+			self.m_goBtn.gameObject:SetActive(equipCfg.AdvancedLevel<3)
+		end
+		--self.m_LevelLimit_tt.text=StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit"),{equipCfg.Level})
+		--self:SetStar(equipCfg.AdvancedLevel)
+		self.m_Battle.text=tostring(equipCfg.Power)
+		local datas={}
+		if #equipCfg.QualiFications>0 and #equipCfg.QualiFications==#equipCfg.QualiFicationsValue then
+			for i = 1, #equipCfg.QualiFications do
+				table.insert(datas,{IsPlayer=false,ID=equipCfg.QualiFications[i],Value=equipCfg.QualiFicationsValue[i]})
+			end
+		end
+
+		if #equipCfg.Nature>0 and #equipCfg.Nature==#equipCfg.Value then
+			for i = 1, #equipCfg.Nature do
+				table.insert(datas,{IsPlayer=true,ID=equipCfg.Nature[i],Value=equipCfg.Value[i]})
+			end
+		end
+
+		for k, v in pairs(datas) do
+			self:SetPropItem(k,v)
+		end
+		self.m_infomation:SetActive(false)
+		if #equipCfg.Effect>0 then
+			self.m_infomation:SetActive(true)
+			local effectcfg=ConfigDataAccessor.PartnerEquipEffect[equipCfg.Effect[1]]
+			if effectcfg~=nil then
+
+				local PartnerType="";
+
+				local PartnerTypeCfg=ConfigDataAccessor.PartnerType[effectcfg.PartnerType]
+				if PartnerTypeCfg~=nil then
+					PartnerType=PartnerTypeCfg.Name
+				end
+
+				if PartnerType== nil or PartnerType=="" or PartnerType=='' then
+					self.m_SkillName.text=effectcfg.Name
+				else
+					self.m_SkillName.text=effectcfg.Name.."<"..PartnerType..">"
+				end
+
+				--self.m_SkillName.text=effectcfg.Name
+				self.m_SkillLevel.text=StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"),{equipCfg.EquipLevel})
+				self.m_SkillDesc.text=effectcfg.Desc
+				--self.m_Skillicon=self:Find("Content/infomation/Skillicon"):GetComponent(typeof(Image));;
+
+			end
+		end
+
+	end
+
+end
+
+function SoulStone:SetPropItem(index,data)
+	local item=self.m_List[index]
+	if item~=nil and data~=nil then
+
+		local Name=""
+		if data.IsPlayer then
+			local config1=  ConfigDataAccessor.GetAttrByID(data.ID);
+			local attrName1 = "";
+			if config1 ~= nil then
+				attrName1 = config1.Name;
+			end
+			Name=attrName1..LanguageHelp:GetLanguageByKey("partner_sys_12")
+
+		else
+			local config=ConfigDataAccessor.GetAttrByID(data.ID)
+			if config~=nil then
+				Name=config.Name;
+			end
+
+			--读取伙伴表
+			Name=ConfigDataAccessor.ParConversion[data.ID].Name
+		end
+		item.Text.text=Name;
+
+		item.Value.text=data.Value
+
+		self:GetSpriteByAtlas("UI/Icons/Atlas/IconAttribute","Attribute_"..data.ID,function (sp)
+				item.Icon.sprite=sp
+			end)
+
+	end
+end
+
+function SoulStone:OnClose(arg)
+
+end
+
+function SoulStone:OnCallBackForOtherWindow()
+	local equip1= BusinessManager.Instance:GetPartnerEquipedEquip(self.PartnerData.ID,1);
+	local equip2= BusinessManager.Instance:GetPartnerEquipedEquip(self.PartnerData.ID,2);
+	local equip3= BusinessManager.Instance:GetPartnerEquipedEquip(self.PartnerData.ID,3);
+	local isEmpty=(equip1==nil) and(equip2==nil) and(equip3==nil)
+	self.m_None:SetActive(isEmpty)
+	self.m_Has:SetActive(not isEmpty)
+	self.m_Slots[1]:OnOpen(equip1)
+	self.m_Slots[2]:OnOpen(equip2)
+	self.m_Slots[3]:OnOpen(equip3)
+	local item=nil;
+	local idx=0;
+	if not isEmpty then
+
+		if equip1~=nil then
+			self.m_Slots[1]:SetSelect(true)
+			item=equip1;
+			idx=1
+		else
+			if equip2~=nil then
+				self.m_Slots[2]:SetSelect(true)
+				item=equip2;
+				idx=2
+			else
+				if equip3~=nil then
+					self.m_Slots[3]:SetSelect(true)
+					item=equip3;
+					idx=3
+				end
+			end
+		end
+	end
+
+	if item~=nil then
+		self.SelectItem=item
+		self.m_CurSelectID=idx
+		self.m_CurSelectItemID=item.BaseID
+		self:SetItem(item.BaseID,true)
+
+	end
+end
+
+function SoulStone:OnClickUpBtn()
+	LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule,"OnPartnerEquipWindow",{self.PartnerData.ID,
+			self.PartnerData.Index,
+			self.m_CurSelectID,
+			self.m_CurSelectItemID,
+			self.SelectItem,
+			function ()
+				self:OnCallBackForOtherWindow()
+			end
+		})
+end
+
+function SoulStone:OnClickgoBtn()
+	LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule,"OnOpenPartnerEquipCompose",{self.PartnerData.ID,
+			self.PartnerData.Index,
+			self.m_CurSelectID,
+			self.m_CurSelectItemID,
+			self.SelectItem,
+			function ()
+				self:OnCallBackForOtherWindow()
+			end
+		})
+end
+
+function SoulStone:OnClickUpBtn1()
+
+end
+
+function SoulStone:OnClickBack()
+
+end
+
+
+
+return  SoulStone

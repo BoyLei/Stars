@@ -1,0 +1,504 @@
+--[[
+*文件名   :   DefAmuletEquip
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local ItemGrid= require("View/Item/ItemGrid")
+local SelectBtn= require("View/Item/SelectBtn")
+local AmuletItem=require("View/Uiwindow/Amulet/AmuletItem")
+local AmuletSort=require("View/Uiwindow/Amulet/AmuletSort")
+
+
+local SortList=require("View/Item/SortList")
+local DefAmuletEquip = {}
+
+DefAmuletEquip.__index = DefAmuletEquip
+
+function DefAmuletEquip:New(_go,defAmulet) 
+    local self = {};    
+    setmetatable(self, DefAmuletEquip); 
+    
+
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+	--关闭信息
+    --[[
+	local btnClose=self.transform:Find("BtnClose"):GetComponent(typeof(JButton));
+	btnClose.OnClick=(function()
+		self:Show(false);
+	end);
+    ]]
+
+    self.DefAmulet=defAmulet;
+    
+    self.amuletItem=AmuletItem:New(self.transform:Find("CenterPart/AmuletItem").gameObject,1);
+
+    self.tips_anchor=self.transform:Find("TipsAnchor").transform;
+    --道具列表
+    self.BagLimit=self.transform:Find("Items/BagLimit"):GetComponent(typeof(Text));
+    self.BagItemList={};
+	--无限列表
+	self.go_BagItem = self.transform:Find("Items/ItemGrid").gameObject;
+
+	self.rect_grid=self.transform:Find("Items/Scroll View/Mask/List"):GetComponent(typeof(RectTransform));
+
+	self.tr_ItemRoot=self.transform:Find("Items/Scroll View/Mask/List");
+	self.go_BagItem:SetActive(false);
+	self.go_BagItem.transform:SetParent(self.transform:Find("Items"));
+	self.BagScorllView=self.transform:Find("Items/Scroll View"):GetComponent(typeof(SuperScrollViewController));
+	self.BagScorllView:NewScroll(self.go_BagItem, 0, function (tr,idx)
+		self:OnBagItemRefesh(tr,idx);
+	end);
+
+	--装备菜单
+	self.EquipMenuBtns={};
+	for i=1,2 do 
+		local btn=SelectBtn:New(self.transform:Find("Items/EquipMenu/Scroll View/Mask/List/EquipTagItem"..i).gameObject);
+		btn:InitItem(i,function (idx)
+			self:OnEquipMenuBtnClick(idx);
+		end);
+		table.insert( self.EquipMenuBtns,btn);
+	end
+    self.EquipMenuIdx=1;
+
+	--返回按钮
+	self.go_backMenu=self.transform.parent:Find("BackMenu").gameObject;
+	--点击退出
+	local tr_backMenu=self.transform.parent:Find("BackMenu");
+	local btnClose=tr_backMenu:Find("ExitBtn"):GetComponent(typeof(JButton));
+	btnClose.OnClick=(function()
+		--self.DefAmulet:OpenMain();
+		self:Show(false);
+	end);
+
+	--详细信息遮罩
+	self.go_BlackCover=self.transform:Find("Items/BlackCover").gameObject;
+	self.go_BlackCover:SetActive(false);
+	--点击关闭ItemInfo
+	local btnCloseBlackCover=self.transform:Find("Items/BlackCover"):GetComponent(typeof(JButton));
+	btnCloseBlackCover.OnClick=(function()
+		self.go_BlackCover:SetActive(false);
+		--关闭道具Tips
+		if GameManager.Instance.IsOpenItemTips then
+			self:CleanAllSelected();
+			LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips",{  });
+		end
+	end);
+
+
+	--道具名
+	self.ItemName=self.transform:Find("Name"):GetComponent(typeof(Text));
+
+	--道具等级
+	self.ItemLv=self.transform:Find("Lv"):GetComponent(typeof(Text));
+
+
+    
+	--卸载按钮
+	self.btnUnEquip=self.transform:Find("BtnUnEquip"):GetComponent(typeof(JButton));
+	self.btnUnEquip.OnClick=(function()
+		self:OnUnEquipItemClick();
+	end);
+
+
+	--战技筛选
+	self.AmuletSortSelectedIds={};
+	self.AmuletSort=AmuletSort:New(self.transform:Find("Items/SortMenu/AmuletSort").gameObject,self);
+
+	--战技筛选按钮
+	local amuletSortBtn=self.transform:Find("Items/SortMenu/MultSelectBtn"):GetComponent(typeof(JButton));
+	amuletSortBtn.OnClick=(function()
+		self.AmuletSort:Show(true,2);
+	end);
+	self.AmuletSortBtnTex=self.transform:Find("Items/SortMenu/MultSelectBtn/tex"):GetComponent(typeof(Text));
+
+	--稀有度筛选
+	self.SortList=SortList:New(self.transform:Find("Items/SortMenu/AmuletSortList").gameObject);
+	self.SortList:Init({LanguageHelp:GetLanguageByKey("Local_Str_Quality_All"),LanguageHelp:GetLanguageByKey("Local_Str_Quality_1"),LanguageHelp:GetLanguageByKey("Local_Str_Quality_2"),LanguageHelp:GetLanguageByKey("Local_Str_Quality_3"),LanguageHelp:GetLanguageByKey("Local_Str_Quality_4"),LanguageHelp:GetLanguageByKey("Local_Str_Quality_5"),LanguageHelp:GetLanguageByKey("Local_Str_Quality_6")},function (idx)
+		self:OnSelectSortList(idx);
+	end)
+	self.SortListTex=self.transform:Find("Items/SortMenu/SortBtn/tex"):GetComponent(typeof(Text));
+	self.SortListIdx=1;
+	self.SortListTex.text=self.SortList.SortNames[self.SortListIdx];
+	self.transform:Find("Items/SortMenu/SortBtn"):GetComponent(typeof(JButton)).OnClick=(function()
+		self.SortList:Show(true,self.SortListIdx);
+	end);
+	
+
+	self.CloseTips=function (data)
+		self.go_BlackCover:SetActive(false);
+	end
+
+    self:Show(false);
+
+    return self;    --返回自身
+end
+
+function DefAmuletEquip:RefeshAmuletSortBtnText()
+	if #self.AmuletSortSelectedIds<=0 then
+		self.AmuletSortBtnTex.text=LanguageHelp:GetLanguageByKey("Local_Str_AmuletSortBtnTex1");
+	else
+		self.AmuletSortBtnTex.text=LanguageHelp:GetLanguageByKey("Local_Str_AmuletSortBtnTex2");
+	end
+	self:OnEquipMenuBtnClick(self.EquipMenuIdx,true);
+end
+
+function DefAmuletEquip:AddAmuletSortSelectedId(id)
+	table.insert( self.AmuletSortSelectedIds, id );
+end
+
+function DefAmuletEquip:ClearAllAmuletSortSelectedIds()
+	
+	if self.AmuletSortSelectedIds==nil then
+		self.AmuletSortSelectedIds ={}
+	else
+		for k,_ in pairs(self.AmuletSortSelectedIds) do self.AmuletSortSelectedIds[k] = nil end
+		--self.ItemDataList ={}
+	end
+end
+
+function DefAmuletEquip:OnSelectSortList(idx)
+	self.SortListIdx=idx;
+	self.SortListTex.text=self.SortList.SortNames[idx];
+	self:OnEquipMenuBtnClick(self.EquipMenuIdx,true);
+end
+
+--卸载按钮
+function DefAmuletEquip:OnUnEquipItemClick()
+
+	--脱纹章请求
+	local takeOffAmuletReq = CS.ProtoMsg.TakeOffAmuletReq();
+	takeOffAmuletReq.AmuletID = self.EntityID;
+	CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, takeOffAmuletReq, false);
+
+end
+
+
+function DefAmuletEquip:Show(b,idx)
+    self.gameObject:SetActive(b);
+	self.go_backMenu:SetActive(b);
+    if b then
+        self.EquipMenuIdx=idx;
+        self:Refesh();
+		
+		CS.StarProject.GlobalEvent.OnTipsCloseEvent:AddListener(self.CloseTips)
+
+	else
+		CS.StarProject.GlobalEvent.OnTipsCloseEvent:RemoveListener(self.CloseTips)
+    end
+end
+
+function DefAmuletEquip:Refesh()
+	self.go_BlackCover:SetActive(false);
+
+	self:OnEquipMenuBtnClick(self.EquipMenuIdx);
+
+end
+
+--创建一个背包格子
+function DefAmuletEquip:CreateAmuletSlot(baseID,entityID,state,maxStack)
+	local amuletSlot=AmuletSlot();--新建一个格子
+	amuletSlot:Init(1,state,maxStack);--初始化格子(正在使用)
+	amuletSlot:PutIn(baseID,entityID,num);
+	return amuletSlot;
+end
+
+function DefAmuletEquip:RefeshCenter()
+	local itemData=BusinessManager.Instance:GetHeroEquipedAmulet(self.EquipMenuIdx);
+
+	local amuletSlot=AmuletSlot();--新建一个格子
+	amuletSlot:Init(1,1);--初始化格子(默认就是已经解锁)
+	amuletSlot:SetAmuletSlotType(0);--可以存放任意种类的纹章
+
+
+    if itemData~= nil then
+
+		amuletSlot:Equip(itemData.BaseID,itemData.EntityID);--把纹章装备到格子里
+
+        self.amuletItem:SetType(1);
+
+
+		self.EntityID = itemData.EntityID;
+
+		local baseID=itemData.BaseID;
+		local cfg=ConfigDataAccessor.Item[baseID];
+		local cfg2=ConfigDataAccessor.AmuletEquip[baseID];
+
+		self.ItemName.text=cfg.Name;
+		--self.ItemLv.text=cfg2.EquipLevel.."级";
+		self.ItemLv.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {cfg2.EquipLevel});
+
+
+		self.btnUnEquip.gameObject:SetActive(true);
+    else
+        self.amuletItem:SetType(2);
+
+		if self.EquipMenuIdx==1 then
+			self.ItemName.text=LanguageHelp:GetLanguageByKey("Local_Str_Amulet_Atk");
+		elseif self.EquipMenuIdx==2 then
+			self.ItemName.text=LanguageHelp:GetLanguageByKey("Local_Str_Amulet_Def");
+		end
+		self.ItemLv.text="";
+
+		self.btnUnEquip.gameObject:SetActive(false);
+    end
+    self.amuletItem:SetInfo(amuletSlot);--纹章格子UI绑定纹章格子数据
+end
+
+------------------------------
+------------------------------无限列表相关
+
+--创建一个符文格子
+function DefAmuletEquip:CreateBagSlot(baseID,entityID,num,state,maxStack)
+	local bagSlot=BagSlot();--新建一个格子
+	bagSlot:Init(1,state,maxStack);--初始化格子(正在使用)
+	bagSlot:PutIn(baseID,entityID,num);
+	table.insert( self.BagSlotList, bagSlot);
+end
+
+
+--刷新装备列表
+function DefAmuletEquip:RefeshItems()
+	
+
+
+	self:SortItem(self.ItemDataList);
+
+	--背包数量限制
+	local nowNum=#self.ItemDataList;
+
+	--符文格子列表
+	if self.BagSlotList==nil then
+		self.BagSlotList ={}
+	else
+		for k,_ in pairs(self.BagSlotList) do self.BagSlotList[k] = nil end
+	end
+
+
+	for i=1,#self.ItemDataList do
+
+		--创造符文格子(带道具的格子)
+		local data=self.ItemDataList[i];
+		self:CreateBagSlot(data.BaseID,data.EntityID,data.Num,1,0)
+	end
+
+
+	
+	
+	--追加到50个空格子
+	--for i=#self.ItemDataList+1,self.maxNum do
+	for i=#self.ItemDataList+1,50 do
+
+		self:CreateBagSlot(0,0,0,0,0);--符文空格子
+
+		--local it={};
+		--it.BaseID=0;
+		--table.insert( self.ItemDataList,it);
+	end
+
+	self.BagScorllView:ContinueScroll(#self.BagSlotList,false);
+
+	
+	local str=""..nowNum;
+	if nowNum <100 and nowNum>10 then
+		str="0"..nowNum;
+	elseif nowNum<10 then
+		str="00"..nowNum;
+	end
+	
+	--self.BagLimit.text="<color=#E38830>"..str.."</color>/"..self.maxNum;
+	self.BagLimit.text=str.."/"..self.maxNum;
+end
+
+
+
+function DefAmuletEquip:GetDataByEquipType(equipType)
+
+
+	--设置筛选稀有度
+	local selectRarity=0;
+	if self.SortListIdx>1 then
+		selectRarity=self.SortListIdx-1;
+	end
+
+
+	for i=0,self.allitems.Count-1 do
+        --local cfg=LocalDataManager.Instance:GetItemDataCell(self.allitems[i].BaseID);
+		local cfg=ConfigDataAccessor.Item[self.allitems[i].BaseID];
+        if cfg.SubType == equipType  and (selectRarity==0 or (selectRarity>0 and selectRarity==cfg.Quality)) then
+
+			--判断是否有筛选的技能
+			local isMetAllSelectedSkills=true;
+			local combatSkills =self.allitems[i].CombatSkills;
+
+			for j=1,#self.AmuletSortSelectedIds do
+				local isFind=false;
+				for p=0,combatSkills.List.Count-1 do
+					if combatSkills.List[p].ID== self.AmuletSortSelectedIds[j] then
+						isFind=true;
+					end
+				end
+				if not(isFind) then
+					isMetAllSelectedSkills=false;
+					break;
+				end
+			end
+
+
+			if isMetAllSelectedSkills then
+
+				local it={};
+				it.EntityID=self.allitems[i].EntityID;
+				it.BaseID=self.allitems[i].BaseID;
+				it.Heroid=self.allitems[i].Heroid;
+				it.Num=self.allitems[i].Num;
+				it.IsNew=self.allitems[i].IsNew;
+				it.SortProp=cfg.SortProp;
+				it.ItemType=cfg.ItemType;
+				it.Quality=cfg.Quality;
+				table.insert( self.ItemDataList,it);
+
+			end
+        end
+
+
+	end
+
+end
+
+function DefAmuletEquip:OnEquipMenuBtnClick(idx,noResetPos)
+	if noResetPos==nil then
+		self.rect_grid.anchoredPosition=Vector2(self.rect_grid.anchoredPosition.x,0);
+	end
+
+	for i=1,#self.EquipMenuBtns do
+		self.EquipMenuBtns[i]:MakeSelected(false);
+	end
+
+
+    if idx==nil then
+        idx =self.EquipMenuIdx;
+    end
+
+	self.EquipMenuBtns[idx]:MakeSelected(true);
+
+    --拿到所有的伙伴装备
+    self.allitems=BusinessManager.Instance:GetItemsByItemType(5,0);
+	self:ClearItemData();
+
+	
+	self.EquipMenuIdx=idx;
+	
+	local numEquip=ConfigDataAccessor.ItemSpace[2].BagNum;
+
+	self.maxNum=numEquip;
+
+	if  idx==1 then
+		--装备槽位1
+		self:GetDataByEquipType(1);
+	elseif idx==2 then
+		--装备槽位2
+		self:GetDataByEquipType(2);
+	end
+
+    --刷新中间
+	self:RefeshCenter();
+    --刷新右侧
+    self.DefAmulet:RefeshAmuletInfo(idx);
+
+	--关闭tags
+	LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips",{  });
+	self:RefeshItems();
+
+end
+
+
+function DefAmuletEquip:CleanAllSelected()
+	--无限列表
+	for i=1,#self.BagItemList do
+		self.BagItemList[i]:MakeSelected(false);
+	end
+end
+
+function DefAmuletEquip:OnBagItemRefesh(tr,idx)
+
+
+	for i=1,#self.BagItemList do
+		if self.BagItemList[i].transform == tr then
+            self.BagItemList[i]:SetItem(self.BagSlotList[idx+1]);--idx是从0开始，如果AmuletSlotList是lua的table需要idx+1
+            return
+		end
+
+	end
+
+	--tr.gameObject:SetActive(true);
+    local bi = ItemGrid:New(tr.gameObject,self.tr_ItemRoot);
+	bi:InitItem(true,function (ritem)
+		self:OnItemClick(ritem);
+	end)
+	bi.gameObject:SetActive(true);
+	bi:SetItem(self.BagSlotList[idx+1]);--idx是从0开始，如果AmuletSlotList是lua的table需要idx+1
+
+    table.insert(self.BagItemList, bi);
+
+end
+
+function DefAmuletEquip:OnItemClick(bitem)
+
+	self:CleanAllSelected();
+	bitem:MakeSelected(true);
+	
+
+	--设置道具Tips
+	self.go_BlackCover:SetActive(true);
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",{ bitem.BaseID,true,bitem.EntityID,self.tips_anchor,0});
+	
+
+
+	
+end
+
+function DefAmuletEquip:ClearItemData()
+
+	if self.ItemDataList==nil then
+		self.ItemDataList ={}
+	else
+		for k,_ in pairs(self.ItemDataList) do self.ItemDataList[k] = nil end
+		--self.ItemDataList ={}
+	end
+end
+
+function DefAmuletEquip:SortItem(tbl)
+
+	if #tbl > 1 then
+
+		table.sort(tbl, function(a, b)
+			if a.Quality > b.Quality then
+				-- 按品质降序
+				return true
+			elseif a.Quality == b.Quality then
+				-- 如果品质相等，按SortProp升序
+				if a.SortProp < b.SortProp then
+					return true
+				elseif a.SortProp == b.SortProp then
+					-- 如果Type相等，按Id升序
+					return a.BaseID < b.BaseID
+				end
+			end
+			return false
+		end)
+
+	end
+
+end
+
+
+------------------------------无限列表相关
+------------------------------
+
+
+return DefAmuletEquip;

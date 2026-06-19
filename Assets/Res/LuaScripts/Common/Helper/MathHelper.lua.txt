@@ -1,0 +1,125 @@
+function math.round(value)
+    value = CheckNumber(value)
+    return math.floor(value + 0.5)
+end
+
+local pi_div_180 = math.pi / 180
+function math.angle2radian(angle)
+    return angle * pi_div_180
+end
+
+local pi_mul_180 = math.pi * 180
+function math.radian2angle(radian)
+    return radian / pi_mul_180
+end
+
+function math.clamp(v, minValue, maxValue)  
+    if v < minValue then
+        return minValue
+    end
+    if v > maxValue then
+        return maxValue
+    end
+    return v 
+end
+
+function math.wrap(v, minValue, maxValue)
+    if v < minValue then
+        return maxValue - minValue + v
+    end
+    if v > maxValue then
+        return v - maxValue + minValue
+    end
+    return v
+end
+
+function math.lerp(num1,num2,ratio)
+    return num1 + (num2 - num1) * ratio
+end
+
+-- 二进制转int
+function math.bufToInt32(num1, num2, num3, num4)
+    local num = 0;
+    num = num + math.leftShift(num1, 24);
+    num = num + math.leftShift(num2, 16);
+    num = num + math.leftShift(num3, 8);
+    num = num + num4;
+    return num;
+end
+
+-- int转二进制
+function math.int32ToBufStr(num)
+    local str = ""
+    str = str .. math.numToAscii(math.rightShift(num, 24))
+    str = str .. math.numToAscii(math.rightShift(num, 16))
+    str = str .. math.numToAscii(math.rightShift(num, 8))
+    str = str .. math.numToAscii(num)
+    return str
+end
+
+-- 二进制转shot
+function math.bufToInt16(num1, num2)
+    local num = 0
+    num = num + math.leftShift(num1, 8)
+    num = num + num2
+    return num
+end
+
+-- shot转二进制
+function math.int16ToBufStr(num)
+    local str = ""
+    str = str .. math.numToAscii(math.rightShift(num, 8))
+    str = str .. math.numToAscii(num)
+    return str
+end
+
+
+-- 左移
+function math.leftShift(num, shift)
+    return math.floor(num * (2 ^ shift))
+end
+
+-- 右移
+function math.rightShift(num, shift)
+    return math.floor(num / (2 ^ shift))
+end
+
+-- 转成Ascii
+function math.numToAscii(num)
+    num = num % 256
+    return string.char(num)
+end
+
+-- int64转二进制字符串
+function math.int64ToByteStr(num)
+    local t = {};
+    for i = 63, 0, -1 do
+      t[#t + 1] = math.floor(num / 2 ^ i);
+      num = num % 2 ^ i;
+    end
+    return table.concat(t);
+end
+
+-- int64转二进制字符数组
+function math.int64ToByteTable(num)
+    local table = {};
+    local index = 64;
+    while (index > 0) do
+        table[index] = math.floor(num % 2);
+        num = (num - table[index]) / 2;
+        index = index - 1;
+    end
+    return table;
+end
+
+-- int32转二进制字符数组
+function math.int32ToByteTable(num)
+    local table = {};
+    local index = 32;
+    while (index > 0) do
+        table[index] = math.floor(num % 2);
+        num = (num - table[index]) / 2;
+        index = index - 1;
+    end
+    return table;
+end

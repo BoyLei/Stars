@@ -1,0 +1,112 @@
+--[[
+*文件名   :   AdventureLevelRankUpItem
+*内  容   :   环任务中的Item
+*说  明   :
+*创建日期 :   "2023/05/31 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local AdventureLevelRankUpItem = {}
+
+AdventureLevelRankUpItem.__index = AdventureLevelRankUpItem
+
+local TaskWindowPath = "TaskWindow/Prefab/TaskWindow"
+
+function AdventureLevelRankUpItem:New(_go)
+    local self = {}
+    setmetatable(self, AdventureLevelRankUpItem)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.Name = self.transform:Find("tex"):GetComponent(typeof(Text))
+
+
+    self.go_goBtn = self.transform:Find("goBtn").gameObject
+    self.go_Finish = self.transform:Find("finishGo").gameObject
+    self.go_NotFinish = self.transform:Find("notFinishGo").gameObject
+
+    --点击前往
+    self.go_goBtn:GetComponent(typeof(JButton)).OnClick = (function()
+        if self.OnClick~= nil then
+            self.OnClick();
+        end
+    end)
+
+
+
+    return self --返回自身
+end
+
+
+
+function AdventureLevelRankUpItem:SetItem(id,name,isMet,conditionType)
+    self.Name.text=name;
+
+    self.IsMet=isMet;
+
+
+    if self.IsMet then
+        self.go_NotFinish:SetActive(false);
+        self.go_goBtn:SetActive(false);
+        self.go_Finish:SetActive(true);
+    else
+        self.go_Finish:SetActive(false);
+        if conditionType==11 then
+            --通关以太梦境
+            self.go_NotFinish:SetActive(false);
+            self.go_goBtn:SetActive(true);
+
+            self.OnClick=self.MoveToDreamArea;
+
+        elseif conditionType==1 then
+            --战斗等级
+            self.go_NotFinish:SetActive(true);
+            self.go_goBtn:SetActive(false);
+            
+        elseif conditionType==2 then
+            --任务
+            self.go_NotFinish:SetActive(false);
+            self.go_goBtn:SetActive(true);
+
+            self.OnClick=self.OpenTask;
+        else
+            self.go_NotFinish:SetActive(true);
+            self.go_goBtn:SetActive(false);
+        end
+    end
+
+end
+
+--寻路到个人秘境
+function AdventureLevelRankUpItem:OpenTask()
+
+
+    --UIManager.Instance:CloseAllLoadedWindowNWidget();
+
+    --UIManager.Instance:OpenWindow(TaskWindowPath,TaskHelper.GetAllWindow(true),CS.StarProjectDef.MainPageCommond.HideBoth)
+    UIManager.Instance:OpenWindowAsync(TaskWindowPath, nil,TaskHelper.GetAllWindow(true),CS.StarProjectDef.MainPageCommond.HideBoth)
+
+end
+
+
+--寻路到个人秘境
+function AdventureLevelRankUpItem:MoveToDreamArea()
+    local config= ConfigDataAccessor.PlayOpenConditions[1]
+	if config~=nil then
+
+        if not(CheckSysOpen(1,true)) then
+            return;
+        end
+
+        UIManager.Instance:CloseAllLoadedWindowNWidget();
+
+		TaskHelper.FindPathByNpc(config.MapID,config.NPCID,1,function (result)
+				if result then
+					LuaModuleDispatcher:SendMessage(ModuleDef.SecretAreaModule, "OpenSecretAreaWindow", { });
+				end
+			end);
+	end
+end
+
+return AdventureLevelRankUpItem

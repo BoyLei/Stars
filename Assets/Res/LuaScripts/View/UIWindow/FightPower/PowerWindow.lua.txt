@@ -1,0 +1,679 @@
+--[[
+*文件名   :   PowerWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/07/06 15:13:31"
+*创建人   :   "duanlei"
+*版权所有 :   游卡网络科技技术有限公司
+]] PowerWindow = class("PowerWindow", UIPanel)
+
+local RecommendItem = require("View/UIWindow/FightPower/RecommendItem")
+local PowerBigModuleItem = require("View/UIWindow/FightPower/PowerBigModuleItem")
+local PowerBigModuleClickItem = require("View/UIWindow/FightPower/PowerBigModuleClickItem")
+local PowerSubModuleItem = require("View/UIWindow/FightPower/PowerSubModuleItem")
+
+local CostItem = require("View/UIWindow/PartnerWindow/CostItem");
+
+local PowerFxPath = "UI/Power/Prefabs/FX_UI_Page_0"
+function PowerWindow:Awake()
+
+    IsDestroy = false;
+
+    self.transform = self.prefab.transform;
+    self.gameObject = self.transform.gameObject;
+    self.content = self.transform:Find("Cut4Cam90/AssemblyRatio2/Content");
+
+    self.serverText = self.content:Find("serverText"):GetComponent(typeof(Text));
+
+    self.page1 = self.content:Find("Page1");
+    self.leftRecommendsLayout = self.page1:Find("LeftBtns/Layout");
+
+    self.recommendItems = {};
+
+    for i = 1, 3, 1 do
+        local recommendItemGob = self.leftRecommendsLayout:GetChild(i - 1).gameObject;
+        self.recommendItems[i] = RecommendItem:New(recommendItemGob);
+        self.recommendItems[i]:SetClickCB(function(moduleData)
+            self:OnClickRecommendItem(moduleData);
+        end);
+    end
+
+    local page1Content = self.page1:Find("Content01");
+
+    self.bigModules = {};
+    for i = 1, 4, 1 do
+        local node = page1Content:Find("Item" .. i).gameObject;
+        local bigModule = PowerBigModuleItem:New(node);
+        bigModule:SetClickCB(function(bigModuleData)
+            self:OnClickBigModule(bigModuleData);
+        end);
+
+        self.bigModules[i] = bigModule;
+    end
+
+    self.levelText = self.page1:Find("Level"):GetComponent(typeof(Text));
+    self.scoreText = self.page1:Find("Score"):GetComponent(typeof(Text));
+
+    self.rewards = self.page1:Find("LeftBtns/Rewards");
+
+    local rewardJBtn = self.rewards:Find("RewardBtn"):GetComponent(typeof(JButton));
+    rewardJBtn.OnClick = function()
+        self:OnClickReward();
+    end
+    self.rewardIcon = self.rewards:Find("RewardBtn/RewardIcon").gameObject;
+    self.noRewardIcon = self.rewards:Find("RewardBtn/NoRewardIcon").gameObject;
+
+    self.rewardLevelText = self.rewards:Find("Bg/Level"):GetComponent(typeof(TextMeshProUGUI));
+    self.rewardScoreText = self.rewards:Find("Score"):GetComponent(typeof(Text));
+
+    self.page2 = self.content:Find("Page2");
+
+    local leftContent = self.page2:Find("LeftBtns/Content");
+
+    self.bigModuleClickItems = {};
+    -- 初始化 第二个界面 上的 4个 大模块按钮 
+    for i = 1, 4, 1 do
+        local node = leftContent:Find("Item" .. i).gameObject;
+        local bigModule = PowerBigModuleClickItem:New(node);
+        bigModule:SetClickCB(function(bigModuleClickItem)
+            self:OnClickPanel2BigModule(bigModuleClickItem);
+        end);
+
+        self.bigModuleClickItems[i] = bigModule;
+    end
+
+    self.curClickBigModuleItem = nil;
+
+    self.subModuleItem = self.page2:Find("GameObject/SubModuleItem");
+
+    self.scrollContent = self.page2:Find("GameObject/ScrollView"):GetComponent(typeof(SuperScrollViewController));
+
+    -- 设置空的 字战力模块 为空
+    self.subModuleItems = {};
+
+    -- 先初始化 滑动列表
+    self.scrollContent:NewScroll(self.subModuleItem.gameObject, 0, function(tr, idx)
+        self:OnSubModuleItemRefesh(tr, idx);
+    end)
+    self.subModuleItem.gameObject:SetActive(false);
+
+    self.subModuleTitle = self.page2:Find("GameObject/TitleText"):GetComponent(typeof(Text));
+    self.subModuleScore = self.page2:Find("GameObject/Score"):GetComponent(typeof(Text));
+    self.SubModuleLevel = self.page2:Find("GameObject/SubModuleLevel"):GetComponent(typeof(Text));
+
+    self.closeJButton = self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnWidget/CloseBtn"):GetComponent(typeof(JButton));
+    self.closeJButton.OnClick = function(...)
+
+        -- 如果 当前存在选择 的 大类型, 说明进入了 第二个界面, 此时点击返回 返回第一个界面
+        if self.curClickBigModuleItem ~= nil then
+            self.curClickBigModuleItem = nil;
+            self:RefreshPanelShow();
+            return;
+        end
+
+        self.Close();
+
+        local propPanelReq = CS.ProtoMsg.PropPanelReq()
+        propPanelReq.EntityID = GameManager.Instance.mainPlayerId
+        propPanelReq.Panel = CS.ProtoMsg.PropPanel.PanelRoleBattle
+        NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace, propPanelReq, false)
+
+    end
+
+    self.rewardPreview = self.page1:Find("LeftBtns/RewardPreview");
+
+    self.page1Fx = self.page1:Find("BackGround/Fx");
+    self.page2Fx = self.page2:Find("LeftBtns/Fx");
+
+    self.itemPreview = self.rewardPreview:Find("ItemPreview");
+    self.itemCopy = self.itemPreview:Find("Item");
+    self.layoutRoot = self.itemPreview:Find("ScrollView/Mask/List");
+
+    self.layoutRectTransform = self.layoutRoot:GetComponent(typeof(RectTransform));
+    self.layoutGroup = self.layoutRoot:GetComponent(typeof(HorizontalLayoutGroup));
+    self.contentSizeFitter = self.layoutRoot:GetComponent(typeof(ContentSizeFitter));
+
+    self.previewLevel = self.rewardPreview:Find("PreviewLevel"):GetComponent(typeof(Text));
+    local previewTouchJbt = self.rewardPreview:Find("TouchBg"):GetComponent(typeof(JButton));
+
+    previewTouchJbt.OnClick = function(...)
+        self:ClosePreviewReward();
+    end;
+
+    -- 奖励显示道具的组件数组
+    self.ItemList = {};
+
+end
+
+-- 点击 推荐提示 执行的 回调, 策划要求 直接跳转到 第二个界面的指定 大模块
+function PowerWindow:OnClickRecommendItem(moduleData)
+    -- 提示模块点击, 只需要跳转到 第二个界面的 大模块即可
+
+    -- 大模块 ID
+    local bigModuleID = moduleData.ParentModuleID;
+
+    -- 先清空 第二个模块的 选中按钮
+    self.curClickBigModuleItem = nil;
+
+    -- 直接选中 第二个界面的 大模块按钮
+    self:OnSelectPanel2BigModuleID(bigModuleID);
+end
+
+-- 点击 大的模块执行的回调
+function PowerWindow:OnClickBigModule(bigModuleData)
+
+    -- 大模块 ID
+    local bigModuleID = bigModuleData.PowerModuleID;
+
+    -- 直接选中 第二个界面的 大模块按钮
+    self:OnSelectPanel2BigModuleID(bigModuleID);
+
+end
+
+-- 点击 领取奖励的回调
+function PowerWindow:OnClickReward()
+
+    -- local hasReward = false;
+    local hasReward = FightPowerManager.Instance:HasSeverRankLevelReward();
+
+    -- 发送领取奖励
+    if hasReward then
+        local message = CS.ProtoMsg.GetFightRewardReq();
+        CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message,
+            false);
+        return;
+    end
+
+    -- 没有奖励的时候,显示预览奖励
+    self:PreviewRewards();
+end
+
+-- 当选中 第二个界面 大模块的 按钮
+function PowerWindow:OnSelectPanel2BigModuleID(bigModuleID)
+
+    for i = 1, 4, 1 do
+        local bigModuleData = self.bigModuleClickItems[i].moduleData;
+
+        -- 找到目标的 bigModuleClickItem
+        if bigModuleData.PowerModuleID == bigModuleID then
+
+            -- 点击 第二个界面 对应的 大模块按钮
+            self:OnClickPanel2BigModule(self.bigModuleClickItems[i]);
+
+        end
+    end
+end
+
+function PowerWindow:RefreshPanelShow()
+    local showPanel1 = self.curClickBigModuleItem == nil;
+
+    self.page1.gameObject:SetActive(showPanel1);
+    self.page2.gameObject:SetActive(not showPanel1);
+
+    -- 任何时候刷新 都是关闭这个 奖励预览界面
+    self:ClosePreviewReward();
+
+    -- 刷新对应界面的等级特效
+    self:RefreshPageFx();
+
+    -- 刷新奖励面板显示
+    self:RefreshRewardsIcon();
+end
+
+-- 点击第二个界面的 大模块按钮
+function PowerWindow:OnClickPanel2BigModule(bigModuleClickItem)
+    if bigModuleClickItem == self.curClickBigModuleItem then
+        return;
+    end
+
+    self.curClickBigModuleItem = bigModuleClickItem;
+
+    -- 刷新 面板的显隐
+    self:RefreshPanelShow();
+
+    -- 刷新 按钮选中状态
+    self:RefreshBigModuleClickItmesSelectedState();
+
+    -- 刷新 对应的 子模块的显示
+    self:RefreshSubModuleItmes();
+end
+
+function PowerWindow:PlayEnterAnim(isEnter)
+    if self.m_Animator == nil then
+        return;
+    end
+    if isEnter then
+        self.m_Animator:Play("Go", 0, 0);
+    else
+        self.m_Animator:Play("InFo", 0, 0);
+    end
+
+end
+
+function PowerWindow:BindModule(m)
+    self.module = m;
+end
+
+function PowerWindow:Start()
+
+end
+
+function PowerWindow:OnEnable()
+    IsDestroy = false;
+end
+
+function PowerWindow:OnOpen(arg)
+    self:Refresh();
+end
+
+-- 整个界面的刷新逻辑, 会 获取所有数据, 然后 统一刷新一次界面
+function PowerWindow:Refresh()
+    local allDatas = FightPowerManager.Instance:GetPowerModuleDatas();
+
+    -- 刷新 提示战力模块
+    local recommendDatas = allDatas:GetShowRecommendSubModules();
+    self:RefreshRecommends(recommendDatas);
+
+    -- 刷新 大的战力模块
+    local bigModuleDatas = allDatas:GetShowBigModules();
+    self:RefreshBigModules(bigModuleDatas);
+
+    -- 刷新总分数
+    local allPower = allDatas.AllPower;
+    self:RefreshScore(allPower);
+
+    -- 刷新等级
+    local powerRankDataCell = allDatas.Cfg_PowerRankDataCell;
+    local rankResDataCell = allDatas.Cfg_RankResDataCell;
+    self:RefreshRankLevel(powerRankDataCell, rankResDataCell);
+
+    self.bigRank = powerRankDataCell.ParentRank;
+
+    local serverPowerAll = FightPowerManager.Instance:GetServerPowerAllData();
+
+    local curRankDataCell = serverPowerAll.History_Cfg_PowerRankDataCell;
+    local nextRankDataCell = serverPowerAll.History_Cfg_NextLevelPowerRankDataCell;
+    local nextRankResDataCell = serverPowerAll.History_Cfg_NextLevelRankResDataCell;
+
+    self:RefreshNextLevelRewards(nextRankDataCell, nextRankResDataCell, curRankDataCell);
+
+    -- 刷新第二个界面的 大模块按钮
+    self:RefreshBigModuleClickItmes(bigModuleDatas);
+
+    -- 刷新 面板的显隐
+    self:RefreshPanelShow();
+
+    self:RefreshServerPower();
+
+    -- 刷新对应界面的等级特效
+    self:RefreshPageFx();
+
+end
+
+-- 刷新 推荐提示
+function PowerWindow:RefreshRecommends(recommendDatas)
+    -- 刷新 对应的 提示 界面ui. 默认最多显示3个
+    local count = recommendDatas.Count;
+
+    -- 推荐最多显示 3个
+    if count > 3 then
+        count = 3;
+    end
+
+    for i = 1, count, 1 do
+        self.recommendItems[i]:UpdateData(recommendDatas[i - 1]);
+    end
+
+    for i = count + 1, 3, 1 do
+        self.recommendItems[i]:UpdateData(nil);
+    end
+end
+
+-- 刷新大的 module
+function PowerWindow:RefreshBigModules(bigModuleDatas)
+    for i = 1, 4, 1 do
+        self.bigModules[i]:UpdateData(bigModuleDatas[i - 1]);
+    end
+end
+
+function PowerWindow:RefreshScore(score)
+    self.scoreText.text = score;
+end
+
+-- 刷新 排位等级
+function PowerWindow:RefreshRankLevel(powerRankDataCell, rankResDataCell)
+
+    self.levelText.text = GetRankLevelStr(powerRankDataCell, rankResDataCell);
+end
+
+-- 刷新 服务器战力
+function PowerWindow:RefreshServerPower()
+    local fightMD = FightPowerManager.Instance.GetFightMD;
+    if fightMD == nil then
+        return
+    end
+    return;
+
+    -- local all = "服务器总战力: " .. tostring(fightMD.All) .. "\n";
+    -- local Role = "角色 战力: " .. tostring(fightMD.Role) .. "\n";
+    -- local Skill = "技能 战力: " .. tostring(fightMD.Skill) .. "\n";
+    -- local Equip = "装备 战力: " .. tostring(fightMD.Equip) .. "\n";
+    -- local Partner = "伙伴 战力: " .. tostring(fightMD.Partner) .. "\n";
+    -- local Explore = "探索 战力: " .. tostring(fightMD.Explore) .. "\n";
+    -- local HistoryMax = "历史最大总战力: " .. tostring(fightMD.HistoryMax) .. "\n";
+    -- local HistoryRole = "历史最大角色战力: " .. tostring(fightMD.HistoryRole) .. "\n";
+    -- local HistorySkill = "历史最大技能战力: " .. tostring(fightMD.HistorySkill) .. "\n";
+    -- local HistoryEquip = "历史最大装备战力: " .. tostring(fightMD.HistoryEquip) .. "\n";
+    -- local HistoryPartner = "历史最大伙伴战力: " .. tostring(fightMD.HistoryPartner) .. "\n";
+
+    -- local str = all .. Role .. Skill .. Equip .. Partner .. Explore .. HistoryMax .. HistoryRole .. HistorySkill ..
+    --                 HistoryEquip .. HistoryPartner;
+    -- self.serverText.text = str;
+end
+
+-- 刷新 下一个等级的奖励显示
+function PowerWindow:RefreshNextLevelRewards(nextRankDataCell, nextRankResDataCell, curRankDataCell)
+
+    if nextRankDataCell == nil then
+        self.rewards.gameObject:SetActive(false);
+        return;
+    end
+
+    self.rewards.gameObject:SetActive(true);
+
+    local str = GetRankLevelStr(nextRankDataCell, nextRankResDataCell);
+
+    self.rewardLevelText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Power_RewardLevel"), {str});
+    self.rewardScoreText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Power_RewardScore"),
+        {curRankDataCell.TotalPower});
+
+end
+
+-- 刷新 第二个界面的 大模块按钮
+function PowerWindow:RefreshBigModuleClickItmes(bigModuleDatas)
+    -- 大模块目前界面约定是 四个
+    for i = 1, 4, 1 do
+        self.bigModuleClickItems[i]:UpdateData(bigModuleDatas[i - 1]);
+
+        local isSelected = self.curClickBigModuleItem == self.bigModuleClickItems[i];
+
+        self.bigModuleClickItems[i]:UpdateSelected(isSelected);
+    end
+end
+
+-- 刷新 第二个界面 大模块 的 选中状态
+function PowerWindow:RefreshBigModuleClickItmesSelectedState()
+    -- 大模块目前界面约定是 四个
+    for i = 1, 4, 1 do
+
+        local isSelected = self.curClickBigModuleItem == self.bigModuleClickItems[i];
+
+        self.bigModuleClickItems[i]:UpdateSelected(isSelected);
+    end
+end
+
+-- 刷新 子模块的 界面显示
+function PowerWindow:RefreshSubModuleItmes()
+
+    if self.curClickBigModuleItem == nil then
+        return;
+    end
+    local bigModuleData = self.curClickBigModuleItem.moduleData;
+
+    local count = bigModuleData:GetShowSubModules().Count;
+
+    -- 刷新 子模块界面
+    self.scrollContent:ContinueScroll(count, false, 0);
+
+    -- 刷新 模块名字
+    self.subModuleTitle.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Power_Module"),
+        {bigModuleData.PowerModuleDataCellCfg.PartName});
+
+    -- 刷新 模块分数
+    self.subModuleScore.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Power_TotalScore"),
+        {bigModuleData.CurPower});
+
+    self.SubModuleLevel.text = bigModuleData.CurProgressModuleEvalueCfg.Evalue;
+
+    self:RefreshLevel(self.SubModuleLevel, bigModuleData.CurProgressModuleEvalueCfg.ShowQuality);
+end
+
+-- 刷新不同等级对应的颜色
+function PowerWindow:RefreshLevel(label, quality)
+    local colorStr = GetPowerLevelColor(quality);
+    local res, color = CS.UnityEngine.ColorUtility.TryParseHtmlString(colorStr);
+    label.color = color;
+end
+
+-- 刷新单个 子模块
+function PowerWindow:OnSubModuleItemRefesh(tr, idx)
+
+    if self.curClickBigModuleItem == nil then
+        return;
+    end
+
+    -- 拿到 选择的 大的模块数据
+    local bigModuleData = self.curClickBigModuleItem.moduleData;
+
+    -- 拿到了 对应子模块的战力数据
+    local subModuleDatas = bigModuleData:GetShowSubModules();
+    local subModuleData = subModuleDatas[idx];
+
+    for i = 1, #self.subModuleItems, 1 do
+        if self.subModuleItems[i].transform == tr then
+            self.subModuleItems[i]:UpdateData(subModuleData);
+            return;
+        end
+    end
+
+    -- 如果没有找到
+    local subModuleItem = PowerSubModuleItem:New(tr.gameObject);
+    subModuleItem:UpdateData(subModuleData);
+
+    table.insert(self.subModuleItems, subModuleItem);
+
+end
+
+-- 预览的奖励
+function PowerWindow:PreviewRewards()
+    local serverPowerAll = FightPowerManager.Instance:GetServerPowerAllData();
+    local id = serverPowerAll.Cfg_NextLevelPowerRankDataCell.Reward;
+    local num = serverPowerAll.Cfg_NextLevelPowerRankDataCell.RewardNum;
+
+    local rewards = {};
+    table.insert(rewards, {
+        ItemID = id,
+        ItemNum = num
+    })
+
+    self:SetItems(rewards);
+
+    self.rewardPreview.gameObject:SetActive(true);
+
+    local str = GetRankLevelStr(serverPowerAll.Cfg_NextLevelPowerRankDataCell,
+        serverPowerAll.Cfg_NextLevelRankResDataCell);
+    self.previewLevel.text = str;
+end
+
+function PowerWindow:RefreshRewardsIcon()
+    local hasRewards = FightPowerManager.Instance:HasSeverRankLevelReward();
+    self.rewardIcon:SetActive(hasRewards);
+    self.noRewardIcon:SetActive(not hasRewards);
+
+end
+
+function PowerWindow:RefreshPageFx()
+
+    local fxParent = nil;
+    -- 选中的是  page1
+    if self.curClickBigModuleItem == nil then
+        fxParent = self.page1Fx;
+    else
+        fxParent = self.page2Fx;
+    end
+
+    self:RefreshFx(self.bigRank, fxParent);
+end
+
+function PowerWindow:RefreshFx(level, parent)
+
+    local path = PowerFxPath .. level;
+    if self.fx ~= nil then
+        self.fx.transform:SetParent(parent);
+        self.fx.transform.localPosition = Vector3.zero;
+        self.fx.transform.localScale = Vector3.one;
+
+        self:PlayFx(self.fx);
+        return;
+    end
+
+    ResourceManager.Instance:PopGameObject(path, function(_go)
+        if _go == nil then
+            return;
+        end
+
+        -- 如果特效加载的过程中, 父节点已经被销毁了, 那就不把特效添加到 parent 目录下
+        if parent == nil then
+            ResourceManager.Instance:PushGameObject(path, _go);
+            return;
+        end
+
+        -- 已经有一个
+        if self.fx ~= nil then
+            ResourceManager.Instance:PushGameObject(path, _go);
+            return;
+        end
+
+        _go.transform:SetParent(parent);
+        _go.transform.localPosition = Vector3.zero;
+        _go.transform.localScale = Vector3.one;
+
+        self.fx = _go.transform:GetComponent(typeof(UIParticle));
+
+        self:PlayFx(self.fx);
+    end)
+end
+
+function PowerWindow:PlayFx(fxUIParticle)
+    fxUIParticle.transform.gameObject:SetActive(true);
+
+    fxUIParticle:Clear();
+    fxUIParticle:Play();
+end
+
+function PowerWindow:SetItems(itemDatas)
+    -- ItemID排序
+    for i, v in pairs(itemDatas) do
+        local config = ConfigDataAccessor.Item[v.ItemID]
+        if config ~= nil then
+            v.quality = config.Quality
+            v.itemType = config.ItemType
+        else
+            v.quality = 1
+            v.itemType = 1
+            v.ItemNum = 1
+        end
+    end
+
+    table.sort(itemDatas, function(a, b)
+        if a == nil or b == nil then
+            return false;
+        end
+
+        if a.quality == ItemQualityType.Currency and b.quality == ItemQualityType.Currency then
+            if a.itemType == b.itemType then
+                return a.ItemID < b.ItemID
+            else
+                return a.itemType < b.itemType
+            end
+        elseif a.quality == ItemQualityType.Currency and b.quality ~= ItemQualityType.Currency then
+            return true
+        elseif a.quality ~= ItemQualityType.Currency and b.quality == ItemQualityType.Currency then
+            return false
+        else
+            return a.quality > b.quality
+        end
+    end)
+
+    local dateCount = #itemDatas;
+
+    -- 如果大于5个, 就改变 layout的布局
+    if dateCount > 5 then
+        local v2 = Vector2(0, 0.5);
+        self.layoutGroup.childAlignment = TextAnchor.MiddleLeft;
+        self.layoutRectTransform.pivot = v2;
+        self.layoutRectTransform.anchorMin = v2;
+        self.layoutRectTransform.anchorMax = v2;
+        self.contentSizeFitter.enabled = true;
+        self.layoutRectTransform.localPosition.x = 0;
+        self.layoutGroup.padding.left = 10;
+
+    else
+        local v2 = Vector2(0.5, 0.5);
+        self.layoutGroup.childAlignment = TextAnchor.MiddleCenter;
+        self.layoutRectTransform.pivot = v2;
+        self.layoutRectTransform.anchorMin = v2;
+        self.layoutRectTransform.anchorMax = v2;
+        self.contentSizeFitter.enabled = false;
+        self.layoutRectTransform.sizeDelta.x = 500;
+        self.layoutRectTransform.localPosition.x = 0;
+        self.layoutGroup.padding.left = 0;
+    end
+
+    -- self.itemCopy
+    -- self.Layout
+
+    -- 如果道具数据大于 节点的数量,那就 实例化这个节点
+    local nodeCount = #self.ItemList;
+    if nodeCount < dateCount then
+        for i = nodeCount + 1, dateCount do
+            local item = newObject(self.itemCopy);
+            item.parent = self.layoutRoot;
+
+            local bi = CostItem.new(item.gameObject, self.layoutRoot, nil);
+            bi.prefab:SetActive(true);
+            table.insert(self.ItemList, bi);
+        end
+
+    end
+
+    -- 显示对应数据的道具
+    for i = 1, dateCount do
+        local itemIcon = self.ItemList[i];
+        itemIcon.prefab:SetActive(true);
+
+        self.ItemList[i]:UpdateContent(itemDatas[i], function()
+            -- self:ClosePreviewReward()
+        end);
+        self.ItemList[i]:UpdateGetState(false);
+    end
+
+    -- 关闭后续 icon节点的显示
+    for i = dateCount + 1, #self.ItemList do
+        local itemIcon = self.ItemList[i];
+        itemIcon.prefab:SetActive(false);
+    end
+
+end
+
+function PowerWindow:ClosePreviewReward()
+    self.rewardPreview.gameObject:SetActive(false);
+end
+
+---------
+
+function PowerWindow:OnDestroy()
+    IsDestroy = true;
+
+end
+
+function PowerWindow:OnClose(arg)
+    -- 进入界面， 刷新 红点相关数据
+    if self.fx ~= nil then
+        local path = PowerFxPath .. self.bigRank;
+        ResourceManager.Instance:PushGameObject(path, self.fx.gameObject);
+        self.fx = nil;
+    end
+end
+
+return PowerWindow

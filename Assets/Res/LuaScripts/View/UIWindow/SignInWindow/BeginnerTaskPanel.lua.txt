@@ -1,0 +1,182 @@
+local BeginnerTaskPanel = {}
+BeginnerTaskPanel.__index = BeginnerTaskPanel
+
+local BeginnerTaskItem = require("View/UIWindow/SignInWindow/BeginnerTaskItem")
+
+function BeginnerTaskPanel:New(obj,parentview)
+    local self = {};
+    setmetatable(self, BeginnerTaskPanel);
+    self.parent = parentview
+    self:InitControls(obj)
+    self:Refresh()
+    return self;
+end
+
+function BeginnerTaskPanel:InitControls(obj)
+    self.gameObject = obj;
+    self.transform = obj.transform;
+    self.BeginnerTargetData = {}
+    self.TaskDataList = {}
+    self.TxtProcess = self.transform:Find("info/jindu/TxtProcess"):GetComponent(TText)
+    self.TxtTitle = self.transform:Find("info/jindu/title/TxtTitle"):GetComponent(TText)
+    self.TxtTime = self.transform:Find("ObjFinish/TxtTime"):GetComponent(TText)
+    self.BtnGet = self.transform:Find("info/jindu/BtnGet"):GetComponent(TButton);
+    self.BtnBan = self.transform:Find("info/jindu/BtnBan"):GetComponent(TImage);
+    self.BtnFinish = self.transform:Find("info/jindu/BtnFinish"):GetComponent(TImage);
+    self.ObjFinish = self.transform:Find("ObjFinish").gameObject
+    self.ImgGet = self.transform:Find("info/jindu/ImgGet"):GetComponent(TImage);
+    self.ImgBan = self.transform:Find("info/jindu/ImgBan"):GetComponent(TImage);
+
+    self.BtnTips = self.transform:Find("info/jindu/bannerbg/title/BtnTips"):GetComponent(TButton)
+    self.BtnTips.onClick:AddListener(function ()
+        UIManager.Instance:OpenWindow("Common/GamePlayInfoWindow", 124, CS.StarProjectDef.MainPageCommond.HideBoth);
+    end)
+
+    local ConventionRewardItemPreviewGo = self.transform:Find("info/jindu/ItemPreview").gameObject
+    self.ConventionRewardItemPreview = StructAccessor.ItemPreview.new(ConventionRewardItemPreviewGo)
+
+    self.SuperScrollViewControllerItems = {}
+    self.SuperScrollViewController = self.transform:Find("info/TaskList/ScrollView"):GetComponent(typeof(SuperScrollViewController))
+    self.SuperScrollViewControllerRoot = self.transform:Find("info/TaskList/ScrollView/Mask/List")
+    self.SuperScrollViewController:NewScroll(
+            self.transform:Find("info/TaskList/TaskItem").gameObject,
+            0,
+            function(tr, idx)
+                self:OnItemRefesh(tr, idx)
+            end
+    )
+    self.BtnGet.onClick:AddListener(function ()
+        self:OnGetReward()
+    end)
+    self.OnRefresh=function()
+        self:Refresh()
+    end
+    CS.StarProject.GlobalEvent.OnBeginnerRefresh:AddListener(self.OnRefresh);
+
+    self.TimeTickFunc = function()
+        self:SetLeftTime();
+    end
+end
+function BeginnerTaskPanel:SetLeftTime(st)
+    if self.BeginnerTargetData and self.BeginnerTargetData.LastTime ~= 0 then
+        local dt = GameManager.Instance:GetServerTimeStamp()/1000 - self.BeginnerTargetData.LastTime;
+        local t = math.floor((3600*24) - dt);
+        if t < 0 then
+            t = 0;
+            if self.TimeTickFunc ~= nil then
+                MonoHelper.RemoveSecTimeUpdateListener(self.TimeTickFunc);
+                self.TimeTickFunc = nil;
+                UIManager.Instance:CloseWindow("Activity/Prefab/SignIn/SignInWindow")
+            end
+        end
+        if self.TxtTime ~= nil then
+            self.TxtTime.text = StringFormat(LanguageHelp:GetLanguageByKey("UI_BeginnerTarget_CloseTips"),{FormatShowTime(t)})
+        end
+    end
+end
+function BeginnerTaskPanel:Refresh()
+    local FriendModule = ModuleManager.Instance:GetModule(ModuleDef.BeginnerTargetModule);
+    if FriendModule then
+        local luatable = FriendModule:GetLuaTable()
+        self.BeginnerTargetData = luatable:GetChapterData();
+    end
+    if self.BeginnerTargetData == nil then return end
+    --当前奖励
+    if self.BeginnerTargetData.CommonAward and self.BeginnerTargetData.CommonAwardNum then
+        local sortTempList = self:GetRewardList(self.BeginnerTargetData.CommonAward, self.BeginnerTargetData.CommonAwardNum)
+        self:SetRewardItemPreview(self.ConventionRewardItemPreview, sortTempList);
+    end
+
+    if self.SuperScrollViewController and self.BeginnerTargetData.TaskDataList then
+        self.SuperScrollViewController:ContinueScroll(5, false, 0)
+    end
+    if self.BeginnerTargetData.CurProcess and self.BeginnerTargetData.MaxProcess then
+        self.TxtProcess.text =  string.format("<size=68>%d</size>/%d", self.BeginnerTargetData.CurProcess,self.BeginnerTargetData.MaxProcess)
+    end
+    if self.BeginnerTargetData.GroupName then
+        self.TxtTitle.text = self.BeginnerTargetData.GroupName
+    end
+    --如果没有全部完成
+    if self.BeginnerTargetData.IsEnd then
+        self.BtnGet.gameObject:SetActive(false)
+        self.BtnBan.gameObject:SetActive(false)
+        self.ImgGet.gameObject:SetActive(false)
+        self.ImgBan.gameObject:SetActive(true)
+        self.BtnFinish.gameObject:SetActive(true)
+        self.ObjFinish:SetActive(true)
+        if self.BeginnerTargetData.LastTime ~= 0 then
+            MonoHelper.RemoveSecTimeUpdateListener(self.TimeTickFunc);
+            MonoHelper.AddSecTimeUpdateListener(self.TimeTickFunc);
+            self.TimeTickFunc()
+        end
+    else
+        if self.BeginnerTargetData.CurProcess and self.BeginnerTargetData.MaxProcess then
+            if self.BeginnerTargetData.CurProcess >= self.BeginnerTargetData.MaxProcess then
+                self.BtnGet.gameObject:SetActive(true)
+                self.BtnBan.gameObject:SetActive(false)
+                self.ImgGet.gameObject:SetActive(true)
+                self.ImgBan.gameObject:SetActive(false)
+            else
+                self.BtnGet.gameObject:SetActive(false)
+                self.BtnBan.gameObject:SetActive(true)
+                self.ImgGet.gameObject:SetActive(false)
+                self.ImgBan.gameObject:SetActive(true)
+            end
+        end
+        self.BtnFinish.gameObject:SetActive(false)
+        self.ObjFinish:SetActive(false)
+    end
+end
+function BeginnerTaskPanel:OnGetReward()
+    LuaModuleDispatcher:SendMessage(ModuleDef.BeginnerTargetModule, "SendBeginnerRewardReq", {Floor = self.BeginnerTargetData.StageDone + 1 });
+end
+function BeginnerTaskPanel:SetRewardItemPreview(ItemPreview, CostItems)
+    ItemPreview:SetItemsNotSort(CostItems)
+end
+function BeginnerTaskPanel:OnItemRefesh(tr, idx)
+    if self.SuperScrollViewControllerItems == nil then
+        return
+    end
+    local taskData = self.BeginnerTargetData.TaskDataList[idx + 1] --idx是从0开始，如果ItemDataList是lua的table需要idx+1
+    for i = 1, #self.SuperScrollViewControllerItems do
+        if self.SuperScrollViewControllerItems[i].prefab.transform == tr then
+            self.SuperScrollViewControllerItems[i]:UpdateContent(taskData) --idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+        end
+    end
+    local sp =
+    BeginnerTaskItem.new(
+            tr.gameObject,
+            self.SuperScrollViewControllerRoot,
+            self.AtlasPath
+    )
+    sp.prefab:SetActive(true)
+    sp:UpdateContent(taskData)
+    table.insert(self.SuperScrollViewControllerItems, sp)
+end
+-- 获取奖励信息
+function BeginnerTaskPanel:GetRewardList(rewards, rewardNums)
+    local tempList = {}
+    for i = 1, #rewards do
+        local itemId = rewards[i]
+        local itemNum = rewardNums[i]
+        local item = { ItemID = itemId, ItemNum = itemNum}
+        table.insert(tempList,item)
+    end
+    return tempList
+end
+
+function BeginnerTaskPanel:OnClose()
+    CS.StarProject.GlobalEvent.OnBeginnerRefresh:RemoveListener(self.OnRefresh);
+    self.BtnGet.onClick:RemoveListener(function ()
+        self:OnGetReward()
+    end)
+    if self.TimeTickFunc then
+        MonoHelper.RemoveSecTimeUpdateListener(self.TimeTickFunc);
+		self.TimeTickFunc = nil;
+    end
+end
+function BeginnerTaskPanel:OnGetBeginnerRewardFunc()
+
+end
+return BeginnerTaskPanel

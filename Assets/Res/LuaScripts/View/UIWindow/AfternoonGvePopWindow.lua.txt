@@ -1,0 +1,352 @@
+--[[
+*文件名   :   AfternoonGvePopWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/09/15 13:09:51"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] AfternoonGvePopWindow =
+    class("AfternoonGvePopWindow", UIPanel)
+
+local GngEffectItem = require("View/Item/GngEffectItem")
+local AfternoonGveRankPart = require("View.UIWindow.Event.AfternoonGveRankPart")
+
+local AfternoonGveRankPartGuildItem = require("View/Uiwindow/Event/AfternoonGveRankPartGuildItem")
+local AfternoonGveRankPartPersonalItem = require("View/Uiwindow/Event/AfternoonGveRankPartPersonalItem")
+
+function AfternoonGvePopWindow:Awake()
+    self.transform = self.prefab.transform
+    self.gameObject = self.transform.gameObject
+
+    self.talkParent = self.transform:Find("Cut4Cam90/AssemblyRatio2/Midst")
+
+    self.bossImage = self.transform:Find("Cut4Cam90/AssemblyRatio2/Midst/BossImg"):GetComponent(typeof(Image))
+
+    self.name = self.transform:Find("Cut4Cam90/AssemblyRatio2/Midst/bossName"):GetComponent(typeof(Text))
+    self.time = self.transform:Find("Cut4Cam90/AssemblyRatio2/Midst/endTime"):GetComponent(typeof(Text))
+    self.slider = self.transform:Find("Cut4Cam90/AssemblyRatio2/Midst/slider"):GetComponent(typeof(RectTransform))
+    self.oldW = self.slider.rect.width
+
+    self.left = self.transform:Find("Cut4Cam90/AssemblyRatio2/R/BtnGo/Left"):GetComponent(typeof(Text))
+
+    self.go_notEnough = self.transform:Find("Cut4Cam90/AssemblyRatio2/R/NotEnough").gameObject
+    self.go_btnGo = self.transform:Find("Cut4Cam90/AssemblyRatio2/R/BtnGo").gameObject
+
+    self.GuildItem = AfternoonGveRankPartGuildItem:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/R/Rank/Guild/MyGngGuildRankItem").gameObject)
+    self.PersonalItem = AfternoonGveRankPartPersonalItem:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/R/Rank/Personal/MyGngPersonalRankItem").gameObject)
+
+    -- 效果
+    self.effects = {}
+    for i = 1, 2 do
+        local eff =
+            GngEffectItem:New(
+            self.transform:Find("Cut4Cam90/AssemblyRatio2/Midst/Effects/EffectItem" .. i).gameObject,
+            function(buffID)
+                -- 效果点击事件
+            end
+        )
+        table.insert(self.effects, eff)
+    end
+
+    -- 前往
+    self.go_btnGo:GetComponent(typeof(JButton)).OnClick = (function()
+        if self.LeftCount > 0 then
+            local GNGOpenPlayReq = CS.ProtoMsg.GNGOpenPlayReq()
+            CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, GNGOpenPlayReq, false)
+        else
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_104"))
+        end
+    end)
+
+    self.go_btnReward = self.transform:Find("Cut4Cam90/AssemblyRatio2/Midst/Btns/BtnReward").gameObject
+
+    -- 奖励
+    self.go_btnReward:GetComponent(typeof(JButton)).OnClick = (function()
+        local data = {}
+        data.OpenIdx = 1
+        data.GuildData = self.GuildData
+        data.PersonalData = self.PersonalData
+        UIManager.Instance:OpenWidgetAsync("Event/AfternoonGveRankRewardWidget", nil, false, data, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, false)
+    end)
+
+    self.GuildItem.gameObject:SetActive(false)
+    self.PersonalItem.gameObject:SetActive(false)
+
+    -- 排行
+    self.AfternoonGveRankPart =
+        AfternoonGveRankPart:New(
+        self.transform:Find("Cut4Cam90/AssemblyRatio2/R/Rank").gameObject,
+        function(guildData, personalData)
+            self.GuildData = guildData
+            self.PersonalData = personalData
+
+            if guildData ~= nil then
+                if guildData.Rank > -1 then
+                    self.GuildItem.gameObject:SetActive(true)
+                    self.GuildItem:SetItem(guildData)
+                end
+            end
+
+            if personalData ~= nil then
+                if personalData.Rank > -1 then
+                    self.PersonalItem.gameObject:SetActive(true)
+                    self.PersonalItem:SetItem(personalData)
+                end
+            end
+        end
+    )
+
+    self.NeedRefesh = false
+    -- 刷新时间
+    self.UpdateFun = function()
+        self:RefeshLeftTime()
+    end
+    -- 刷新时间
+    MonoHelper.AddUpdateListener(self.UpdateFun)
+
+    self.m_CloseBtn = self:Find("Cut4Cam90/AssemblyRatio2/L/CloseBtn/CloseBtn1"):GetComponent(typeof(Button))
+    self.m_CloseBtn.onClick:AddListener(
+        function()
+            self:OnClickCloseBtn()
+        end
+    )
+
+    self.message = function(data)
+        self:OnGNGOpenPlayRet(data)
+    end
+    -- 开始回调
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.GNGOpenPlayRetID, self.message, nil)
+end
+
+-- 退出冒险团回调
+function AfternoonGvePopWindow:OnGNGOpenPlayRet(data)
+    self:OnClickCloseBtn()
+end
+
+function AfternoonGvePopWindow:Start()
+end
+
+function AfternoonGvePopWindow:OnEnable()
+end
+
+function AfternoonGvePopWindow:OnDisable()
+end
+
+function AfternoonGvePopWindow:OnDestroy()
+end
+
+function AfternoonGvePopWindow:OnOpen(arg)
+    self:OnListener()
+
+    self.GuildItem.gameObject:SetActive(false)
+    self.PersonalItem.gameObject:SetActive(false)
+    self:Refesh()
+
+    LuaModuleDispatcher:SendMessage(ModuleDef.ChatModule, "OnChangeRoot", {self.talkParent, Vector2(-573, 27)})
+end
+
+function AfternoonGvePopWindow:RefeshAttr()
+    for i = 1, #self.effects do
+        self.effects[i]:SetItem(0)
+    end
+
+    local M_MainPlayerCtrlBase = GameManager.Instance.M_MainPlayerCtrlBase
+
+    if M_MainPlayerCtrlBase ~= nil and M_MainPlayerCtrlBase.Data ~= nil and M_MainPlayerCtrlBase.Data.Attrs ~= nil then
+        local GNGUserData = M_MainPlayerCtrlBase.Data.Attrs:GetProtoValue(CS.StarProjectDef.AOIAttrDefine.GNGData)
+        if GNGUserData ~= nil then
+            -- self.StartTime = GNGUserData.StartTime;
+            self.BuffList = GNGUserData.BuffList
+            self.WaitBuffList = GNGUserData.WaitBuffList
+            self.TotalScore = GNGUserData.TotalScore
+            -- self.Duration = GNGUserData.Duration;
+            -- self.EndTime = GNGUserData.EndTime;
+
+            -- 已经有的buff
+            for i = 0, self.BuffList.Count - 1 do
+                if self.effects[i + 1] ~= nil then
+                    self.effects[i + 1]:SetItem(self.BuffList[i])
+                end
+            end
+
+            -- 判断是否要弹出选择buff界面
+            if self.WaitBuffList.Count > 0 and self.BuffList.Count < 2 then
+                -- 弹出buff选择界面
+                UIManager.Instance:OpenWidget("Event/AfternoonGveSelectBuffWidget", false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, false)
+            end
+        else
+            self.IsOpen = false
+        end
+    else
+        self.IsOpen = false
+    end
+end
+
+function AfternoonGvePopWindow:BindModule(module)
+    self.module = module
+end
+
+function AfternoonGvePopWindow:Refesh()
+    self.IsOpen = true
+
+    local BossCommonCount = GameManager.Instance:GetGNActivBoss_CommonCount()
+    local GNGPlayStartI2L = GameManager.Instance.GNGPlayStartI2L -- GNG活动属性
+
+    -- self.left.text="今日次数："..BossCommonCount.."/3";
+    self.left.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_left"), {BossCommonCount, 3})
+
+    self.LeftCount = BossCommonCount
+
+    if GNGPlayStartI2L ~= nil then
+        self.StartTime = GNGPlayStartI2L.StartTime -- 开始时间
+        self.Duration = GNGPlayStartI2L.Duration -- 持续时间
+        self.EndTime = GNGPlayStartI2L.EndTime -- 结束时间
+        self.BossID = GNGPlayStartI2L.BossID -- bossid
+    else
+        self.IsOpen = false
+        -- self.time.text="已结束";
+        self.time.text = LanguageHelp:GetLanguageByKey("Local_Str_Over")
+    end
+
+    self.bossImage.gameObject:SetActive(false)
+    self.name.text = ""
+
+    local bossCfg = ConfigDataAccessor.Monster[self.BossID]
+
+    if bossCfg == nil then
+        return
+    end
+
+    self.name.text = bossCfg.Name
+
+    local avatarDataCell = ConfigDataAccessor.Avatar[bossCfg.AvatarID]
+    if avatarDataCell ~= nil then
+        local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID]
+        if headCfg ~= nil then
+            if self.bossImage ~= nil then
+                -- ResourceHelper:LoadIconAsync(self.bossImage, "", headCfg.HalfDrawing, true,function()
+                ResourceHelper:LoadSpriteAtlasAsync(
+                    self.bossImage,
+                    ResourceHelper.HeadAtlasPath .. headCfg.HalfDrawing,
+                    headCfg.HalfDrawing,
+                    false,
+                    function()
+                        self.bossImage.gameObject:SetActive(true)
+                        self.bossImage:SetNativeSize()
+                    end
+                )
+            end
+        end
+    end
+
+    self:RefeshAttr()
+
+    -- 判断开启条件（待定）
+    local isPlayCanPlay = true
+
+    if isPlayCanPlay then
+        if self.IsOpen then
+            self.NeedRefesh = true
+            self:RefeshLeftTime()
+        else
+            self.go_notEnough:SetActive(false)
+            self.go_btnGo:SetActive(false)
+        end
+    else
+        self.IsOpen = false
+        self.go_notEnough:SetActive(true)
+        self.go_btnGo:SetActive(false)
+    end
+
+    self.AfternoonGveRankPart:Reset(self.StartTime, self.EndTime)
+end
+
+function AfternoonGvePopWindow:RefeshLeftTime()
+    if self.NeedRefesh then
+        local serverNowTime = math.floor(GameManager.Instance:GetServerTimeStamp() / 1000)
+        local serverCloseTime = self.EndTime / 1000
+        local leftTime = serverCloseTime - serverNowTime
+
+        if leftTime > 0 then
+            -- self.time.text="玩法结束时间  "..SecToStringColon2(leftTime);
+            self.time.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_PlayerOverTime"), {SecToStringColon2(leftTime)})
+
+            self.IsOpen = true
+            self.go_notEnough:SetActive(false)
+            self.go_btnGo:SetActive(true)
+
+            local per = leftTime / ((self.EndTime / 1000) - (self.StartTime / 1000))
+            self.slider.sizeDelta = Vector2(self.oldW * per, self.slider.sizeDelta.y)
+        else
+            -- self:OnClickCloseBtn();
+            -- 活动结束
+            self.IsOpen = false
+            self.go_notEnough:SetActive(false)
+            self.go_btnGo:SetActive(false)
+
+            -- self.time.text="已结束";
+            self.time.text = LanguageHelp:GetLanguageByKey("Local_Str_Over")
+
+            self.NeedRefesh = false
+
+            self.slider.sizeDelta = Vector2(0, self.slider.sizeDelta.y)
+        end
+    end
+end
+
+function AfternoonGvePopWindow:OnListener()
+    -- 属性同步回调
+    if self.M_EntityBase == nil then
+        self.M_EntityBase = GameManager.Instance.M_MainPlayerCtrlBase
+        self.attrLuaKey = "GNGData_" .. GameManager.Instance.mainPlayerId
+        self.M_EntityBase.Data:AddAttributeChangeLuaAction(
+            CS.StarProjectDef.AOIAttrDefine.GNGData,
+            self.attrLuaKey,
+            function(key, value)
+                print("GNG属性同步开始")
+                -- 刷新
+                self:RefeshAttr()
+            end
+        )
+    end
+end
+
+function AfternoonGvePopWindow:OffListener()
+    -- 解绑属性同步回调
+    if self.M_EntityBase ~= nil then
+        self.M_EntityBase.Data:DelAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.GNGData, self.attrLuaKey)
+        self.M_EntityBase = nil
+    end
+end
+
+function AfternoonGvePopWindow:OnClose(arg)
+    self.AfternoonGveRankPart:Release()
+
+    -- self:CloseWindow();
+    self.module.afternoonGvePopWindow = nil
+    self:OffListener()
+
+    -- 刷新时间
+    MonoHelper.RemoveUpdateListener(self.UpdateFun)
+
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.GNGOpenPlayRetID, self.message, nil)
+end
+
+function AfternoonGvePopWindow:OnClickCloseBtn()
+    LuaModuleDispatcher:SendMessage(ModuleDef.ChatModule, "OnResetRoot", nil)
+
+    self.module.afternoonGvePopWindow = nil
+
+    self.Close()
+
+    --[[
+	self.PlayAnimation("AfternoonGvePopWindowAnim_Close", function ()
+		self.IsOpen=false;
+		self.module:OnCloseEvent();
+
+		self.Close();
+	end)
+	]]
+end
+
+return AfternoonGvePopWindow

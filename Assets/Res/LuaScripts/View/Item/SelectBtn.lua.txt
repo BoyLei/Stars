@@ -1,0 +1,115 @@
+--[[
+*文件名   :   SelectBtn
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/18 18:36:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local SelectBtn = {}
+
+SelectBtn.__index = SelectBtn
+
+function SelectBtn:New(_go)
+    local self = {}
+    setmetatable(self, SelectBtn)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    if self.transform:Find("selected") == nil then
+        self.go_Selected = self.transform:Find("btn/selected").gameObject
+        self.go_Noselected = self.transform:Find("btn/noselected").gameObject
+
+        --点击事件
+        self.btnClick = self.transform:Find("btn"):GetComponent(typeof(JButton))
+        self.btnClick.OnClick = (function()
+            if self.OnItemCkick ~= nil then
+                self.OnItemCkick(self.Idx)
+            end
+        end)
+    else
+        self.go_Selected = self.transform:Find("selected").gameObject
+        self.go_Noselected = self.transform:Find("noselected").gameObject
+        --点击事件
+        self.btnClick = self.transform:GetComponent(typeof(JButton))
+        self.btnClick.OnClick = (function()
+            if self.OnItemCkick ~= nil then
+                self.OnItemCkick(self.Idx)
+            end
+        end)
+    end
+
+    self.go_Selected:SetActive(false)
+    self.go_Noselected:SetActive(true)
+
+    self:SetUse(false)
+
+    self.IsSelected = false
+
+    return self --返回自身
+end
+
+function SelectBtn:PoolInit(onItemCkick)
+    self:SetUse(false)
+    self.OnItemCkick = onItemCkick
+end
+
+--初始化Item
+function SelectBtn:InitItem(idx, onItemCkick)
+    self:SetUse(true)
+    self.Idx = idx
+    if onItemCkick ~= nil then
+        self.OnItemCkick = onItemCkick
+    end
+    self:MakeSelected(false)
+end
+
+function SelectBtn:SetUse(b)
+    self.IsUsed = b
+
+    self.gameObject:SetActive(b)
+end
+
+function SelectBtn:SetText(tex)
+    if self.transform:Find("selected") == nil then
+        self.transform:Find("btn/selected/tex"):GetComponent(typeof(Text)).text = tex
+        self.transform:Find("btn/noselected/tex"):GetComponent(typeof(Text)).text = tex
+    else
+        self.transform:Find("selected/tex"):GetComponent(typeof(Text)).text = tex
+        self.transform:Find("noselected/tex"):GetComponent(typeof(Text)).text = tex
+    end
+end
+
+function SelectBtn:SetIcon(icon)
+    if self.transform:Find("selected") == nil then
+        --LoadIcon(self.transform:Find("btn/selected/img"):GetComponent(typeof(Image)),icon);
+        ResourceHelper:LoadIconAsync(
+            self.transform:Find("btn/selected/img"):GetComponent(typeof(Image)),
+            "",
+            icon,
+            false
+        )
+        --LoadIcon(self.transform:Find("btn/noselected/img"):GetComponent(typeof(Image)),icon);
+        ResourceHelper:LoadIconAsync(
+            self.transform:Find("btn/noselected/img"):GetComponent(typeof(Image)),
+            "",
+            icon,
+            false
+        )
+    else
+        --LoadIcon(self.transform:Find("selected/img"):GetComponent(typeof(Image)),icon);
+        ResourceHelper:LoadIconAsync(self.transform:Find("selected/img"):GetComponent(typeof(Image)), "", icon, false)
+        --LoadIcon(self.transform:Find("noselected/img"):GetComponent(typeof(Image)),icon);
+        ResourceHelper:LoadIconAsync(self.transform:Find("noselected/img"):GetComponent(typeof(Image)), "", icon, false)
+    end
+end
+
+--是否被选中
+function SelectBtn:MakeSelected(b)
+    self.IsSelected = b
+    self.go_Selected:SetActive(b)
+    self.go_Noselected:SetActive(not b)
+end
+
+return SelectBtn

@@ -1,0 +1,32 @@
+local HistoryItem = {}
+HistoryItem.__index = HistoryItem
+
+function HistoryItem:New(obj, win)
+    local self = {};
+    setmetatable(self, HistoryItem);
+
+    self:InitControls(obj, win)
+
+    return self;
+end
+
+function HistoryItem:InitControls(obj, win)
+    self.gameObject = obj;
+    self.transform = obj.transform;
+
+    self.recordText = self.transform:Find("RichText"):GetComponent(typeof(TextMeshProUGUI));
+    self.recordBtn = self.transform:GetComponent(typeof(Button));
+    self.recordBtn.onClick:AddListener(function()
+        win:SetInputText(self.data.txt, self.data.extra);
+    end);
+end
+
+function HistoryItem:SetItem(itemData)
+    self.data = itemData;
+    --self.recordText.text = self.data.txt;
+	
+	self.recordText.text = ExtraData.HistoryClientToClient(self.data.txt, self.data.extra);
+	
+end
+
+return HistoryItem

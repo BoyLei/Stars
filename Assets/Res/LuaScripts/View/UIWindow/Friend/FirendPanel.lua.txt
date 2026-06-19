@@ -1,0 +1,1071 @@
+---------------------------------------------------------------------
+-- Stars (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-08-03 13:38:20
+---------------------------------------------------------------------
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+---@class FirendPanel
+local FirendPanel = {}
+FirendPanel.__index = FirendPanel
+
+local SelectBtn = require("View/Item/SelectBtn");
+local ItemFriend = require("View/UIWindow/Friend/ItemFriend");
+local WorldItem = require("View/UIWindow/Chat/ChatChannel/WorldItem");
+local ItemChatTime = require("View/UIWindow/Chat/ChatChannel/ItemChatTime");
+
+FirendPanel.mainPlayerPID = 0;
+FirendPanel.m_RequestFriendsReqTime = 0;
+FirendPanel.m_RequestUserListReqTime = 0;
+
+FirendPanel.allMsgs = {};
+FirendPanel.chatCfg = nil;
+FirendPanel.IsUnLock = false;
+FirendPanel.LastTime = 0;
+FirendPanel.ChatChannelMaxCount = 50;
+
+function FirendPanel:New(obj, idx)
+	local self = {};
+	setmetatable(self, FirendPanel);
+
+	self.Idx = idx;
+	self:InitControls(obj)
+
+	self.RecentlyPIDList = nil;
+	-- 第一次直接就请求一次好友列表
+	self:GetPageFriends(self.OnGetPageFriendsRespFun);
+
+	return self;
+end
+
+function FirendPanel:InitControls(obj)
+	self.gameObject = obj;
+	self.transform = obj.transform;
+
+	self.ContentCanvasGroup = self.gameObject:GetComponent(typeof(CanvasGroup));
+
+	-- 左边信息节点
+	self:InitTabJbtn();
+	-- 最近的好友列表
+	self.GobItemFriend = self.transform:Find("Left/ItemFriend").gameObject;
+	self.RecentlyItemList = {};
+	self.RecentlyScrollView = self.transform:Find("Left/RecentlyScrollView"):GetComponent(typeof(
+		SuperScrollViewController));
+	self.RecentlyScrollView:NewScroll(self.GobItemFriend, 0, function(tr, idx)
+		self:OnItemRefesh(tr, idx);
+	end);
+
+	-- 好友列表
+	self.FriendItemList = {};
+	self.FriendScrollView = self.transform:Find("Left/FriendScrollView"):GetComponent(typeof(
+		SuperScrollViewController));
+	self.FriendScrollView:NewScroll(self.GobItemFriend, 0, function(tr, idx)
+		self:OnFriendItemRefesh(tr, idx);
+	end);
+	-- 空提示
+	self.EmptyTips = self.transform:Find("Left/FriendScrollView/EmptyTips").gameObject;
+
+	self.emojiBtn = self.transform:Find("Right/Bottom/InputField/EmojiBtn"):GetComponent(typeof(Button));
+	self.emojiBtn.onClick:RemoveAllListeners();
+	self.emojiBtn.onClick:AddListener(function()
+		LuaModuleDispatcher:SendMessage(ModuleDef.ChatModule, "OnOpenChatInput",
+			{ self.inputField, 1 });
+	end);
+	self.inputField = self.transform:Find("Right/Bottom/InputField"):GetComponent(typeof(MyInput));
+
+	self.sendBtn = self.transform:Find("Right/Bottom/SendBtn"):GetComponent(typeof(Button));
+	self.sendBtn.onClick:RemoveAllListeners();
+	self.sendBtn.onClick:AddListener(function()
+		self:SendFriendChatData();
+		self.inputField:Clear();
+	end);
+
+	self.msgSV = self.transform:Find("Right/ChatContent/ScrollView"):GetComponent(typeof(ScrollViewExtend));
+	-- 好友数量
+	self.friendCountText = self.transform:Find("Left/FriendScrollView/FriendIcon/FriendCount"):GetComponent(typeof(Text));
+
+	self.SelfMsgItem = self.transform:Find("Right/SelfMsgItem").gameObject;
+	self.OtherMsgItem = self.transform:Find("Right/OtherMsgItem").gameObject;
+    self.ChatTimeItem = self.transform:Find("Right/ItemChatTime").gameObject;
+
+	self.Content = self.transform:Find("Right/ChatContent/ScrollView/Viewport/Content");
+	self.ContentContentSizeFitter = self.transform:Find("Right/ChatContent/ScrollView/Viewport/Content"):GetComponent(typeof(ContentSizeFitter));
+	self.ItemContentCanvasGroup = self.transform:Find("Right/ChatContent/ScrollView/Viewport/Content"):GetComponent(typeof(CanvasGroup));
+
+	-- 是否选中好友
+	self.SelectFriend = self.transform:Find("Right/ChatContent/NoSelect").gameObject;
+	-- added by gopal end
+
+	---------- 协议回调事件
+	--
+	-- self.OnGetDesignatedFriendsRespFun = function(data)
+	-- 	self:OnGetDesignatedFriendsResp(data);
+	-- end
+
+	self.OnGetUserListRespFun = function(data)
+		self:OnGetUserListResp(data);
+	end
+
+	-- 获取好友列表回调
+	self.OnGetPageFriendsRespFun = function(data)
+		self:OnGetPageFriendsResp(data);
+	end
+	--- 删除好友事件
+	self.OnDeleteFriendRespFun = function(data)
+		self:OnDeleteFriendResp(data);
+	end
+	--- 好友加入黑名单事件
+	self.OnAddBlackRespFun = function(data)
+		self:OnAddBlackResp(data);
+	end
+	-- 移出黑名单 事件
+	self.OnRemoveBlackRespFun = function(data)
+		self:OnRemoveBlackResp(data);
+	end
+
+	-- 移出列表
+	self.OnRemoveFriendFun = function(PID)
+		self:OnRemoveFriend(PID);
+	end
+	self.OnPlayerInfoFun = function(PID)
+		self:OnPlayerInfo(PID);
+	end
+	-- 加入黑名单好友
+	self.OnBlackFriendFun = function(PID)
+		self:OnBlackFriend(PID);
+	end
+	-- 删除好友
+	self.OnDelFriendFun = function(PID)
+		self:OnDelFriend(PID);
+	end
+	-- 移出黑名单
+	self.OnRemoveBlackFun = function(PID)
+		self:OnRemoveBlack(PID);
+	end
+	-- 邀请组队
+	self.OnInviteTeamFun = function(PID)
+		self:OnInviteTeam(PID);
+	end
+
+	self.SelectIndex = 0;
+	self.FriendSelectIndex = 0;
+
+	self.chatCfg = ConfigDataAccessor.ChatList[8];
+	self.ChatChannelMaxCount = self.chatCfg.MaxCount;
+end
+
+function FirendPanel:SyncInput(ip)
+	self.inputField:Sync(ip);
+end
+
+function FirendPanel:SyncMsgData(data)
+	self:AddNewChatMsgs(data);
+end
+
+function FirendPanel:SendFriendChatData()
+	if self.inputField.text == "" or self.curSelUserId == 0 then
+		return;
+	end
+
+    local isSend = self:GetIsSend();
+	if isSend then
+		self.inputField:SendData(CS.ProtoMsg.ChatChannel.ChannelPrivate, self.curSelUserId);
+		-- 自己发送完消息，滚动框，默认回到底部
+		self.msgSV:BackDown();
+		self.Parent.module:ClearFriendChatRedPointCountByPid(self.curSelUserId);
+	end
+end
+
+-- 发送【输入框中的】消息
+function FirendPanel:SendDataByChatInput(ip)
+    if ip == nil then
+        return;
+    end
+	if self.curSelUserId == 0 then
+		return;
+	end
+    -- 检查频道是否能发送消息
+    local isSend = self:GetIsSend();
+    if isSend then
+        ip:SendData(CS.ProtoMsg.ChatChannel.ChannelPrivate, self.curSelUserId);
+		self.inputField:Clear();
+		self.Parent.module:ClearFriendChatRedPointCountByPid(self.curSelUserId);
+    end
+end
+
+function FirendPanel:GetIsSend()
+	local isSend = false;
+	
+	local friendRelation = self.Parent:GetFriendRelation(self.curSelUserId);
+	if friendRelation == 2 then
+		CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(LanguageHelp:GetLanguageByKey("Local_Str_friend_request_fail_5"));
+		return isSend;
+	end
+
+	local curTime = CS.SGF.Time.TimeUtils.ServerNowStampMilli;
+	if self.chatCfg ~= nil then
+		-- 判断 是否支持输入
+		local AllowInput = self.chatCfg.AllowInput;
+		if AllowInput == true then
+			-- 判断 发言条件 是否解锁
+			if self.IsUnLock == false then
+				self.IsUnLock = GlobalFunctionManager.Instance:ConditionGroupMete(GameManager.Instance.mainPlayerId, self.chatCfg.Condition);
+			end
+
+			if self.IsUnLock == true then
+				-- 判断发言间隔（秒）
+				--  Log("好友聊天间隔=" .. (curTime - self.LastTime));
+				--  Log("好友聊天配置间隔=" .. self.chatCfg.SendInterval);
+
+				if (curTime - self.LastTime) >= self.chatCfg.SendInterval then
+					isSend = true;
+				else
+					CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(LanguageHelp:GetLanguageByKey("Local_Str_friend_request_fail_8"));
+				end
+			else
+				CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_286"));
+			end
+		else
+			CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_287"));
+		end
+	end
+	if isSend then
+		self.LastTime = curTime;
+	end
+	return isSend;
+end
+
+function FirendPanel:InitTabJbtn()
+	self.AttrMenuJBtns = {};
+
+	self.TabBtnClickFun = function(idx)
+		self:OnAttrMenuJBtnClick(idx);
+	end
+	-- 页签[最近]
+	local btn1 = SelectBtn:New(self.transform:Find("Left/TabRoot/JBtnRecently").gameObject);
+	btn1:InitItem(0, self.TabBtnClickFun);
+	table.insert(self.AttrMenuJBtns, btn1);
+	-- 页签[好友]
+	local btn2 = SelectBtn:New(self.transform:Find("Left/TabRoot/JBtnFriend").gameObject);
+	btn2:InitItem(1, self.TabBtnClickFun);
+	table.insert(self.AttrMenuJBtns, btn2);
+end
+
+function FirendPanel:BindParent(parent)
+	self.Parent = parent;
+	-- -- 第一次默认选中最近
+	-- self:OnAttrMenuJBtnClick(0);
+end
+
+function FirendPanel:MakeSelected(b)
+	local alpha = 0;
+	if b == true then
+		alpha = 1;
+	end
+	self.ContentCanvasGroup.alpha = alpha;
+	self.ContentCanvasGroup.blocksRaycasts = b;
+	if b == true then
+		self.transform:SetAsFirstSibling();
+		self.mainPlayerPID = BusinessManager.Instance:GetUserPID();
+	end
+end
+
+function FirendPanel:SetItemContentCanvasGroup(b)
+	local alpha = 0;
+	if b == true then
+		alpha = 1;
+	end
+	self.ItemContentCanvasGroup.alpha = alpha;
+	self.ItemContentCanvasGroup.blocksRaycasts = b;
+end
+
+-- -- 获取最近好友的详细信息
+-- function FirendPanel:GetRecentlyFriendInDetailData(pidList, cb)
+-- 	local message = CS.ProtoMsg.GetDesignatedFriendsReq();
+-- 	message.OwnerUserPID = self.mainPlayerId;
+-- 	if pidList ~= nil then
+-- 		for i = 0, pidList.Count - 1 do
+-- 			if pidList[i] ~= message.OwnerUserPID then
+-- 				message.FriendUserPIDs:Add(pidList[i]);
+-- 			end
+-- 		end
+-- 	end
+-- 	local key = "FirendPanel";
+-- 	LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnSendClient2ThirdReq", { "GetDesignatedFriendsReq",
+-- 		ExtraData.ToByteString(message),
+-- 		key, "GetDesignatedFriendsResp",
+-- 		cb });
+-- end
+
+--获取玩家信息
+function FirendPanel:GetUserList(pidList, cb)
+	if self.m_RequestUserListReqTime > 0 then
+		local curTime = CS.SGF.Time.TimeUtils.ServerNowStampMilli;
+		if (curTime - self.m_RequestUserListReqTime) >= 60000 then
+			self.m_RequestUserListReqTime = curTime;
+		else
+			return;
+		end
+	end
+	local message = CS.ProtoMsg.GetUserListReq();
+	if pidList ~= nil and pidList.Count > 0 then
+		for i = 0, pidList.Count - 1 do
+			message.UserPIDs:Add(pidList[i]);
+		end
+	end
+	local key = "FirendPanel";
+	LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnSendClient2ThirdReq", { "GetUserListReq",
+		ExtraData.ToByteString(message),
+		key, "GetUserListResp",
+		cb });
+end
+
+-- 获取好友列表
+function FirendPanel:GetPageFriends(cb)
+	if self.m_RequestFriendsReqTime > 0 then
+		local curTime = CS.SGF.Time.TimeUtils.ServerNowStampMilli;
+		if (curTime - self.m_RequestFriendsReqTime) >= 60000 then
+			self.m_RequestFriendsReqTime = curTime;
+		else
+			return;
+		end
+	end
+	local message = CS.ProtoMsg.GetPageFriendsReq();
+	message.UserPID = self.mainPlayerPID;
+	message.Query = CS.ProtoMsg.RequestQuery();
+	message.Query.LastId = 0;
+	message.Query.Limit = 200;
+	local key = "FirendPanel";
+	LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnSendClient2ThirdReq", { "GetPageFriendsReq",
+		ExtraData.ToByteString(message),
+		key, "GetPageFriendsResp", cb });
+end
+
+----------------------------------------------------- 无限列表 【STAR】 ------------------------------------------
+
+function FirendPanel:OnItemRefesh(tr, idx)
+	if self.RecentlyItemList == nil then
+		return;
+	end
+	local data = self.RecentFriends[idx + 1];
+	for i = 1, #self.RecentlyItemList do
+		if self.RecentlyItemList[i].prefab.transform == tr then
+			self.RecentlyItemList[i]:UpdateContent(idx, self.SelectIndex, data); -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+			if data ~= nil then
+				local redPointCount = self.Parent.module:GetFriendChatRedPointCountByPid(data.FriendUser.PID);
+				self.RecentlyItemList[i]:SetRedPoint(redPointCount > 0);
+			end
+			return;
+		end
+	end
+	local sp = ItemFriend.new(tr.gameObject, nil, 0, function(index)
+		self:OnSelect(index);
+	end, function(UserInfo, tr)
+		self:OnHeadSelect(UserInfo, tr);
+	end);
+	table.insert(self.RecentlyItemList, sp);
+	sp:UpdateContent(idx, self.SelectIndex, data);
+end
+
+-- 好友列表 刷新
+function FirendPanel:OnFriendItemRefesh(tr, idx)
+	if self.FriendItemList == nil then
+		return;
+	end
+	local data = self.AllFriends[idx + 1];
+	for i = 1, #self.FriendItemList do
+		if self.FriendItemList[i].prefab.transform == tr then
+			self.FriendItemList[i]:UpdateContent(idx, self.FriendSelectIndex, data);
+			if data ~= nil then
+				local redPointCount = self.Parent.module:GetFriendChatRedPointCountByPid(data.FriendUser.PID);
+				self.FriendItemList[i]:SetRedPoint(redPointCount > 0);
+			end
+			return;
+		end
+	end
+	local sp = ItemFriend.new(tr.gameObject, nil, 1, function(index)
+		self:OnSelect(index);
+	end, function(UserInfo, tr)
+		self:OnHeadSelect(UserInfo, tr);
+	end);
+	table.insert(self.FriendItemList, sp);
+	sp:UpdateContent(idx, self.FriendSelectIndex, data);
+end
+
+function FirendPanel:SetAllItemSelectState()
+	for i = 1, #self.RecentlyItemList do
+		local isSelect = false;
+		if self.RecentlyItemList[i].Index == self.SelectIndex then
+			isSelect = true;
+		end
+		self.RecentlyItemList[i]:OnSelect(isSelect);
+	end
+end
+
+function FirendPanel:SetFriendAllItemSelectState()
+	for i = 1, #self.FriendItemList do
+		local isSelect = false;
+		if self.FriendItemList[i].Index == self.FriendSelectIndex then
+			isSelect = true;
+		end
+		self.FriendItemList[i]:OnSelect(isSelect);
+	end
+end
+
+function FirendPanel:OnSelect(selectIndex)
+	if self.curSelIdx == 0 then
+		self.SelectIndex = selectIndex;
+		self:SetAllItemSelectState();
+	else
+		self.FriendSelectIndex = selectIndex;
+		self:SetFriendAllItemSelectState();
+	end
+	self:SetCurCheckData();
+end
+
+function FirendPanel:OnHeadSelect(UserInfo, transform)
+	if UserInfo == nil then
+		return;
+	end
+	local source = self.curSelIdx;
+
+	local friendRelation = self.Parent:GetFriendRelation(UserInfo.PID);
+	local playerInfo = { PID = UserInfo.PID, JobID = UserInfo.JobID, Level = UserInfo.Level, UserName = UserInfo
+	.UserName, GuildName = UserInfo.GuildName };
+	local btnStrs = {};
+	local btnCBs = {};
+	if source == 0 then
+		-- 最近列表
+		if friendRelation == 0 then
+			-- 0没有任何关系
+			btnStrs = { LanguageHelp:GetLanguageByKey("Local_Str_Player_Info"),LanguageHelp:GetLanguageByKey("Local_Str_Remove_list"), LanguageHelp:GetLanguageByKey("Local_Str_Be_blacklisted") };
+			btnCBs = { self.OnPlayerInfoFun,self.OnRemoveFriendFun, self.OnBlackFriendFun };
+		elseif friendRelation == 1 then
+			-- 1只有好友关系
+			btnStrs = { LanguageHelp:GetLanguageByKey("Local_Str_Player_Info"),LanguageHelp:GetLanguageByKey("Local_Str_Remove_list"), LanguageHelp:GetLanguageByKey("Local_Str_del_friends"), LanguageHelp:GetLanguageByKey("Local_Str_Be_blacklisted") };
+			btnCBs = { self.OnPlayerInfoFun,self.OnRemoveFriendFun, self.OnDelFriendFun, self.OnBlackFriendFun };
+		elseif friendRelation == 2 then
+			-- 2在我的黑名单中
+			btnStrs = {LanguageHelp:GetLanguageByKey("Local_Str_Player_Info"), LanguageHelp:GetLanguageByKey("Local_Str_Remove_list"), LanguageHelp:GetLanguageByKey("Local_Str_Be_blacklist") };
+			btnCBs = { self.OnPlayerInfoFun,self.OnRemoveFriendFun, self.OnRemoveBlackFun };
+		end
+	else
+		-- 好友列表
+		if friendRelation == 0 then
+			-- 0没有任何关系
+			btnStrs = {LanguageHelp:GetLanguageByKey("Local_Str_Player_Info"), LanguageHelp:GetLanguageByKey("Local_Str_Be_blacklisted") };
+			btnCBs = {self.OnPlayerInfoFun, self.OnBlackFriendFun };
+		elseif friendRelation == 1 then
+			-- 1只有好友关系
+			btnStrs = {LanguageHelp:GetLanguageByKey("Local_Str_Player_Info"), LanguageHelp:GetLanguageByKey("Local_Str_del_friends"), LanguageHelp:GetLanguageByKey("Local_Str_Be_blacklisted") };
+			btnCBs = { self.OnPlayerInfoFun,self.OnDelFriendFun, self.OnBlackFriendFun };
+		elseif friendRelation == 2 then
+			-- 2在我的黑名单中
+			btnStrs = {LanguageHelp:GetLanguageByKey("Local_Str_Player_Info"), LanguageHelp:GetLanguageByKey("Local_Str_Be_blacklist") };
+			btnCBs = { self.OnPlayerInfoFun,self.OnRemoveBlackFun };
+		end
+	end
+
+	--LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnOpenFriendTipsWidget", {UserInfo, source, self.OnDelFriendFun, self.OnBlackFriendFun, self.OnRemoveFriendFun});
+	if #btnStrs <= 0 or #btnCBs <= 0 then
+		return;
+	end
+
+	LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnOpenFriendTipsWidget",
+		{ UserInfo, btnStrs, btnCBs, transform });
+end
+
+function FirendPanel:SetCurCheckData()
+	self.curSelUserId = 0;
+	if self.curSelIdx == 0 then
+		if #self.RecentFriends > 0 then
+			self.curSelUserId = self.RecentFriends[self.SelectIndex + 1].FriendUser.PID;
+		end
+	else
+		if #self.AllFriends > 0 then
+			self.curSelUserId = self.AllFriends[self.FriendSelectIndex + 1].FriendUser.PID;
+		end
+	end
+
+	if self.Parent.module.selectPlayerId ~= self.curSelUserId then
+		self.Parent.module.selectPlayerId = self.curSelUserId;
+		self:RefreshMsgs();
+	end
+	self.Parent.module:ClearFriendChatRedPointCountByPid(self.curSelUserId);
+end
+
+function FirendPanel:RefreshMsgs()
+	self:ClearAllAnim();
+	self:SetItemContentCanvasGroup(false);
+	self:ClearAllMsgs();
+	if self.Parent.module.m_CacheAllPrivateChatMsgs[self.curSelUserId] ~= nil then
+		for k, v in pairs(self.Parent.module.m_CacheAllPrivateChatMsgs[self.curSelUserId]) do
+			self:AddItem(v);
+		end
+	end
+	
+	self.ContentContentSizeFitter:SetLayoutVertical();
+	self.msgSV:BackDown();
+	self.tw_close = DOVirtual.DelayedCall(0.01, function()
+		self:SetItemContentCanvasGroup(true);
+    end);
+end
+
+function FirendPanel:AddNewChatMsgs(ChatMsgs)
+	if self.curSelUserId == nil or self.curSelUserId == 0 then
+		return;
+	end
+	local curChatMsgs = ChatMsgs[self.curSelUserId];
+	if curChatMsgs ~= nil then
+		for k, v in pairs(curChatMsgs) do
+			self:AddItem(v);
+		end
+	end
+	if self.ContentCanvasGroup.alpha == 1 and self.Parent ~= nil and self.Parent.module ~= nil then
+		self.Parent.module:ClearFriendChatRedPointCountByPid(self.curSelUserId);
+	end
+	self.ContentContentSizeFitter:SetLayoutVertical();
+end
+
+function FirendPanel:AddItem(chatMsgNotice)
+	local pid = chatMsgNotice.PID;
+	
+	if self.curSelUserId ~= pid and pid ~= self.mainPlayerPID then
+		return;
+	end
+
+	-- 时间间隔检查
+	local time = self:GetLastMsgTime();
+	self:TimeIntervalCheck(time, chatMsgNotice.ChatTime);
+
+	local go = self:GetMsgObj(pid);
+	if go == nil then
+		return;
+	end
+
+	local worldItem = WorldItem:New(go);
+	if worldItem == nil then
+		return;
+	end
+
+	worldItem:SetItem(chatMsgNotice);
+	table.insert(self.allMsgs, worldItem);
+
+	self:RemoveItemList();
+end
+
+function FirendPanel:GetMsgObj(pid)
+	local go = nil;
+
+	if pid == self.mainPlayerPID then
+		go = newObject(self.SelfMsgItem);
+	else
+		go = newObject(self.OtherMsgItem);
+	end
+
+	go.transform:SetParent(self.Content);
+	go.transform.localPosition = Vector3.zero;
+	go.transform.localScale = Vector3.one;
+	go:SetActive(true);
+
+	return go;
+end
+
+function FirendPanel:ClearAllItem()
+	for i = 1, #self.allMsgs do
+		GameObject.Destroy(self.allMsgs[i].GameObject);
+	end
+	self.allMsgs = {};
+end
+
+function FirendPanel:GetLastMsgTime()
+	local time = 0;
+	if self.allMsgs ~= nil then
+		for k, v in pairs(self.allMsgs) do
+			if v ~= nil and v.chatMsgNotice ~= nil then
+				time = v.chatMsgNotice.ChatTime;
+			end
+		end
+	end
+	return time;
+end
+
+function FirendPanel:RemoveItemList()
+    local count = #self.allMsgs;
+    if count >= self.ChatChannelMaxCount then
+        table.remove(self.allMsgs, 1);
+        GameObject.Destroy(self.allMsgs[1].GameObject);
+    end
+end
+
+function FirendPanel:ClearAllAnim()
+	if self.tw_close ~= nil then
+		self.tw_close:Kill();
+		self.tw_close = nil;
+	end
+end
+
+-----------------------------------------------
+----------------------时间间隔检查-------------------------
+-----------------------------------------------
+function FirendPanel:TimeIntervalCheck(lastTime, curTime)
+	if lastTime > 0 then
+		if (curTime - lastTime) >= 60000 then
+			-- 时间显示
+			self:ShowTimeItem(curTime);
+		end
+	end
+end
+
+function FirendPanel:ShowTimeItem(curTime)
+	local go = self:GetGodTime();
+	if go ~= nil then
+		local item = self:GetItemByTime(go);
+		item:SetItem(curTime);
+		table.insert(self.allMsgs, item);
+	end
+end
+
+function FirendPanel:GetGodTime()
+	local go = newObject(self.ChatTimeItem);
+	go.transform:SetParent(self.Content);
+	go.transform.localPosition = Vector3.zero;
+	go.transform.localScale = Vector3.one;
+	go:SetActive(true);
+	return go;
+end
+
+function FirendPanel:GetItemByTime(go)
+	local item = ItemChatTime:New(go);
+	return item;
+end
+
+-----------------------------------------------
+----------------------时间间隔检查-------------------------
+-----------------------------------------------
+
+----------------------------------------------------- 无限列表 【END】 ------------------------------------------
+
+----------------------------------------------------- 按钮点击事件 【STAR】 ------------------------------------------
+
+-- 页签点击
+function FirendPanel:OnAttrMenuJBtnClick(idx)
+	self.curSelIdx = idx;
+	if idx == 0 then
+		-- 本地缓存的最近好友列表
+		-- 当前没有本地的最近PID，，要获取
+		-- --if self.RecentlyPIDList == nil then
+		-- self.RecentlyPIDList = {};
+		-- local key = E_FriendLocalCacheKey.RecentlyPIDs .. self.mainPlayerId;
+		-- local pids = SaveManager.Instance:Load(key, "FriendModule", "data");
+		-- -- self:GetRecentlyFriendInDetailData(pids, self.OnGetDesignatedFriendsRespFun);
+		
+		self:GetUserList(self.Parent.module.m_CacheRecentlyPIDList, self.OnGetUserListRespFun);
+		for i = 1, #self.RecentlyItemList do
+			if self.RecentlyItemList[i].prefab.transform ~= nil then
+				local friendInfo = self.RecentlyItemList[i].FriendInfo;
+				if friendInfo ~= nil then
+					local redPointCount = self.Parent.module:GetFriendChatRedPointCountByPid(friendInfo.FriendUser.PID);
+					self.RecentlyItemList[i]:SetRedPoint(redPointCount > 0);
+				end
+			end
+		end
+		self.FriendScrollView.gameObject:SetActive(false);
+		self.RecentlyScrollView.gameObject:SetActive(true);
+	else
+		-- 好友列表
+		self:GetPageFriends(self.OnGetPageFriendsRespFun);
+		for i = 1, #self.FriendItemList do
+			if self.FriendItemList[i].prefab.transform ~= nil then
+				local friendInfo = self.FriendItemList[i].FriendInfo;
+				if friendInfo ~= nil then
+					local redPointCount = self.Parent.module:GetFriendChatRedPointCountByPid(friendInfo.FriendUser.PID);
+					self.FriendItemList[i]:SetRedPoint(redPointCount > 0);
+				end
+			end
+		end
+		self.FriendScrollView.gameObject:SetActive(true);
+		self.RecentlyScrollView.gameObject:SetActive(false);
+	end
+
+	for i = 1, #self.AttrMenuJBtns do
+		local child = self.AttrMenuJBtns[i];
+		if child ~= nil then
+			local isShow = child.Idx == self.curSelIdx;
+			child:MakeSelected(isShow);
+		end
+	end
+end
+
+-- function FirendPanel:OnGetDesignatedFriendsResp(data)
+-- 	if data == nil then
+-- 		return;
+-- 	end
+-- 	self.RecentFriends = {};
+-- 	for i = 0, data.FriendsInfo.Count - 1 do
+-- 		local item = data.FriendsInfo[i];
+-- 		if item ~= nil then
+-- 			table.insert(self.RecentFriends, item);
+-- 		end
+-- 	end
+-- 	self.RecentlyScrollView:ContinueScroll(#self.RecentFriends);
+-- 	if #self.RecentFriends == 0 then
+-- 		if self.allMsgs ~= nil then
+-- 			for k, v in pairs(self.allMsgs) do
+-- 				GameObject.Destroy(v.GameObject);
+-- 			end
+-- 		end
+-- 		self.allMsgs = {};
+-- 	end
+-- 	self.SelectFriend:SetActive(#self.RecentFriends == 0);
+-- end
+
+function FirendPanel:OnGetUserListResp(data)
+	if data == nil then
+		return;
+	end
+
+	self.RecentFriends = {};
+	for i = 0, data.UserInfo.Count - 1 do
+		local userInfo = data.UserInfo[i];
+		if userInfo ~= nil then
+			local friendInfo = CS.ProtoMsg.FriendInfo();
+			friendInfo.FriendUser = userInfo;
+			table.insert(self.RecentFriends, friendInfo);
+		end
+	end
+	table.sort(self.RecentFriends, function(a, b)
+		if a.FriendUser.LogOutTime ~= b.FriendUser.LogOutTime then
+			return a.FriendUser.LogOutTime > b.FriendUser.LogOutTime;
+		elseif a.FriendUser.Level ~= b.FriendUser.Level then
+			return a.FriendUser.Level > b.FriendUser.Level;
+		end
+		--return a.FriendUser.LogOutTime > b.FriendUser.LogOutTime
+	end);
+	local count = #self.RecentFriends;
+
+	self.RecentlyScrollView:ContinueScroll(count);
+
+	if count == 0 then
+		self:ClearAllMsgs();
+		self.Parent.module.selectPlayerId = 0;
+		self.curSelUserId = 0;
+	end
+
+	self.SelectFriend:SetActive(count == 0);
+
+	for k, v in pairs(self.RecentFriends) do
+		if self.Parent.curSelPid ~= nil and v.FriendUser.PID == self.Parent.curSelPid then
+			self:OnSelect(k - 1);
+			self.Parent.curSelPid = nil;
+		end
+	end
+end
+
+-- 翻页获取好友列表 的回调
+function FirendPanel:OnGetPageFriendsResp(data)
+	if data == nil then
+		return;
+	end
+
+	self.AllFriends = {};
+	for i = 0, data.FriendsInfo.Count - 1 do
+		local item = data.FriendsInfo[i];
+		if item ~= nil then
+			table.insert(self.AllFriends, item);
+		end
+	end
+	table.sort(self.AllFriends, function(a, b)
+		if a.FriendUser.LogOutTime ~= b.FriendUser.LogOutTime then
+			return a.FriendUser.LogOutTime > b.FriendUser.LogOutTime;
+		elseif a.FriendUser.Level ~= b.FriendUser.Level then
+			return a.FriendUser.Level > b.FriendUser.Level;
+		end
+		--return a.FriendUser.LogOutTime > b.FriendUser.LogOutTime
+	end);
+	LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "CacheFriendList", { self.AllFriends });
+	local count = #self.AllFriends;
+	self.FriendScrollView:ContinueScroll(count);
+	self.friendCountText.text = "<color=#6A3432>" .. count .. "</color>/" .. "50";
+	self.EmptyTips:SetActive(count <= 0);	
+	self.SelectFriend:SetActive(count == 0);
+	if count == 0 then
+		self:ClearAllMsgs();
+	end
+end
+
+function FirendPanel:ClearAllMsgs()
+	if self.allMsgs ~= nil then
+		for k, v in pairs(self.allMsgs) do
+			GameObject.Destroy(v.GameObject);
+		end
+	end
+	self.allMsgs = {};
+end
+
+----------------------------------------------------- 按钮点击事件 【END】 ------------------------------------------
+
+
+----------------------------------------------------- 玩家头像点击事件 【STAR】 ------------------------------------------
+
+-- 删除好友
+function FirendPanel:OnDelFriend(pid)
+	if pid == nil then
+		return;
+	end
+
+	CS.StarProjectDef.UIAPI.ShowMsgBox(25, function(str)
+		if str == "SURE" then
+			local key = "FirendPanel_" .. pid;
+			LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnSendDeleteFriendReq",
+				{ pid, key, self.OnDeleteFriendRespFun });
+		end
+	end);
+end
+
+-- 删除好友回调
+function FirendPanel:OnDeleteFriendResp(data)
+	if data == nil then
+		return;
+	end
+	--if data.Result.Code ~= 0 then
+	--CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(data.Result.Message);
+	--return;
+	--end
+
+	self:DelFriendCB(data.FriendUserPID);
+end
+
+-- 删除好友
+function FirendPanel:DelFriendCB(PID)
+	if PID == nil then
+		return;
+	end
+
+	local friendIndex = self:GetAllFriendsIndexByPID(PID);
+	if friendIndex ~= -1 then
+		-- 模拟接收系统消息
+		local userName = "";
+		local friendInfo = self.AllFriends[friendIndex];
+		if friendInfo ~= nil then
+			userName = friendInfo.FriendUser.UserName;
+		end
+		local msgList = {};
+		local chatMsgNotice = CS.ProtoMsg.ChatMsgNotice();
+		chatMsgNotice.EID = 0;
+		chatMsgNotice.PID = 0;
+		--chatMsgNotice.Data = "你与<color=#b23738><size=21>" .. userName .. "</size></color>已解除好友关系";
+		chatMsgNotice.Data = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_del_friends_tips"), {userName});
+		chatMsgNotice.Channel = CS.ProtoMsg.ChatChannel.ChannelSystem;
+		chatMsgNotice.ChatTime = TimeUtils.ServerNowStampMilli;
+		chatMsgNotice.ChatLevel = 1;
+		chatMsgNotice.JobID = GameManager.Instance:GetPlayerJob();
+
+		table.insert(msgList, chatMsgNotice);
+		LuaModuleDispatcher:SendMessage(ModuleDef.ChatModule, "OnAnalogReceptionChatMsg", { msgList });
+		-- 列表里删除
+		table.remove(self.AllFriends, friendIndex);
+		LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "CacheFriendList", { self.AllFriends });
+	end
+
+	local recentIndex = self:GetRecentFriendIndexByPID(PID);
+	if recentIndex ~= -1 then
+		table.remove(self.RecentFriends, recentIndex);
+	end
+
+	if friendIndex == -1 and recentIndex == -1 then
+		return;
+	end
+	local count = #self.AllFriends;
+	if friendIndex ~= -1 then
+		self.FriendScrollView:ContinueScroll(count);
+	end
+
+	if recentIndex ~= -1 then
+		self.RecentlyScrollView:ContinueScroll(#self.RecentFriends);
+	end
+
+	self.friendCountText.text = "<color=#6A3432>" .. count .. "</color>/" .. "50";
+	self.EmptyTips:SetActive(count <= 0);
+end
+
+-- 加入黑名单好友
+function FirendPanel:OnBlackFriend(pid)
+	if pid == nil then
+		return;
+	end
+	CS.StarProjectDef.UIAPI.ShowMsgBox(23, function(str)
+		if str == "SURE" then
+			local key = "FirendPanel_" .. pid;
+			LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnSendAddBlackReq",
+				{ pid, key, self.OnAddBlackRespFun });
+		end
+	end);
+end
+
+-- 拉入黑名单回调
+function FirendPanel:OnAddBlackResp(data)
+	if data == nil then
+		return;
+	end
+
+	if data.Result.Code == 0 then
+		self:BlackFriendCB(data.FriendUserPID);
+	elseif data.Result.Code == E_FriendReqErrCodeType.BlackCountExceeded then
+		CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(LanguageHelp:GetLanguageByKey("Local_Str_friend_request_fail_7"));
+	end
+end
+
+-- 加入黑名单好友
+function FirendPanel:BlackFriendCB(PID)
+	if PID == nil then
+		return;
+	end
+
+	local friendIndex = self:GetAllFriendsIndexByPID(PID);
+	if friendIndex ~= -1 then
+		local friendItem = self:GetAllFriendsIndexByItem(PID);
+		if friendItem ~= nil then
+			-- 添加黑名单列表
+			LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnAddBlackListByPID",
+				{ PID, friendItem.JobID, friendItem.Level,
+					friendItem.UserName, friendItem.GuildName });
+		end
+		-- 在好友列表中删除
+		table.remove(self.AllFriends, friendIndex);
+		LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "CacheFriendList", { self.AllFriends });
+	end
+
+	local recentIndex = self:GetRecentFriendIndexByPID(PID);
+	if recentIndex ~= -1 then
+		table.remove(self.RecentFriends, recentIndex);
+		-- 通知本地缓存
+		self:RemovePids(PID);
+	end
+
+	if friendIndex == -1 and recentIndex == -1 then
+		return;
+	end
+
+	local count = #self.AllFriends;
+	if friendIndex ~= -1 then
+		self.FriendScrollView:ContinueScroll(count);
+	end
+
+	if recentIndex ~= -1 then
+		self.RecentlyScrollView:ContinueScroll(#self.RecentFriends);
+	end
+
+	self.friendCountText.text = "<color=#6A3432>" .. count .. "</color>/" .. "50";
+	self.EmptyTips:SetActive(count <= 0);
+	self.SelectFriend:SetActive(count <= 0);
+	if count <= 0 then
+		self:ClearAllItem();
+	end
+end
+
+-- 玩家信息
+function FirendPanel:OnPlayerInfo(PID)
+	if PID == nil then
+		return;
+	end
+	LuaModuleDispatcher:SendMessage(ModuleDef.PlayerPreviewModule, "SendGetOtherPlayerNameplateReq", {PID})
+end
+
+-- 移出列表
+function FirendPanel:OnRemoveFriend(PID)
+	if PID == nil then
+		return;
+	end
+
+	local recentIndex = self:GetRecentFriendIndexByPID(PID);
+	if recentIndex ~= -1 then
+		table.remove(self.RecentFriends, recentIndex);
+	end
+
+	if recentIndex ~= -1 then
+		self.RecentlyScrollView:ContinueScroll(#self.RecentFriends);
+	end
+	-- 通知本地缓存
+	self:RemovePids(PID);
+end
+
+function FirendPanel:RemovePids(pid)
+	self.Parent.module:SetRecentlyPid(pid, true, true);
+end
+
+-- 移出黑名单
+function FirendPanel:OnRemoveBlack(pid)
+	CS.StarProjectDef.UIAPI.ShowMsgBox(24, function(str)
+		if str == "SURE" then
+			local key = "FirendPanel_" .. pid;
+			LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnSendRemoveBlackReq",
+				{ pid, key, self.OnRemoveBlackRespFun });
+		end
+	end);
+end
+
+-- 发送移出黑名单的回调 【code=0是成功】 【message是错误日志，如果错误了就播放】
+function FirendPanel:OnRemoveBlackResp(data)
+	if data == nil then
+		return;
+	end
+
+	--if data.Result.Code ~= 0 then
+	--CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(data.Result.Message);
+	--return;
+	--end
+	LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnDelBlackListByPID", { data.FriendUserPID });
+end
+
+-- 邀请组队
+function FirendPanel:OnInviteTeam(pid)
+	-- 等毛哥来了再写
+end
+
+-- 获取好友列表中的下标
+function FirendPanel:GetAllFriendsIndexByPID(pid)
+	if self.AllFriends == nil or self.AllFriends == {} or #self.AllFriends <= 0 then
+		return -1;
+	end
+	for i = 1, #self.AllFriends do
+		local data = self.AllFriends[i];
+		if data.FriendUser.PID == pid then
+			return i;
+		end
+	end
+	return -1;
+end
+
+-- 获取好友列表中的下标
+function FirendPanel:GetAllFriendsIndexByItem(pid)
+	if self.AllFriends == nil or self.AllFriends == {} or #self.AllFriends <= 0 then
+		return nil;
+	end
+	for i = 1, #self.AllFriends do
+		local data = self.AllFriends[i];
+		if data.FriendUser.PID == pid then
+			return data.FriendUser;
+		end
+	end
+	return nil;
+end
+
+-- 获取最近好友列表中的下标
+function FirendPanel:GetRecentFriendIndexByPID(pid)
+	if self.RecentFriends == nil or self.RecentFriends == {} or #self.RecentFriends <= 0 then
+		return -1;
+	end
+	for i = 1, #self.RecentFriends do
+		local data = self.RecentFriends[i];
+		if data.FriendUser.PID == pid then
+			return i;
+		end
+	end
+	return -1;
+end
+
+----------------------------------------------------- 玩家头像点击事件 【END】 ------------------------------------------
+
+
+return FirendPanel;

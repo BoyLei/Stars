@@ -1,0 +1,275 @@
+TeamLobbyWindow = class("TeamLobbyWindow", UIPanel)
+TeamLobbyWindow.IsOpen = false;
+
+local TeamLobbyItem = require("View/UIWindow/TeamWindow/TeamLobbyItem")
+
+function TeamLobbyWindow:Awake()
+
+end
+
+function TeamLobbyWindow:BindModule(m)
+    self.module = m;
+end
+
+function TeamLobbyWindow:InitControls(data)
+    self.transform = self.prefab.transform;
+    self.gameObject = self.transform.gameObject;
+	
+	self.selectTB = {};
+	self.allSelect = self.transform:Find("Cut4Cam90/AssemblyRatio2/PlayTypes/Viewport/Content/AllItem/Select").gameObject;
+    self.allItemBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/PlayTypes/Viewport/Content/AllItem"):GetComponent(
+        typeof(Button));
+	self.curSelTB = 0;
+    self.selectTB[0] = {};
+    self.selectTB[0].btn = self.allItemBtn;
+    self.selectTB[0].sel = self.allSelect;
+	self.curselectInfo = {};
+	self.curselectInfo.Select = CS.ProtoMsg.SelectTeamType.Null;
+	self.curselectInfo.PlayID = nil;
+    self.allItemBtn.onClick:AddListener(function()
+        -- body
+        local getAllTeamInfoReq = CS.ProtoMsg.GetAllTeamInfoReq();
+        getAllTeamInfoReq.Select = CS.ProtoMsg.SelectTeamType.Null;
+        CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace,
+            getAllTeamInfoReq, false);
+		
+		self.curSelTB = 0;
+		
+		self.curselectInfo = {};
+		self.curselectInfo.Select = CS.ProtoMsg.SelectTeamType.Null;
+		self.curselectInfo.PlayID = nil;
+    end)
+    self.playTypeItem = self.transform:Find("Cut4Cam90/AssemblyRatio2/PlayTypes/Viewport/Content/Item").gameObject;
+    self.playTypeSubItems = self.transform:Find("Cut4Cam90/AssemblyRatio2/PlayTypes/Viewport/Content/SubItems")
+                                .gameObject;
+    self.teamLobbyItem = self.transform:Find("Cut4Cam90/AssemblyRatio2/AllTeams/Viewport/Content/TeamItem").gameObject;
+    self.noteam = self.transform:Find("Cut4Cam90/AssemblyRatio2/AllTeams/NoTeam").gameObject;
+    self.createTeamBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/SV/Viewport/Content/CreateBtn"):GetComponent(typeof(Button));
+    self.createTeamBtn.onClick:AddListener(function()
+        -- LuaModuleDispatcher:SendMessage(ModuleDef.TeamModule, "OnOpenTargetWindow");
+        -- local createTeamReq = CS.ProtoMsg.CreateTeamReq();
+        -- createTeamReq.TeamType = self.selItem.PlayType;
+        -- createTeamReq.PlayID = self.selItem.PlayID;
+        -- CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace,
+        --     createTeamReq, false);
+
+        --local teamSetPlayIDReq = CS.ProtoMsg.TeamSetPlayIDReq();
+        --CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace, teamSetPlayIDReq, false);
+		
+		 local createTeamReq = CS.ProtoMsg.CreateTeamReq();
+         createTeamReq.Desc = LanguageHelp:GetLanguageByKey("Local_Str_Team_tips");
+		 --createTeamReq.TeamType = self.selItem.PlayType;
+		 --createTeamReq.PlayID = self.selItem.PlayID;
+         local config= ConfigDataAccessor.TeamPlayList[self.curSelTB];
+         if config~=nil then
+             createTeamReq.TeamType = config.PlayType;
+             createTeamReq.LvLimit=config.Level;
+			 createTeamReq.PlayID = self.curSelTB;
+         end
+		 CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace,
+		     createTeamReq, false);
+        self:CloseWindow()
+    end);
+	
+	
+	self.managerTeamBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/SV/Viewport/Content/ManagerBtn"):GetComponent(typeof(Button));
+	self.managerTeamBtn.onClick:AddListener(function()
+			if self.module.tinfo == nil then
+				return;
+			end
+			LuaModuleDispatcher:SendMessage(ModuleDef.TeamModule, "OnOpenTeamWindow", {self.module.tinfo});
+			self:CloseWindow()
+		end);
+
+    self.allTypeTeams = {};
+    local teamPlayList = ConfigDataAccessor.TeamPlayList;
+    for k, v in pairs(teamPlayList) do
+        if self.allTypeTeams[v.PlayType] == nil then
+            self.allTypeTeams[v.PlayType] = {}
+        end
+        table.insert(self.allTypeTeams[v.PlayType], v);
+    end
+
+    self.allPlayTypes = {};
+    for k, v in pairs(self.allTypeTeams) do
+        local gob = newObject(self.playTypeItem);
+        gob:SetActive(true);
+        gob.transform:SetParent(self.playTypeItem.transform.parent);
+        gob.transform.localPosition = Vector3.zero;
+        gob.transform.localScale = Vector3.one;
+        gob.transform:SetAsLastSibling();
+
+        local txt = gob.transform:Find("Text"):GetComponent(typeof(Text));
+        txt.text =LanguageHelp:GetLanguageByKey("Local_Str_play_name")
+
+        if k == 1 then
+            txt.text = LanguageHelp:GetLanguageByKey("Local_Str_playName2")
+        elseif k == 2 then
+            txt.text =LanguageHelp:GetLanguageByKey("Local_Str_Dailyteam")
+        elseif k == 3 then
+            txt.text =LanguageHelp:GetLanguageByKey("Local_Str_playName1")
+        end
+		
+		local plusObj = gob.transform:Find("Plus").gameObject;
+		local minusObj = gob.transform:Find("Minus").gameObject;
+        self.allPlayTypes[k] = {};
+        self.allPlayTypes[k].go = gob;
+        self.allPlayTypes[k].plusObj = plusObj;
+        self.allPlayTypes[k].minusObj = minusObj;
+        local btn = gob.transform:GetComponent(typeof(Button));
+        btn.onClick:AddListener(function()
+            self.allPlayTypes[k].subItems:SetActive(not self.allPlayTypes[k].subItems.activeSelf);
+			self.allPlayTypes[k].plusObj:SetActive(not self.allPlayTypes[k].subItems.activeSelf);
+			self.allPlayTypes[k].minusObj:SetActive(self.allPlayTypes[k].subItems.activeSelf);
+        end);
+
+        local playTypeSubItems = newObject(self.playTypeSubItems);
+        playTypeSubItems:SetActive(false);
+        playTypeSubItems.transform:SetParent(self.playTypeItem.transform.parent);
+        playTypeSubItems.transform.localPosition = Vector3.zero;
+        playTypeSubItems.transform.localScale = Vector3.one;
+        playTypeSubItems.transform:SetAsLastSibling();
+
+        local playTypeSubItem = playTypeSubItems.transform:Find("Item").gameObject;
+        for k2, v2 in pairs(v) do
+            local gob2 = newObject(playTypeSubItem);
+            gob2:SetActive(true);
+            gob2.transform:SetParent(playTypeSubItem.transform.parent);
+            gob2.transform.localPosition = Vector3.zero;
+            gob2.transform.localScale = Vector3.one;
+            gob2.transform:SetAsLastSibling();
+
+            local txt2 = gob2.transform:Find("Text"):GetComponent(typeof(Text));
+            txt2.text = v2.PlayName;
+			
+
+
+            local btn2 = gob2.transform:GetComponent(typeof(Button));
+            btn2.onClick:AddListener(function()
+                local getAllTeamInfoReq = CS.ProtoMsg.GetAllTeamInfoReq();
+                getAllTeamInfoReq.Select = CS.ProtoMsg.SelectTeamType.PlayId;
+                getAllTeamInfoReq.PlayID = v2.PlayID;
+                CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType
+                                                                                 .ServerTypeSpace,
+                    getAllTeamInfoReq, false);
+					
+				self.curSelTB = v2.PlayID;
+					
+				self.curselectInfo = {};
+				self.curselectInfo.Select = CS.ProtoMsg.SelectTeamType.PlayId;
+				self.curselectInfo.PlayID = v2.PlayID;
+            end);
+			
+			local selectGO = gob2.transform:Find("Select").gameObject;
+            self.selectTB[v2.PlayID] = {};
+            self.selectTB[v2.PlayID].btn = btn2;
+            self.selectTB[v2.PlayID].sel = selectGO;
+        end
+
+        self.allPlayTypes[k].subItems = playTypeSubItems;
+    end
+
+    self:Refresh(data);
+	
+	self.refreshBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/Refresh"):GetComponent(typeof(Button));
+	self.refreshBtn.onClick:AddListener(function()
+        self:GetAllTeamInfoReq()
+    end)
+end
+
+function TeamLobbyWindow:GetAllTeamInfoReq()
+    local getAllTeamInfoReq = CS.ProtoMsg.GetAllTeamInfoReq();
+    getAllTeamInfoReq.Select = self.curselectInfo.Select;
+    if self.curselectInfo.PlayID ~= nil then
+        getAllTeamInfoReq.PlayID = self.curselectInfo.PlayID;
+    end
+
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace,
+        getAllTeamInfoReq, false);
+end
+
+function TeamLobbyWindow:Refresh(data)
+    if data == nil or data.data == nil then
+        return;
+    end
+	
+	for _,v in pairs(self.selectTB) do
+        v.sel:SetActive(false);
+	end
+    if data.data.Select == CS.ProtoMsg.SelectTeamType.Null then
+        self.curSelTB = 0;
+    end
+    
+	self.selectTB[data.data.PlayID].sel:SetActive(true);
+    self.curSelTB = data.data.PlayID;
+
+    local teamPlayList = ConfigDataAccessor.TeamPlayList;
+    if teamPlayList[self.curSelTB] ~= nil then
+        local tp = teamPlayList[self.curSelTB].PlayType
+        self.allPlayTypes[tp].subItems:SetActive(true);
+        self.allPlayTypes[tp].plusObj:SetActive(false);
+        self.allPlayTypes[tp].minusObj:SetActive(true);
+    end
+
+    if self.allTeams ~= nil then
+        for _, v in pairs(self.allTeams) do
+            GameObject.Destroy(v.gameObject);
+        end
+    end
+    self.allTeams = {}
+
+    local teams = data.data.List;
+    for i = 0, teams.Count - 1 do
+        local gob = newObject(self.teamLobbyItem);
+        gob:SetActive(true);
+        gob.transform:SetParent(self.teamLobbyItem.transform.parent);
+        gob.transform.localPosition = Vector3.zero;
+        gob.transform.localScale = Vector3.one;
+
+        local item = TeamLobbyItem:New(gob, teams[i], self.module);
+        table.insert(self.allTeams, item);
+    end
+
+    self.noteam:SetActive(teams.Count==0);
+	self:RefreshTeamBtn();
+end
+
+function TeamLobbyWindow:RefreshTeamBtn()
+	self.createTeamBtn.gameObject:SetActive(self.module.tinfo == nil);
+	self.managerTeamBtn.gameObject:SetActive(self.module.tinfo ~= nil);
+end
+
+function TeamLobbyWindow:Show()
+end
+
+function TeamLobbyWindow:Start()
+    print("TeamLobbyWindow:Start")
+end
+
+function TeamLobbyWindow:OnEnable()
+
+end
+
+function TeamLobbyWindow:OnDisable()
+
+end
+
+function TeamLobbyWindow:OnDestroy()
+
+end
+
+function TeamLobbyWindow:OnOpen(arg)
+    self.IsOpen = true;
+end
+
+function TeamLobbyWindow:OnClose(arg)
+    self.module.teamLobbyWindow=nil;
+end
+
+function TeamLobbyWindow:CloseWindow()
+    self.IsOpen = false;
+    self.Close();
+    self.module.teamLobbyWindow=nil;
+end
+
+return TeamLobbyWindow

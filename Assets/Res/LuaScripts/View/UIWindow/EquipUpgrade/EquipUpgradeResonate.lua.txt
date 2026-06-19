@@ -1,0 +1,288 @@
+--[[
+*文件名   :   EquipUpgradeResonate
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local EquipUpgradeResonate = {}
+
+EquipUpgradeResonate.__index = EquipUpgradeResonate
+
+local ResonateItem = require("View/Uiwindow/EquipUpgrade/ResonateItem")
+local EquipUpgradeSlotAttr = require("View/Uiwindow/EquipUpgrade/EquipUpgradeSlotAttr")
+local ObjectPool = require("Common/Helper/ObjectPool")
+
+function EquipUpgradeResonate:New(_go, equipUpgradeSlotUpgrade)
+    local self = {}
+    setmetatable(self, EquipUpgradeResonate)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.EquipUpgradeSlotUpgrade = equipUpgradeSlotUpgrade
+    --关闭信息
+    local btnClose = self.transform:Find("BtnClose"):GetComponent(typeof(JButton))
+    btnClose.OnClick = (function()
+        self.EquipUpgradeSlotUpgrade:PlayResonateCloseAnim()
+
+        DOVirtual.DelayedCall(
+            0.1,
+            function()
+                self:Show(false)
+            end
+        )
+    end)
+
+    self.go_datamax = self.transform:Find("DataMax").gameObject
+    self.go_data1 = self.transform:Find("Data1").gameObject
+    self.go_data2 = self.transform:Find("Data2").gameObject
+
+    --最大等级
+    self.ScoreMax = self.transform:Find("DataMax/Score/score"):GetComponent(typeof(Text))
+    self.LvMax = self.transform:Find("DataMax/Btn/tex"):GetComponent(typeof(Text))
+    self.LockMax = self.transform:Find("DataMax/Btn/lock").gameObject
+    self.InfoMax = self.transform:Find("DataMax/Btn/info"):GetComponent(typeof(Text))
+    self.IconMax = self.transform:Find("DataMax/Btn/bg"):GetComponent(typeof(Image))
+    --属性列表
+    self.attrsmax = {}
+    for i = 1, 5 do
+        local eai = EquipUpgradeSlotAttr:New(self.transform:Find("DataMax/Info/Attr" .. i).gameObject)
+        table.insert(self.attrsmax, eai)
+    end
+
+    --当前等级
+    self.ScoreNow = self.transform:Find("Data1/Score/score"):GetComponent(typeof(Text))
+    self.LvNow = self.transform:Find("Data1/Btn/tex"):GetComponent(typeof(Text))
+    self.LockNow = self.transform:Find("Data1/Btn/lock").gameObject
+    self.InfoNow = self.transform:Find("Data1/Btn/info"):GetComponent(typeof(Text))
+    self.IconNow = self.transform:Find("Data1/Btn/bg"):GetComponent(typeof(Image))
+    --属性列表
+    self.attrs1 = {}
+    for i = 1, 5 do
+        local eai = EquipUpgradeSlotAttr:New(self.transform:Find("Data1/Info/Attr" .. i).gameObject)
+        table.insert(self.attrs1, eai)
+    end
+
+    --下个等级
+    self.ScoreNext = self.transform:Find("Data2/Score/score"):GetComponent(typeof(Text))
+    self.LvNext = self.transform:Find("Data2/Btn/tex"):GetComponent(typeof(Text))
+    self.LockNext = self.transform:Find("Data2/Btn/lock").gameObject
+    self.InfoNext = self.transform:Find("Data2/Btn/info"):GetComponent(typeof(Text))
+    self.IconNext = self.transform:Find("Data2/Btn/bg"):GetComponent(typeof(Image))
+    --属性列表2
+    self.attrs2 = {}
+    for i = 1, 5 do
+        local eai = EquipUpgradeSlotAttr:New(self.transform:Find("Data2/Info/Attr" .. i).gameObject)
+        table.insert(self.attrs2, eai)
+    end
+
+    --上一个按钮
+    self.btnLeft = self.transform:Find("LeftBtn"):GetComponent(typeof(JButton))
+    self.btnLeft.OnClick = (function()
+        self:ClickToChange(-1)
+    end)
+
+    --下一个按钮
+    self.btnRight = self.transform:Find("RightBtn"):GetComponent(typeof(JButton))
+    self.btnRight.OnClick = (function()
+        self:ClickToChange(1)
+    end)
+
+    --当前的Idx
+    self.Idx = 1
+
+    self:Show(false)
+
+    return self --返回自身
+end
+
+function EquipUpgradeResonate:ClickToChange(offset)
+    self.Idx = self.Idx + offset
+
+    if self.Idx < 1 then
+        self.Idx = 1
+    end
+
+    if self.Idx > self.MaxNum - 1 then
+        self.Idx = self.MaxNum - 1
+    end
+
+    self:OnItemClick(self.Idx)
+end
+
+function EquipUpgradeResonate:OnItemClick(idx)
+    --刷新【当前】
+    local ritem = self.Data[idx]
+    local esrNow = ritem.Esr
+    --self.LvNow.text="强化共鸣 "..esrNow.ResonanceLv;
+    self.LvNow.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_EquipUpgradeResonate_LvNow"), {esrNow.ResonanceLv})
+    self.LvMax.text = self.LvNow.text
+    self.ScoreNow.text = esrNow.Power
+    self.ScoreMax.text = self.ScoreNow.text
+
+    --加载图标图片
+    ResourceHelper:LoadIconAsync(
+        self.IconNow,
+        "",
+        esrNow.Icon,
+        false,
+        function()
+            self.IconMax.sprite = self.IconNow.sprite
+        end
+    )
+
+    local haveNum = 0
+    for i = 1, 8 do
+        local equipSlotData = GameManager.Instance:GetEquipSlotData(i)
+        if equipSlotData ~= nil and equipSlotData.UpLv >= esrNow.Level then
+            haveNum = haveNum + 1
+        end
+    end
+    if haveNum >= 8 then
+        --self.InfoNow.text="8个装备部位强化等级"..esrNow.Level.."以上<color=#6B996A>("..haveNum.."/8)</color>";--(7/8)
+        self.InfoNow.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_EquipUpgradeResonate_InfoNow"), {8, esrNow.Level, haveNum, 8})
+    else
+        --self.InfoNow.text="8个装备部位强化等级"..esrNow.Level.."以上<color=#BA5A52>("..haveNum.."/8)</color>";--(7/8)
+        self.InfoNow.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_EquipUpgradeResonate_InfoNow2"), {8, esrNow.Level, haveNum, 8})
+    end
+    self.InfoMax.text = self.InfoNow.text
+
+    --显示属性
+    for i = 1, #self.attrs1 do
+        self.attrs1[i].gameObject:SetActive(false)
+        self.attrsmax[i].gameObject:SetActive(false)
+    end
+    for i = 1, #esrNow.Nature do
+        self.attrs1[i].gameObject:SetActive(true)
+        self.attrs1[i]:RefeshAttrProb(esrNow.Nature[i], esrNow.Value[i], 0, true)
+        self.attrsmax[i].gameObject:SetActive(true)
+        self.attrsmax[i]:RefeshAttrProb(esrNow.Nature[i], esrNow.Value[i], 0, true)
+    end
+    self.LockNow:SetActive(ritem.IsLock)
+    self.LockMax:SetActive(ritem.IsLock)
+    if ritem.IsLock then
+        self.IconNow.color = Color(0.4, 0.4, 0.4)
+    else
+        self.IconNow.color = Color(1, 1, 1)
+    end
+
+    if not (self.IsMax) then
+        --刷新【下一个】
+        local ritemNext = self.Data[idx + 1]
+        local esrNext = ritemNext.Esr
+        --self.LvNext.text="强化共鸣 "..esrNext.ResonanceLv;
+        self.LvNext.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_EquipUpgradeResonate_LvNow"), {esrNext.ResonanceLv})
+        self.ScoreNext.text = esrNext.Power
+        ResourceHelper:LoadIconAsync(
+            self.IconNext,
+            "",
+            esrNext.Icon,
+            false,
+            function()
+            end
+        )
+
+        haveNum = 0
+        for i = 1, 8 do
+            local equipSlotData = GameManager.Instance:GetEquipSlotData(i)
+            if equipSlotData ~= nil and equipSlotData.UpLv >= esrNext.Level then
+                haveNum = haveNum + 1
+            end
+        end
+        if haveNum >= 8 then
+            --self.InfoNext.text="8个装备部位强化等级"..esrNext.Level.."以上<color=#6B996A>("..haveNum.."/8)</color>";--(7/8)
+            self.InfoNext.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_EquipUpgradeResonate_InfoNow"), {8, esrNext.Level, haveNum, 8})
+        else
+            --self.InfoNext.text="8个装备部位强化等级"..esrNext.Level.."以上<color=#BA5A52>("..haveNum.."/8)</color>";--(7/8)
+            self.InfoNext.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_EquipUpgradeResonate_InfoNow2"), {8, esrNext.Level, haveNum, 8})
+        end
+        --显示属性
+        for i = 1, #self.attrs2 do
+            self.attrs2[i].gameObject:SetActive(false)
+        end
+        for i = 1, #esrNext.Nature do
+            self.attrs2[i].gameObject:SetActive(true)
+            self.attrs2[i]:RefeshAttrProb(esrNext.Nature[i], esrNext.Value[i], 0, true)
+        end
+        self.LockNext:SetActive(ritemNext.IsLock)
+        if ritemNext.IsLock then
+            self.IconNext.color = Color(0.4, 0.4, 0.4)
+        else
+            self.IconNext.color = Color(1, 1, 1)
+        end
+    end
+
+    self.Idx = idx
+
+    if self.IsMax then
+        self.btnLeft.gameObject:SetActive(false)
+        self.btnRight.gameObject:SetActive(false)
+    else
+        self.btnLeft.gameObject:SetActive(self.Idx ~= 1)
+        self.btnRight.gameObject:SetActive(self.Idx ~= self.MaxNum - 1)
+    end
+end
+
+function EquipUpgradeResonate:Show(b)
+    self.gameObject:SetActive(b)
+    if b then
+        if self.Data == nil then
+            self.Data = {}
+        else
+            for k, _ in pairs(self.Data) do
+                self.Data[k] = nil
+            end
+        end
+
+        local playerJob = GameManager.Instance:GetPlayJobBaseID()
+        local maxResonateLv = ConfigDataAccessor.GetMaxEquipSlotResonanceLv(playerJob)
+
+        self.MaxNum = maxResonateLv
+
+        local idxNow = 1
+        local isMax = false
+
+        local rlevel = GameManager.Instance:GetEquipSlotResonateLv() --共鸣等级的最低等级
+
+        --对象池
+
+        for i = 1, maxResonateLv do
+            local item = {}
+            local esr = ConfigDataAccessor.GetEquipSlotResonance(i, playerJob)
+            if rlevel >= esr.Level then
+                idxNow = i
+                item.Idx = i
+                item.Esr = esr
+                item.IsLock = false
+
+                if i == maxResonateLv then
+                    isMax = true
+                end
+            else
+                item.Idx = i
+                item.Esr = esr
+                item.IsLock = true
+            end
+            table.insert(self.Data, item)
+        end
+
+        self.IsMax = isMax
+
+        self:OnItemClick(idxNow)
+
+        --是否达到最大
+        if isMax then
+            self.go_datamax:SetActive(true)
+            self.go_data1:SetActive(false)
+            self.go_data2:SetActive(false)
+        else
+            self.go_datamax:SetActive(false)
+            self.go_data1:SetActive(true)
+            self.go_data2:SetActive(true)
+        end
+    end
+end
+
+return EquipUpgradeResonate

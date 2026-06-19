@@ -1,0 +1,258 @@
+--[[
+*文件名   :   PartnerEquipProp
+*内  容   :
+*说  明   :
+*创建日期 :   "2024/06/03 15:50:39"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+PartnerEquipProp=class("PartnerEquipProp",UIPanel)
+PartnerEquipProp.m_Name=nil;
+PartnerEquipProp.m_ItemGrid=nil;
+PartnerEquipProp.m_Equiped=nil;
+PartnerEquipProp.m_LeftTimes=nil;
+PartnerEquipProp.m_LeftTimes_tt=nil;
+PartnerEquipProp.m_Type=nil;
+PartnerEquipProp.m_Type_tt=nil;
+PartnerEquipProp.m_LevelLimit=nil;
+PartnerEquipProp.m_LevelLimit_tt=nil;
+PartnerEquipProp.m_Score=nil;
+PartnerEquipProp.m_score_tt=nil;
+PartnerEquipProp.m_Up=nil;
+PartnerEquipProp.m_BgRare=nil;
+PartnerEquipProp.m_Icon=nil;
+PartnerEquipProp.m_Cd=nil;
+PartnerEquipProp.m_Content=nil;
+PartnerEquipProp.m_List=nil;
+PartnerEquipProp.m_SkillName=nil;
+PartnerEquipProp.m_SkillLevel=nil;
+PartnerEquipProp.m_SkillDesc=nil;
+PartnerEquipProp.m_Skillicon=nil;
+PartnerEquipProp.m_PartnerName=nil;
+PartnerEquipProp.m_Partnericon=nil;
+PartnerEquipProp.m_infomation=nil;
+PartnerEquipProp.m_Partner=nil;
+
+function PartnerEquipProp:ctor(go)
+	self.prefab=go;
+	self.m_Name=self:Find("Top/Name"):GetComponent(typeof(Text));
+	self.m_ItemGrid=self:Find("Top/ItemGrid").gameObject;
+	self.m_Equiped=self:Find("Top/Equiped").gameObject;
+	self.m_LeftTimes=self:Find("Top/LeftTimes").gameObject;
+	self.m_LeftTimes_tt=self:Find("Top/LeftTimes/tt"):GetComponent(typeof(Text));
+	self.m_Type=self:Find("Top/Type").gameObject;
+	self.m_Type_tt=self:Find("Top/Type/tt"):GetComponent(typeof(Text));
+	self.m_LevelLimit=self:Find("Top/LevelLimit").gameObject;
+	self.m_LevelLimit_tt=self:Find("Top/LevelLimit/tt"):GetComponent(typeof(Text));
+	self.m_Score=self:Find("Top/Score").gameObject;
+	self.m_score_tt=self:Find("Top/Score/layout/score"):GetComponent(typeof(Text));
+	self.m_Up=self:Find("Top/Score/layout/Up").gameObject;
+	self.m_BgRare=self:Find("Top/ItemGrid/Have/BgRare"):GetComponent(typeof(Image));
+	self.m_Icon=self:Find("Top/ItemGrid/Have/Icon"):GetComponent(typeof(Image));
+	self.m_Cd=self:Find("Top/ItemGrid/Have/Cd/Cd"):GetComponent(typeof(Text));
+	self.m_Content=self:Find("Content").gameObject;
+	self.m_infomation=self:Find("Content/Info/infomation").gameObject
+	self.m_SkillName=self:Find("Content/Info/infomation/name"):GetComponent(typeof(Text));
+	self.m_SkillLevel=self:Find("Content/Info/infomation/level"):GetComponent(typeof(Text));
+	self.m_SkillDesc=self:Find("Content/Info/infomation/1"):GetComponent(typeof(Text));
+	self.m_Skillicon=self:Find("Content/Info/infomation/Skillicon"):GetComponent(typeof(Image));
+
+	self.m_Partner=self:Find("Content/Info/Partner").gameObject
+	self.m_PartnerName=self:Find("Content/Info/Partner/Hname"):GetComponent(typeof(Text));
+	self.m_Partnericon=self:Find("Content/Info/Partner/Headicon"):GetComponent(typeof(Image));
+
+	self.m_List={}
+	for i = 1, 4 do
+		table.insert(self.m_List,{
+				Icon=self:Find("Content/List/Item"..i.."/Icon"):GetComponent(typeof(Image)),
+				Text=self:Find("Content/List/Item"..i.."/Text"):GetComponent(typeof(Text)),
+				Value=self:Find("Content/List/Item"..i.."/Value"):GetComponent(typeof(Text)),
+
+			})
+
+	end
+	self.m_Stars={}
+
+	for i = 1, 3 do
+		table.insert(self.m_Stars,self:Find("Top/ItemGrid/Have/Star"..i).gameObject);
+	end
+
+
+	self:Start();
+end
+
+
+
+function PartnerEquipProp:Start()
+
+end
+
+function PartnerEquipProp:SetStar(star)
+	for i = 1, 3 do
+		self.m_Stars[i]:SetActive(i<=star)
+	end
+end
+
+function PartnerEquipProp:SetItem(item)
+	if item==nil then
+		self.prefab:SetActive(false)
+		return
+	end
+	self.prefab:SetActive(true)
+
+	local config=ConfigDataAccessor.Item[item.BaseID]
+	if config~=nil then
+		self.m_Name.text=config.Name
+		self:GetSpriteByAtlas("UI/Common/Atlas/CommonItem", "Bag_Grid_sq"..config.Quality, function(sp)
+				self.m_BgRare.sprite = sp
+			end);
+		ResourceHelper:LoadIconAsync(self.m_Icon, "", config.Icon, true)
+		if item.HeroID==0 then
+			self.m_Equiped:SetActive(false)
+		else
+			self.m_Equiped:SetActive(true)
+		end
+		if item.TradedCount>0 then
+			self.m_LeftTimes:SetActive(true)
+			self.m_LeftTimes_tt.text=StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_leftTimes"),{item.TradedCount})
+		else
+			self.m_LeftTimes:SetActive(false)
+		end
+
+		self.m_Type_tt.text= ConfigDataAccessor.ItemType[GetSubItemID(tonumber(config.ItemType),tonumber(config.SubType) )].Name;
+
+		local equipCfg=ConfigDataAccessor.PartnerEquip[item.BaseID]
+		if equipCfg~=nil then
+			self.m_LevelLimit_tt.text=StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit"),{equipCfg.Level})
+			self:SetStar(equipCfg.AdvancedLevel)
+
+			local datas={}
+			if #equipCfg.QualiFications>0 and #equipCfg.QualiFications==#equipCfg.QualiFicationsValue then
+				for i = 1, #equipCfg.QualiFications do
+					table.insert(datas,{IsPlayer=false,ID=equipCfg.QualiFications[i],Value=equipCfg.QualiFicationsValue[i]})
+				end
+			end
+
+			if #equipCfg.Nature>0 and #equipCfg.Nature==#equipCfg.Value then
+				for i = 1, #equipCfg.Nature do
+					table.insert(datas,{IsPlayer=true,ID=equipCfg.Nature[i],Value=equipCfg.Value[i]})
+				end
+			end
+
+			for k, v in pairs(datas) do
+				self:SetPropItem(k,v)
+			end
+			self.m_infomation:SetActive(false)
+			if #equipCfg.Effect>0 then
+				self.m_infomation:SetActive(true)
+				local effectcfg=ConfigDataAccessor.PartnerEquipEffect[equipCfg.Effect[1]]
+				if effectcfg~=nil then
+
+
+					local PartnerType="";
+
+					local PartnerTypeCfg=ConfigDataAccessor.PartnerType[effectcfg.PartnerType]
+					if PartnerTypeCfg~=nil then
+						PartnerType=PartnerTypeCfg.Name
+					end
+
+					if PartnerType== nil or PartnerType=="" or PartnerType=='' then
+						self.m_SkillName.text=effectcfg.Name
+					else
+						self.m_SkillName.text=effectcfg.Name.."<"..PartnerType..">"
+					end
+					
+					self.m_SkillLevel.text=StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"),{equipCfg.EquipLevel})
+					self.m_SkillDesc.text=effectcfg.Desc
+					--self.m_Skillicon=self:Find("Content/infomation/Skillicon"):GetComponent(typeof(Image));;
+
+				end
+			end
+
+			self.m_Partner:SetActive(false)
+			if item.HeroID~=0 then
+				self.m_Partner:SetActive(true)
+
+				local mgr=	BusinessManager.Instance:GetPartnerMDMgr()
+				if mgr~= nil then
+					local partner= mgr:GetPartnerMD(item.HeroID)
+					if (partner~=nil) then
+
+						local config=ConfigDataAccessor.Partner[partner.Index];
+						if config~=nil then
+							self.m_PartnerName.text=StringFormat(LanguageHelp:GetLanguageByKey("partner_sys_32"),{config.Name})
+							local avatarCfg=ConfigDataAccessor.Avatar[config.AvatarID];
+							if avatarCfg~=nil then
+
+								local headCfg=ConfigDataAccessor.ModelHead[avatarCfg.HeadID]
+								if headCfg~=nil then
+
+									ResourceHelper:LoadIconByAtlasAsync(self.m_Partnericon, headCfg.HeadAtlasName, headCfg.MinHead, false)
+
+								end
+							end
+						end
+					end
+				end
+			end
+		end
+
+	end
+end
+
+function PartnerEquipProp:SetPropItem(index,data)
+	local item=self.m_List[index]
+	if item~=nil and data~=nil then
+
+		local Name=""
+		if data.IsPlayer then
+
+
+			local config1=  ConfigDataAccessor.GetAttrByID(data.ID);
+			local attrName1 = "";
+			if config1 ~= nil then
+				attrName1 = config1.Name;
+			end
+			Name=attrName1..LanguageHelp:GetLanguageByKey("partner_sys_12")
+
+
+		else
+			local config=ConfigDataAccessor.GetAttrByID(data.ID)
+			if config~=nil then
+				Name=config.Name;
+			end
+		end
+		item.Text.text=Name;
+
+		item.Value.text=data.Value
+
+		self:GetSpriteByAtlas("UI/Icons/Atlas/IconAttribute","Attribute_"..data.ID,function (sp)
+				item.Icon.sprite=sp
+			end)
+
+	end
+end
+
+function PartnerEquipProp:OnEnable()
+
+end
+
+function PartnerEquipProp:OnDisable()
+
+end
+
+function PartnerEquipProp:OnDestroy()
+
+end
+
+function PartnerEquipProp:OnOpen(arg)
+
+end
+
+function PartnerEquipProp:OnClose(arg)
+
+end
+
+
+
+return  PartnerEquipProp

@@ -1,0 +1,518 @@
+--[[
+*文件名   :   AvgMindBox
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/10/21 17:36:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+AvgMindBox = class("AvgMindBox", UIPanel)
+
+local AvgMindBoxSelectItem = require("View/Item/AvgMindBoxSelectItem")
+local ObjectPool = require("Common/Helper/ObjectPool")
+
+function AvgMindBox:Awake()
+    self.gameObject = self.prefab
+    self.transform = self.prefab.transform
+
+    --点击出现下一句
+    self.m_TalkNextBtn = self.transform:Find("Background"):GetComponent(typeof(Button))
+    self.m_TalkNextBtn.onClick:AddListener(
+        function()
+            self:OnNextButtonClick()
+        end
+    )
+
+    self.transform:Find("Cut4Cam90/AssemblyRatio2/Scroll View"):GetComponent(typeof(JButton)).OnClick = (function()
+        self:OnNextButtonClick()
+    end)
+
+    --选项UI
+    self.go_selectMenu = self.transform:Find("Cut4Cam90/AssemblyRatio2/Select").gameObject
+    self.go_selectMenu:SetActive(false)
+
+    self.selectItems = {}
+    --初始化选项Item
+    for i = 1, 4, 1 do
+        local _go = self.transform:Find("Cut4Cam90/AssemblyRatio2/Select/Root/SelectItem" .. i).gameObject
+
+        local si =
+            AvgMindBoxSelectItem:New(
+            _go,
+            function(idx, cID, contentText)
+                self:OnSelectClick(idx, cID, contentText)
+            end
+        )
+        self.selectItems[i] = si
+    end
+
+    --关闭对话
+    local btnClose = self.transform:Find("Cut4Cam90/AssemblyRatio2/StopRoot/BtnStop"):GetComponent(typeof(JButton))
+    --JButton点击
+    btnClose.OnClick = function(go)
+        self:FinishTalk()
+    end
+
+    self.go_stop = self.transform:Find("Cut4Cam90/AssemblyRatio2/StopRoot").gameObject
+    self.go_link = self.transform:Find("Cut4Cam90/AssemblyRatio2/LinkRoot").gameObject
+
+    self.scrollView = self.transform:Find("Cut4Cam90/AssemblyRatio2/Scroll View"):GetComponent(typeof(ScrollRect))
+
+    --动画相关
+    self.anim = self.transform:GetComponent(typeof(Animator))
+
+    --对象池
+    local _go = self.transform:Find("Cut4Cam90/AssemblyRatio2/Scroll View/Viewport/Content/AvgMindItemL").gameObject
+    self.avgMindItemPoolL =
+        ObjectPool:New(
+        2,
+        "View.Item.AvgMindItem",
+        _go,
+        _go.transform.parent,
+        function(it)
+            it:InitItem(
+                function()
+                    self:OnFinishShowTalkItem()
+                end,
+                function()
+                    self.IsWaitting = false
+                end,
+                function()
+                    Util.TweenFloatTo(
+                        self.scrollView.verticalNormalizedPosition,
+                        0,
+                        0.2,
+                        function(v)
+                            self.scrollView.verticalNormalizedPosition = v
+                        end
+                    )
+
+                    --[[
+				DOVirtual.DelayedCall(0.1,function ()
+					self.scrollView.verticalNormalizedPosition=0;
+				end)
+				]]
+                end
+            )
+        end,
+        --回收回调
+        function(ritem)
+            ritem:SetUse(false)
+        end,
+        nil
+    )
+
+    --对象池
+    local _go2 = self.transform:Find("Cut4Cam90/AssemblyRatio2/Scroll View/Viewport/Content/AvgMindItemR").gameObject
+    self.avgMindItemPoolR =
+        ObjectPool:New(
+        2,
+        "View.Item.AvgMindItem",
+        _go2,
+        _go2.transform.parent,
+        function(it)
+            it:InitItem(
+                function()
+                    self:OnFinishShowTalkItem()
+                end,
+                function()
+                    self.IsWaitting = false
+                end,
+                function()
+                    Util.TweenFloatTo(
+                        self.scrollView.verticalNormalizedPosition,
+                        0,
+                        0.2,
+                        function(v)
+                            self.scrollView.verticalNormalizedPosition = v
+                        end
+                    )
+
+                    --[[
+				DOVirtual.DelayedCall(0.1,function ()
+					self.scrollView.verticalNormalizedPosition=0;
+				end)
+				]]
+                end
+            )
+        end,
+        --回收回调
+        function(ritem)
+            ritem:SetUse(false)
+        end,
+        nil
+    )
+
+    --对象池
+    local _go3 = self.transform:Find("Cut4Cam90/AssemblyRatio2/Scroll View/Viewport/Content/AvgMindItemC").gameObject
+    self.avgMindItemPoolC =
+        ObjectPool:New(
+        2,
+        "View.Item.AvgMindOneLine",
+        _go3,
+        _go3.transform.parent,
+        function(it)
+            it:InitItem(
+                function()
+                    self:OnFinishShowTalkItem()
+                end,
+                function()
+                    self.IsWaitting = false
+                end,
+                function()
+                    Util.TweenFloatTo(
+                        self.scrollView.verticalNormalizedPosition,
+                        0,
+                        0.2,
+                        function(v)
+                            self.scrollView.verticalNormalizedPosition = v
+                        end
+                    )
+
+                    --[[
+				DOVirtual.DelayedCall(0.1,function ()
+					self.scrollView.verticalNormalizedPosition=0;
+				end)
+				]]
+                end
+            )
+        end,
+        --回收回调
+        function(ritem)
+            ritem:SetUse(false)
+        end,
+        nil
+    )
+
+    self.ReadyStartToClick = false
+    self.CanClickToNext = false
+    self.IsWaitting = false
+
+    self.talkConetntNow = nil
+
+    self.TalkGroupNow = 0
+
+    self.NeedClick = false
+
+    self.module = nil
+end
+
+function AvgMindBox:BindModule(m)
+    self.module = m
+end
+
+function AvgMindBox:Start()
+end
+
+function AvgMindBox:OnEnable()
+end
+
+function AvgMindBox:OnDisable()
+end
+
+function AvgMindBox:OnDestroy()
+end
+
+function AvgMindBox:OnOpen(arg)
+    --随便打开一段对话
+    self.go_stop:SetActive(false)
+    self.go_link:SetActive(true)
+    self.anim:Play("Go")
+    --2秒后隐藏
+    DOVirtual.DelayedCall(
+        1,
+        function()
+            self.go_link:SetActive(false)
+        end
+    )
+end
+
+function AvgMindBox:OnClose(arg)
+end
+
+--点击下一句对话
+function AvgMindBox:OnNextButtonClick()
+    if not (self.ReadyStartToClick) then
+        return
+    end
+
+    self.TalkedItemNow:FinishTalkNow()
+    if self.tw ~= nil then
+        self.tw:Kill()
+    end
+    self:GetNextTalkContent()
+
+    --[[
+
+	if self.IsWaitting or not(self.NeedClick) then
+		return;
+	end
+
+	if not(self.CanClickToNext)  then
+		self.CanClickToNext=true;
+		--立马显示完整句子
+		self.TalkedItemNow:FinishTalkNow();
+	else
+		--等待两秒
+		if self.tw~= nil then
+			self.tw:Kill();
+		end
+		self:GetNextTalkContent();
+	end
+
+	]]
+end
+
+function AvgMindBox:OnSelectClick(idx, cID, contentText)
+    self.go_selectMenu:SetActive(false)
+    self:GetTalkContentById(cID)
+
+    --[[
+
+	--回调
+
+	--print("onClick"..idx);
+	self.go_selectMenu:SetActive(false);
+
+	if self.nextIdsNum>1 then
+
+		self.CanClickToNext=false;
+		self.IsWaitting=true; --该类型需要等待
+		local item=self.avgMindItemPoolR:Spawn();
+		local talkConetntNow={};
+		local playerName="";
+		local targetID=GameManager.Instance.mainPlayerId;
+		if targetID~= nil and targetID~=0 then
+			playerName=GameManager.Instance:GetEntityNameById(targetID);
+		end
+		talkConetntNow.Name2=playerName;
+		talkConetntNow.Dialog_desc2=contentText;
+		talkConetntNow.Spine_id=1;
+		talkConetntNow.Send_delay=0;
+		talkConetntNow.Voice_id=0;
+		
+		item:SetItem(talkConetntNow,function ()
+			self:GetTalkContentById(cID);
+		end);
+		self.TalkedItemNow=item;
+
+	else
+		self:GetTalkContentById(cID);
+	end
+
+	]]
+end
+
+function AvgMindBox:StartMindTalk(idx)
+    local data = ConfigDataAccessor.TeleDialog[idx]
+    if data == nil then
+        print("对话加载失败 id=", idx)
+        self:FinishTalk()
+        return
+    end
+    SoundManager.Instance:PlayEventName("UI_Telepathy_Drone_Loop_01", nil, nil)
+
+    --清空
+    if data.Dialog_group == 0 or data.Dialog_group ~= self.TalkGroupNow or self.TalkFirstIdxNow == idx then
+        self.TalkGroupNow = data.Dialog_group
+        self.avgMindItemPoolL:RecycleAll()
+        self.avgMindItemPoolR:RecycleAll()
+        self.avgMindItemPoolC:RecycleAll()
+    end
+
+    self.ReadyStartToClick = false
+    --一秒后出现
+    DOVirtual.DelayedCall(
+        1,
+        function()
+            self.TalkFirstIdxNow = idx
+            self:GetTalkContentById(idx)
+        end
+    )
+    DOVirtual.DelayedCall(
+        1.5,
+        function()
+            self.ReadyStartToClick = true
+        end
+    )
+end
+
+function AvgMindBox:GetTalkContentById(idx)
+    if idx == 0 then
+        self.go_stop:SetActive(true)
+        return
+    end
+
+    local data = ConfigDataAccessor.TeleDialog[idx]
+
+    if data == nil then
+        print("对话加载失败 id=", idx)
+    end
+
+    local targetID = GameManager.Instance.mainPlayerId
+    if targetID ~= nil and targetID ~= 0 then
+        local playerName = GameManager.Instance:GetEntityNameById(targetID)
+        if playerName ~= nil and playerName ~= "" then
+            data.Name2 = string.gsub(data.Name, "@player", playerName)
+            data.Dialog_desc2 = string.gsub(data.Dialog_desc, "@player", playerName)
+        end
+    end
+
+    self.talkConetntNow = data
+    self:RefeshTalkInfo()
+end
+
+function AvgMindBox:CheckNext()
+    local nextIds = self.talkConetntNow.Next_dialog_id
+    --结束对话
+    if nextIds[1] == 0 then
+        self.go_stop:SetActive(true)
+        return
+    end
+
+    --判断下一句对话
+
+    local data = ConfigDataAccessor.TeleDialog[nextIds[1]]
+    if data == nil then
+        print("对话加载失败 id=", idx)
+    end
+
+    --出现中断
+    if data.Can_interrupt then
+        self.go_stop:SetActive(true)
+    end
+
+    --有选项不继续播
+    if self.talkConetntNow.Dialog_option ~= "" then
+    else
+        --等待两秒
+        if self.tw ~= nil then
+            self.tw:Kill()
+        end
+
+        local delay = ConfigDataAccessor.SystemList[163].Value --0点之后的多少秒
+        --延迟一段时间后调用
+        self.tw =
+            DOVirtual.DelayedCall(
+            delay / 1000,
+            function()
+                if not (self.IsPlayVoice) then
+                    self:GetNextTalkContent()
+                end
+            end
+        )
+    end
+end
+
+function AvgMindBox:OnFinishShowTalkItem()
+    self.CanClickToNext = true
+    self:CheckNext()
+end
+
+function AvgMindBox:RefeshTalkInfo()
+    --显示选项
+    if self.talkConetntNow.Dialog_option ~= "" then
+        local dialog_options = string.split(self.talkConetntNow.Dialog_option, "#")
+        local nextIds = self.talkConetntNow.Next_dialog_id
+        self.go_selectMenu:SetActive(true)
+        for i = 1, #self.selectItems, 1 do
+            self.selectItems[i].gameObject:SetActive(false)
+        end
+
+        self.nextIdsNum = #nextIds
+        for i = 1, #nextIds, 1 do
+            self.selectItems[i].gameObject:SetActive(true)
+            self.selectItems[i]:SetItem(dialog_options[i], i, nextIds[i])
+        end
+    end
+
+    self.Spine_id_Now = self.talkConetntNow.Spine_id
+    self.CanClickToNext = false
+
+    if self.talkConetntNow.Site == "1" then
+        self.IsWaitting = true --该类型需要等待
+        local item = self.avgMindItemPoolL:Spawn()
+        item:SetItem(self.talkConetntNow)
+        self.TalkedItemNow = item
+    elseif self.talkConetntNow.Site == "3" then
+        self.IsWaitting = true --该类型需要等待
+        local item = self.avgMindItemPoolR:Spawn()
+        item:SetItem(self.talkConetntNow)
+        self.TalkedItemNow = item
+    else
+        local item = self.avgMindItemPoolC:Spawn()
+        item:SetItem(self.talkConetntNow)
+        self.TalkedItemNow = item
+    end
+
+    if self.SoundKey ~= nil then
+        SoundManager.Instance:StopVoice(self.SoundKey)
+        self.IsPlayVoice = false
+        self.SoundKey = nil
+    end
+
+    --播放语音
+    if self.talkConetntNow.Voice_id ~= "" and self.talkConetntNow.Voice_id ~= "0" then
+        local rest =
+            SoundManager.Instance:PlayVoice(
+            self.talkConetntNow.Voice_id,
+            self.gameObject,
+            function(key)
+                --Play Complete
+                if self.IsPlayVoice and key == self.SoundKey then
+                    self.IsPlayVoice = false
+                    self:CheckNext()
+                end
+                self.IsPlayVoice = false
+            end
+        )
+
+        self.IsSoundSuccess = rest.Item1
+        self.SoundKey = rest.Item2
+
+        if self.IsSoundSuccess then
+            self.IsPlayVoice = true
+        end
+    end
+end
+
+function AvgMindBox:GetNextTalkContent()
+    local nextIds = self.talkConetntNow.Next_dialog_id
+
+    --结束对话
+    if nextIds[1] == 0 then
+        self.go_stop:SetActive(true)
+    else
+        --切换到下一句对话
+        self:GetTalkContentById(nextIds[1])
+    end
+end
+
+function AvgMindBox:FinishTalk()
+    self.anim:Play("Out")
+    self.ReadyStartToClick = false
+    self.go_stop:SetActive(false)
+    if self.SoundKey ~= nil then
+        SoundManager.Instance:StopVoice(self.SoundKey)
+        self.IsPlayVoice = false
+        self.SoundKey = nil
+    end
+    if self.tw ~= nil then
+        self.tw:Kill()
+    end
+    SoundManager.Instance:PlayEventName("UI_Telepathy_Off_01", nil, nil)
+    self.tw =
+        DOVirtual.DelayedCall(
+        0.6,
+        function()
+            self.module:OnFinishAvgMindBox()
+            self.Spine_id_Now = nil
+            self.NeedClick = false
+            --self.gameObject:SetActive(false)
+            UIManager.Instance:CloseWidget("Avg/AvgMindBox", nil, true)
+            --UIManager.Instance:CloseAllLoadedWindowNWidget()
+        end
+    )
+end
+
+return AvgMindBox

@@ -1,0 +1,554 @@
+--[[
+*文件名   :   TaskItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/10/25 11:09:17"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]] TaskItem = class("TaskItem", UIPanel)
+TaskItem.TaskName = nil
+TaskItem.Tag = nil
+TaskItem.TagText = nil
+TaskItem.Content = nil
+TaskItem.ContentRect = nil
+TaskItem.select = nil
+TaskItem.SelectBtn = nil
+TaskItem.ShowItem = nil
+TaskItem.ShowItemBg = nil
+TaskItem.ShowItemIcon = nil
+TaskItem.ShowItemRoot = nil
+TaskItem.TimeIcon = nil
+TaskItem.TimeText = nil
+TaskItem.CanvasGroup = nil
+TaskItem.Image_FXCanvasGroup = nil
+TaskItem.m_StarAnimEvent = nil
+TaskItem.PlayEndAnimation = false
+TaskItem.m_EndPlay = nil
+TaskItem.m_SelectFunc = nil
+TaskItem.m_ShowItemFunc = nil
+TaskItem.m_TargetItemGo = nil
+TaskItem.ContentVerticalLayoutGroup = nil
+TaskItem.NoticeCallBack = false
+TaskItem.NeedUpdate = false
+TaskItem.TaskInfo = nil
+TaskItem.OnFindingPath = false
+TaskItem.Square = nil
+TaskItem.Root = nil
+TaskItem.OnDissableCallBack = nil
+local IsClear = false
+
+function TaskItem:ctor(go, atlas, root, cb)
+    self.IsClear = false
+    self.prefab = go
+    self.AtlasPath = atlas
+    self.Root = root
+    self.OnDissableCallBack = cb
+    self.NeedUpdate = false
+    self.OnFindingPath = false
+    self.needShow = false
+    self.TaskName = self:Find("Info/TaskName/TaskName"):GetComponent(typeof(Text))
+    self.Tag = self:Find("Info/Tag"):GetComponent(TImage)
+    self.TagText = self:Find("Info/Tag/Text"):GetComponent(typeof(Text))
+    self.Content = self:Find("Content")
+    self.TimeIcon = self:Find("Time"):GetComponent(typeof(RectTransform))
+    self.TimeText = self:Find("Time/Text"):GetComponent(typeof(Text))
+    self.select = self:Find("select").gameObject
+    self.Square = self:Find("Square").gameObject
+    self.m_TargetItemGo = self:Find("TargetItem").gameObject
+    self.ObjectFinishContent = self:Find("FinishContent").gameObject
+    self.ObjectFinishGlowContent = self:Find("FinishContentGlow").gameObject
+    self.ContentVerticalLayoutGroup = self:Find("Content"):GetComponent(typeof(VerticalLayoutGroup))
+    self.CanvasGroup = self.prefab:GetComponent(typeof(CanvasGroup))
+    self.m_VerticalLayoutGroup = self.prefab:GetComponent(typeof(VerticalLayoutGroup))
+    self.Image_FXCanvasGroup = self:Find("Image_Fx"):GetComponent(typeof(CanvasGroup))
+    IsClear = false
+
+    self.m_SelectFunc = function()
+        self:OnSelectHandler()
+    end
+
+    self.m_ShowItemFunc = function()
+        self:OnClickShowItem()
+    end
+
+    self.m_EndPlay = function()
+        self:OnEndPlay()
+    end
+
+    self.m_SelectTaskFunc = function(taskID)
+        self:OnSelectTaskChange(taskID)
+    end
+
+    self.OnTimeUpdate = function()
+        self:UpdateTime()
+    end
+    self.m_RuningCallback = function(result)
+        self:RuningCallback(result)
+    end
+    self.m_FinishCallback = function(result)
+        self:FinishCallback(result)
+    end
+    self.ShowItemRoot = self:Find("Item").gameObject
+    self.ShowItem = self:Find("Item/ShowItem"):GetComponent(typeof(JButton))
+    self.ShowItemBg = self:Find("Item/ShowItem"):GetComponent(typeof(Image))
+    self.ShowItemIcon = self:Find("Item/ItemIcon"):GetComponent(typeof(Image))
+    self.ShowItem.OnClick = (self.m_ShowItemFunc)
+    self.SelectBtn = self.prefab:GetComponent(typeof(JButton))
+    self.SelectBtn.OnClick = (self.m_SelectFunc)
+    self.m_StarAnimEvent = self.prefab:GetComponent(typeof(CS.StarAnimEvent))
+    CS.StarProject.GlobalEvent.SelectTaskItem:AddListener(self.m_SelectTaskFunc)
+    MonoHelper.AddSecTimeUpdateListener(self.OnTimeUpdate)
+end
+
+function TaskItem:OnSelectTaskChange(taskID)
+    if self.IsClear then
+        return
+    end
+    if IsClear then
+        return
+    end
+
+    local active = false
+    if self.TaskInfo ~= nil then
+        if self.TaskInfo.TaskID == taskID then
+            active = true
+        end
+    end
+
+    if self.select ~= nil then
+        self.select:SetActive(active)
+    end
+end
+
+function TaskItem:RevertItem()
+    if self.m_StarAnimEvent ~= nil then
+        self.m_StarAnimEvent:Stop()
+    end
+end
+
+function TaskItem:OnClickShowItem()
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",
+        {self.TaskInfo.ShowItemID, false, nil, self.ShowItem.transform, 0})
+end
+
+function TaskItem:OnFinishPathFinding(targetid, SourceID, SourceSubID, taskType)
+    if taskType == CS.Task.TaskType.Dialogue then
+        self:OnOpenDialogue(targetid, SourceID, SourceSubID)
+    elseif taskType == CS.Task.TaskType.InterAction then
+        -- 交互物
+        local cfg = ConfigDataAccessor.Interact[targetid] -- 配置
+        if cfg ~= nil then
+            local light = false
+            if cfg.IsAutoInter == 2 then
+                light = true
+            end
+            if light then
+                DelayInvoker.DelayInvoke(self, 2, function()
+                    self:OnInterAction(targetid, SourceID, SourceSubID)
+                end)
+            else
+                self:OnInterAction(targetid, SourceID, SourceSubID)
+            end
+        end
+    end
+end
+
+function TaskItem:OnInterAction(objectID, SourceID, SourceSubID)
+    local uid = GameManager.Instance:GetObjectEntityIDByConfig(objectID)
+    BusinessManager.Instance:TurnToEntity(uid)
+    LuaModuleDispatcher:SendMessage(ModuleDef.InterActionModule, "QueryInter", uid, true, SourceID, SourceSubID)
+end
+
+function TaskItem:OnOpenDialogue(npcID, SourceID, SourceSubID)
+    local lobbyService = CS.ProtoMsg.LobbyServiceReq()
+    lobbyService.MapID = GameManager.Instance:GetCurMapId()
+    lobbyService.UID = GameManager.Instance:GetNPCEntityIDByConfig(npcID)
+    lobbyService.ObjID = npcID
+    lobbyService.SourceType = CS.ProtoMsg.MapServiceSourceTypeEnum.Task
+    lobbyService.SourceID = SourceID
+    lobbyService.SourceSubID = SourceSubID
+    lobbyService.ObjType = CS.ProtoMsg.ServiceObjEnum.ObjNpc
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+        lobbyService, false)
+end
+
+function TaskItem:OnSelectHandler()
+    self:DisableSelect()
+    if self.TaskInfo ~= nil then
+        local delete = (self.TaskInfo.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStateBeDeleted or
+                           self.TaskInfo.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStateGetReward)
+        if delete then
+            return
+        end
+
+        CS.StarProject.GlobalEvent.OnClickTaskItem:Invoke(self.TaskInfo.TaskID)
+        GameManager.Instance:EventPreNewPlayerEvent("12_" .. self.TaskInfo.TaskID)
+        if self.OnFindingPath then
+            return
+        end
+
+        GameManager.Instance:TriggerEvent("ClickTask", false)
+
+        self.needShow = true
+        local config = TaskHelper.GetTaskConfig(self.TaskInfo.TaskID)
+        if config ~= nil then
+            GameManager.Instance:TriggerEvent("TaskItem_Select", self.TaskInfo.TaskID)
+            if config:IsModuleEvent() then
+                LuaModuleDispatcher:SendMessage(config.Base.ModuleName, config.Base.EventName)
+            else
+                if self.TaskInfo.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStageRunning then
+                    local taskTarget = TaskHelper.GetTaskTarget(self.TaskInfo.TaskID)
+                    if taskTarget ~= nil then
+                        -- 未完成的任务目标
+                        -- 任务进行中
+                        if taskTarget.FindPath.FindPathType ~= CS.Task.E_FindPath.None then
+                            if taskTarget.FindPath.FindPathType == CS.Task.E_FindPath.JumpTo then
+                                self.needShow = false
+                                -- taskTarget.FindPath.JumpID
+                                if taskTarget.FindPath.ItemID > 0 then
+                                    JumpBySystemJumpById(taskTarget.FindPath.JumpID, nil, nil,
+                                        taskTarget.FindPath.ItemID, self.prefab.transform)
+                                else
+                                    JumpBySystemJumpById(taskTarget.FindPath.JumpID)
+                                end
+                            elseif taskTarget.FindPath.FindPathType == CS.Task.E_FindPath.DoGuide then
+                                self.needShow = false
+                                TaskHelper.DoGuide(taskTarget.FindPath.GuideID)
+                            else
+                                self.OnFindingPath = true
+                                TaskHelper.FindPathByTask(taskTarget.MapID, taskTarget.FindPath, taskTarget.TargetID,
+                                    function(result)
+                                        if self.m_RuningCallback then
+                                            self.m_RuningCallback(result)
+                                        end
+                                    end)
+                            end
+                        end
+                    else
+                        if self.TaskInfo.TaskID == SystemConstConfigs.RingTask_AwardTask or self.TaskInfo.TaskID ==
+                            SystemConstConfigs.RingTask_SpecialAwardTask then
+                            -- 跳转到环任务
+                            JumpBySystemJumpById(2008)
+                        end
+                    end
+                elseif self.TaskInfo.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStageFinished then
+                    -- 任务已完成未提交
+                    if config.TaskFinishInfo.ClickFinish then
+                        LuaModuleDispatcher:SendMessage(ModuleDef.TaskModule, "SubmitTaskReq", {config.Base.TaskID})
+                    else
+                        self.OnFindingPath = true
+                        TaskHelper.FindPathByNpc(config.TaskFinishInfo.FinishTaskMapID,
+                            config.TaskFinishInfo.FinishTaskNPC, 1, function(result)
+                                TaskHelper.SendReqSpeedBuff(false);
+                                if self.IsClear then
+                                    return
+                                end
+                                if self.m_FinishCallback then
+
+                                    self.m_FinishCallback(result)
+                                end
+                            end, true, 0, function(targetPos)
+                                TaskHelper.TryReqSpeedBuff(targetPos);
+                            end)
+                    end
+                end
+            end
+        end
+
+        if self.needShow then
+            CS.StarProject.GlobalEvent.SelectTaskItem:Invoke(self.TaskInfo.TaskID)
+        end
+    end
+end
+
+function TaskItem:ShowTime()
+    if self.TaskInfo ~= nil and self.TaskInfo.TaskOverdueTime > 0 then
+        local now = TimeUtils.GetServerTimeNow()
+        if now >= self.TaskInfo.TaskOverdueTime then
+            return LanguageHelp:GetLanguageByKey("Local_Str_Tips54")
+        else
+            local t = math.floor((tonumber(self.TaskInfo.TaskOverdueTime) - tonumber(now)) / 1000)
+            -- return "剩余时间" .. SecToStringColon(t)
+            return StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Time_Remaining"), {SecToStringColon(t)})
+        end
+    else
+        return ""
+    end
+end
+
+function TaskItem:ActiveSelect()
+    if GameManager.Instance:GetCurMapType() ~= CS.ProtoMsg.SpaceType.SpaceScene then
+        return
+    end
+
+    if self.Square ~= nil and (not self.Square.gameObject.activeInHierarchy) then
+        -- CS.StarProject.GlobalEvent.SettoTutorial:Invoke(self.Square)
+
+        local ret = self.Square.transform:GetComponent(typeof(RectTransform))
+        local right = 0
+        if self.TaskInfo.ShowItemID ~= 0 then
+            right = 40
+        else
+            right = 0
+        end
+
+        ret.anchorMin = Vector2(0, 0)
+        ret.anchorMax = Vector2(1, 1)
+        ret.offsetMin = Vector2(-25, -20)
+        ret.offsetMax = Vector2(right, 20)
+
+        self.Square.transform:SetParent(self.Root.transform)
+        self.Square:SetActive(true)
+    end
+end
+
+function TaskItem:DisableSelect()
+    if self.Square ~= nil then
+        if self.prefab == nil then
+            GameObejct.Destroy(self.Square.gameObject)
+        else
+            local parent = self.prefab.transform
+            self.Square.transform:SetParent(parent)
+            self.Square:SetActive(false)
+        end
+        if self.OnDissableCallBack ~= nil then
+            self.OnDissableCallBack(self.TaskInfo.TaskID)
+        end
+    end
+end
+
+function TaskItem:UpdateTime()
+    if not self.NeedUpdate or self.NeedUpdate == nil then
+        return
+    end
+    if self.TaskInfo == nil then
+        return
+    end
+    local time = self:ShowTime()
+    if time ~= nil then
+        self.TimeText.text = self:ShowTime()
+    end
+end
+
+function TaskItem:UpdateTargets()
+    local count = self.Content.transform.childCount
+    while count > 0 do
+        GameObject.DestroyImmediate(self.Content.transform:GetChild(count - 1).gameObject)
+        count = count - 1
+    end
+    if self.TaskInfo.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStageRunning then
+        if self.TaskInfo:IsSpecialDesc() then
+            local go = GameObject.Instantiate(self.m_TargetItemGo)
+            go.transform:SetParent(self.Content.transform)
+            go:SetActive(true)
+            go.transform.localPosition = Vector3.zero
+            go.transform.localScale = Vector3.one
+            local info = self.TaskInfo:GetTotalProcessDesc()
+            local desc = info.Item1
+            local target = go.transform:Find("Text"):GetComponent(typeof(Text))
+            if self.TaskInfo.ShowProcess then
+                target.text = self.TaskInfo.SpecTaskDesc .. desc
+            else
+                target.text = self.TaskInfo.SpecTaskDesc
+            end
+            go:SetActive(true)
+        else
+            if self.TaskInfo ~= nil and self.TaskInfo.TaskTarget ~= nil and self.TaskInfo.TaskTarget.Count > 0 then
+                for i = 1, self.TaskInfo.TaskTarget.Count do
+                    local go = GameObject.Instantiate(self.m_TargetItemGo)
+                    go:SetActive(true)
+                    go.transform:SetParent(self.Content.transform)
+                    go.transform.localPosition = Vector3.zero
+                    go.transform.localScale = Vector3.one
+                    local targetInfo = self.TaskInfo.TaskTarget[i - 1]
+                    local target = go.transform:Find("Text"):GetComponent(typeof(Text))
+                    target.text = targetInfo.TaskDesc
+                    go:SetActive(true)
+                end
+            end
+        end
+    else
+        local go = GameObject.Instantiate(self.m_TargetItemGo)
+        go.transform:SetParent(self.Content.transform)
+        go.transform.localPosition = Vector3.zero
+        go.transform.localScale = Vector3.one
+        if self.TaskInfo.TaskTarget.Count > 0 then
+            local target = go.transform:Find("Text"):GetComponent(typeof(Text))
+            target.text = self.TaskInfo.FinishServiceName
+            go:SetActive(true)
+        end
+    end
+    if self.ContentVerticalLayoutGroup then
+        CS.UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(self.ContentVerticalLayoutGroup.transform);
+    end
+    if self.m_VerticalLayoutGroup then
+        CS.UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(self.m_VerticalLayoutGroup.transform);
+    end
+end
+
+-- 新增
+function TaskItem:NewTask(data)
+    self:OnUpdateContent(data)
+    if self.m_StarAnimEvent ~= nil then
+        self.m_StarAnimEvent:Play("NewTask", function()
+        end)
+    end
+    if self.m_VerticalLayoutGroup then
+        CS.UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(self.m_VerticalLayoutGroup.transform);
+    end
+end
+
+-- 修改
+function TaskItem:DeleteTask(data, cb)
+    self:OnUpdateContent(data)
+    self.NoticeCallBack = cb
+    if self.m_VerticalLayoutGroup then
+        CS.UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(self.m_VerticalLayoutGroup.transform);
+    end
+    local delete =
+        (self.TaskInfo.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStateBeDeleted or self.TaskInfo.TaskState ==
+            CS.ProtoMsg.TaskStateEnum.TaskStateGetReward)
+    if delete and self.m_StarAnimEvent ~= nil then
+        self:OnEndPlay()
+    end
+end
+
+-- 初始化
+function TaskItem:InitTask(data)
+    self:OnUpdateContent(data)
+end
+
+function TaskItem:OnUpdateContent(data)
+    self.TaskInfo = data
+    if self.TaskInfo.TaskID == TaskHelper.CurrentSelectTaskID then
+        self.select:SetActive(true)
+    else
+        self.select:SetActive(false)
+    end
+
+    if self.TaskInfo.ShowItemID ~= 0 then
+        -- self.ShowItemBg=self:Find("Info/Item/ShowItem"):GetComponent(typeof(Image));
+        -- self.ShowItemIcon=self:Find("Info/Item/ItemIcon"):GetComponent(typeof(Image));
+
+        local config = ConfigDataAccessor.Item[self.TaskInfo.ShowItemID]
+        if config ~= nil then
+            local quality = config.Quality
+            ResourceHelper:LoadIconByAtlasAsync(self.ShowItemBg, ResourceHelper.AtlasPathCommonItem,
+                "Bag_Grid_sq" .. quality, false)
+            ResourceHelper:LoadIconAsync(self.ShowItemIcon, "", config.Icon, false)
+        end
+
+        self.ShowItemRoot.gameObject:SetActive(true)
+    else
+        self.ShowItemRoot.gameObject:SetActive(false)
+    end
+    self.NeedUpdate = false
+    -- 是否存在时间
+    local hasTime = data.TaskOverdueTime > 0
+    self.TimeIcon.gameObject:SetActive(hasTime)
+    self.TaskName.text = data:GetStringType() .. data.TaskTitle .. data:GetTaskProgress()
+    local color = ColorDefine.Instance:GetColor("Task_" .. data.TaskType)
+    self.TaskName.color = color
+
+    if data.TaskTag == nil or data.TaskTag == "" or data.TaskTag == " " then
+        self.Tag.color = GlobalColor:Set(1, 1, 1, 0)
+        self.TagText.color = GlobalColor:Set(1, 235 / 255, 145 / 255, 0)
+    else
+        self.Tag.color = GlobalColor:Set(1, 1, 1, 1)
+        self.TagText.color = GlobalColor:Set(1, 235 / 255, 145 / 255, 1)
+    end
+    self.TagText.text = data.TaskTag
+
+    local config = TaskHelper.GetTaskConfig(self.TaskInfo.TaskID)
+    if config and self.TaskInfo.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStageFinished and self.TaskInfo.ClickFinish then
+        self.ObjectFinishContent:SetActive(true)
+        self.ContentVerticalLayoutGroup.gameObject:SetActive(false)
+        self.ObjectFinishGlowContent:SetActive(true)
+    else
+        self.ObjectFinishContent:SetActive(false)
+        self.ContentVerticalLayoutGroup.gameObject:SetActive(true)
+        self.ObjectFinishGlowContent:SetActive(false)
+    end
+
+    self:UpdateTargets()
+    self:UpdateTime()
+    local now = TimeUtils.GetServerTimeNow()
+    if self.TaskInfo.TaskOverdueTime > 0 and now < self.TaskInfo.TaskOverdueTime then
+        self.NeedUpdate = true
+    end
+end
+
+function TaskItem:OnEndPlay()
+    if self.TaskInfo ~= nil then
+        -- print("动画播放完毕"..self.TaskInfo.TaskID);
+        local delete = (self.TaskInfo.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStateBeDeleted or
+                           self.TaskInfo.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStateGetReward)
+        if delete then
+            TaskHelper.RemovekRunningTask(self.TaskInfo.TaskID)
+            self:OnClear()
+            if self.NoticeCallBack ~= nil then
+                self.NoticeCallBack(self.TaskInfo.TaskID)
+                self.NoticeCallBack = nil
+                self.TaskInfo = nil
+            end
+        end
+    end
+end
+function TaskItem:RuningCallback(result)
+    local taskTarget = TaskHelper.GetTaskTarget(self.TaskInfo.TaskID)
+    self.OnFindingPath = false
+    if self.select ~= nil then
+        self.select:SetActive(false)
+    end
+    CS.StarProject.GlobalEvent.SelectTaskItem:Invoke(0)
+
+    if not result then
+        self.needShow = false
+    end
+
+    if result and taskTarget ~= nil and taskTarget.FindPath ~= nil then
+        if (taskTarget.FindPath.FindPathType == CS.Task.E_FindPath.NPC or taskTarget.FindPath.FindPathType ==
+            CS.Task.E_FindPath.InterAction) then
+            local EventID = TaskHelper.GetTaskRunningEventID(self.TaskInfo.TaskID)
+            self:OnFinishPathFinding(taskTarget.TargetID, self.TaskInfo.TaskID, EventID, taskTarget.taskType)
+        end
+
+        -- 勾选了自动战斗
+        if taskTarget.FindPath.FinishAutoBattle then
+            GameManager.Instance:OpenAutoBattle()
+        end
+    end
+end
+function TaskItem:FinishCallback(result)
+    local config = TaskHelper.GetTaskConfig(self.TaskInfo.TaskID)
+    self.OnFindingPath = false
+    if self.select ~= nil then
+        self.select:SetActive(false)
+    end
+
+    CS.StarProject.GlobalEvent.SelectTaskItem:Invoke(0)
+    if not result then
+        self.needShow = false
+    end
+
+    if result and config ~= nil then
+        self:OnFinishPathFinding(config.TaskFinishInfo.FinishTaskNPC, self.TaskInfo.TaskID, 0, CS.Task.TaskType.Dialogue)
+    end
+end
+function TaskItem:OnClear()
+    self:DisableSelect()
+    self.IsClear = true
+    CS.StarProject.GlobalEvent.SelectTaskItem:RemoveListener(self.m_SelectTaskFunc)
+    MonoHelper.RemoveSecTimeUpdateListener(self.OnTimeUpdate)
+    self.m_SelectTaskFunc = nil
+    self.m_RuningCallback = nil
+    self.m_FinishCallback = nil
+
+    self.m_EndPlay = nil
+    self.m_SelectFunc = nil
+    self.m_ShowItemFunc = nil
+    self.NeedUpdate = false
+    IsClear = true
+end
+
+return TaskItem

@@ -1,0 +1,79 @@
+---------------------------------------------------------------------
+-- Stars (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-04-10 13:42:29
+---------------------------------------------------------------------
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+--[[
+*文件名   :   ItemHudChat
+*内  容   :
+*说  明   : HUD聊天ITEM
+*创建日期 :   "2022/12/06 10:33:06"
+*创建人   :   "quzhenxin"
+*版权所有 :   游卡网络科技技术有限公司
+]] ---@class ItemHudChat
+local ItemHudChat = {}
+
+ItemHudChat.__index = ItemHudChat;
+
+ItemHudChat.Text = nil;
+ItemHudChat.TextContentSizeFitter = nil;
+ItemHudChat.HeadIconBg = nil;
+ItemHudChat.ChannelTxt = nil;
+ItemHudChat.LinkOpener = nil;
+
+function ItemHudChat:New(_go)
+    local self = {};
+    setmetatable(self, ItemHudChat);
+    self.GameObject = _go.gameObject;
+    self.Transform = self.GameObject.transform;
+
+    self.Text = self.Transform:Find("RichText"):GetComponent(typeof(TextMeshProUGUI));
+    self.TextContentSizeFitter = self.Transform:Find("RichText"):GetComponent(typeof(ContentSizeFitter));
+    -- 频道背景
+    self.HeadIconBg = self.Transform:Find("RichText/Bg"):GetComponent(typeof(Image));
+    -- 频道
+    self.ChannelTxt = self.Transform:Find("RichText/Bg/Channel"):GetComponent(typeof(Text));
+    -- 超连接
+    self.LinkOpener = self.Transform:Find("RichText"):GetComponent(typeof(LinkOpener));
+    self.LinkOpener:SetSource(1); -- 设置超链接的来源  1为hud聊天item
+    -- 大表情
+    self.contentBigEmoji = self.Transform:Find("ContentBigEmoji").gameObject
+    self.bigEmoji = self.Transform:Find("ContentBigEmoji/BigEmoji"):GetComponent(typeof(Image))
+    self.contentBigEmoji:SetActive(false)
+    self.Channel = nil;
+
+    return self;
+end
+
+function ItemHudChat:SetItem(item)
+    self.Channel = item.Channel;
+    -- local eid = item.EID;
+    -- local str = item.Data;
+    -- local name = item.ChatName;
+    -- local lv = item.ChatLevel;
+    self.Text.text = ExtraData.SrvToClientHud(item);
+    self.TextContentSizeFitter:SetLayoutVertical();
+
+    self.ChannelTxt.text = GetChatChannelToStr(self.Channel);
+    local colorStr = GetChatChannelColorToStr(self.Channel);
+    local res, color = CS.UnityEngine.ColorUtility.TryParseHtmlString(colorStr);
+    self.HeadIconBg.color = color;
+    -- 点击方法
+    local extraData = item.SendData;
+    local bigEmoji = ExtraData.GetBigEmoji(extraData);
+    if bigEmoji < 0 then
+        self.LinkOpener:SetLinks(extraData);
+	else
+		ResourceHelper:LoadIconByAtlasAsync(
+            self.bigEmoji,
+            ResourceHelper.AtlasPathEmo1,
+            "Emoticon_big_0" .. bigEmoji + 1,
+            false
+        )
+    end
+	self.contentBigEmoji.gameObject:SetActive(bigEmoji >= 0);
+end
+
+return ItemHudChat;

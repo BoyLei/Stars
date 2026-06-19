@@ -1,0 +1,210 @@
+--[[
+*文件名   :   ShopItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/25 18:01:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local ShopItem = {}
+
+ShopItem.__index = ShopItem
+
+function ShopItem:New(_go)
+    local self = {}
+    setmetatable(self, ShopItem)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    --点击事件
+    local btnClick = self.transform:GetComponent(typeof(JButton))
+    btnClick.OnClick = (function()
+        if self.OnItemClick ~= nil then
+            --已经售罄
+            if self.go_SoldOut.activeSelf then
+                Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_ShopItem_Message"))
+                return
+            end
+
+            if not (self.IsMete) then
+                Util.ShowMessage(self.NeteMsg)
+                return
+            end
+
+            --[[
+            --金币不足
+			if not(self.CanBuy) then
+				print(self.buyErrorMsg)
+				return;
+			end
+            ]]
+            self.OnItemClick(self)
+        end
+    end)
+
+    self.Name = self.transform:Find("Have/Name"):GetComponent(typeof(Text))
+    self.Num = self.transform:Find("Have/Num"):GetComponent(typeof(Text))
+
+    self.Price = self.transform:Find("Have/Price"):GetComponent(typeof(Text))
+    self.rect_Price = self.Price:GetComponent(typeof(RectTransform))
+    self.PriceIcon = self.transform:Find("Have/PriceIcon"):GetComponent(typeof(Image))
+    self.Icon = self.transform:Find("Have/Icon"):GetComponent(typeof(Image))
+    self.Rare = self.transform:Find("Have/BgRare"):GetComponent(typeof(Image))
+
+    self.go_Lock = self.transform:Find("Have/Lock").gameObject
+    self.go_Lock:SetActive(false)
+    self.m_LockTex = self.transform:Find("Have/Lock/lockTex"):GetComponent(typeof(Text))
+
+    self.go_BuyLimit = self.transform:Find("Have/BuyLimit").gameObject
+    self.go_BuyLimit:SetActive(false)
+    self.m_BuyLimit = self.transform:Find("Have/BuyLimit/text"):GetComponent(typeof(Text))
+
+    self.go_SoldOut = self.transform:Find("Have/SoldOut").gameObject
+    self.go_SoldOut:SetActive(false)
+
+    self.go_OldPrice = self.transform:Find("Have/Off").gameObject
+    self.OldPrice = self.transform:Find("Have/Off/oldprice"):GetComponent(typeof(Text))
+    self.OldPriceOff = self.transform:Find("Have/Off/sale"):GetComponent(typeof(Text))
+
+    self.IsUsed = false
+    self.gameObject:SetActive(false)
+
+    return self --返回自身
+end
+
+function ShopItem:SetUse(b)
+    self.IsUsed = b
+    self.gameObject:SetActive(b)
+end
+
+function ShopItem:InitItem(onItemClick)
+    self.OnItemClick = onItemClick
+    self:SetUse(false)
+end
+
+function ShopItem:SetItem(item)
+    self:SetUse(true)
+
+    local cfg = item.cfg
+    self.buyCount = item.buyCount
+
+    --商品id
+    local itemID = cfg.Item_id
+
+    --底板
+    local itemCfg = ConfigDataAccessor.Item[itemID]
+
+    local quality = itemCfg.Quality
+
+    --self.Rare.sprite=AtlasManager.Instance:GetSprite("ui/shop/atlas/shop","Shop_frame_0"..(quality+1));
+    ResourceHelper:LoadIconByAtlasAsync(self.Rare, ResourceHelper.AtlasPathShop, "Shop_Rare_0" .. quality, false)
+
+    self.BaseId = itemID
+    self.GoodsId = cfg.Id
+
+    self.Name.text = itemCfg.Name
+
+    self.Num.text = "x" .. cfg.Item_num
+
+    --ICON
+    --LoadIcon(self.Icon,itemCfg.Icon);
+    ResourceHelper:LoadIconAsync(self.Icon, "", itemCfg.Icon, false)
+
+    --判断是否可以购买
+    local priceBuyID = cfg.CurrencyID
+    local priceBuyCount = cfg.CurrentPrice
+
+    --拥有的货币数量
+    local priceHaveCount = BusinessManager.Instance:GetCurrencyNum(priceBuyID)
+
+    --打折
+    if cfg.Discount > 0 then
+        self.go_OldPrice:SetActive(true)
+        --self.OldPrice.text=""..math.floor(priceBuyCount/(100-cfg.Discount)*100) ;
+        --self.OldPriceOff.text="-"..cfg.Discount.."%";
+
+        --self.OldPrice.text=""..math.floor(priceBuyCount/cfg.Discount*100) ;
+        self.OldPrice.text = "" .. cfg.OriginalPrice
+
+        self.OldPriceOff.text = "-" .. (100 - cfg.Discount) .. "%"
+        self.rect_Price.anchoredPosition = Vector2(30.6, -154.4)
+    else
+        self.go_OldPrice:SetActive(false)
+        self.rect_Price.anchoredPosition = Vector2(30.6, -144.9)
+    end
+
+    local itemPriceCfg = ConfigDataAccessor.Item[priceBuyID]
+
+    --价格ICON
+    --LoadIcon(self.PriceIcon,itemPriceCfg.Icon);
+    ResourceHelper:LoadIconAsync(self.PriceIcon, "", itemPriceCfg.Icon, false)
+
+    --购买价格
+    if priceHaveCount >= priceBuyCount then
+        self.CanBuy = true
+        self.Price.text = priceBuyCount
+    else
+        self.CanBuy = false
+        self.Price.text = "<color=#ff0000>" .. priceBuyCount .. "</color>"
+
+        --self.buyErrorMsg=itemPriceCfg.Name.."不足";
+        self.buyErrorMsg = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_ShopItem_buyErrorMsg"), {itemPriceCfg.Name})
+    end
+
+    --购买Icon
+    self.go_SoldOut:SetActive(false)
+    if cfg.Buy_type == 1 then
+        self.go_BuyLimit:SetActive(true)
+        --每日限购
+        --self.m_BuyLimit.text="每日限购"..self.buyCount.."/"..cfg.Buy_num
+        self.m_BuyLimit.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_ShopItem_BuyLimit1"), {self.buyCount, cfg.Buy_num})
+        if self.buyCount >= cfg.Buy_num then
+            self.go_SoldOut:SetActive(true)
+        end
+    elseif cfg.Buy_type == 2 then
+        self.go_BuyLimit:SetActive(true)
+        --每周限购
+        --self.m_BuyLimit.text="每周限购"..self.buyCount.."/"..cfg.Buy_num
+        self.m_BuyLimit.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_ShopItem_BuyLimit2"), {self.buyCount, cfg.Buy_num})
+
+        if self.buyCount >= cfg.Buy_num then
+            self.go_SoldOut:SetActive(true)
+        end
+    elseif cfg.Buy_type == 3 then
+        self.go_BuyLimit:SetActive(true)
+        --永久限购
+        --self.m_BuyLimit.text="永久限购"..self.buyCount.."/"..cfg.Buy_num
+        self.m_BuyLimit.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_ShopItem_BuyLimit3"), {self.buyCount, cfg.Buy_num})
+
+        if self.buyCount >= cfg.Buy_num then
+            self.go_SoldOut:SetActive(true)
+        end
+    else
+        self.go_BuyLimit:SetActive(false)
+    end
+
+    --判断购买条件
+    self.IsMete = true
+    local condition = cfg.Condition
+    if #condition > 0 then
+        for i = 1, #condition do
+            if not GameManager.Instance:IsConditionMete(condition[i]) then
+                self.IsMete = false
+                break
+            end
+        end
+
+        if not self.IsMete then
+            --self.NeteMsg="需要"..cfg.Condition_desc;
+            self.NeteMsg = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_ShopItem_NeteMsg"), {cfg.Condition_desc})
+            self.m_LockTex.text = cfg.Condition_desc
+        end
+
+        self.go_Lock:SetActive(not (self.IsMete))
+    else
+        self.go_Lock:SetActive(false)
+    end
+end
+
+return ShopItem

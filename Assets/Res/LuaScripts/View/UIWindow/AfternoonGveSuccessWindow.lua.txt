@@ -1,0 +1,99 @@
+--[[
+*文件名   :   AfternoonGveSuccessWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/09/15 13:09:51"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+AfternoonGveSuccessWindow=class("AfternoonGveSuccessWindow",UIPanel)
+
+local EventSuccessItem=require("View/Uiwindow/Event/EventSuccessItem")
+
+function AfternoonGveSuccessWindow:Awake()
+	self.transform =self.prefab.transform:Find("Cut4Cam90/AssemblyRatio2/Success");
+	self.gameObject=self.transform.gameObject;
+
+;
+
+	self.scoreTx=self.transform:Find("Top/score"):GetComponent(typeof(Text));
+
+	self.leftTx=self.transform:Find("Top/left"):GetComponent(typeof(Text));
+
+
+
+	self.m_CloseBtn=self.transform:Find("Bottom/BtnConfirm"):GetComponent(typeof(JButton));
+	self.m_CloseBtn.OnClick=(function() self:OnClickCloseBtn() end);
+
+
+
+
+end
+
+
+
+
+
+
+function AfternoonGveSuccessWindow:Start()
+
+end
+
+function AfternoonGveSuccessWindow:OnEnable()
+	
+end
+
+function AfternoonGveSuccessWindow:OnDisable()
+	
+end
+
+function AfternoonGveSuccessWindow:OnDestroy()
+
+end
+
+function AfternoonGveSuccessWindow:OnOpen(arg)
+
+	self.scoreTx.text=arg.score;
+
+	local BossCommonCount=GameManager.Instance:GetGNActivBoss_CommonCount();
+
+	--self.leftTx.text="剩余挑战次数:"..BossCommonCount;
+	self.leftTx.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LeftTime"), {BossCommonCount});
+
+end
+
+
+
+function AfternoonGveSuccessWindow:OnClose(arg)
+	--self:CloseWindow();
+end
+
+
+
+function AfternoonGveSuccessWindow:OnClickCloseBtn()
+
+
+
+	self.Close();
+
+    local battleSocket = NetworkManager.Instance.gameSocket
+    local message = CS.ProtoMsg.LeaveInstanceReq()
+    battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace, message, false)
+
+	LuaModuleDispatcher:SendMessage(ModuleDef.AfternoonGveModule, "OnOpenAfternoonGvePopWindow",{  });
+	--[[
+	self.PlayAnimation("AfternoonGveSuccessWindowAnim_Close", function ()
+		self.IsOpen=false;
+		self.module:OnCloseEvent();
+
+		self.Close();
+	end)
+	]]
+
+
+
+end
+
+
+
+return  AfternoonGveSuccessWindow

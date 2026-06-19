@@ -1,0 +1,144 @@
+--[[
+*文件名   :   Purchase
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/10/16 16:01:09"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+PurchaseGoodsItem=class("PurchaseGoodsItem",UIPanel)
+PurchaseGoodsItem.m_Selected=nil;
+PurchaseGoodsItem.m_BgRare=nil;
+PurchaseGoodsItem.m_Icon=nil;
+PurchaseGoodsItem.m_AttentionIcon_add=nil;
+PurchaseGoodsItem.m_AttentionIcon_Icon=nil;
+PurchaseGoodsItem.m_Name=nil;
+PurchaseGoodsItem.m_State=nil;
+PurchaseGoodsItem.m_StateText=nil;
+PurchaseGoodsItem.m_Price=nil;
+PurchaseGoodsItem.m_Btn=nil;
+PurchaseGoodsItem.m_AttentionBtn=nil;
+PurchaseGoodsItem.OnSelectCallBack=nil;
+PurchaseGoodsItem.ItemID=0;
+PurchaseGoodsItem.ItemNum=0;
+local SelectionFunc=nil;
+local AttentionFunc=nil;
+
+
+function PurchaseGoodsItem:ClearData()
+	self.OnSelectCallBack=nil;
+	self.ItemID=0;
+	self.ItemNum=0;
+end
+
+function PurchaseGoodsItem:ctor(go, atlas)
+	self.prefab = go;
+	self.AtlasPath = atlas;
+	self.m_Selected=self:Find("Selected").gameObject;
+	self.m_BgRare=self:Find("BgRare"):GetComponent(typeof(Image));
+	self.m_Icon=self:Find("Icon"):GetComponent(typeof(Image));
+	self.m_AttentionIcon_Icon=self:Find("Attention/Add").gameObject;
+	self.m_AttentionIcon_add=self:Find("Attention/Icon").gameObject;
+	self.m_Name=self:Find("Name"):GetComponent(typeof(Text));
+	self.m_State=self:Find("State").gameObject;
+	self.m_StateText=self:Find("State/Text"):GetComponent(typeof(Text));
+	self.m_Price=self:Find("Price"):GetComponent(typeof(Text));
+	self.m_Btn=self.prefab:GetComponent(typeof(JButton));
+	self.m_AttentionBtn=self:Find("Attention"):GetComponent(typeof(JButton));
+	SelectionFunc=function() self:OnClickSelectBtn(); end;
+	AttentionFunc=function() self:OnClickAttentionBtn(); end;
+	self.ItemID=0;
+
+	self.m_Btn.OnClick= SelectionFunc;
+	self.m_AttentionBtn.OnClick= AttentionFunc;
+
+end
+
+
+
+function PurchaseGoodsItem:OnClickAttentionBtn()
+	---当前是否关注
+	local isAtt=self:IsAttention(self.ItemID)
+	LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule,"OnBankSetMyFollowItemIDReq",{self.ItemID,not isAtt})
+
+end
+
+function PurchaseGoodsItem:SetAttention(st)
+	if self.m_AttentionIcon_Icon~=nil then
+		self.m_AttentionIcon_Icon:SetActive(st)
+	end
+	if self.m_AttentionIcon_add ~=nil then
+		self.m_AttentionIcon_add:SetActive(not st)
+	end
+end
+
+function PurchaseGoodsItem:OnClickSelectBtn()
+	if self.OnSelectCallBack~=nil then
+		self.OnSelectCallBack(self.ItemID);
+	end
+end
+
+function PurchaseGoodsItem:Select(select)
+	self.m_Selected:SetActive(select)
+end
+
+function PurchaseGoodsItem:UpdateContent(arg,cb)
+
+	self.OnSelectCallBack=cb;
+	self.ItemID=arg.ItemID;
+	self.ItemNum=arg.ItemNum;
+	self:Select(false);
+	local config=ConfigDataAccessor.Item[arg.ItemID]
+	if config~=nil then
+		self.m_Name.text=config.Name
+		local quality=config.Quality;
+		ResourceHelper:LoadIconByAtlasAsync(
+			self.m_BgRare,
+			ResourceHelper.AtlasPathCommonItem,
+			"Bag_Grid_sq"..quality,
+			false
+		)
+		ResourceHelper:LoadIconAsync(self.m_Icon, "", config.Icon, false)
+	else
+		LogError("读取道具配置失败...道具ID="..arg.ItemID)
+	end
+
+	local attention=self:IsAttention(arg.ItemID)
+	self.m_AttentionIcon_Icon:SetActive(attention)
+	self.m_AttentionIcon_add:SetActive(not attention)
+
+	if arg.MinPrice<1 then
+		self.m_Price.text=""
+	else
+		self.m_Price.text=arg.MinPrice
+	end
+	if arg.ItemNum>99 then
+		--self.m_StateText.text="在售 99+"
+		self.m_StateText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_PurchaseGoodsItem_SearchText"), {" 99+"});
+
+	else
+		--self.m_StateText.text="在售"..arg.ItemNum
+		self.m_StateText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_PurchaseGoodsItem_SearchText"), {arg.ItemNum});
+
+	end
+end
+
+function PurchaseGoodsItem:IsAttention(itemID)
+
+	local playerinfo= BusinessManager.Instance.M_BankPlayerMD;
+	local items={}
+	if playerinfo~=nil then
+		if playerinfo.FollowItem~=nil  and playerinfo.FollowItem.ItemIDList~=nil and playerinfo.FollowItem.ItemIDList.Count>0 then
+
+			for i = 1, playerinfo.FollowItem.ItemIDList.Count do
+				if itemID==playerinfo.FollowItem.ItemIDList[i-1] then
+					return true;
+				end
+			end
+
+		end
+	end
+	return false;
+end
+
+return  PurchaseGoodsItem

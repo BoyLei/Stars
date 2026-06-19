@@ -1,0 +1,263 @@
+--[[
+*文件名   :   CurrencyBar
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/24 11:04:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local CurrencyBar = {}
+
+local ObjectPool = require("Common/Helper/ObjectPool")
+
+CurrencyBar.__index = CurrencyBar
+
+function CurrencyBar:New(_go, _parent, onComplete)
+    local self = {}
+    setmetatable(self, CurrencyBar)
+
+    self.IsLoadFinish = false
+
+    UIRes.LoadPrefabAsync(
+        "Bag/CurrencyBar",
+        function(go)
+            self.gameObject = go
+            self.transform = go.transform
+
+            --动画相关
+            self.anim = self.transform:GetComponent(typeof(Animator))
+
+            if _parent ~= nil then
+                self.transform:SetParent(_parent)
+                self.transform.localPosition = Vector3.zero
+                self.transform.localScale = Vector3.one
+            end
+
+            --点击更多按钮
+            self.go_more = self.transform:Find("Grid/MoreBtn").gameObject
+
+            self.btnClick = self.transform:Find("Grid/MoreBtn"):GetComponent(typeof(JButton))
+            self.btnClick.OnClick = (function()
+                self:OnMoreClick()
+            end)
+
+            --货币对象池
+            local _go2 = self.transform:Find("Grid/CurrencyItem").gameObject
+            self.currencyPool =
+                ObjectPool:New(
+                3,
+                "View/Item/CurrencyItem",
+                _go2,
+                _go2.transform.parent,
+                function(ritem)
+                    ritem:InitItem(
+                        --点击回调
+                        function(ritem)
+                            self:OnItemClick(ritem)
+                        end
+                    )
+                end,
+                --回收回调
+                function(ritem)
+                    ritem:SetUse(false)
+                end
+            )
+
+            if self.IsNeedRefesh then
+                self.anim:Play("CurrencyBarAnim_Enter")
+                self:Refesh()
+            end
+
+            self.IsLoadFinish = true
+
+            if onComplete then
+                onComplete(self)
+            end
+        end
+    )
+
+    self.refeshFunc = function()
+        self:RefeshBar(nil, self.needMore)
+    end
+
+    return self --返回自身
+end
+
+function CurrencyBar:PlayAnim(isEnter)
+    if self.IsLoadFinish then
+        if isEnter then
+            self.anim:Play("CurrencyBarAnim_Enter")
+        else
+            self.anim:Play("CurrencyBarAnim_Exit")
+        end
+    end
+end
+
+function CurrencyBar:InitAttribute()
+    self.M_EntityBase.Data:AddAttributeChangeLuaAction(
+        CS.StarProjectDef.AOIAttrDefine.Silver,
+        self.attrLuaKey,
+        function(key, value)
+            self:RefeshBar(nil, self.needMore)
+        end
+    )
+    self.M_EntityBase.Data:AddAttributeChangeLuaAction(
+        CS.StarProjectDef.AOIAttrDefine.Coin,
+        self.attrLuaKey,
+        function(key, value)
+            self:RefeshBar(nil, self.needMore)
+        end
+    )
+    self.M_EntityBase.Data:AddAttributeChangeLuaAction(
+        CS.StarProjectDef.AOIAttrDefine.ChargeDiamond,
+        self.attrLuaKey,
+        function(key, value)
+            self:RefeshBar(nil, self.needMore)
+        end
+    )
+    self.M_EntityBase.Data:AddAttributeChangeLuaAction(
+        CS.StarProjectDef.AOIAttrDefine.BindDiamond,
+        self.attrLuaKey,
+        function(key, value)
+            self:RefeshBar(nil, self.needMore)
+        end
+    )
+
+    self.M_EntityBase.Data:AddAttributeChangeLuaAction(
+        CS.StarProjectDef.AOIAttrDefine.CollectEnergy,
+        self.attrLuaKey,
+        function(key, value)
+            self:RefeshBar(nil, self.needMore)
+        end
+    )
+end
+
+function CurrencyBar:DelAttribute()
+    self.M_EntityBase.Data:DelAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.Silver, self.attrLuaKey)
+
+    self.M_EntityBase.Data:DelAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.Coin, self.attrLuaKey)
+
+    self.M_EntityBase.Data:DelAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.ChargeDiamond, self.attrLuaKey)
+
+    self.M_EntityBase.Data:DelAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.BindDiamond, self.attrLuaKey)
+
+    self.M_EntityBase.Data:DelAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.CollectEnergy, self.attrLuaKey)
+end
+
+--
+function CurrencyBar:OnListener()
+    print("OnListener")
+
+    CS.StarProject.GlobalEvent.OnRefeshCurrencyBar:RemoveAllListeners()
+    CS.StarProject.GlobalEvent.OnRefeshCurrencyBar:AddListener(self.refeshFunc)
+
+    --属性同步回调
+    self.M_EntityBase = GameManager.Instance.M_MainPlayerCtrlBase
+    self.attrLuaKey = "CurrencyBar_" .. GameManager.Instance.mainPlayerId
+    self:InitAttribute()
+end
+
+function CurrencyBar:OffListener()
+    print("OffListener")
+
+    CS.StarProject.GlobalEvent.OnRefeshCurrencyBar:RemoveListener(self.refeshFunc)
+
+    --解绑属性同步回调
+    if self.M_EntityBase ~= nil and self.M_EntityBase.Data ~= nil then
+        self:DelAttribute()
+    end
+end
+
+function CurrencyBar:RefeshBar(coins, needMore)
+    self.needMore = needMore
+
+    if coins ~= nil then
+        self.Coins = coins
+    end
+
+    if self.IsLoadFinish then
+        self:Refesh()
+    else
+        self.IsNeedRefesh = true
+    end
+end
+
+function CurrencyBar:Refesh()
+    self.IsNeedRefesh = false
+    self.currencyPool:RecycleAll()
+    for i = 1, #self.Coins do
+        local cur = self.currencyPool:Spawn()
+        cur:SetItem(self.Coins[i])
+    end
+
+    --全部系统均未开放时，不显示货币按钮
+    local isEmpty = true
+    for k, v in pairs(ConfigDataAccessor.CurrencyCfg) do
+        local id = k
+        if v.IsShowAllCurrency then
+            local isSysOpen = true
+            if v.SysOpen > 0 then
+                --判断是否系统开启
+                isSysOpen = CheckPlayerGuidanceOpen(v.SysOpen, "", false)
+            end
+            if isSysOpen then
+                local isIn = false
+                for j = 1, #self.Coins do
+                    if self.Coins[j] == id then
+                        isIn = true
+                        break
+                    end
+                end
+                if not (isIn) then
+                    isEmpty = false
+                    break
+                end
+            end
+        end
+    end
+
+    if isEmpty then
+        self.needMore = false
+    end
+
+    if self.needMore then
+        self.go_more:SetActive(true)
+
+        self.go_more.transform:SetAsLastSibling()
+    else
+        self.go_more:SetActive(false)
+    end
+end
+
+function CurrencyBar:OnMoreClick()
+    --点击更多
+    UIManager.Instance:OpenWidget("Bag/CurrencyMenuWidget", false, self.Coins, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, false)
+end
+
+--点击Item
+function CurrencyBar:OnItemClick(item)
+    --点击货币
+    if item.BaseID == 3 then
+        --打开充值
+        UIManager.Instance:OpenWidget("Shop/BuyCashWidget", false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, false)
+    elseif item.BaseID == 2 then
+        --打开金币兑换页面
+        LuaModuleDispatcher:SendMessage(ModuleDef.BankModule, "OnOpenBankWindow", {2})
+    elseif item.BaseID == 1 then
+        --买银币
+        local data = {}
+        data.FromBaseID = 4
+        data.AimBaseID = 1
+        data.StuffNumAim = SystemConstConfigs.Currency_BindDiamondBuySilverRate
+        UIManager.Instance:OpenWidget("Common/ExchangeWidget", false, data, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, false)
+    elseif item.BaseID == 4 then
+        --买绑钻
+        local data = {}
+        data.FromBaseID = 3
+        data.AimBaseID = 4
+        data.StuffNumAim = SystemConstConfigs.Currency_DiamondBuyBindDiaRate
+        UIManager.Instance:OpenWidget("Common/ExchangeWidget", false, data, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, false)
+    end
+end
+
+return CurrencyBar

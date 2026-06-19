@@ -1,0 +1,1517 @@
+--[[
+*文件名   :   BagPage
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/10/28 18:22:51"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+BagWindow = class("BagWindow", UIPanel)
+BagWindow.IsOpen = false
+
+local ObjectPool = require("Common/Helper/ObjectPool")
+local ItemGrid = require("View/Item/ItemGrid")
+local SelectBtn = require("View/Item/SelectBtn")
+--local CurrencyBar =require("View/Item/CurrencyBar")
+
+function BagWindow:Awake()
+end
+
+function BagWindow:BindModule(m)
+	self.module = m
+	self.onCloseDestroy(false)
+end
+
+function BagWindow:InitItems()
+	self.transform = self.prefab.transform
+	self.gameObject = self.transform.gameObject
+
+	self.tips_anchor = self.transform:Find("Cut4Cam90/AssemblyRatio2/TipsAnchor").transform
+
+	local btnCleanItems = self.transform:Find("Cut4Cam90/AssemblyRatio2/Items/BtnClean"):GetComponent(typeof(Button))
+	btnCleanItems.onClick:AddListener(
+		function()
+			self:OnCleanItemsClick()
+		end
+	)
+
+	--暂时关闭
+	self.transform:Find("Cut4Cam90/AssemblyRatio2/Items/BtnClean").gameObject:SetActive(true)
+
+	--分解
+	local btnResolve = self.transform:Find("Cut4Cam90/AssemblyRatio2/Items/BtnResolve"):GetComponent(typeof(Button))
+	btnResolve.onClick:AddListener(
+		function()
+			self:OnResolveItemsClick()
+		end
+	)
+
+	local btnCloseInfo = self.transform:Find("Block"):GetComponent(typeof(Button))
+	btnCloseInfo.onClick:AddListener(
+		function()
+			self:OnCloseInfoClick()
+		end
+	)
+
+	self.BagLimit = self.transform:Find("Cut4Cam90/AssemblyRatio2/Items/ItemNum/BagLimit"):GetComponent(typeof(Text))
+
+	self.BagItemList = {}
+	--无限列表
+	self.go_BagItem = self.transform:Find("Cut4Cam90/AssemblyRatio2/Items/ItemGrid").gameObject
+
+	self.rect_grid = self.transform:Find("Cut4Cam90/AssemblyRatio2/Items/Scroll View/Mask/List"):GetComponent(typeof(RectTransform))
+
+	self.tr_ItemRoot = self.transform:Find("Cut4Cam90/AssemblyRatio2/Items/Scroll View/Mask/List")
+	self.go_BagItem:SetActive(false)
+	self.go_BagItem.transform:SetParent(self.transform:Find("Cut4Cam90/AssemblyRatio2/Items"))
+	self.BagScorllView = self.transform:Find("Cut4Cam90/AssemblyRatio2/Items/Scroll View"):GetComponent(typeof(SuperScrollViewController))
+	self.BagScorllView:NewScroll(
+		self.go_BagItem,
+		0,
+		function(tr, idx)
+			self:OnBagItemRefesh(tr, idx)
+		end
+	)
+
+	--背包菜单按钮
+	self.MenuBtns = {}
+
+	local btn1 = SelectBtn:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Items/EquipMenu/BtnAll").gameObject)
+	btn1:InitItem(
+		1,
+		function(idx)
+			self:OnMenuBtnClick(idx)
+		end
+	)
+	table.insert(self.MenuBtns, btn1)
+
+	local btn2 = SelectBtn:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Items/EquipMenu/BtnItem").gameObject)
+	btn2:InitItem(
+		2,
+		function(idx)
+			self:OnMenuBtnClick(idx)
+		end
+	)
+	table.insert(self.MenuBtns, btn2)
+
+	local btn3 = SelectBtn:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Items/EquipMenu/BtnEquip").gameObject)
+	btn3:InitItem(
+		3,
+		function(idx)
+			self:OnMenuBtnClick(idx)
+		end
+	)
+	table.insert(self.MenuBtns, btn3)
+
+	local btn4 = SelectBtn:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Items/EquipMenu/BtnPartner").gameObject)
+	btn4:InitItem(
+		4,
+		function(idx)
+			self:OnMenuBtnClick(idx)
+		end
+	)
+	table.insert(self.MenuBtns, btn4)
+
+	local btn5 = SelectBtn:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Items/EquipMenu/BtnAmulet").gameObject)
+	btn5:InitItem(
+		5,
+		function(idx)
+			self:OnMenuBtnClick(idx)
+		end
+	)
+	table.insert(self.MenuBtns, btn5)
+
+	local btn6 = SelectBtn:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Items/EquipMenu/BtnOthers").gameObject)
+	btn6:InitItem(
+		6,
+		function(idx)
+			self:OnMenuBtnClick(idx)
+		end
+	)
+	table.insert(self.MenuBtns, btn6)
+
+	--self.currencyBar=CurrencyBar:New(nil,self.transform:Find("Cut4Cam90/AssemblyRatio2/CurrencyAhchor"));--module里有两行也要打开
+
+	self.m_CloseBtn = self:Find("Cut4Cam90/AssemblyRatio2/Items/BtnClose"):GetComponent(typeof(Button))
+	self.m_CloseBtn.onClick:AddListener(
+		function()
+			self:OnClickCloseBtn()
+		end
+	)
+
+	self.IsFirstIn = true
+
+	self.BagMenuIdx = 1
+	self.EquipMenuIdx = 0
+end
+
+function BagWindow:RefeshBag(items)
+	if self.IsFirstIn then
+		--self.currencyBar:OnListener()
+
+		self.IsFirstIn = false
+		self.PlayAnimation(
+			"BagWindowAnim_Enter",
+			function()
+			end
+		)
+	end
+
+	self.allitems = items
+
+	self.module:OpenEquip()
+
+	--计算装备每个部位的战力
+	--背包格子列表
+	if self.EquipPower == nil then
+		self.EquipPower = {}
+	else
+		for k, _ in pairs(self.EquipPower) do
+			self.EquipPower[k] = nil
+		end
+	end
+	for i = 1, 8 do
+		--获取每个部位的当前战力
+		local itemData = BusinessManager.Instance:GetHeroEquipedEquip(i)
+		if itemData == nil then
+			table.insert(self.EquipPower, 0)
+		else
+			local power = FightPowerManager.Instance:GetShowEquipPower(itemData)
+			table.insert(self.EquipPower, power)
+		end
+	end
+
+	--默认点个1
+	self:OnMenuBtnClick(self.BagMenuIdx, true)
+end
+
+--创建一个背包格子
+function BagWindow:CreateBagSlot(baseID, entityID, num, state, maxStack)
+	--创建格子
+	local bagSlot = SlotManager.Instance:CreatSlotToGroup(E_SlotModule.BagModule, 0, 1, state, maxStack) --新建一个格子(正在使用)
+
+	--监听事件
+	bagSlot:RegOnUpdateCallBacke(SlotUpdateActionType.SelectAction):AddListener(
+		function(id, args)
+			self:CleanAllSelected()
+		end
+	)
+
+	--放入数据
+	bagSlot:PutIn(baseID, entityID, num)
+
+	--监听事件
+	--[[
+	bagSlot:RegUpdateAction(SlotUpdateActionType.SelectAction,function (id,args)
+	self:CleanAllSelected();
+	end);
+
+	bagSlot.UpdateActionDic[SlotUpdateActionType.SelectAction]=(function (id,args)
+	self:CleanAllSelected();
+	end);
+	]]
+	table.insert(self.BagSlotList, bagSlot)
+end
+
+function BagWindow:RefeshItems()
+	self:SortItem(self.ItemDataList) --排序
+
+	--背包格子列表
+	if self.BagSlotList == nil then
+		self.BagSlotList = {}
+	else
+		for k, _ in pairs(self.BagSlotList) do
+			self.BagSlotList[k] = nil
+		end
+	end
+
+	--背包数量限制
+	local nowNum = 0
+
+	for i = 1, #self.ItemDataList do
+		--创造背包格子(带道具的格子)
+
+		local data = self.ItemDataList[i]
+
+		--处理堆叠问题
+		local cfg = ConfigDataAccessor.Item[data.BaseID]
+		local canStack = cfg.CanOverlay
+		if canStack then
+			local maxStack = 999 --配置表没有，暂时是临时的
+
+			local tempNum = data.Num
+			while tempNum > maxStack do
+				tempNum = tempNum - maxStack
+
+				--self:CreateBagSlot(data.BaseID,data.EntityID,maxStack,1,maxStack)
+				local d = {}
+				d.BaseID = data.BaseID
+				d.EntityID = data.EntityID
+				d.Num = maxStack
+
+				table.insert(self.BagSlotList, d)
+
+				--nowNum=nowNum+1;--如果占最大格子数要打开
+			end
+
+			--self:CreateBagSlot(data.BaseID,data.EntityID,tempNum,1,maxStack)
+
+			local d2 = {}
+			d2.BaseID = data.BaseID
+			d2.EntityID = data.EntityID
+			d2.Num = tempNum
+			table.insert(self.BagSlotList, d2)
+
+			nowNum = nowNum + 1 --暂时是堆叠拆分不占格子数
+		else
+			nowNum = nowNum + 1 --格子数量
+
+			--self:CreateBagSlot(data.BaseID,data.EntityID,data.Num,1,0)
+			local d2 = {}
+			d2.BaseID = data.BaseID
+			d2.EntityID = data.EntityID
+			d2.Num = data.Num
+			table.insert(self.BagSlotList, d2)
+		end
+	end
+
+	--追加到100个空格子
+	--for i=#self.ItemDataList+1,self.maxNum do
+	for i = #self.ItemDataList + 1, 100 do
+		--local it={};
+		--it.BaseID=0;
+		--table.insert( self.ItemDataList,it);
+
+		--创造背包格子（空格子）
+		--self:CreateBagSlot(0,0,0,0,0)
+
+		local d2 = {}
+		d2.BaseID = 0
+		d2.EntityID = 0
+		d2.Num = 0
+		table.insert(self.BagSlotList, d2)
+	end
+
+	self.BagScorllView:ContinueScroll(#self.BagSlotList, false)
+
+	local str = "" .. nowNum
+	if nowNum < 100 and nowNum > 10 then
+		str = "0" .. nowNum
+	elseif nowNum < 10 then
+		str = "00" .. nowNum
+	end
+
+	--self.BagLimit.text="<color=#E38830>"..str.."</color>/"..self.maxNum;
+	self.BagLimit.text = str .. "/" .. self.maxNum
+
+	--刷新货币(暂时去掉了)
+	--local coins={4,3,2,1}
+	--local coins={3,2,1}
+	--self.currencyBar:RefeshBar(coins,true);
+	--self.currencyBar:PlayAnim(true);
+end
+
+function BagWindow:OnMenuBtnClick(idx, noResetPos)
+	if noResetPos == nil then
+		self.rect_grid.anchoredPosition = Vector2(self.rect_grid.anchoredPosition.x, 0)
+	end
+
+	for i = 1, #self.MenuBtns do
+		self.MenuBtns[i]:MakeSelected(false)
+	end
+
+	self.MenuBtns[idx]:MakeSelected(true)
+
+	self:ClearItemData()
+
+	self.BagMenuIdx = idx
+
+	--计算最大背包数量
+	local numEquip = ConfigDataAccessor.ItemSpace[2].BagNum
+	local numCommon = ConfigDataAccessor.ItemSpace[11].BagNum
+	local numFriend = ConfigDataAccessor.ItemSpace[11].BagNum
+	local numOther = ConfigDataAccessor.ItemSpace[13].BagNum
+	local numRuin = ConfigDataAccessor.ItemSpace[14].BagNum --符文
+	--local numGem=ConfigDataAccessor.ItemSpace[21].BagNum;--星次石
+	local numGem = 0
+
+	--无限列表
+	if idx == 1 then
+		self.maxNum = numEquip + numCommon + numFriend + numOther + numRuin + numGem
+
+		--全部
+		self:GetDataBySpaceId(0)
+	elseif idx == 2 then
+		self.maxNum = numCommon
+
+		--道具
+		self:GetDataBySpaceId(11)
+	elseif idx == 3 then
+		self.maxNum = numEquip
+
+		--装备
+		self:GetDataBySpaceId2(2, 15)
+	elseif idx == 4 then
+		self.maxNum = numOther
+
+		--伙伴
+		self:GetDataBySpaceId3(19, 20, 17)
+	elseif idx == 5 then
+		self.maxNum = numRuin + numGem
+
+		--星次石，纹章 14
+		self:GetDataBySpaceId2(14, 16)
+	elseif idx == 6 then
+		self.maxNum = numOther
+
+		--其他
+		self:GetDataBySpaceId(24)
+	end
+
+	self:RefeshItems()
+end
+
+function BagWindow:GetBoxType(cfg)
+	if cfg.ItemType == 22 then
+		if cfg.SubType == 1 then
+			return 1
+		elseif cfg.SubType == 2 then
+			return 2
+		end
+	end
+	return 0
+end
+
+function BagWindow:GetCantEquipLv(EntityID, cfg)
+	local CantEquipLv = 0
+
+	if cfg.ItemType == 2 then
+		local cantEquip = false
+
+		--等级不足无法穿戴
+		local lvLimit = ConfigDataAccessor.Equip[cfg.Id].Level
+		local playerLv = GameManager.Instance:GetPlayerLevel()
+		if lvLimit > playerLv then
+			CantEquipLv = 1
+		end
+
+		--职业不同无法装备
+		if not (cantEquip) then
+			local JobType = ConfigDataAccessor.Equip[cfg.Id].JobBaseType
+			local playerJob = GameManager.Instance:GetPlayJobBaseID()
+			local isMarchPlayerJob = false
+			if JobType == 0 or JobType == playerJob then
+				isMarchPlayerJob = true
+			end
+
+			if not (isMarchPlayerJob) then
+				CantEquipLv = 2
+			end
+		end
+	elseif cfg.ItemType == 5 then
+		--装备等级
+		local lvLimit = ConfigDataAccessor.AmuletEquip[cfg.Id].Level
+		local playerLv = GameManager.Instance:GetPlayerLevel()
+		if lvLimit > playerLv then
+			CantEquipLv = 1
+		end
+	end
+
+	return CantEquipLv
+end
+
+function BagWindow:GetLevel(BaseID, ItemType)
+	if ItemType == 2 then
+		--装备
+		if ConfigDataAccessor.Equip[BaseID] ~= nil then
+			return ConfigDataAccessor.Equip[BaseID].Level
+		end
+	elseif ItemType == 5 then
+		--纹章
+		if ConfigDataAccessor.HeraldryEquip[BaseID] ~= nil then
+			return ConfigDataAccessor.HeraldryEquip[BaseID].Level
+		end
+	elseif ItemType == 6 then
+		--星次石
+		if ConfigDataAccessor.HeraldryEquip[BaseID] ~= nil then
+			return ConfigDataAccessor.HeraldryEquip[BaseID].HeraldryLevel
+		end
+	end
+
+	return 0
+end
+
+function BagWindow:GetDataBySpaceId3(spaceID1, spaceID2, spaceID3)
+	for i = 0, self.allitems.Count - 1 do
+		if self.allitems[i].SpaceId == spaceID1 or self.allitems[i].SpaceId == spaceID2 or self.allitems[i].SpaceId == spaceID3 then
+			--local cfg=LocalDataManager.Instance:GetItemDataCell(self.allitems[i].BaseID);
+			local cfg = ConfigDataAccessor.Item[self.allitems[i].BaseID]
+			local it = {}
+
+			it.BoxType = self:GetBoxType(cfg)
+
+			it.EntityID = self.allitems[i].EntityID
+			it.BaseID = self.allitems[i].BaseID
+			it.Num = self.allitems[i].Num
+			it.IsNew = self.allitems[i].IsNew
+			it.SortProp = cfg.SortProp
+			it.ItemType = cfg.ItemType
+			it.SubType = cfg.SubType
+			it.Quality = cfg.Quality
+			it.CantEquipLv = self:GetCantEquipLv(it.EntityID, cfg)
+			it.Level = self:GetLevel(it.BaseID, it.ItemType)
+			table.insert(self.ItemDataList, it)
+		end
+	end
+end
+
+function BagWindow:GetDataBySpaceId2(spaceID1, spaceID2)
+	for i = 0, self.allitems.Count - 1 do
+		if self.allitems[i].SpaceId == spaceID1 or self.allitems[i].SpaceId == spaceID2 then
+			--local cfg=LocalDataManager.Instance:GetItemDataCell(self.allitems[i].BaseID);
+			local cfg = ConfigDataAccessor.Item[self.allitems[i].BaseID]
+			local it = {}
+
+			it.BoxType = self:GetBoxType(cfg)
+
+			it.EntityID = self.allitems[i].EntityID
+			it.BaseID = self.allitems[i].BaseID
+			it.Num = self.allitems[i].Num
+			it.IsNew = self.allitems[i].IsNew
+			it.SortProp = cfg.SortProp
+			it.ItemType = cfg.ItemType
+			it.SubType = cfg.SubType
+			it.Quality = cfg.Quality
+
+			it.CantEquipLv = self:GetCantEquipLv(it.EntityID, cfg)
+			it.Level = self:GetLevel(it.BaseID, it.ItemType)
+			table.insert(self.ItemDataList, it)
+		end
+	end
+end
+
+function BagWindow:GetDataBySpaceId(spaceID)
+	for i = 0, self.allitems.Count - 1 do
+		if (spaceID == 0 and self.allitems[i].SpaceId ~= 24) or self.allitems[i].SpaceId == spaceID then
+			--local cfg=LocalDataManager.Instance:GetItemDataCell(self.allitems[i].BaseID);
+			local cfg = ConfigDataAccessor.Item[self.allitems[i].BaseID]
+			if cfg == nil then
+				Log("道具表找不到道具：" .. self.allitems[i].BaseID)
+			end
+			local it = {}
+
+			it.BoxType = self:GetBoxType(cfg)
+			it.EntityID = self.allitems[i].EntityID
+			it.BaseID = self.allitems[i].BaseID
+			it.Num = self.allitems[i].Num
+			it.IsNew = self.allitems[i].IsNew
+			it.SortProp = cfg.SortProp
+			it.ItemType = cfg.ItemType
+			it.SubType = cfg.SubType
+			it.Quality = cfg.Quality
+			it.CantEquipLv = self:GetCantEquipLv(it.EntityID, cfg)
+			it.Level = self:GetLevel(it.BaseID, it.ItemType)
+			table.insert(self.ItemDataList, it)
+		end
+	end
+end
+
+--判断是否出up和new
+function BagWindow:CheckCanUp(data)
+	local entityID = data.EntityID
+	local item = ConfigDataAccessor.Item[data.BaseID]
+
+	if item == nil then
+		return false, false
+	end
+
+	local itemType = item.ItemType
+
+	local canUp = false
+	local canNew = false
+
+	if itemType == 2 then
+		--判断是否满足等级，职业
+		local canEquip = BusinessManager.Instance:CheckIsEquipCanEquiped(data.BaseID)
+		if not (canEquip) then
+			return false, false
+		end
+
+		local subType = item.SubType
+		local power = self.EquipPower[subType]
+
+		local itemData = BusinessManager.Instance:GetItemByItemEntityId(entityID)
+		local powerNow = FightPowerManager.Instance:GetShowEquipPower(itemData)
+
+		canUp = powerNow > power
+
+		if power == 0 then
+			canNew = true
+		end
+	end
+
+	return canUp, canNew
+end
+
+function BagWindow:OnBagItemRefesh(tr, idx)
+	for i = 1, #self.BagItemList do
+		if self.BagItemList[i].transform == tr then
+			self.BagItemList[i]:SetItem(self.BagSlotList[idx + 1], true) --idx是从0开始，如果BagSlotList是lua的table需要idx+1
+			local canUp, canNew = self:CheckCanUp(self.BagSlotList[idx + 1])
+			self.BagItemList[i]:SetUp(canUp)
+			--self.BagItemList[i]:SetNew(canNew);
+			return
+		end
+	end
+
+	--tr.gameObject:SetActive(true);
+	local bi = ItemGrid:New(tr.gameObject, self.tr_ItemRoot)
+	bi:InitItem(
+		true,
+		function(ritem)
+			self:OnItemClick(ritem)
+		end
+	)
+	bi.gameObject:SetActive(true)
+	bi:SetItem(self.BagSlotList[idx + 1], true) --idx是从0开始，如果BagSlotList是lua的table需要idx+1
+	local canUp, canNew = self:CheckCanUp(self.BagSlotList[idx + 1])
+	bi:SetUp(canUp)
+	--bi:SetNew(canNew);
+	table.insert(self.BagItemList, bi)
+end
+
+function BagWindow:OnResolveItemsClick()
+	--分解
+	LuaModuleDispatcher:SendMessage(ModuleDef.ItemResolveModule, "OnOpenItemResolve", {})
+end
+-- 拿取奖励 [开始下标、数量]
+function BagWindow:GetRewards()
+	local drops = LocalDropList()
+
+	local iii = {121504002, 121503003, 21102004, 21103005}
+	local iii2 = {3, 3, 3, 2}
+
+	--对话测试
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	LuaModuleDispatcher:SendMessage(ModuleDef.AvgLuaModule, "OnOpenAvgZoneBox", {820003})
+	do
+		return
+	end
+	for i = 1, #iii do
+		for j = 1, iii2[i] do
+			drops:AddData(iii[i], 1, 0)
+		end
+	end
+
+	return drops
+end
+
+function BagWindow:OnCleanItemsClick()
+	--对话测试
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	LuaModuleDispatcher:SendMessage(ModuleDef.AvgLuaModule, "OnOpenAvgMindBox", {913031})
+	do
+		return
+	end
+
+	--对话测试
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	LuaModuleDispatcher:SendMessage(ModuleDef.AvgLuaModule, "OnOpenAvgZoneBox", {100303})
+	do
+		return
+	end
+
+	--对话测试
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	LuaModuleDispatcher:SendMessage(ModuleDef.AvgLuaModule, "OnOpenAvgTalkBox", {908001})
+	do
+		return
+	end
+
+	--对话测试
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	LuaModuleDispatcher:SendMessage(ModuleDef.AvgLuaModule, "OnOpenAvgBookBox", {110077})
+	do
+		return
+	end
+
+	--奖励弹窗测试
+	local rewardsList = {}
+	for i = 1, 17 do
+		local rw = {}
+		rw.BaseID = 103001
+		rw.Num = 1
+		table.insert(rewardsList, rw)
+	end
+	LuaModuleDispatcher:SendMessage(ModuleDef.RewardsPopModule, "OnOpenRewardsPop", {rewardsList})
+	do
+		return
+	end
+
+	--GVE结算
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	local data = {}
+	data[1] = {}
+	data[1].Rank = 10
+	data[1].Score = 10
+	data[1].Reward = {}
+	data[1].Reward.Data = {}
+	data[1].Reward.Data[1] = 1000
+	data[1].Reward.Data[2] = 100
+	data[1].Reward.Data[3] = 200
+	data[1].Reward.Data[4] = 604
+	data[1].Reward.Data[5] = 880
+	data[1].Reward.Data[6] = 32
+
+	data[2] = data[1]
+	UIManager.Instance:OpenWidgetAsync("Event/AfternoonGveFinishWidget", nil, false, data, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, false)
+	do
+		return
+	end
+
+	--掉落飘字测试
+	for i = 0, 50 do
+		local dropinfo = {}
+		dropinfo.Itemid = 100019 -- baseID
+		dropinfo.ItemNum = 10 -- 数量
+		LuaModuleDispatcher:SendMessage(ModuleDef.DropInfoListModule, "OnAddDrop", {dropinfo})
+	end
+	do
+		return
+	end
+
+	--对话测试
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	LuaModuleDispatcher:SendMessage(ModuleDef.AvgLuaModule, "OnOpenAvgBookBox", {110047})
+	do
+		return
+	end
+
+	--副本入口
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	LuaModuleDispatcher:SendMessage(ModuleDef.EctypeEntranceModule, "OnShowEnterDungeonMenu", {1})
+	do
+		return
+	end
+
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	UIManager.Instance:OpenWidgetAsync("SettingWindow/Prefab/SettingCameraRotateWidget", nil, false, {}, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, true)
+
+	do
+		return
+	end
+
+	--922040
+	--913029
+
+	--大转盘测试
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	LuaModuleDispatcher:SendMessage(ModuleDef.RingTaskModule, "OnOpenRingTaskRandomWidget", {})
+	do
+		return
+	end
+
+	--报幕测试
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	UIManager.Instance:OpenWidgetAsync("Avg/PlotWidget", nil, false, {1, 0}, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, true)
+
+	do
+		return
+	end
+	--报幕测试
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	UIManager.Instance:OpenWidgetAsync("Avg/PlotWidget", nil, false, {1, 0}, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, true)
+
+	--世界线
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	LuaModuleDispatcher:SendMessage(ModuleDef.WorldLineModule, "OnOpenWorldLine", {})
+	do
+		return
+	end
+	do
+		return
+	end
+
+	local mapPox = GameManager.Instance:GetMapBossPos()
+
+	--掉落测试
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+
+	local rewardList = self:GetRewards()
+	local ownerPos2 = GameManager.Instance.M_MainPlayerCtrlBase.Container.transform:GetChild(0).position
+	local InteractId = 9999997 -- 普通宝箱id
+
+	for i = 1, 3 do
+		local pos = Vector3.zero
+
+		if i == 1 then
+			pos.x = ownerPos2.x - 2.5
+			pos.y = ownerPos2.y
+			pos.z = ownerPos2.z
+			InteractId = 9999991
+		elseif i == 2 then
+			pos.x = ownerPos2.x + 2.5
+			pos.y = ownerPos2.y
+			pos.z = ownerPos2.z
+			InteractId = 9999997
+		else
+			pos.x = ownerPos2.x
+			pos.y = ownerPos2.y
+			pos.z = ownerPos2.z + 1
+			InteractId = 9999998
+		end
+
+		CS.StarProject.GlobalEvent.onCreateLocalEntity:Invoke(E_LocalEntityType.TreasureBox, InteractId, E_LocalEntitySource.SecretArea, pos, rewardList, true, -1)
+	end
+
+	do
+		return
+	end
+	--对话测试
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	LuaModuleDispatcher:SendMessage(ModuleDef.AvgLuaModule, "OnOpenAvgZoneBox", {910001})
+	do
+		return
+	end
+
+	UIManager.Instance:OpenWidgetAsync("Bag/CurrencyMenuWidget", nil, false, {}, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, false)
+	do
+		return
+	end
+
+	--掉落测试
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+
+	-- 发送加入冒险团成功的消息
+	-- 模拟接收系统消息
+	local msgList = {}
+	local chatMsgNotice = CS.ProtoMsg.ChatMsgNotice()
+	chatMsgNotice.EID = 0
+	chatMsgNotice.PID = 0
+	chatMsgNotice.Data = LanguageHelp:GetLanguageByKey("Local_Str_Tips71")
+	chatMsgNotice.Channel = CS.ProtoMsg.ChatChannel.ChannelUnion
+	chatMsgNotice.ChatTime = TimeUtils.ServerNowStampMilli
+	chatMsgNotice.ChatLevel = 1
+	chatMsgNotice.JobID = GameManager.Instance:GetPlayerJob()
+	local iii = {121504002, 121503003, 21102004, 21103005}
+	local iii2 = {3, 3, 3, 2}
+
+	table.insert(msgList, chatMsgNotice)
+	LuaModuleDispatcher:SendMessage(ModuleDef.ChatModule, "OnAnalogReceptionChatMsg", {msgList})
+	for i = 1, #iii do
+		for j = 1, iii2[i] do
+			DOVirtual.DelayedCall(
+				0.7,
+				function()
+					local Itemid = iii[i]
+					local ownerPos = GameManager.Instance.M_MainPlayerCtrlBase.Container.transform:GetChild(0).position
+					ownerPos.y = ownerPos.y + 1.0
+					LuaModuleDispatcher:SendMessage(ModuleDef.LootControllerModule, "OnAddLoot", {Itemid, ownerPos, 1})
+				end
+			)
+		end
+	end
+
+	do
+		return
+	end
+
+	--对话测试
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	LuaModuleDispatcher:SendMessage(ModuleDef.AvgLuaModule, "OnOpenAvgMindBox", {1})
+	do
+		return
+	end
+	do
+		return
+	end
+
+	--对话测试
+	LuaModuleDispatcher:SendMessage(ModuleDef.AvgLuaModule, "OnOpenAvgPopBox", {66902, GameManager.Instance.mainPlayerId, GameManager.Instance.mainPlayerId})
+	do
+		return
+	end
+	--对话测试
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	LuaModuleDispatcher:SendMessage(ModuleDef.AvgLuaModule, "OnOpenAvgPopBox", {20121, GameManager.Instance.mainPlayerId, GameManager.Instance.mainPlayerId})
+	do
+		return
+	end
+
+	UIManager.Instance:SetScreenUIEffect("ScreenUIEffects/Dream", true)
+	--掉落测试
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	DOVirtual.DelayedCall(
+		1,
+		function()
+			local Itemid = 104002
+			local ownerPos = GameManager.Instance.M_MainPlayerCtrlBase.Container.transform:GetChild(0).position
+			ownerPos.y = ownerPos.y + 1.0
+			LuaModuleDispatcher:SendMessage(ModuleDef.LootControllerModule, "OnAddLoot", {Itemid, ownerPos, 1})
+		end
+	)
+	do
+		return
+	end
+
+	--对话测试
+	LuaModuleDispatcher:SendMessage(ModuleDef.AvgLuaModule, "OnOpenAvgPopBox", {66902, GameManager.Instance.mainPlayerId, GameManager.Instance.mainPlayerId})
+	do
+		return
+	end
+	--跑马灯测试
+	local para = {}
+	para[1] = 101011
+	LuaModuleDispatcher:SendMessage(ModuleDef.RunHorseModule, "OnAddRunHorse", {7, para})
+	do
+		return
+	end
+
+	--对话测试
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	LuaModuleDispatcher:SendMessage(ModuleDef.AvgLuaModule, "OnOpenAvgTalkBoxForTimeLine", {990015})
+	do
+		return
+	end
+
+	--黑白屏测试
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	LuaModuleDispatcher:SendMessage(ModuleDef.AvgLuaModule, "OnTransition", {0, 0})
+	do
+		return
+	end
+
+	--世界线
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	LuaModuleDispatcher:SendMessage(ModuleDef.WorldLineModule, "OnOpenWorldLine", {})
+	do
+		return
+	end
+
+	UIManager.Instance:OpenWidgetAsync("Bag/CurrencyMenuWidget", nil, false, {}, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, false)
+	do
+		return
+	end
+
+	-- 发送加入冒险团成功的消息
+	-- 模拟接收系统消息
+	local msgList = {}
+	local chatMsgNotice = CS.ProtoMsg.ChatMsgNotice()
+	chatMsgNotice.EID = 0
+	chatMsgNotice.PID = 0
+	chatMsgNotice.Data = LanguageHelp:GetLanguageByKey("Local_Str_Tips71")
+	chatMsgNotice.Channel = CS.ProtoMsg.ChatChannel.ChannelUnion
+	chatMsgNotice.ChatTime = TimeUtils.ServerNowStampMilli
+	chatMsgNotice.ChatLevel = 1
+	chatMsgNotice.JobID = GameManager.Instance:GetPlayerJob()
+
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	for i = 1, 4 do
+		DOVirtual.DelayedCall(
+			1 * 0.2 * i,
+			function()
+				local Itemid = 100100 + i
+				local ownerPos = GameManager.Instance.M_MainPlayerCtrlBase.Container.transform:GetChild(0).position
+				ownerPos.y = ownerPos.y + 1.0
+				LuaModuleDispatcher:SendMessage(ModuleDef.LootControllerModule, "OnAddLoot", {Itemid, ownerPos, 1})
+			end
+		)
+	end
+	do
+		return
+	end
+	table.insert(msgList, chatMsgNotice)
+	LuaModuleDispatcher:SendMessage(ModuleDef.ChatModule, "OnAnalogReceptionChatMsg", {msgList})
+
+	do
+		return
+	end
+
+	UIManager.Instance:SetScreenUIEffect("ScreenUIEffects/Dream", true)
+
+	--对话测试
+	LuaModuleDispatcher:SendMessage(ModuleDef.AvgLuaModule, "OnOpenAvgPopBox", {66902, GameManager.Instance.mainPlayerId, GameManager.Instance.mainPlayerId})
+	do
+		return
+	end
+
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	for i = 1, 4 do
+		DOVirtual.DelayedCall(
+			1 * 0.2 * i,
+			function()
+				local Itemid = 100100 + i
+				local ownerPos = GameManager.Instance.M_MainPlayerCtrlBase.Container.transform:GetChild(0).position
+				ownerPos.y = ownerPos.y + 1.0
+				LuaModuleDispatcher:SendMessage(ModuleDef.LootControllerModule, "OnAddLoot", {Itemid, ownerPos, 1})
+			end
+		)
+	end
+	do
+		return
+	end
+
+	--星次石合成
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	UIManager.Instance:OpenWidget("Amulet/EmblemCombineWidget", false, 6010010, nil, CS.StarProjectDef.MainPageCommond.HideNone, true, false)
+	do
+		return
+	end
+
+	--冒险团捐献
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	UIManager.Instance:OpenWindow("Donate/DonateWindow", nil)
+	do
+		return
+	end
+
+	--弹窗测试
+	CS.StarProjectDef.UIAPI.ShowMsgBox(
+		LanguageHelp:GetLanguageByKey("Local_Str_Error"),
+		LanguageHelp:GetLanguageByKey("Local_Str_Open_Dialog"),
+		LanguageHelp:GetLanguageByKey("Local_Str_btn_sure"),
+		function(str)
+			if str == "SURE" then
+				UIManager.Instance:OpenWidget("Shop/BuyCashWidget", false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, false)
+			end
+		end
+	)
+	do
+		return
+	end
+
+	--现金商店
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	UIManager.Instance:OpenWidget("Shop/BuyCashWidget", false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, false)
+	do
+		return
+	end
+
+	--星次石合成
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	UIManager.Instance:OpenWidget("Amulet/EmblemCombineWidget", false, 6010010, nil, CS.StarProjectDef.MainPageCommond.HideNone, true, false)
+	do
+		return
+	end
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	LuaModuleDispatcher:SendMessage(ModuleDef.EventBossRankModule, "OnCloseBossRank", {})
+	do
+		return
+	end
+
+	--首充
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	UIManager.Instance:OpenWidget("Shop/FirstPayWidget", false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, false)
+	do
+		return
+	end
+
+	--冒险团捐献
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	UIManager.Instance:OpenWindow("Donate/DonateWindow", nil)
+	do
+		return
+	end
+	--对话测试
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	LuaModuleDispatcher:SendMessage(ModuleDef.AvgLuaModule, "OnOpenAvgBookBox", {8})
+	do
+		return
+	end
+
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	UIManager.Instance:OpenWidget("Event/AfternoonGveSelectBuffWidget", false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone, true, false)
+	do
+		return
+	end
+
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	LuaModuleDispatcher:SendMessage(ModuleDef.AfternoonGveModule, "OnOpenAfternoonGvePopWindow", {})
+	do
+		return
+	end
+
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	LuaModuleDispatcher:SendMessage(ModuleDef.InscriptionModule, "OnOpenInscription", {})
+
+	do
+		return
+	end
+
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	local data = {}
+	data.OpenIdx = 1
+	UIManager.Instance:OpenWidget("Event/AfternoonGveFinishWidget", false, data, nil, CS.StarProjectDef.MainPageCommond.HideNone, true, false)
+	do
+		return
+	end
+
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	local data = {}
+	data.OpenIdx = 1
+	UIManager.Instance:OpenWidget("Event/AfternoonGveRankRewardWidget", false, data, nil, CS.StarProjectDef.MainPageCommond.HideNone, true, false)
+	do
+		return
+	end
+
+	local data = {}
+	data.score = 10000
+	data.playID = 1
+	UIManager.Instance:OpenWindow("Event/EventSuccessWindow", data)
+	do
+		return
+	end
+
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	UIManager.Instance:OpenWidget("Event/BossEventOpenWidget", false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone, true, false)
+	do
+		return
+	end
+
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	UIManager.Instance:OpenWindow("Event/GVEBossGuildRankWindow")
+
+	do
+		return
+	end
+
+	--弹窗测试
+	CS.StarProjectDef.UIAPI.ShowMsgBox(
+		LanguageHelp:GetLanguageByKey("Local_Str_Error"),
+		LanguageHelp:GetLanguageByKey("Local_Str_Open_Dialog"),
+		LanguageHelp:GetLanguageByKey("Local_Str_btn_sure"),
+		function(str)
+			if str == "SURE" then
+				UIManager.Instance:OpenWidget("Shop/BuyCashWidget", false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, false)
+			end
+		end
+	)
+	do
+		return
+	end
+
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	LuaModuleDispatcher:SendMessage(ModuleDef.EventTipsModule, "OnOpenTips", {})
+
+	do
+		return
+	end
+
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	LuaModuleDispatcher:SendMessage(ModuleDef.EventModule, "OnOpenEvent", {})
+
+	do
+		return
+	end
+
+	--奖励弹窗测试
+	local rewardsList = {}
+	for i = 1, 17 do
+		local rw = {}
+		rw.BaseID = 103001
+		rw.Num = 1
+		table.insert(rewardsList, rw)
+	end
+	LuaModuleDispatcher:SendMessage(ModuleDef.RewardsPopModule, "OnOpenRewardsPop", {rewardsList})
+
+	--现金商店
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	UIManager.Instance:OpenWidget("Shop/BuyCashWidget", false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, false)
+	do
+		return
+	end
+	do
+		return
+	end
+
+	print("整理背包点击")
+	--UIManager.Instance:CloseWindow("Bag/BagWindow");
+
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	LuaModuleDispatcher:SendMessage(ModuleDef.EventBossRankModule, "OnCloseBossRank", {})
+	do
+		return
+	end
+	LuaModuleDispatcher:SendMessage(ModuleDef.GuildModule, "OnOpenGuild", {})
+	--冒险团创建测试
+	--LuaModuleDispatcher:SendMessage(ModuleDef.GuildModule,"OnOpenGuildJoin",{});
+	--冒险团信息测试
+	--LuaModuleDispatcher:SendMessage(ModuleDef.GuildModule,"OnOpenGuildInfo",{});
+
+	--环任务测试
+	--LuaModuleDispatcher:SendMessage(ModuleDef.RingTaskModule,"OnOpenRingTask",{});
+	--UIManager.Instance:OpenWindow("RingTask/RingTaskWindow");
+
+	--符文测试
+	--LuaModuleDispatcher:SendMessage(ModuleDef.AmuletModule,"OnOpenAmulet",{0,0});
+
+	--装备升级测试
+	--LuaModuleDispatcher:SendMessage(ModuleDef.EquipUpgradeModule,"OnOpenEquipUpgrade",{0,0});
+
+	--首充
+	UIManager.Instance:CloseAllLoadedWindowNWidget()
+	UIManager.Instance:OpenWidget("Shop/FirstPayWidget", false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, false)
+	do
+		return
+	end
+	--对话测试
+	--LuaModuleDispatcher:SendMessage(ModuleDef.AvgLuaModule, "OnOpenAvgPopBox", { 66902, GameManager.Instance.mainPlayerId });
+
+	--掉落测试
+	DOVirtual.DelayedCall(
+		10,
+		function()
+			local Itemid = 103103
+			local ownerPos = GameManager.Instance.M_MainPlayerCtrlBase.Container.transform:GetChild(0).position
+			ownerPos.y = ownerPos.y + 1.0
+			LuaModuleDispatcher:SendMessage(ModuleDef.LootControllerModule, "OnAddLoot", {Itemid, ownerPos, 1})
+		end
+	)
+
+	do
+		return
+	end
+
+	--[[
+
+
+
+
+	--对话测试
+	UIManager.Instance:CloseAllLoadedWindowNWidget();
+	LuaModuleDispatcher:SendMessage(ModuleDef.AvgLuaModule, "OnOpenAvgBookBox", { 8 });
+	do return end
+
+	UIManager.Instance:CloseAllLoadedWindowNWidget();
+	UIManager.Instance:OpenWidget("Event/AfternoonGveSelectBuffWidget", false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone,true,false);
+	do return end
+
+
+	UIManager.Instance:CloseAllLoadedWindowNWidget();
+	LuaModuleDispatcher:SendMessage(ModuleDef.AfternoonGveModule, "OnOpenAfternoonGvePopWindow",{  });
+	do return end
+
+
+
+	UIManager.Instance:CloseAllLoadedWindowNWidget();
+	LuaModuleDispatcher:SendMessage(ModuleDef.InscriptionModule,"OnOpenInscription",{});
+
+	do return end
+
+
+
+
+
+	UIManager.Instance:CloseAllLoadedWindowNWidget();
+	local data={};
+	data.OpenIdx=1;
+	UIManager.Instance:OpenWidget("Event/AfternoonGveFinishWidget", false, data, nil, CS.StarProjectDef.MainPageCommond.HideNone,true,false);
+	do return end
+
+
+	UIManager.Instance:CloseAllLoadedWindowNWidget();
+	local data={};
+	data.OpenIdx=1;
+	UIManager.Instance:OpenWidget("Event/AfternoonGveRankRewardWidget", false, data, nil, CS.StarProjectDef.MainPageCommond.HideNone,true,false);
+	do return end
+
+
+
+
+	local data={};
+	data.score=10000;
+	data.playID=1;
+	UIManager.Instance:OpenWindow("Event/EventSuccessWindow",data);
+	do return end
+
+	UIManager.Instance:CloseAllLoadedWindowNWidget();
+	UIManager.Instance:OpenWidget("Event/BossEventOpenWidget", false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone,true,false);
+	do return end
+
+
+
+	UIManager.Instance:CloseAllLoadedWindowNWidget();
+	UIManager.Instance:OpenWindow("Event/GVEBossGuildRankWindow");
+
+	do return end
+
+	UIManager.Instance:CloseAllLoadedWindowNWidget();
+	LuaModuleDispatcher:SendMessage(ModuleDef.EventTipsModule,"OnOpenTips",{});
+
+	do return end
+
+	UIManager.Instance:CloseAllLoadedWindowNWidget();
+	LuaModuleDispatcher:SendMessage(ModuleDef.EventModule,"OnOpenEvent",{});
+
+	do return end
+
+	--奖励弹窗测试
+	local rewardsList={};
+	for i=1,17 do
+	local rw={};
+	rw.BaseID=103001;
+	rw.Num=1;
+	table.insert( rewardsList,rw);
+	end
+	LuaModuleDispatcher:SendMessage(ModuleDef.RewardsPopModule, "OnOpenRewardsPop",{rewardsList});
+
+	do return end
+
+
+	print("整理背包点击");
+	--UIManager.Instance:CloseWindow("Bag/BagWindow");
+
+	UIManager.Instance:CloseAllLoadedWindowNWidget();
+
+
+
+	LuaModuleDispatcher:SendMessage(ModuleDef.GuildModule,"OnOpenGuild",{});
+	--冒险团创建测试
+	--LuaModuleDispatcher:SendMessage(ModuleDef.GuildModule,"OnOpenGuildJoin",{});
+	--冒险团信息测试
+	--LuaModuleDispatcher:SendMessage(ModuleDef.GuildModule,"OnOpenGuildInfo",{});
+
+
+
+	--环任务测试
+	--LuaModuleDispatcher:SendMessage(ModuleDef.RingTaskModule,"OnOpenRingTask",{});
+	--UIManager.Instance:OpenWindow("RingTask/RingTaskWindow");
+
+	--符文测试
+	--LuaModuleDispatcher:SendMessage(ModuleDef.AmuletModule,"OnOpenAmulet",{0,0});
+
+
+
+	--装备升级测试
+	--LuaModuleDispatcher:SendMessage(ModuleDef.EquipUpgradeModule,"OnOpenEquipUpgrade",{0,0});
+
+
+
+	--对话测试
+	--LuaModuleDispatcher:SendMessage(ModuleDef.AvgLuaModule, "OnOpenAvgPopBox", { 66902, GameManager.Instance.mainPlayerId });
+
+	--掉落测试
+	DOVirtual.DelayedCall(10,function ()
+	local Itemid=103103;
+	local ownerPos= GameManager.Instance.M_MainPlayerCtrlBase.Container.transform:GetChild(0).position;
+	ownerPos.y=ownerPos.y+1.0;
+	LuaModuleDispatcher:SendMessage(ModuleDef.LootControllerModule, "OnAddLoot",{Itemid,ownerPos,1} );
+
+	end)
+
+
+	do return end
+
+
+
+
+	--[[
+
+	--奖励弹窗测试
+	local rewardsList={};
+	for i=1,6 do
+	local rw={};
+	rw.BaseID=300002;
+	rw.Num=1;
+	table.insert( rewardsList,rw);
+	end
+	LuaModuleDispatcher:SendMessage(ModuleDef.RewardsPopModule, "OnOpenRewardsPop",{rewardsList});
+
+	--对话测试
+	LuaModuleDispatcher:SendMessage(ModuleDef.AvgLuaModule, "OnOpenAvgTalkBox", { 16 });
+
+
+	]]
+
+	--商店测试
+	--LuaModuleDispatcher:SendMessage(ModuleDef.ShopModule, "OnOpenShop",{});
+	--LuaModuleDispatcher:SendMessage(ModuleDef.ShopModule, "OnOpenNpcShop",{6});
+
+	--商店测试
+	--LuaModuleDispatcher:SendMessage(ModuleDef.ShopModule, "OnOpenShop",{});
+	--LuaModuleDispatcher:SendMessage(ModuleDef.ShopModule, "OnOpenNpcShop",{6});
+end
+
+function BagWindow:CleanAllSelected()
+	--无限列表
+	for i = 1, #self.BagItemList do
+		self.BagItemList[i]:MakeSelected(false)
+	end
+end
+
+function BagWindow:OnItemClick(bitem)
+	--[[
+	--格子状态为开启的时候
+	if bitem.Item.State==1 then
+
+	--响应选中事件（RegUpdateAction）写法1
+	bitem.Item:CallSlotUpdateAction(SlotUpdateActionType.SelectAction);
+
+	--响应选中事件（RegUpdateAction）写法2（此写法支持组响应）
+	--SlotManager.Instance:CallSlotUpdateAction(E_SlotModule.BagModule,SlotUpdateActionType.SelectAction,0,bitem.Item.ID);--调用响应事件
+
+
+	bitem:MakeSelected(true);
+
+	--设置道具Tips
+	self.module:OpenItemTips(bitem.BaseID,bitem.EntityID,bitem.Item.Num,bitem.TipsType);
+	--关闭回调
+
+	end
+	]]
+	self:CleanAllSelected()
+	bitem:MakeSelected(true)
+
+	--设置道具Tips
+	self.module:OpenItemTips(bitem.BaseID, bitem.EntityID, bitem.Item.Num, bitem.TipsType)
+end
+
+function BagWindow:Start()
+	print("BagWindow:Start")
+end
+
+function BagWindow:OnEnable()
+end
+
+function BagWindow:OnDisable()
+end
+
+function BagWindow:OnDestroy()
+	self.module.bagWindowView = nil
+end
+
+function BagWindow:OnOpen(arg)
+	self.IsOpen = true
+end
+
+function BagWindow:OnClose(arg)
+	--self:CloseWindow();
+	self.IsOpen = false
+	BusinessManager.Instance:UnNewAllItems()
+end
+
+function BagWindow:ClearItemData()
+	if self.ItemDataList == nil then
+		self.ItemDataList = {}
+	else
+		--self.ItemDataList ={}
+		for k, _ in pairs(self.ItemDataList) do
+			self.ItemDataList[k] = nil
+		end
+	end
+end
+
+--[[
+function BagWindow:SortItem(tbl)
+
+if #tbl > 1 then
+
+table.sort(tbl, function(a, b)
+
+
+if a.SortProp < b.SortProp then
+-- 按SortProp升序
+return true
+elseif a.SortProp == b.SortProp then
+-- 如果SortProp相等，按Type升序
+if a.ItemType < b.ItemType then
+return true
+elseif a.ItemType == b.ItemType then
+-- 如果Type相等，按Id升序
+return a.BaseID < b.BaseID
+end
+end
+return false
+
+
+end)
+
+end
+
+end
+]]
+function BagWindow:SortItem(tbl)
+	if #tbl > 1 then
+		table.sort(
+			tbl,
+			function(a, b)
+				--宝箱排序
+				if a.BoxType ~= b.BoxType then
+					return a.BoxType > b.BoxType
+				end
+
+				if a.Quality ~= b.Quality then
+					return a.Quality > b.Quality
+				end
+
+				if a.ItemType ~= b.ItemType then
+					return a.ItemType < b.ItemType
+				end
+
+				if a.CantEquipLv ~= b.CantEquipLv then
+					return a.CantEquipLv < b.CantEquipLv
+				end
+
+				if a.SubType ~= b.SubType then
+					return a.SubType < b.SubType
+				end
+
+				if a.Level ~= b.Level then
+					return a.Level > b.Level
+				end
+
+				return false
+			end
+		)
+	end
+end
+
+function BagWindow:OnCloseInfoClick()
+	--关闭道具Tips
+	if GameManager.Instance.IsOpenItemTips then
+		self.module:CloseItemTips()
+
+		self:CleanAllSelected()
+	else
+		--self.currencyBar:OffListener()
+
+		self.IsOpen = false
+		self.module:CloseEquip()
+		--self.currencyBar:PlayAnim(false);
+		self.PlayAnimation(
+			"BagWindowAnim_Exit",
+			function()
+				self.module:OnCloseBox()
+				self.Close()
+				self.IsFirstIn = true
+				SlotManager.Instance:DeleteSlotGroup(E_SlotModule.BagModule)
+			end
+		)
+	end
+end
+
+function BagWindow:OnClickCloseBtn()
+	if GameManager.Instance.IsOpenItemTips then
+		self.module:CloseItemTips()
+
+		self:CleanAllSelected()
+	end
+	self.IsOpen = false
+	self.module:CloseEquip()
+	--self.currencyBar:PlayAnim(false);
+	self.PlayAnimation(
+		"BagWindowAnim_Exit",
+		function()
+			self.module:OnCloseBox()
+			self.Close()
+			self.IsFirstIn = true
+			SlotManager.Instance:DeleteSlotGroup(E_SlotModule.BagModule)
+
+			ModuleManager.Instance:HideModule(ModuleDef.BagModule)
+		end
+	)
+end
+
+return BagWindow

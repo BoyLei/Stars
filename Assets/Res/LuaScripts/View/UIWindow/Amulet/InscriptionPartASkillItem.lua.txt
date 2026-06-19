@@ -1,0 +1,95 @@
+--[[
+*文件名   :   InscriptionPartASkillItem
+*内  容   :   定轨组中的一行
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local InscriptionPartASkillItem = {}
+
+InscriptionPartASkillItem.__index = InscriptionPartASkillItem
+
+function InscriptionPartASkillItem:New(_go) 
+    local self = {};    
+    setmetatable(self, InscriptionPartASkillItem); 
+    
+
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+
+    self.go_have=self.transform:Find("Have").gameObject;
+
+    self.lv=self.transform:Find("Have/Lv"):GetComponent(typeof(Text));
+
+    self.num=self.transform:Find("Have/Num"):GetComponent(typeof(Text));
+
+    self.ic=self.transform:Find("Have/ic"):GetComponent(typeof(Image));
+
+    self.desc=self.transform:Find("Have/Desc"):GetComponent(typeof(Text));
+
+    self.go_arrow=self.transform:Find("Have/arrow").gameObject;
+
+
+    return self;    --返回自身
+end
+
+
+
+function InscriptionPartASkillItem:InitItem()
+    self:SetUse(false);
+end
+
+
+function InscriptionPartASkillItem:SetUse(b)
+    self.IsUsed=b;
+    self.gameObject:SetActive(b);
+end
+
+function InscriptionPartASkillItem:RefeshItem(lv,desc,lvNow,isShowArrow)
+    self:SetUse(true)
+    
+    self.go_have:SetActive(lv~=nil);
+    if lv~=nil then
+    
+        --每一级的点数
+        local perLevelPoint = 5
+
+        self.num.text=perLevelPoint*lv;
+        self.desc.text=desc;
+        if lv == lvNow then
+            --self.lv.text="当前阶段："..lv .. "级";
+            self.lv.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_InscriptionPartASkillItem_lv1"), {lv});
+        elseif lv < lvNow and (lvNow-lv)==1 then
+            --self.lv.text="前一阶段："..lv .. "级";
+            self.lv.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_InscriptionPartASkillItem_lv2"), {lv});
+        elseif lv > lvNow and (lv-lvNow)==1  then
+            --self.lv.text="下一阶段："..lv .. "级";
+            self.lv.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_InscriptionPartASkillItem_lv3"), {lv});
+        else
+            --self.lv.text=lv .. "级";
+            self.lv.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {lv});
+        end
+
+
+        if lv > lvNow then
+            self.lv.color=Color(0.77,0.78,0.8);
+            self.num.color=Color(0.77,0.78,0.8);
+            self.ic.color=Color(0.77,0.78,0.8);
+        else
+            self.lv.color=Color(0.99,0.94,0.77);
+            self.num.color=Color(0.99,0.94,0.77);
+            self.ic.color=Color(0.99,0.94,0.77);
+        end
+
+
+        self.go_arrow:SetActive(isShowArrow);
+    end
+end
+
+
+
+
+return InscriptionPartASkillItem;

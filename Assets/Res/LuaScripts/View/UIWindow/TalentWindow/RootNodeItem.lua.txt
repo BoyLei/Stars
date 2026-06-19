@@ -1,0 +1,25 @@
+local RootNodeItem = class("RootNodeItem")
+function RootNodeItem:ctor(this,obj)
+    -- local self = {};
+    -- setmetatable(self, RootNodeItem);
+
+    self:InitControls(this,obj)
+
+    return self;
+end
+
+function RootNodeItem:InitControls(this,obj)
+    self.gameObject = obj;
+    self.gameObject:SetActive(false)
+ --   self.transform = obj.transform;
+end
+
+function RootNodeItem:InitData(id, lv)
+    --do nothing
+end
+
+function RootNodeItem:Clear()
+
+end
+
+return RootNodeItem

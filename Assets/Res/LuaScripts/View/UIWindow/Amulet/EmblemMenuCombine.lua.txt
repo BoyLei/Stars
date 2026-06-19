@@ -1,0 +1,452 @@
+--[[
+*文件名   :   EmblemMenuCombine
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] local EmblemMenuCombine = {}
+
+EmblemMenuCombine.__index = EmblemMenuCombine
+
+local EmblemItemFull = require("View/Uiwindow/Amulet/EmblemItemFull")
+
+local EmblemMenuLvUpEmb = require("View/Uiwindow/Amulet/EmblemMenuLvUpEmb")
+
+function EmblemMenuCombine:New(_go, emblemMenu)
+    local self = {}
+    setmetatable(self, EmblemMenuCombine)
+
+    self.EmblemMenu = emblemMenu
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.go_EquipedEmblemItemFull = self.transform:Find("EmblemItemFullEquiped").gameObject
+    self.go_EquipedEmblemItemFullNull = self.transform:Find("EmblemItemFullNull").gameObject
+
+    self.EmblemMenuLvUpEmb =
+        EmblemMenuLvUpEmb:New(
+        self.transform.parent:Find("LvUpEmb").gameObject,
+        function(ritem, needPs)
+            -- 点击升级
+            self:OnStartUpgradeClick(ritem, needPs)
+        end
+    )
+
+    -- 已经装备的那个
+    self.EquipedEmblemItemFull = EmblemItemFull:New(self.transform:Find("EmblemItemFullEquiped").gameObject)
+    self.EquipedEmblemItemFull:InitItem(
+        function(ritem)
+            self:OnItemClick(ritem)
+        end,
+        true
+    )
+
+    -- 道具列表
+    self.EmblemItemFullItemList = {}
+    -- 无限列表
+    self.go_EmblemItemFullItem = self.transform:Find("EmblemItemFull").gameObject
+
+    self.rect_grid = self.transform:Find("Scroll View/Mask/List"):GetComponent(typeof(RectTransform))
+
+    self.tr_ItemRoot = self.transform:Find("Scroll View/Mask/List")
+    self.go_EmblemItemFullItem:SetActive(false)
+    self.go_EmblemItemFullItem.transform:SetParent(self.transform)
+    self.EmblemItemFullScorllView = self.transform:Find("Scroll View"):GetComponent(typeof(SuperScrollViewController))
+    self.EmblemItemFullScorllView:NewScroll(
+        self.go_EmblemItemFullItem,
+        0,
+        function(tr, idx)
+            self:OnEmblemItemFullItemRefesh(tr, idx)
+        end
+    )
+
+    self.IsJumpFromDefAmulet = false
+
+    -- 返回按钮
+    self.go_backMenu = self.transform.parent:Find("BackMenu").gameObject
+    -- 点击退出
+    local tr_backMenu = self.transform.parent:Find("BackMenu")
+    local btnClose = tr_backMenu:Find("ExitBtn"):GetComponent(typeof(JButton))
+    btnClose.OnClick = (function()
+        self:Show(false)
+        if self.IsJumpFromDefAmulet then
+            -- 点击跳转
+            LuaModuleDispatcher:SendMessage(ModuleDef.AmuletModule, "OnOpenDefAmulet", {})
+            self.IsJumpFromDefAmulet = false
+        end
+    end)
+
+    -- 替换按钮
+    self.go_Rp = self.transform:Find("BtnRp").gameObject
+    self.go_Rp:GetComponent(typeof(JButton)).OnClick = (function()
+        -- 点击替换
+        self:OnEquipClick(self.SelectedItem)
+    end)
+
+    -- 卸载按钮
+    self.go_Unequip = self.transform:Find("BtnUnequip").gameObject
+    self.go_Unequip:GetComponent(typeof(JButton)).OnClick = (function()
+        -- 点击卸载
+        self:OnUnEquipClick(self.SelectedItem)
+    end)
+
+    -- 升级按钮
+    self.go_LvUp = self.transform:Find("BtnLvUp").gameObject
+    self.go_LvUp:GetComponent(typeof(JButton)).OnClick = (function()
+        -- 点击升级
+        self:OnUpgradeClick(self.SelectedItem)
+    end)
+
+    --[[
+	--监听合成回调
+	CS.SGF.Network.MsgRetManager.Instance:OnMessageEnum(function (data)
+		self:OnGemSynthesizedReqRet(data)
+	end, CS.MsgIDEnum.GemSynthesizedReqID);
+	]]
+    -- 监听装备回调
+    self.message1 = function(data)
+        self:OnHeraldryWearReqRet(data)
+    end
+
+    -- 监听卸载回调
+    self.message2 = function(data)
+        self:OnHeraldryTakeOffReqRet(data)
+    end
+
+    self:Show(false)
+
+    return self -- 返回自身
+end
+
+-- 槽位装备回调 因为没有内容，所以可以使用简单回复
+function EmblemMenuCombine:OnHeraldryWearReqRet(args)
+    local RetMsgID = args.MsgRet.RetMsgID -- 对应的消息号(这个可以判断是哪个协议)
+
+    local RetCode = args.MsgRet.RetCode
+    if RetCode == 0 then
+        -- self:Show(false);
+        -- 成功
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_129"))
+
+        -- 刷新面板
+        self.EmblemMenu:Refesh()
+        self.EmblemMenu.EmblemMenuInfo:Reselect()
+    else
+        -- 不需要处理，交给上层去处理
+        -- args.IsDialog=true
+        -- 失败
+        -- Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_130"));
+    end
+end
+
+-- 槽位卸载回调 因为没有内容，所以可以使用简单回复
+function EmblemMenuCombine:OnHeraldryTakeOffReqRet(args)
+    local RetMsgID = args.MsgRet.RetMsgID -- 对应的消息号(这个可以判断是哪个协议)
+
+    local RetCode = args.MsgRet.RetCode
+    if RetCode == 0 then
+        -- 成功
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_131"))
+
+        -- 刷新面板
+        self.EmblemMenu:Refesh()
+        self.EmblemMenu.EmblemMenuInfo:Reselect()
+    else
+        -- 不需要处理，交给上层去处理
+        -- args.IsDialog=true
+        -- 失败
+        -- Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_132"));
+    end
+end
+
+-- 合成回调 因为没有内容，所以可以使用简单回复
+function EmblemMenuCombine:OnGemSynthesizedReqRet(args)
+    local RetMsgID = args.MsgRet.RetMsgID -- 对应的消息号(这个可以判断是哪个协议)
+
+    local RetCode = args.MsgRet.RetCode
+    if RetCode == 0 then
+        -- 成功
+        --Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_92"));
+
+        -- 播放特效
+        --[[
+		if self.NeedPs then
+			self.EmblemMenu:ShowEmblemMenuCombineAnim();
+		end
+		]]
+        -- 刷新面板
+        self.EmblemMenu:Refesh()
+        -- self.EmblemMenuLvUpEmb:Refesh();
+        self.EmblemMenu.EmblemMenuInfo:Reselect()
+    else
+        -- 不需要处理，交给上层去处理
+        -- args.IsDialog=true
+        -- Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_93"));
+    end
+end
+
+function EmblemMenuCombine:CleanAllSelected()
+    self.EquipedEmblemItemFull:MakeSelected(false)
+
+    -- 无限列表
+    for i = 1, #self.EmblemItemFullItemList do
+        self.EmblemItemFullItemList[i]:MakeSelected(false)
+    end
+end
+
+function EmblemMenuCombine:OnEmblemItemFullItemRefesh(tr, idx)
+    for i = 1, #self.EmblemItemFullItemList do
+        if self.EmblemItemFullItemList[i].transform == tr then
+            self.EmblemItemFullItemList[i]:SetItem(self.ItemDataList[idx + 1], self.EmblemMenu.EmblemMenuInfo.SelectedSlotIdx) -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+        end
+    end
+
+    local bi = EmblemItemFull:New(tr.gameObject)
+    bi:InitItem(
+        function(ritem)
+            self:OnItemClick(ritem)
+        end,
+        false
+    )
+    bi.gameObject:SetActive(true)
+    bi:SetItem(self.ItemDataList[idx + 1], self.EmblemMenu.EmblemMenuInfo.SelectedSlotIdx) -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+
+    table.insert(self.EmblemItemFullItemList, bi)
+end
+
+function EmblemMenuCombine:OnStartUpgradeClick(ritem, needPs)
+    local gemSynthesizedReq = CS.ProtoMsg.GemSynthesizedReq()
+    gemSynthesizedReq.ID = ritem.EntityID
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, gemSynthesizedReq, false)
+
+    self.NeedPs = needPs
+end
+
+-- 点击升级
+function EmblemMenuCombine:OnUpgradeClick(ritem)
+    -- self.EmblemMenuLvUpEmb:Show(true,ritem);
+    UIManager.Instance:OpenWidget("Amulet/EmblemCombineWidget", false, ritem.BaseID, nil, CS.StarProjectDef.MainPageCommond.HideNone, true, false)
+end
+
+-- 点击装备
+function EmblemMenuCombine:OnEquipClick(ritem)
+    local heraldryWearReq = CS.ProtoMsg.HeraldryWearReq()
+    heraldryWearReq.AmuletID = self.EntityID
+    heraldryWearReq.SoltID = self.SlotIndex
+    heraldryWearReq.HeraldryID = ritem.EntityID
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, heraldryWearReq, false)
+end
+
+-- 点击卸载
+function EmblemMenuCombine:OnUnEquipClick(ritem)
+    local heraldryTakeOffReq = CS.ProtoMsg.HeraldryTakeOffReq()
+    heraldryTakeOffReq.HeraldryID = ritem.EntityID
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, heraldryTakeOffReq, false)
+end
+
+function EmblemMenuCombine:ClearItemData()
+    if self.ItemDataList == nil then
+        self.ItemDataList = {}
+    else
+        -- self.ItemDataList ={}
+        for k, _ in pairs(self.ItemDataList) do
+            self.ItemDataList[k] = nil
+        end
+    end
+end
+
+function EmblemMenuCombine:OnItemClick(bitem)
+    self.SelectedItem = bitem
+
+    self.go_Rp:SetActive(not (self.SelectedItem.IsEquiped))
+    self.go_Unequip:SetActive(self.SelectedItem.IsEquiped)
+    self.go_LvUp:SetActive(not (self.SelectedItem.IsMaxLv))
+
+    self:CleanAllSelected()
+    bitem:MakeSelected(true)
+
+    -- 设置道具Tips
+    -- LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",{ bitem.BaseID,true,bitem.EntityID,self.tips_anchor,0,self.partnerEquipWidget:GetSelectPartner().Index,self.partnerEquipWidget:GetSelectPartner().ID,self.partnerEquipWidget:GetSelectPartner().Level});
+end
+
+-- 刷新装备列表
+function EmblemMenuCombine:RefeshItems()
+    self:SortItem(self.ItemDataList)
+    self.EmblemItemFullScorllView:ContinueScroll(#self.ItemDataList, false)
+end
+
+function EmblemMenuCombine:OnMessage()
+    print(on)
+    CS.SGF.Network.MsgRetManager.Instance:OnMessageEnum(self.message1, CS.MsgIDEnum.HeraldryWearReqID)
+    CS.SGF.Network.MsgRetManager.Instance:OnMessageEnum(self.message2, CS.MsgIDEnum.HeraldryTakeOffReqID)
+end
+
+function EmblemMenuCombine:OffMessage()
+    print(off)
+    CS.SGF.Network.MsgRetManager.Instance:OffMessageEnum(self.message1, CS.MsgIDEnum.HeraldryWearReqID)
+    CS.SGF.Network.MsgRetManager.Instance:OffMessageEnum(self.message2, CS.MsgIDEnum.HeraldryTakeOffReqID)
+end
+
+function EmblemMenuCombine:Show(b, idx, slotIdx, slotIndex, isJumpFromDefAmulet)
+    self.gameObject:SetActive(b)
+    self.go_backMenu:SetActive(b)
+    self.EmblemMenu:ChangeInfoPos(b)
+    if b then
+        self.go_Rp:SetActive(false)
+        self.go_Unequip:SetActive(false)
+        self.go_LvUp:SetActive(false)
+
+        local data = BusinessManager.Instance:GetHeroEquipedAmulet(idx)
+        self.AmuletData = data
+        if data == nil then
+            self:Show(false)
+        else
+            self.Idx = idx
+            self.SlotIndex = slotIndex
+            self.SlotIdx = slotIdx
+            self.EntityID = data.EntityID
+
+            self:Refesh()
+
+            self.IsJumpFromDefAmulet = isJumpFromDefAmulet
+            -- 选中默认的
+            if self.go_EquipedEmblemItemFull.activeSelf then
+                self.EquipedEmblemItemFull:OnItemClick()
+            else
+                --判断是否有显示的
+                -- 选中第一个
+                if #self.EmblemItemFullItemList > 0 then
+                    if self.EmblemItemFullItemList[1].gameObject.activeSelf then
+                        self.EmblemItemFullItemList[1]:OnItemClick()
+                    end
+                end
+            end
+        end
+    else
+        self.AmuletData = nil
+    end
+end
+
+function EmblemMenuCombine:Refesh()
+    if self.AmuletData == nil then
+        do
+            return
+        end
+    end
+
+    -- 当前的槽位类型
+    local gemIDNow = self.AmuletData.GemSlots.List[self.SlotIndex - 1].GemID
+    local ResonanceSlotNow = nil
+    local BaseIDNow = nil
+    if gemIDNow ~= nil and gemIDNow ~= 0 then
+        self.go_EquipedEmblemItemFull:SetActive(true)
+        self.go_EquipedEmblemItemFullNull:SetActive(false)
+        local data = BusinessManager.Instance:GetItemByItemEntityId(gemIDNow)
+        self.EquipedEmblemItemFull:SetItem(data, self.EmblemMenu.EmblemMenuInfo.SelectedSlotIdx)
+
+        BaseIDNow = data.BaseID
+        ResonanceSlotNow = ConfigDataAccessor.HeraldryEquip[data.BaseID].ResonanceSlot -- 当前装备的类型
+    else
+        self.go_EquipedEmblemItemFull:SetActive(false)
+        self.go_EquipedEmblemItemFullNull:SetActive(true)
+    end
+
+    -- 刷新当前装备的
+
+    -- 拿到所有的宝石
+    self.allitems = BusinessManager.Instance:GetItemsByItemType(6, 0)
+    self:ClearItemData()
+
+    for i = 0, self.allitems.Count - 1 do
+        local baseID = self.allitems[i].BaseID
+        local itemCfg = ConfigDataAccessor.Item[baseID]
+        local heraldryEquipCfg = ConfigDataAccessor.HeraldryEquip[baseID]
+
+        -- 大类型相同
+        if self.Idx == heraldryEquipCfg.AmuletType then
+            -- 如果是已经装备的类型就不显示（但是要排除和当前选中的类型）
+            if not (self:CheckTypeIsEquiped(heraldryEquipCfg.ResonanceSlot)) or (heraldryEquipCfg.ResonanceSlot == ResonanceSlotNow and baseID ~= BaseIDNow) then
+                local data = {}
+                data.EntityID = self.allitems[i].EntityID
+                data.BaseID = self.allitems[i].BaseID
+                data.Num = self.allitems[i].Num
+                data.IsNew = self.allitems[i].IsNew
+                data.IsSelected = false
+
+                local cfg = ConfigDataAccessor.Item[self.allitems[i].BaseID]
+                data.SortProp = cfg.SortProp
+                data.ItemType = cfg.ItemType
+
+                local heraldryEquipCfg = ConfigDataAccessor.HeraldryEquip[self.allitems[i].BaseID]
+                data.HeraldryLevel = heraldryEquipCfg.HeraldryLevel
+
+                if heraldryEquipCfg.ResonanceSlot == self.SlotIdx then
+                    data.CanResonanceSlot = 1
+                else
+                    data.CanResonanceSlot = 0
+                end
+
+                table.insert(self.ItemDataList, data)
+            end
+        end
+    end
+
+    self:RefeshItems()
+end
+
+function EmblemMenuCombine:CheckTypeIsEquiped(type)
+    local gemSlots = self.AmuletData.GemSlots
+    -- 查看宝石
+    for i = 0, gemSlots.List.Count - 1 do
+        -- 刷新宝石槽位颜色
+        local gemID = gemSlots.List[i].GemID
+        if gemID ~= nil and gemID ~= 0 then
+            local itemData = BusinessManager.Instance:GetItemByItemEntityId(gemID)
+            local heraldryEquipCfg = ConfigDataAccessor.HeraldryEquip[itemData.BaseID]
+
+            if heraldryEquipCfg.ResonanceSlot == type then
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
+function EmblemMenuCombine:SortItem(tbl)
+    if #tbl > 1 then
+        table.sort(
+            tbl,
+            function(a, b)
+                -- 等级降序
+                if a.HeraldryLevel > b.HeraldryLevel then
+                    return true
+                elseif a.HeraldryLevel == b.HeraldryLevel then
+                    -- 可共鸣优先
+                    if a.CanResonanceSlot > b.CanResonanceSlot then
+                        return true
+                    elseif a.CanResonanceSlot == b.CanResonanceSlot then
+                        if a.SortProp < b.SortProp then
+                            -- 按SortProp升序
+                            return true
+                        elseif a.SortProp == b.SortProp then
+                            -- 如果SortProp相等，按Type升序
+                            if a.ItemType < b.ItemType then
+                                return true
+                            elseif a.ItemType == b.ItemType then
+                                -- 如果Type相等，按Id升序
+                                return a.BaseID < b.BaseID
+                            end
+                        end
+                    end
+                end
+                return false
+            end
+        )
+    end
+end
+
+return EmblemMenuCombine

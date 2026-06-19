@@ -1,0 +1,59 @@
+PvpEntryWindow = class("PvpEntryWindow", UIPanel)
+
+function PvpEntryWindow:Awake()
+
+end
+
+function PvpEntryWindow:BindModule(m)
+	PvpEntryWindow.module = m;
+end
+
+function PvpEntryWindow:InitControls()
+	self.transform = self.prefab.transform;
+	self.gameObject = self.transform.gameObject;
+
+    local enterBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Enter"):GetComponent(typeof(Button));
+    enterBtn.onClick:AddListener(function()
+        -- local dailyInstanceEnterReq = CS.ProtoMsg.DailyInstanceEnterReq();
+        -- dailyInstanceEnterReq.DailyInstanceGroup = self.curSel.ID;
+        -- dailyInstanceEnterReq.Difficulty = self.curDif;
+        -- CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+        --     dailyInstanceEnterReq, false);
+    end);
+
+end
+
+function PvpEntryWindow:OnShow()
+end
+
+function PvpEntryWindow:Start()
+
+end
+
+function PvpEntryWindow:OnEnable()
+
+end
+
+function PvpEntryWindow:OnDisable()
+
+end
+
+function PvpEntryWindow:OnDestroy()
+
+end
+
+function PvpEntryWindow:OnOpen(arg)
+	self.IsOpen = true;
+end
+
+function PvpEntryWindow:OnClose(arg)
+	self:CloseWindow();
+    self.module.pvpEntryWindow=nil;
+end
+
+function PvpEntryWindow:CloseWindow()
+	self.IsOpen = false;
+    self.module.pvpEntryWindow=nil;
+end
+
+return PvpEntryWindow

@@ -1,0 +1,647 @@
+DrawCardModule = class("DrawCardModule", BaseLuaModule)
+
+local DrawCardDetail = require("View/UIWindow/DrawCard/DrawCardDetail")
+local TenTimesWindow = require("View/UIWindow/DrawCard/TenTimesWindow")
+
+local TenTimesItems = require("View/UIWindow/DrawCard/TenTimesItems")
+
+local DrawCardWindowPath = "DrawCard/Prefab/DrawCardWindow"
+local DetailInfoWindowPath = "DrawCard/Prefab/DrawCardDetail"
+local TeamWindowPath = "DrawCard/Prefab/TenTimesWindow"
+
+DrawCardModule.ModuleMessages = {
+    ["OnOpenDrawCard"] = function(...)
+        DrawCardModule:OnOpenDrawCard(...);
+    end,
+    ["OnOpenDetailInfoWindow"] = function(...)
+        DrawCardModule:OnOpenDetailInfoWindow(...);
+    end,
+    ["OnOpenTenTimesWindow"] = function(...)
+        DrawCardModule:OnOpenTenTimesWindow(...);
+    end,
+    ["CloseTenTimesWindow"] = function(...)
+        DrawCardModule:CloseTenTimesWindow(...);
+    end,
+    ["ResetTips"] = function(...)
+        DrawCardModule:ResetTips(...);
+    end
+}
+
+function DrawCardModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...);
+end
+
+function DrawCardModule:OnOpenDrawCard(...)
+    -- local drawCardWindowCS = UIManager.Instance:OpenWindow(DrawCardWindowPath, nil,
+    --     CS.StarProjectDef.MainPageCommond.HideBoth, false);
+    -- if self.drawCardWindow == nil then
+    --     self.drawCardWindow = drawCardWindowCS:GetLuaPanel().ScriptTable;
+    --     self.drawCardWindow:BindModule(self);
+    --     self.drawCardWindow:InitControls();
+    -- end
+    -- self:OnDrawCardInfos();
+    -- self.drawCardWindow:RefreshCoin();
+    -- self.drawCardWindow:RefreshBtns();
+    local tb = ...
+    self.AsyncLoadDrawCardWindowCb = function(ui)
+        if ui ~= nil then
+            if self.drawCardWindow == nil then
+                self.drawCardWindow = ui:GetLuaPanel().ScriptTable;
+                self.drawCardWindow:BindModule(self);
+                self.drawCardWindow:InitControls();
+            end
+        end
+        if tb.useold == nil then 
+            self.drawCardWindow.curId = nil
+        end
+        self:OnDrawCardInfos();
+        self.drawCardWindow:RefreshCoin();
+        self.drawCardWindow:RefreshBtns();
+        self.AsyncLoadDrawCardWindowCb = nil;
+    end
+    UIManager.Instance:OpenWindowAsync(DrawCardWindowPath, self.AsyncLoadDrawCardWindowCb, nil,
+        CS.StarProjectDef.MainPageCommond.HideBoth, false);
+end
+
+function DrawCardModule:OnOpenDrawCardDetail(data, index)
+    MutiScenesMergeManager.Instance:LoadCardScene(19, function()
+        -- if self.drawCardDetailWindow == nil then
+        --     self.drawCardDetailWindow = DrawCardDetail:New(DrawCardUI.Instance.detailGo);
+        --     self.drawCardDetailWindow:BindModule(self);
+        -- end
+        -- DrawCardUI.Instance:ShowDrawCardDetail();
+        -- self.drawCardDetailWindow:Init(data, index);
+        -- DrawCardUI.Instance:ShowTenTimes(true);
+        DrawCardUI.Instance.tenTimesCardsGo:SetActive(false);
+        UIManager.Instance:CloseAllLoadedWindowNWidget();
+        local drawCardDetailWindowCS = UIManager.Instance:OpenWindow(DetailInfoWindowPath, nil,
+            CS.StarProjectDef.MainPageCommond.HideBoth);
+        if self.drawCardDetailWindow == nil then
+            self.drawCardDetailWindow = drawCardDetailWindowCS:GetLuaPanel().ScriptTable;
+            self.drawCardDetailWindow:BindModule(self);
+            self.drawCardDetailWindow:InitControls();
+        end
+        self.drawCardDetailWindow:Init(data, index);
+		self.drawCardDetailWindow.gameObject:SetActive(false);
+        DrawCardUI.Instance:PlayTimeline(function()
+			if self.drawCardWindow then
+				self.drawCardWindow.startdraw = false
+			end
+			
+			if self.drawCardDetailWindow:GetCurLv() >= 3 then 
+                local showobj = ""
+                if self.drawCardDetailWindow.curlv == 3 then 
+                    showobj = "effects/ui/drawcard/DrawcardGoldenPurple" 
+                elseif self.drawCardDetailWindow.curlv == 4 then 
+                    showobj = "effects/ui/drawcard/DrawcardGoldenGolden"
+                end
+				self.go_perfab1=ResourceManager.Instance:LoadGameObject(showobj);
+				self.go_perfab1.transform:SetParent(self.drawCardDetailWindow.AssemblyRatio,false);
+				self.go_perfab1:SetActive(true);
+				self.drawCardDetailWindow.gameObject:SetActive(true);
+				self.drawCardDetailWindow:HideWindow()
+				DelayInvoker.DelayInvoke(self, 3.2, function() 
+					GameObject.Destroy(self.go_perfab1)
+                    self.go_perfab1 = nil
+					--self.drawCardDetailWindow.gameObject:SetActive(true);
+					self.drawCardDetailWindow:ShowWindow()
+					self.drawCardDetailWindow:ShowModel();
+				end);
+			else
+				self.drawCardDetailWindow.gameObject:SetActive(true);
+				self.drawCardDetailWindow:ShowModel();		
+			end			
+        end);
+    end);
+end
+
+function DrawCardModule:OnOpenTenTimesWindow(...)
+    local tenTimesWindowCS = UIManager.Instance:OpenWindow(TeamWindowPath, nil,
+        CS.StarProjectDef.MainPageCommond.HideBoth);
+    if self.tenTimesWindow == nil then
+        self.tenTimesWindow = tenTimesWindowCS:GetLuaPanel().ScriptTable;
+        self.tenTimesWindow:BindModule(self);
+        self.tenTimesWindow:InitControls();
+    end
+    local data = ...;
+    self.tenTimesWindow:Init(data[1]);
+
+   --  DrawCardUI.Instance:ShowTenTimesWindow();
+    -- if self.tenTimesWindow == nil then
+    --     self.tenTimesWindow = TenTimesWindow:New(DrawCardUI.Instance.tentimesGo);
+    --     self.tenTimesWindow:BindModule(self);
+    -- end
+    -- local data = ...;
+    -- self.tenTimesWindow:Init(data[1]);
+
+    -- 显示3d场景里面的10连抽
+    -- if self.tenTimesItems == nil then
+    self.tenTimesItems = TenTimesItems:New(DrawCardUI.Instance.tenTimesCardsGo);
+    -- end
+    self.tenTimesItems:Init(data[1]);
+    self.tenTimesItems:Show(true);
+
+    DrawCardUI.Instance:ShowTenTimes(true);
+end
+
+function DrawCardModule:CloseTenTimesWindow()
+    if DrawCardUI.Instance then 
+        DrawCardUI.Instance.tenTimesCardsGo:SetActive(false);
+    end
+end
+
+function DrawCardModule:OnOpenDetailInfoWindow(...)
+    local data = ...;
+    -- local detailInfoWindowCS = UIManager.Instance:OpenWindow(DetailInfoWindowPath, nil,
+    --     CS.StarProjectDef.MainPageCommond.HideBoth, true);
+    -- if self.detailInfoWindow == nil then
+    --     self.detailInfoWindow = detailInfoWindowCS:GetLuaPanel().ScriptTable;
+    --     self.detailInfoWindow:BindModule(self);
+    --     self.detailInfoWindow:InitControls();
+    -- end
+    -- self.detailInfoWindow:Init(data[1]);
+
+    self.AsyncLoadDetailInfoWindowCb = function(ui)
+        if ui ~= nil then
+            if self.detailInfoWindow == nil then
+                self.detailInfoWindow = ui:GetLuaPanel().ScriptTable;
+                self.detailInfoWindow:BindModule(self);
+                self.detailInfoWindow:InitControls();
+            end
+            self.detailInfoWindow:Init(data[1]);
+        end
+        self.AsyncLoadDetailInfoWindowCb = nil;
+    end
+    UIManager.Instance:OpenWindowAsync("DrawCard/Prefab/DetailInfoWindow", self.AsyncLoadDetailInfoWindowCb, nil,
+        CS.StarProjectDef.MainPageCommond.HideBoth, true);
+end
+
+function DrawCardModule:OnModuleCreate(...)
+    LuaModuleDispatcher:Register(ModuleDef.DrawCardModule, self)
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.GachaRetID, function(data)
+        self:OnGachaRet(data)
+    end, nil);
+
+    -- NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.LotteryCardListRespID, function(data)
+    --     self:OnLotteryCardListResp(data)
+    -- end, nil);
+    -- self.OnClient2ThirdRetCmd = function (msgName, data)
+    -- 	self:OnClient2ThirdRet(msgName, data)
+    -- end
+    -- Client2ThirdMsgManager.Instance:OnMessageEnum(CS.MsgIDEnum.Client2ThirdRetID,
+    --     self.OnClient2ThirdRetCmd, self);
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.GetCardLogRetID, function(data)
+        self:OnGetCardLogRet(data)
+    end, nil);
+
+    -- NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.GachaSRListID, function(data)
+    --     self:OnGachaRet(data)
+    -- end, nil);
+
+    -- NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.GachaSSRListID, function(data)
+    --     self:OnGachaRet(data)
+    -- end, nil);
+
+    FixMessageManager.Instance:OnMessage(FixUpdateDef.Gacha, function(data)
+        self:OnDrawCardInfos(data)
+    end, nil);
+
+    self.lastId = 0;
+
+    CS.StarProject.GlobalEvent.OnBackLogin:AddListener(function(againLoginType)
+        self.tenTimesWindow = nil;
+        self.drawCardDetailWindow = nil;
+    end)
+
+    FixMessageManager.Instance:OnMessage(FixUpdateDef.ComCount, function(data)
+        self:OnAllComCountInfos(data)
+    end, nil);
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.CurrencyExchangeRetID, function(data)
+        self:OnCurrencyExchangeRet(data)
+    end, nil);
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.ShopBuyRetID, function(data)
+        self:OnShopBuyRet(data)
+    end, nil);
+end
+
+function DrawCardModule:OnAllComCountInfos(data)
+    for i = 0, data.Changes.Count - 1 do
+        if data.Changes[i].BaseId == 19 then
+            if self.drawCardWindow ~= nil then
+                self.drawCardWindow:RefreshBtns();
+            end
+
+            if self.tenTimesWindow ~= nil then
+                self.tenTimesWindow:SetTenTimesBtn();
+            end
+        end
+    end
+end
+
+function DrawCardModule:OnDrawCardInfos(data)
+    local gachaMD = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.Gacha):GetGachaMD();
+
+    self.gacheLimit = {};
+    if gachaMD ~= nil then
+        if gachaMD.Forever ~= nil then
+            self:SetSsrLeftTimes(gachaMD.Forever);
+        end
+        if gachaMD.Activity ~= nil then
+            self:SetSsrLeftTimes(gachaMD.Activity);
+        end
+        if gachaMD.Newbie ~= nil then
+            self:SetSsrLeftTimes(gachaMD.Newbie);
+        end
+        -- if gachaMD.Friend ~= nil then
+        --     self:SetSsrLeftTimes(gachaMD.Forever.PoolType, gachaMD.Forever.NoSSR);
+        -- end
+
+        self:RefreshSsrLeftTimes(gachaMD);
+    end
+end
+
+function DrawCardModule:SetSsrLeftTimes(gachaMD)
+    local t = self:ConvertEnumToNum(gachaMD.PoolType);
+    local ssrTimes = gachaMD.NoSSR;
+
+    if gachaMD ~= nil then
+        self.timesLimit = gachaMD.DataList;
+    end
+
+    local cardPool = ConfigDataAccessor.CardPool;
+    for _, v in pairs(cardPool) do
+        if v.GachaTimesLimits > 0 then
+            if gachaMD.DataList.Count == 0 then
+                if v.CardPoolType == t then
+                    if self.drawCardWindow ~= nil then
+                        self.drawCardWindow:RefreshLimitTimes(v.ID, 0, v.GachaTimesLimits);
+                    end
+                end
+            else
+                for i = 0, gachaMD.DataList.Count - 1 do
+                    if gachaMD.DataList[i].PoolID == v.ID then
+                        if self.drawCardWindow ~= nil then
+                            self.drawCardWindow:RefreshLimitTimes(gachaMD.DataList[i].PoolID,
+                                gachaMD.DataList[i].History, v.GachaTimesLimits);
+
+                            if gachaMD.DataList[i].History >= v.GachaTimesLimits then
+                                table.insert(self.gacheLimit, gachaMD.DataList[i].PoolID);
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if self.tenTimesWindow ~= nil then
+        self.tenTimesWindow:SetTenTimesBtn();
+    end
+end
+
+function DrawCardModule:RefreshSsrLeftTimes(gachaMD)
+    local tb = {};
+    table.insert(tb, gachaMD.Forever);
+    table.insert(tb, gachaMD.Activity);
+    table.insert(tb, gachaMD.Newbie);
+
+    local cardPool = ConfigDataAccessor.CardPool;
+    for _, item in pairs(tb) do
+        local t = self:ConvertEnumToNum(item.PoolType);
+        local ssrTimes = item.NoSSR;
+        for _, v in pairs(cardPool) do
+            if v.CardPoolType == t then
+                local leftTimes = ConfigDataAccessor.Probability[v.UseProbGroup].ForceSSRTimes - ssrTimes;
+                if self.drawCardWindow ~= nil then
+                    self.drawCardWindow:RefreshSsrTimes(v.ID, leftTimes,
+                        ConfigDataAccessor.Probability[v.UseProbGroup].ForceSSRTimes);
+                end
+            end
+        end
+    end
+end
+
+function DrawCardModule:ConvertEnumToNum(poolType)
+    if poolType == CS.ProtoMsg.CardPool.CpForever then
+        return 1;
+    elseif poolType == CS.ProtoMsg.CardPool.CpActivity then
+        return 2;
+    elseif poolType == CS.ProtoMsg.CardPool.CpNewbie then
+        return 3;
+    elseif poolType == CS.ProtoMsg.CardPool.CpFriend then
+        return 4;
+    end
+
+    return 1;
+end
+
+function DrawCardModule:OnGachaRet(data)
+    if data == nil or data.data == nil then
+        return;
+    end
+
+    local gachas = data.data.GachaResult;
+    local msgList = {}
+    for i = 1,gachas.Count do 
+        local curData = gachas[i-1];
+
+        local originDrop = curData.OriginDrop;
+        
+        local finalDrop = originDrop;
+        if curData.FinalDrop.Count > 0 then
+            finalDrop = curData.FinalDrop[0];
+        end
+        local itemData = ConfigDataAccessor.Item[originDrop.Index];
+        if itemData == nil then
+            return;
+        end
+        --提交列表
+        local str = itemData.Name;
+        local nameStr =str:sub(1, 3)..str:sub(4, string.len(str))
+        local partnerData = ConfigDataAccessor.Partner[originDrop.Index];
+        local lv = partnerData.Quality;
+
+        local chatMsgNotice = CS.ProtoMsg.ChatMsgNotice()
+        chatMsgNotice.EID = 0
+        chatMsgNotice.PID = 0
+        local strLanVal = LanguageHelp:GetLanguageByKey("Local_Str_Tips_GetReward")
+        local strContentVal = GetQualityColor(lv) .. nameStr .. "</color>x" .. 1
+        chatMsgNotice.Data = StringFormat(strLanVal, {strContentVal})
+        chatMsgNotice.Channel = CS.ProtoMsg.ChatChannel.ChannelSystem
+        chatMsgNotice.ChatTime = TimeUtils.ServerNowStampMilli
+        chatMsgNotice.ChatLevel = 1
+        chatMsgNotice.JobID = GameManager.Instance:GetPlayerJob()
+        table.insert(msgList, chatMsgNotice)
+    end
+    LuaModuleDispatcher:SendMessage(ModuleDef.ChatModule, "OnAnalogReceptionChatMsg", {msgList})
+    -- 刷新货币
+    if self.drawCardWindow ~= nil then
+        self.drawCardWindow:RefreshCoin();
+    end
+
+    self:OnOpenDrawCardDetail(data.data, 0);
+
+    local info = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.ComCount):GetData(19);
+    if info ~= nil then
+        -- Util.ShowMessage(string.format(ConfigDataAccessor.CRetMsgList[56].Note, info.RemainCount, info.AddCount));
+
+        -- Util.ShowMessage(string.format("启梦%d次，今日剩余启梦次数%d次", info.AddCount-info.RemainCount, info.RemainCount));
+        Util.ShowMessage(StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_235"),
+            {info.AddCount - info.RemainCount, info.RemainCount}))
+    end
+
+    -- 显示toast “启梦X次，今日剩余启梦次数XX次”
+
+    -- else
+    --     -- 十连抽
+    -- 	self:OnOpenDrawCardDetail(data.data, 0);
+    --     --self:OnOpenTenTimesWindow(data.data);
+    -- end
+
+end
+
+function DrawCardModule:RequestCardList(page, cpt)
+    -- local lotteryCardListReq = CS.ProtoMsg.LotteryCardListReq();
+    -- lotteryCardListReq.UserPID = BusinessManager.Instance:GetUserPID();
+    -- lotteryCardListReq.PoolType = cpt;
+    -- local requestPagination = CS.ProtoMsg.RequestPagination();
+    -- requestPagination.PageNumber = page;
+    -- requestPagination.PageSize = 10;
+    -- lotteryCardListReq.Page = requestPagination;
+
+    -- self:SendClient2ThirdReq("LotteryCardListReq", ExtraData.ToByteString(lotteryCardListReq));
+
+    local getCardLogReq = CS.ProtoMsg.GetCardLogReq();
+    getCardLogReq.PoolType = cpt;
+    getCardLogReq.PageNumber = page;
+    getCardLogReq.PageSize = 10;
+    SendClient2CenterReq(getCardLogReq);
+end
+
+function DrawCardModule:SendClient2ThirdReq(msgName, data)
+    local battleSocket = NetworkManager.Instance.gameSocket;
+    if battleSocket == nil then
+        Log("DrawCardModule:OnClient2ThirdReq() battleSocket=nil err!!!!");
+        return;
+    end
+    local message = CS.ProtoMsg.Client2ThirdReq();
+    message.MsgName = msgName;
+    message.MsgData = data;
+    battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message, false);
+end
+
+function DrawCardModule:OnGetCardLogRet(data)
+    if data == nil or data.data == nil then
+        return;
+    end
+
+    if self.detailInfoWindow ~= nil then
+        self.detailInfoWindow:SetRecords(data.data);
+    end
+end
+
+function DrawCardModule:OnLotteryCardListResp(data)
+    if data == nil then
+        return;
+    end
+
+    if self.detailInfoWindow ~= nil then
+        self.detailInfoWindow:SetRecords(data);
+    end
+end
+
+-- LuaModule 释放
+function DrawCardModule:OnModuleRelease()
+    -- Client2ThirdMsgManager.Instance:OffMessageEnum(CS.MsgIDEnum.Client2ThirdRetID,
+    --     self.OnClient2ThirdRetCmd, nil);
+end
+
+-- function DrawCardModule:OnClient2ThirdRet(msgName, data)
+-- 	if msgName == "LotteryCardListResp" then
+-- 		self:OnLotteryCardListResp(data);
+-- 	end
+-- end
+
+function DrawCardModule:ResetTips()
+    local itemTipsModule = ModuleManager.Instance:GetModule(ModuleDef.ItemTipsModule);
+    local tipsWidgetView = itemTipsModule:GetLuaTable().tipsWidgetView;
+
+    -- local can = tipsWidgetView.transform:GetComponent(typeof(Canvas));
+    -- can.enabled = false;
+    -- local gr = tipsWidgetView.transform:GetComponent(typeof(GraphicRaycaster));
+    -- gr.enabled = false;
+    if tipsWidgetView == nil then
+        return;
+    end
+    tipsWidgetView.transform.parent = UIRoot.UiTopWidgetRoot.transform;
+    tipsWidgetView.transform.localScale = Vector3.one;
+    tipsWidgetView.transform.localPosition = Vector3.zero;
+    tipsWidgetView.transform.localRotation = Quaternion.Euler(Vector3(0, 0, 0))
+end
+
+function DrawCardModule:RedPoint()
+    local coinNum = 0;
+    if BusinessManager.Instance:GetItemByItemBaseId(104001) ~= nil then
+        coinNum = BusinessManager.Instance:GetItemByItemBaseId(104001).Num;
+    end
+
+    local remainCount = 0;
+    local info = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.ComCount):GetData(19);
+    if info ~= nil then
+        remainCount = info.RemainCount;
+    end
+
+    local lv = GameManager.Instance:GetPlayerLevel();
+    local cardPool = ConfigDataAccessor.CardPool;
+    for k, v in pairs(cardPool) do
+        local skip = GameManager.Instance:IsConditionMete(v.DisplayCondition);
+        skip = skip and not self:IsTimesLimit(v.ID);
+        local isRedPoint = false;
+        if skip then
+            local costNum = 10;
+            if v.SaleRaito > 0 then
+                costNum = v.SaleRaito / 1000;
+            end
+            local gachaRedDot = ConfigDataAccessor.GachaRedDot;
+            if gachaRedDot[k] ~= nil then
+                if gachaRedDot[k].BehaviorType == 1 then
+                    if coinNum >= 1 and remainCount >= 1 then
+                        isRedPoint = true;
+                    end
+                elseif gachaRedDot[k].BehaviorType == 2 then
+                    if coinNum >= costNum and remainCount >= 10 then
+                        isRedPoint = true;
+                    end
+                else
+                    if (coinNum >= 1 or coinNum >= costNum) and remainCount >= 1 then
+                        isRedPoint = true;
+                    end
+                end
+            end
+        end
+
+        local conditionType = nil;
+        if k == 1 then
+            conditionType = RedPointConditionType.Gacha1;
+        elseif k == 2 then
+            conditionType = RedPointConditionType.Gacha2;
+        elseif k == 3 then
+            conditionType = RedPointConditionType.Gacha3;
+        else
+            conditionType = RedPointConditionType.Gacha4;
+        end
+        if conditionType ~= nil then
+            RedPointManager.Instance:TriggerConditionTypeBoolValue(conditionType, isRedPoint);
+        end
+    end
+
+    -- for k,v in pairs(self.cardPool) do
+    --     local costNum = 10;
+    --     if cardPool[k].SaleRaito > 0 then
+    --         costNum = cardPool[k].SaleRaito / 1000;
+    --     end
+
+    --     local gachaRedDot = ConfigDataAccessor.GachaRedDot;
+    --     if gachaRedDot[k] == nil then
+    --         v:SetActive(false);
+    --     else
+    --         if gachaRedDot[k].BehaviorType == 1 then
+    --             v:SetActive(coinNum >= 1 and remainCount>=1);
+    --             if k == self.curId then
+    --                 self.singleTimeRedPoint:SetActive(coinNum >= 1 and remainCount>=1);
+    --             end
+    --         elseif gachaRedDot[k].BehaviorType == 2 then
+    --             v:SetActive(coinNum >= costNum and remainCount>=10);
+    --             if k == self.curId then
+    --                 self.tenTimeRedPoint:SetActive(coinNum >= costNum and remainCount>=10);
+    --             end
+    --         else
+    --             v:SetActive((coinNum >= 1 or coinNum >= costNum) and remainCount>=1);
+    --             if k == self.curId then
+    --                 self.singleTimeRedPoint:SetActive(coinNum >= 1 and remainCount>=1);
+    --                 self.tenTimeRedPoint:SetActive(coinNum >= costNum and remainCount>=10);
+    --             end
+    --         end
+    --     end
+    -- end
+end
+
+function DrawCardModule:IsTimesLimit(id)
+    if self.timesLimit == nil then
+        return false;
+    end
+
+    local data = self.timesLimit;
+    local v = ConfigDataAccessor.CardPool[id];
+    if v.GachaTimesLimits > 0 then
+        if data.Count == 0 then
+            return false;
+        else
+            for i = 0, data.Count - 1 do
+                if data[i].PoolID == id then
+                    return data[i].History >= v.GachaTimesLimits;
+                end
+            end
+        end
+    end
+    return false;
+end
+
+function DrawCardModule:OnCurrencyExchangeRet(data)
+    if data == nil then
+        return;
+    end
+
+    local useCoin = nil;
+    for _, v in pairs(ConfigDataAccessor.CardPool) do
+        if useCoin == nil then
+            useCoin = v.UseToken;
+            break
+        end
+    end
+
+    -- 货币兑换成功，直接购买
+    local goodId = ConfigDataAccessor.SystemList[215].Value;
+    local goodData = ConfigDataAccessor.Goods[goodId];
+    local id = goodData.Price[1]; -- 绑钻
+    local changeRate = goodData.Price[2]; -- 汇率
+    self:SendShopBuyReq(goodData.Sub_shopid, goodId, data.data.Num / changeRate);
+end
+
+function DrawCardModule:SendShopBuyReq(shopID, goodID, goodNum)
+    local shopBuyReq = CS.ProtoMsg.ShopBuyReq();
+    shopBuyReq.ShopID = shopID; -- 商店ID
+    shopBuyReq.GoodID = goodID; -- 商品ID
+    shopBuyReq.GoodNum = goodNum; -- 商品数量
+
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, shopBuyReq,
+        false);
+end
+
+function DrawCardModule:OnShopBuyRet(data)
+    -- 检测抽卡界面是否打开
+    if self.drawCardWindow ~= nil and self.drawCardWindow.IsOpen then
+        if self.dcType == 10 then
+            self.drawCardWindow:TenDC();
+        else
+            self.drawCardWindow:SingleDC();
+        end
+    elseif self.drawCardWindow ~= nil then 
+        self.drawCardWindow:RefreshBtns()
+    end
+end
+
+-- LuaModule显示
+function DrawCardModule:OnModuleShow(arg)
+    self:OnOpenDrawCard(arg);
+end
+
+function DrawCardModule:OnModuleHide(arg)
+
+end
+
+return DrawCardModule

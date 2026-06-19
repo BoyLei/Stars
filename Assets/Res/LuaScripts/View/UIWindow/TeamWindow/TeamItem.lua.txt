@@ -1,0 +1,221 @@
+local TeamItem = {}
+
+TeamItem.__index = TeamItem
+
+function TeamItem:New(go, data, cb)
+    local self = {};
+    setmetatable(self, TeamItem);
+
+    self.transform = go.transform;
+    self.gameObject = go;
+
+    self.jobBG = self.transform:Find("JobBg"):GetComponent(typeof(Image));
+    self.jobIcon = self.transform:Find("JobBg/JobIcon"):GetComponent(typeof(Image));
+
+    self.nameText = self.transform:Find("Name"):GetComponent(typeof(Text));
+    self.levelText = self.transform:Find("Level"):GetComponent(typeof(Text));
+    self.proImg = self.transform:Find("Pro/Pro"):GetComponent(typeof(Image));
+    self.capImg = self.transform:Find("Captain"):GetComponent(typeof(Image));
+
+    self.CaptainGod = self.transform:Find("Captain").gameObject;
+
+    self.itemBtn = self.transform:GetComponent(typeof(JButton));
+    self.itemBtn.OnClick = (function()
+        --[[local isSelf = self.eid == GameManager.Instance.mainPlayerId;
+        if isSelf then
+            return;
+        end]] --
+
+        cb(data);
+    end);
+
+    self:Init(data);
+
+    local ectr = GameManager.Instance:GetEntityCtr(data.Eid);
+    self.isBind = false;
+    if ectr ~= nil then
+        self.isBind = true;
+        self.M_EntityBase = ectr.M_Curr;
+        self.attrLuaKey = "PlayerInfoWidget_" .. self.M_EntityBase.EntityId;
+        self.AoicurHpFun = function(key, value)
+            self:SetHp(value);
+        end
+        self.AoiTruthHpFun = function(key, value)
+            self:UpdateTruthHp(value);
+        end
+        self.AoiPlayerLevelFun = function(key, value)
+            self:SetLevel(value);
+        end
+        self.M_EntityBase.Data:AddAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.curHp, self.attrLuaKey,
+            self.AoicurHpFun);
+        self.M_EntityBase.Data:AddAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.TruthHp, self.attrLuaKey,
+            self.AoiTruthHpFun);
+        self.M_EntityBase.Data:AddAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.PlayerLevel, self.attrLuaKey,
+            self.AoiPlayerLevelFun);
+
+        self.m_HPSum = self.M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Long,
+            CS.StarProjectDef.AOIAttrDefine.TruthHp);
+        self.m_HPCur = self.M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Long,
+            CS.StarProjectDef.AOIAttrDefine.curHp);
+        self:SetHp(self.m_HPCur);
+        self.m_LevelCur = self.M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Int,
+            CS.StarProjectDef.AOIAttrDefine.PlayerLevel);
+        self:SetLevel(self.m_LevelCur);
+    else
+        self.UpdateFun = function()
+            self:UpdateCheck();
+        end
+        MonoHelper.AddSecTimeUpdateListener(self.UpdateFun)
+    end
+
+    return self;
+end
+
+function TeamItem:UpdateCheck()
+    if not self.isBind then
+        local ectr = GameManager.Instance:GetEntityCtr(self.eid);
+        if ectr ~= nil then
+            self.isBind = true;
+            self.M_EntityBase = ectr.M_Curr;
+            self.attrLuaKey = "PlayerInfoWidget_" .. self.M_EntityBase.EntityId;
+            self.AoicurHpFun = function(key, value)
+                self:SetHp(value);
+            end
+            self.AoiTruthHpFun = function(key, value)
+                self:UpdateTruthHp(value);
+            end
+            self.AoiPlayerLevelFun = function(key, value)
+                self:SetLevel(value);
+            end
+            self.M_EntityBase.Data:AddAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.curHp, self.attrLuaKey,
+                self.AoicurHpFun);
+            self.M_EntityBase.Data:AddAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.TruthHp, self.attrLuaKey,
+                self.AoiTruthHpFun);
+            self.M_EntityBase.Data:AddAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.PlayerLevel, self.attrLuaKey,
+                self.AoiPlayerLevelFun);
+
+            self.m_HPSum = self.M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Long,
+                CS.StarProjectDef.AOIAttrDefine.TruthHp);
+            self.m_HPCur = self.M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Long,
+                CS.StarProjectDef.AOIAttrDefine.curHp);
+            self:SetHp(self.m_HPCur);
+            self.m_LevelCur = self.M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Int,
+                CS.StarProjectDef.AOIAttrDefine.PlayerLevel);
+            self:SetLevel(self.m_LevelCur);
+
+            MonoHelper.RemoveSecTimeUpdateListener(self.UpdateFun)
+            self.UpdateFun = nil;
+        end
+    end
+end
+
+function TeamItem:UnBind()
+    if self.UpdateFun ~= nil then
+        MonoHelper.RemoveSecTimeUpdateListener(self.UpdateFun)
+        self.UpdateFun = nil;
+    end
+    if self.M_EntityBase ~= nil and self.M_EntityBase.Data ~= nil then
+        self.M_EntityBase.Data:DelAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.curHp, self.attrLuaKey);
+        self.M_EntityBase.Data:DelAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.TruthHp, self.attrLuaKey);
+        self.M_EntityBase.Data:DelAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.PlayerLevel, self.attrLuaKey);
+    end
+    self.M_EntityBase = nil;
+
+end
+
+function TeamItem:SetHp(value)
+    if self.M_EntityBase == nil or self.M_EntityBase.Data == nil then
+        if self.proImg ~= nil then
+            self.proImg.fillAmount = 1;
+        end
+        return
+    end
+    self.m_HPCur = value;
+    -- if self.m_HPCur > self.m_HPSum then
+    --     self.m_HPSum = self.m_HPCur;
+    -- end
+    local ratio = 0;
+    if self.m_HPSum > 0 then
+        ratio = self.m_HPCur / self.m_HPSum;
+        if ratio > 1 then
+            ratio = 1;
+        end
+    end
+    if self.proImg ~= nil and self.proImg.gameObject ~= nil then
+        self.proImg.fillAmount = ratio;
+    end
+end
+
+function TeamItem:UpdateTruthHp(value)
+    if self.M_EntityBase == nil or self.M_EntityBase.Data == nil then
+        if self.proImg ~= nil then
+            self.proImg.fillAmount = 1;
+        end
+        return
+    end
+    self.m_HPSum = value;
+    -- if self.m_HPCur > self.m_HPSum then
+    --     self.m_HPSum = self.m_HPCur;
+    -- end
+    local ratio = 0;
+    if self.m_HPSum > 0 then
+        ratio = self.m_HPCur / self.m_HPSum;
+        if ratio > 1 then
+            ratio = 1;
+        end
+    end
+
+    if self.proImg ~= nil and self.proImg.gameObject ~= nil then
+        self.proImg.fillAmount = ratio;
+    end
+end
+
+function TeamItem:SetLevel(value)
+    if self.M_EntityBase == nil or self.M_EntityBase.Data == nil then
+        return;
+    end
+
+    --self.levelText.text = value .. "级";
+    self.levelText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {value});
+
+end
+
+function TeamItem:Init(data)
+    local jobDataCell = ConfigDataAccessor.Job[data.JobId];
+    if jobDataCell ~= nil then
+        local avatarDataCell = ConfigDataAccessor.Avatar[jobDataCell.AvatarID];
+        if avatarDataCell ~= nil then
+            local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID];
+            if headCfg ~= nil then
+                if self.jobIcon ~= nil then
+                    -- self.headIcon.sprite = AtlasManager.Instance:GetSprite(headCfg.HeadAtlasName, headCfg.MinHead);
+                    ResourceHelper:LoadIconByAtlasAsync(self.jobIcon, headCfg.HeadAtlasName, headCfg.JobIcon, false)
+                end
+
+                local jobshi = math.floor(data.JobId / 10)
+                if self.jobBG ~= nil then
+                    local jobTypeBgName = "Icon_ArmBg" .. jobshi
+                    ResourceHelper:LoadIconByAtlasAsync(self.jobBG, ResourceHelper.AtlasPathRole, jobTypeBgName, false)
+                end
+            end
+        end
+    end
+
+    --self.levelText.text = data.Level .. "级";
+    self.levelText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {data.Level});
+
+    local name = data.UserName;
+
+    self.nameText.text = name;
+
+    self.isCaptain = data.IsCaptain;
+    self.eid = data.Eid;
+
+    self.capImg.gameObject:SetActive(self.isCaptain); -- 设置队长标识
+
+    if self.proImg ~= nil then
+        self.proImg.fillAmount = 1;
+    end
+end
+
+return TeamItem

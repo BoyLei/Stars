@@ -1,0 +1,87 @@
+--[[
+*文件名   :   ResonateItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local ResonateItem = {}
+
+ResonateItem.__index = ResonateItem
+
+function ResonateItem:New(_go) 
+    local self = {};    
+    setmetatable(self, ResonateItem); 
+    
+
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+    self.root = self.transform:Find("root"):GetComponent(typeof(RectTransform));
+
+    self.Lv=self.transform:Find("root/Btn/tex"):GetComponent(typeof(Text));
+    self.Info=self.transform:Find("t2"):GetComponent(typeof(Text));
+    self.go_Lock=self.transform:Find("root/lock").gameObject;
+    self.go_Fire=self.transform:Find("root/fire").gameObject;
+
+    self.isSelected=false;
+
+
+    return self;    --返回自身
+end
+
+--初始化Item
+function ResonateItem:InitItem(onItemClick)
+
+    self:SetUse(false);
+
+    --点击事件
+	local btnClick=self.transform:GetComponent(typeof(JButton));
+	btnClick.OnClick =(function() 
+        if onItemClick ~= nil then
+		    onItemClick(self); 
+        end
+	end);
+
+end
+
+function ResonateItem:SetUse(b)
+    self.IsUsed=b;
+    self.gameObject:SetActive(b);
+    self:MakeSelected(false);
+end
+
+function ResonateItem:SetItem(lv,esr,isLock)
+    self:SetUse(true);
+    
+    self.Lv.text=lv;
+
+    self.Esr=esr;
+
+    --self.Info.text=esr.Desc;
+    --self.Info.text=esr.Level .. "级";
+    self.Info.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {esr.Level});
+
+    self.Idx=lv;
+    self.IsLock=isLock;
+
+    self.go_Lock:SetActive(isLock);
+    self.go_Fire:SetActive(not(isLock));
+end
+
+
+function ResonateItem:MakeSelected(b)
+
+    if b then
+        self.root.transform.localScale=Vector3(1,1,1);
+        self.root.transform.anchoredPosition=Vector2(0,-150);
+    else
+        self.root.transform.localScale=Vector3(0.7,0.7,1);
+        self.root.transform.anchoredPosition=Vector2(0,-160);
+    end
+    
+end
+
+return ResonateItem;

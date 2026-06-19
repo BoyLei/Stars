@@ -1,0 +1,265 @@
+--[[
+*文件名   :   RunHorseModule
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/1/10 10:02:39"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] RunHorseModule = class("RunHorseModule", BaseLuaModule)
+
+local RunHorseWidgetPath = "Common/RunHorseWidget"
+
+RunHorseModule.DropQueue = Queue.new() -- 队列
+
+-- LuaModule 消息模块
+RunHorseModule.ModuleMessages = {
+    -- 打开跑马灯
+    -- ModuleManager.Instance.SendMessage(ModuleDef.RunHorseModule, "OnOpenDrop", null);
+    ["OnOpenRunHorse"] = function(...)
+        RunHorseModule:OnOpenRunHorseMsg(...)
+    end,
+    -- 添加跑马灯
+    -- ModuleManager.Instance.SendMessage(ModuleDef.RunHorseModule, "OnAddDrop", new object[] { it }); //只要传一个跑马灯信息
+    ["OnAddRunHorse"] = function(...)
+        RunHorseModule:OnAddRunHorseMsg(...)
+    end,
+    -- 显隐跑马灯
+    -- ModuleManager.Instance.SendMessage(ModuleDef.RunHorseModule, "OnShowHideRunHorse", {true});
+    ["OnShowHideRunHorse"] = function(...)
+        RunHorseModule:OnShowHideRunHorse(...)
+    end
+}
+
+function RunHorseModule:OnOpenRunHorseMsg(...)
+    -- 打开UI
+    if self.RunHorseListWidgetView == nil then
+        self.AsyncLoadRunHorseWidgetCb = function(ui)
+            if ui ~= nil then
+                self.RunHorseListWidgetView = ui:GetLuaPanel().ScriptTable
+                self.RunHorseListWidgetView:BindModule(self)
+                self.DropQueue = Queue.new() -- 队列
+            end
+            self.AsyncLoadRunHorseWidgetCb = nil
+        end
+        UIManager.Instance:OpenWidgetAsync(RunHorseWidgetPath, self.AsyncLoadRunHorseWidgetCb, false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone, true, false, true)
+    else
+        self.RunHorseListWidgetView.gameObject:SetActive(true)
+    end
+end
+
+function RunHorseModule:OnShowHideRunHorse(...)
+    local tb = ...
+    local isShow = false
+    -- 传入道具ID
+    if type(tb) == "table" then
+        -- Lua调用
+        isShow = tb[1]
+    else
+        -- C#调用
+        isShow = tb[0]
+    end
+
+    if self.RunHorseListWidgetView ~= nil then
+        self.RunHorseListWidgetView.gameObject:SetActive(isShow)
+    end
+end
+
+-- 添加跑马灯事件
+function RunHorseModule:OnAddRunHorseMsg(...)
+    local tb = ...
+
+    -- 传入道具ID
+    if type(tb) == "table" then
+        -- Lua调用
+        local dropinfo = {}
+        dropinfo.Index = tb[1]
+        dropinfo.ArgList = tb[2]
+        dropinfo.LoopCount = tb[3]
+        self:PushBack(dropinfo)
+    else
+        -- C#调用
+        local dropinfo = {}
+        dropinfo.Index = tb[0]
+        dropinfo.ArgList = tb[1]
+        dropinfo.LoopCount = tb[2]
+        self:PushBack(dropinfo)
+    end
+end
+
+-- 进队列
+function RunHorseModule:PushBack(it)
+    -- 判断功能是否开启
+    if not (CheckPlayerGuidanceOpen(10065, "", false)) then
+        return
+    end
+
+    local Index = it.Index -- 配置表id
+
+    if Index == 0 then
+        local info2 = {}
+        info2.IsHighpriority = true
+        info2.IsDungeon = true
+		local LanguageT={}
+		for k2, v2 in pairs(it.LanguagesTextList) do
+			LanguageT[""..k2]=v2;
+
+		end
+		info2.Message = LanguageT[LanguageManager.Instance:GetLanguageStr()]
+		
+        local LoopCount2 = it.LoopCount -- 定时循环次数，为0就用配置表的
+        local IsTop2 = true
+		if LoopCount2==0 then
+			LoopCount2=1
+		end
+        for i = 1, LoopCount2 do
+            if IsTop2 then
+                Queue.pushFront(self.DropQueue, info2)
+            else
+                Queue.pushBack(self.DropQueue, info2)
+            end
+        end
+        return
+    end
+
+    local cfg = ConfigDataAccessor.Marquee[Index]
+
+    -- 判断条件表
+    if cfg.ShowCondition > 0 then
+        local isMet = GameManager.Instance:IsConditionMete(cfg.ShowCondition) -- 判断是否满足
+        if not (isMet) then
+            return
+        end
+    end
+
+    local Args = it.ArgList -- 配置表参数 map<string, RespParam> ArgList = 2; --看邮件那边的解析
+    local LoopCount = it.LoopCount -- 定时循环次数，为0就用配置表的
+
+    if LoopCount == nil or LoopCount == 0 then
+        -- 读取配置表的次数
+        LoopCount = cfg.Times
+    end
+
+    -- 是否进队首
+    local IsTop = cfg.IsTop
+
+    local info = {}
+    info.IsHighpriority = cfg.IsHighpriority
+    info.IsDungeon = cfg.IsDungeon
+
+    info.Message = cfg.Content
+
+    if info.Message == "" then
+        info.Message = "no message"
+    end
+
+    -- 参数化
+    if Args ~= nil and Args ~= "" then
+        local str = ""
+        for k, v in pairs(Args) do
+            str = str .. v .. ","
+        end
+        info.Message = CS.RichTextUtils.ParseRunHorseText(info.Message, str, true)
+    end
+
+    for i = 1, LoopCount do
+        if IsTop then
+            Queue.pushFront(self.DropQueue, info)
+        else
+            Queue.pushBack(self.DropQueue, info)
+        end
+    end
+end
+
+function RunHorseModule:SortItem(tbl)
+    if #tbl > 1 then
+        table.sort(
+            tbl,
+            function(a, b)
+                if a.idx ~= b.idx then
+                    return a.idx < b.idx
+                end
+                return false
+            end
+        )
+    end
+end
+
+-- 跑马灯回调
+function RunHorseModule:OnRunHorseNotice(data)
+    print("跑马灯回调")
+
+    local pb = data.data
+
+    local mydata = {}
+    mydata.Index = pb.Index
+    mydata.LanguagesTextList = pb.LanguagesTextList
+    local tempdata = {}
+    for k, v in pairs(pb.ArgList) do
+        local temp2 = {}
+        temp2.idx = tonumber(k)
+        temp2.value = tostring(Util.RespParamValue(v))
+        table.insert(tempdata, temp2)
+    end
+    self:SortItem(tempdata)
+    mydata.ArgList = {}
+    for i = 1, #tempdata do
+        table.insert(mydata.ArgList, tempdata[i].value)
+    end
+    mydata.LoopCount = pb.LoopCount
+    self:PushBack(mydata)
+end
+
+-- 出队列
+function RunHorseModule:PopFront()
+    local it = nil
+
+    if self.DropQueue.first <= self.DropQueue.last then
+        it = Queue.popFront(self.DropQueue)
+    end
+
+    return it
+end
+
+-- LuaModule 创建
+function RunHorseModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.RunHorseModule, self)
+
+    -- 监听跑马灯
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.RunHorseNoticeID,
+        function(data)
+            self:OnRunHorseNotice(data)
+        end,
+        nil
+    )
+
+    -- 返回首页清空跑马灯
+    CS.StarProject.GlobalEvent.OnBackLogin:AddListener(
+        function(againLoginType)
+            if self.RunHorseListWidgetView ~= nil and self.RunHorseListWidgetView.gameObject ~= nil then
+                -- 清除队列
+                self.DropQueue.first = 0
+                self.DropQueue.last = -1
+                if self.RunHorseListWidgetView.go_show ~= nil and self.RunHorseListWidgetView.go_show.gameObject ~= nil then
+                    self.RunHorseListWidgetView.go_show.gameObject:SetActive(false)
+                end
+            end
+        end
+    )
+end
+
+-- LuaModule 消息处理
+function RunHorseModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...)
+end
+
+-- LuaModule显示
+function RunHorseModule:OnModuleShow(arg)
+end
+
+-- LuaModule 释放
+function RunHorseModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.RunHorseModule)
+end
+
+return RunHorseModule

@@ -1,0 +1,89 @@
+--[[
+*文件名   :   AnnounceItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/12/5 15:09:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local AnnounceItem = {}
+
+AnnounceItem.__index = AnnounceItem
+
+function AnnounceItem:New(_go) 
+    local self = {};    
+    setmetatable(self, AnnounceItem); 
+    
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+    self.Message=self.transform:GetComponent(typeof(Text));
+
+
+    self.gameObject:SetActive(false);
+    self.IsUsed=false;
+    self.tw=nil;
+    self.tw2=nil;
+
+    self.rect=self.transform:GetComponent(typeof(RectTransform));
+
+    self.speed=80;
+    self.nextOffset=100;
+    self.startPosX=834;
+    self.startPosY=3.9;
+    self.maskWidth=820;
+
+
+    return self;    --返回自身
+end
+
+function AnnounceItem:SetItem(item,onPlayNext,onFinish)
+
+    --设置坐标
+    self.rect.anchoredPosition=Vector2(self.startPosX,self.startPosY);
+
+    self.IsUsed=true;
+    self.gameObject:SetActive(true);
+
+
+    self.Message.text=item.Message;
+
+
+    DOVirtual.DelayedCall(0.05,function ()
+        
+        if self.tw~= nil then
+            self.tw:Kill();
+        end    
+
+        local width=self.rect.sizeDelta.x;
+        print(width);
+    
+        self.tw= self.rect:DOAnchorPosX(self.startPosX-width-self.nextOffset,self.speed):SetSpeedBased():SetEase(Ease.Linear):OnComplete(function ()
+            --播放下一条
+            if onPlayNext~= nil then
+                onPlayNext();
+            end
+            --全部播放完
+            if self.tw2~= nil then
+                self.tw2:Kill();
+            end
+            self.tw2= self.rect:DOAnchorPosX(self.startPosX - width - self.nextOffset - self.maskWidth,self.speed):SetSpeedBased():SetEase(Ease.Linear):OnComplete(function ()
+                self.IsUsed=false;
+                self.gameObject:SetActive(false);
+    
+                if onFinish~= nil then
+                    onFinish();
+                end
+            end);
+        end);
+    
+    end)
+
+
+end
+
+
+
+
+return AnnounceItem;

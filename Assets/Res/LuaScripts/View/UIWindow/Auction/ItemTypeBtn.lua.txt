@@ -1,0 +1,106 @@
+--[[
+*文件名   :   ItemTypeBtn
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/09 09:44:49"
+*创建人   :   "DL"
+*版权所有 :   游卡网络科技技术有限公司
+]] local ItemTypeBtn = {}
+
+ItemTypeBtn.__index = ItemTypeBtn
+
+local SelectBtn = require("View/Item/SelectBtn");
+
+-- 每次 GetNew 都创建一个 新的 ItemTypeBtn
+function ItemTypeBtn:GetNew(_prefab, _parent, clickCB)
+
+    local self = {};
+    setmetatable(self, ItemTypeBtn);
+
+    self.onClick = clickCB;
+
+    self:LoadRes(_prefab, _parent);
+    return self;
+end
+
+function ItemTypeBtn:LoadRes(_prefab, _parent)
+    local _go = newObject(_prefab);
+
+    -- UIRes.LoadPrefabAsync("Recharge/Prefab/ItemTypeBtn", function(_go)
+    self.gameObject = _go;
+    self.transform = _go.transform;
+
+    _go:SetActive(true);
+
+    if _parent ~= nil then
+        self.transform:SetParent(_parent);
+        self.transform.localPosition = Vector3.zero
+        self.transform.localScale = Vector3.one
+    end
+
+    -- self.ItemTypeName = self.transform:Find("ItemTypeLab"):GetComponent(typeof(Text));
+    -- self.SelectNode = self.transform:Find("SelectNode");
+
+    -- 点击事件
+    -- local btn = self.transform:GetComponent(typeof(JButton));
+    -- btn.OnClick = function()
+    --     self:OnBtnClick();
+    -- end;
+
+    self.selectBtn = SelectBtn:New(self.gameObject);
+    self.selectBtn:InitItem(1, function(idx)
+        self:OnBtnClick();
+    end);
+
+    -- end)
+end
+
+-- 全局 节点
+-- self.ItemTypeName
+-- self.SelectNode
+
+-- 全局变量
+-- self.type 
+-- self.subType
+-- self.typeName
+
+-- self.select
+
+-- 创建 道具类型按钮
+function ItemTypeBtn:Create(itemTypeInfo)
+    self.type = itemTypeInfo.type;
+    self.subType = itemTypeInfo.subType;
+    self.typeName = itemTypeInfo.name;
+
+    self.select = false;
+
+    self:RefreshUI();
+
+end
+
+-- 刷新UI
+function ItemTypeBtn:RefreshUI()
+
+    -- 道具名字
+    -- self.ItemTypeName.text = self.typeName;
+    self.selectBtn:SetText(self.typeName);
+
+    -- 是否选中
+    -- self.SelectNode.gameObject:SetActive(self.select);
+    self.selectBtn:MakeSelected(self.select);
+end
+
+-- 外部触发 这个按钮 的点击 逻辑,内部点击并不 
+function ItemTypeBtn:SetSelect(isSelect)
+    self.select = isSelect;
+
+    self:RefreshUI();
+end
+
+-- 按钮点击触发的逻辑,  
+function ItemTypeBtn:OnBtnClick()
+
+    self.onClick(self);
+end
+
+return ItemTypeBtn;

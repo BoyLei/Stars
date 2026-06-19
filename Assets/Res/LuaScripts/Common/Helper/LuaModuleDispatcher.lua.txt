@@ -1,0 +1,92 @@
+--[[
+*文件名   :   LuaModuleDispatcher
+*内  容   :	  封装lua层 业务模块调用,避免频繁反射
+*说  明   :
+*创建日期 :   "2023/08/02 14:04:34"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+LuaModuleDispatcher = class("LuaModuleDispatcher")
+
+--Lua Module模块
+local Modules = {}
+
+
+function LuaModuleDispatcher:ctor()
+	self.Modules={}
+end
+
+--[[lua module 创建 OnModuleCreate]]
+function LuaModuleDispatcher:Register(moduleName,instance)
+	self.Modules[moduleName]=instance
+end
+
+--[[lua module 释放 OnModuleRelease]]
+function LuaModuleDispatcher:UnRegister(moduleName)
+	self.Modules[moduleName]=nil;
+end
+
+function LuaModuleDispatcher:ToTable(...)
+	local value=...
+	local list={}
+	--nil类型也没问题
+	if type(value) == "table" then
+		list = value;
+	else
+		table.insert(list,value)
+	end
+	return  list
+end
+
+--[[发送消息]]
+function  LuaModuleDispatcher:SendMessage(moduleName,eventName,...)
+	--moduleName 合法性
+	if CS.StarProjectDef.ModuleDef.GetModuleDefState(moduleName) ~= CS.StarProjectDef.ModuleDef.ModuleDefType.None then
+		if self.Modules[moduleName] ~=nil then
+
+			
+			local tb = self:ToTable(...)
+
+			--这里是拦截lua处理还是C#处理，调用者需关心lua是1开始，CS由0开始，所以传params的时候注意自己的封装
+			self.Modules[moduleName]:OnModuleMessage(eventName,tb)
+		else
+			--反射 luaCallCsharp
+			ModuleManager.Instance:SendMessage(moduleName,eventName,...)
+		end
+	end
+end
+
+--[[事件处理]]
+function LuaModuleDispatcher:Event(moduleName,eventName)
+	---moduleName 合法性
+
+	if CS.StarProjectDef.ModuleDef.GetModuleDefState(moduleName) ~= CS.StarProjectDef.ModuleDef.ModuleDefType.None then
+		if self.Modules[moduleName] ~=nil then
+			--不是调用是持有给别人要return
+			--启了发Lua
+			return self.Modules[moduleName].Event(eventName)
+		else
+			--没启发CS处理，CS可缓存对Lua-CS和CS-CS的Event缓存
+			--反射 luaCallCsharp
+			return CS.SGF.Module.Framework.LuaCallModuleManager.Event(moduleName,eventName)
+		end
+	end
+
+end
+
+--[[获取模块]]
+function LuaModuleDispatcher:GetModule(moduleName)
+	if self.Modules[moduleName] ~=nil then
+		return 	self.Modules[moduleName]
+	else
+		--反射 luaCallCsharp
+		return 	ModuleManager.Instance:GetModule(moduleName)
+	end
+end
+
+--[[系统重置等]]
+function LuaModuleDispatcher:Clear()
+	self.Modules={}
+end
+
+return  LuaModuleDispatcher;

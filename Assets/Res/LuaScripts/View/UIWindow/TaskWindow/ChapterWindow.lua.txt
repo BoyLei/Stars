@@ -1,0 +1,57 @@
+--[[
+*文件名   :   ChapterWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/01 21:22:17"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+ChapterWindow=class("ChapterWindow",UIPanel)
+ChapterWindow.m_ChapterIndex=nil;
+ChapterWindow.m_ChapterName=nil;
+ChapterWindow.Index=nil;
+ChapterWindow.EffectID=0;
+function ChapterWindow:Awake()
+	self.m_ChapterIndex=self:Find("GameObject/ChapterIndex"):GetComponent(typeof(Text));
+	self.m_ChapterName=self:Find("GameObject/ChapterName"):GetComponent(typeof(Text));
+
+end
+
+function ChapterWindow:Start()
+
+end
+
+function ChapterWindow:OnEnable()
+	
+end
+
+function ChapterWindow:OnDisable()
+	
+end
+
+function ChapterWindow:OnDestroy()
+
+end
+
+function ChapterWindow:OnOpen(arg)	
+	local config=arg[1]
+	local EffectID=arg[2]
+	self.EffectID=EffectID;
+	
+	self.m_ChapterIndex.text=config.Title
+	self.m_ChapterName.txt=config.Desc
+	
+	DelayInvoker.DelayInvoke(self,3,function ()
+			CS.StarProject.GlobalEvent.OnEffectEnd:Invoke(self.EffectID)
+			self:Close();
+		end)
+end
+
+
+function ChapterWindow:OnClose(arg)
+
+end
+
+
+
+return  ChapterWindow

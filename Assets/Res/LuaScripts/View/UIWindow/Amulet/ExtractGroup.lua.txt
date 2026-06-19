@@ -1,0 +1,145 @@
+--[[
+*文件名   :   ExtractGroup
+*内  容   :   定轨组
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local ExtractGroup = {}
+
+ExtractGroup.__index = ExtractGroup
+
+local ExtractItem=require("View/Uiwindow/Amulet/ExtractItem")
+
+function ExtractGroup:New(_go,canClick) 
+    local self = {};    
+    setmetatable(self, ExtractGroup); 
+    
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+	--技能点
+	self.extractItems={}
+	for i=1,6 do
+		local _goIt=self.transform:Find("ExtractItem"..i).gameObject;
+		local pointItem=ExtractItem:New(_goIt);
+
+        --是否可以点击里面的
+        if canClick then
+            pointItem:SetItem(i,function (ritem)
+                self:OnExtractItemClick(ritem);
+            end);
+        else
+            pointItem:SetItem(i);
+        end
+
+		table.insert( self.extractItems, pointItem);
+
+	end
+
+    return self;    --返回自身
+end
+
+
+
+function ExtractGroup:OnExtractItemClick(ritem)
+    
+    self:ClearAllSelected();
+    ritem:MakeSelected(true);
+
+    self.selectedIdx=ritem.Idx;
+end
+
+function ExtractGroup:MakeSelectedByIdx(idx)
+    self.extractItems[idx]:MakeSelected(true);
+    self.selectedIdx=idx;
+end
+
+function ExtractGroup:ClearAllSelected()
+    self.selectedIdx=0;
+    for i=1,#self.extractItems do
+		self.extractItems[i]:MakeSelected(false);
+	end
+end
+
+
+function ExtractGroup:Refesh(data,isPlayShow)
+    self.selectedIdx=0;
+
+	self.Data=data;
+
+    if data~= nil then
+
+		self.gameObject:SetActive(true);
+
+        --清除所有选中
+        for i=1,#self.extractItems do
+            self.extractItems[i]:MakeSelected(false);
+        end
+
+		self.EntityID=data.EntityID;
+
+        local baseID=data.BaseID;
+        local combatSkills =data.CombatSkills;
+
+		local PolishNum=combatSkills.CurPolish;--已经铭刻的次数
+
+
+		local itemCfg=ConfigDataAccessor.Item[baseID];
+		local amuletEquipCfg=ConfigDataAccessor.AmuletEquip[baseID];
+
+		local amuletEquipLevelCfg=ConfigDataAccessor.GetAmuletEquipLevel(amuletEquipCfg.EquipLevel,itemCfg.SubType);
+
+
+        local maxNum=ConfigDataAccessor.GetMaxPolishNum(itemCfg.Quality);--铭刻次数的上限
+
+		--显示技能词条
+        for i=1,#self.extractItems do
+            self.extractItems[i].gameObject:SetActive(false);
+        end
+        for i=0,combatSkills.List.Count-1 do
+            if i + 1<= #self.extractItems then
+                self.extractItems[i+1].gameObject:SetActive(true);
+                local cs=combatSkills.List[i];
+                self.extractItems[i+1]:Refesh(maxNum,cs,isPlayShow)
+            end
+        end
+
+
+	else
+		self.gameObject:SetActive(false);
+
+    end
+
+
+end
+
+function ExtractGroup:DarkAllCombatSkills()
+    for i=1,#self.extractItems do
+
+        self.extractItems[i]:MakeSelectedColor(false);
+
+    end
+end
+
+function ExtractGroup:HightCombatSkills(id)
+
+    if id==0 then
+        do return end
+    end
+
+    for i=1,#self.extractItems do
+        if self.extractItems[i].gameObject.activeSelf then
+
+            if self.extractItems[i].Cs.ID==id then
+                self.extractItems[i]:MakeSelectedColor(true);
+            end
+        end
+    end
+end
+
+
+
+return ExtractGroup;

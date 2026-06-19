@@ -1,0 +1,160 @@
+--[[
+*文件名   :   GuildItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local GuildItem = {}
+
+GuildItem.__index = GuildItem
+
+function GuildItem:New(_go, onClick, atlas)
+    local self = {}
+    setmetatable(self, GuildItem)
+
+    self.AtlasPath = atlas
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.Icon = self.transform:Find("iconBg/icon"):GetComponent(typeof(Image))
+    self.IconBg = self.transform:Find("iconBg"):GetComponent(typeof(Image))
+
+    self.Name = self.transform:Find("name"):GetComponent(typeof(Text))
+    self.Lv = self.transform:Find("lv"):GetComponent(typeof(Text))
+    self.MemberNum = self.transform:Find("num"):GetComponent(typeof(Text))
+
+    self.Label = {}
+    for i = 1, 3 do
+        self.transform:Find("label" .. i .. "/tt"):GetComponent(typeof(Text)).text = ConfigDataAccessor.GuildLabel[i].LabelDec
+
+        table.insert(self.Label, self.transform:Find("label" .. i).gameObject)
+    end
+
+    self.go_selected = self.transform:Find("Selected").gameObject
+
+    self.transform:GetComponent(typeof(JButton)).OnClick = (function()
+        if onClick ~= nil then
+            onClick(self)
+        end
+    end)
+
+    return self --返回自身
+end
+
+function GuildItem:MakeSelected(b)
+    self.go_selected:SetActive(b)
+    self.Info.IsSelected = b
+end
+
+function GuildItem:SetItem(info)
+    self.Info = info
+
+    --存储信息
+    local BaseInfo = info.BaseInfo --基础信息
+
+    local GuildName = info.GuName --冒险团名
+    local UserCount = info.UserCount --冒险团人数
+    local GuildID = info.GuildID --冒险团ID
+
+    local Level = info.Level --冒险团等级
+    local PresidentName = info.PresidentName --团长名
+    local Activation = info.Activation --活跃度
+
+    local badgeID = info.BadgeID --头像ID
+    local labelID = info.LabelID --标签ID
+    local iconBg = info.IconBg --头像背景ID
+
+    local isSelected = info.IsSelected --是否被选中
+
+    local isApply = info.IsApply --是否已经申请
+
+    local JoinLevel = info.JoinLevel -- 加入等级
+    local JoinPower = info.JoinPower -- 加入战力
+
+    self.Name.text = GuildName
+
+    --self.Lv.text=""..Level.."级";
+    self.Lv.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {Level})
+
+    if isApply then
+        self.MemberNum.text = "<color=#8CE071>" .. LanguageHelp:GetLanguageByKey("Local_Str_applied") .. "</color>"
+    else
+        local maxMember = ConfigDataAccessor.GuildLevel[Level].GuildNum
+
+        info.IsMaxMemberNum = (UserCount >= maxMember) --是否人数达到上限
+
+        if not (info.IsMaxMemberNum) then
+            self.MemberNum.text = UserCount .. "/" .. maxMember
+        else
+            self.MemberNum.text = "<color=#BF3232>" .. UserCount .. "/" .. maxMember .. "</color>"
+        end
+    end
+
+    --是否满足等级限制
+    if (info.JoinLevel <= GameManager.Instance:GetPlayerLevel()) then
+        info.IsMeetJoinLevel = true
+    else
+        -- 人数没达到上限，并且没有申请的发起申请
+        info.IsMeetJoinLevel = false
+    end
+
+    local userPower = FightPowerManager.Instance:GetSeverPowerByModuleType(0, false) -- 当前战力
+    --是否满足信标等级限制
+    if (info.JoinPower <= userPower) then
+        -- 人数没达到上限，并且没有申请的发起申请
+        info.MeetIsJoinPower = true
+    else
+        info.MeetIsJoinPower = false
+    end
+
+    --禁止加入
+    if not (info.MeetIsJoinPower and info.IsMeetJoinLevel) then
+        self.MemberNum.text = "<color=#BF3232>" .. LanguageHelp:GetLanguageByKey("Local_Str_Guild_ForbidJoin") .. "</color>"
+    end
+
+    --冒险团标签
+    for i = 1, #self.Label do
+        self.Label[i]:SetActive(false)
+    end
+    if labelID > 0 then
+        self.Label[labelID]:SetActive(true)
+    end
+
+    --冒险团图标
+    if badgeID > 0 then
+        ResourceHelper:GetSpriteInAtlasByName(
+            self.AtlasPath,
+            "Guild_icon_0" .. badgeID,
+            function(sp)
+                if sp ~= nil then
+                    self.Icon.sprite = sp
+                end
+            end
+        )
+    end
+
+    --冒险团图标背景(新UI创建)
+    if iconBg > 0 then
+        local iconbgNum = iconBg + 6
+        local iconbgStr = "Guild_icon_0" .. iconbgNum
+        if iconbgNum > 9 then
+            iconbgStr = "Guild_icon_" .. iconbgNum
+        end
+        ResourceHelper:GetSpriteInAtlasByName(
+            self.AtlasPath,
+            iconbgStr,
+            function(sp2)
+                if sp2 ~= nil then
+                    self.IconBg.sprite = sp2
+                end
+            end
+        )
+    end
+
+    self:MakeSelected(isSelected)
+end
+
+return GuildItem

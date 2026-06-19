@@ -1,0 +1,150 @@
+local TaskItem = {}
+TaskItem.__index = TaskItem
+
+function TaskItem:New(obj)
+    local self = {};
+    setmetatable(self, TaskItem);
+
+    self:InitControls(obj)
+
+    return self;
+end
+
+function TaskItem:InitControls(obj)
+    self.gameObject = obj;
+    self.transform = obj.transform;
+
+    self.taskDesc = self.transform:Find("Desc"):GetComponent(typeof(Text));
+    self.rewardItem = self.transform:Find("Rewards/Item").gameObject;
+
+    self.getBtn = self.transform:Find("GetBtn"):GetComponent(typeof(Button));
+    self.getBtn.onClick:AddListener(function()
+        --获取奖励
+        local message = CS.ProtoMsg.SubmitTaskReq();
+        local battleSocket = NetworkManager.Instance.gameSocket;
+        message.ID =  self.cfgData.TaskID;
+        battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message, false);
+    end);
+    self.goBtn = self.transform:Find("GoBtn"):GetComponent(typeof(Button));
+    self.goBtn.onClick:AddListener(function()
+        --前往任务
+        local cfg=ConfigDataAccessor.SystemJump[self.cfgData.JumpID];
+        if cfg~=nil then
+
+
+            local itemid=self.cfgData.JumpID_Args;
+            JumpBySystemJumpEnum(cfg.WayString,nil,nil,itemid,self.goBtn.transform);
+
+            
+        end
+
+    end);
+	
+	self.getedObj = self.transform:Find("Geted").gameObject;
+end
+
+function TaskItem:Init(data, state)
+    self.cfgData = data;
+	local taskID = data.TaskID;
+    
+    local configNow = TaskHelper.GetTaskConfig(taskID)
+    local baseNow = nil
+    if configNow == nil then
+        return;
+    end
+
+    baseNow = configNow.Base
+	
+	--local str = baseNow.Desc;
+    --local taskTarget = TaskHelper.GetTaskTarget(taskID)
+    --if taskTarget ~= nil then
+	    --str = str.. "(" .. taskTarget.CurProgress .. "/" .. taskTarget.MaxCount .. ")"
+    --end
+
+	--if state == 0 then
+		--str = str.. "(" .. taskTarget.MaxCount .. "/" .. taskTarget.MaxCount .. ")"
+	--end
+	
+	--self.taskDesc.text = str
+	
+	
+	
+	self.taskDesc.text = baseNow.Desc
+	local taskTarget = TaskHelper.GetTaskTarget(taskID)
+	if taskTarget ~= nil then
+
+		local str= baseNow.Desc
+
+		if state == 0 then
+
+			str=str.. "(" .. taskTarget.MaxCount .. "/" .. taskTarget.MaxCount .. ")"
+
+		else
+
+			str=str.. "(" .. taskTarget.CurProgress .. "/" .. taskTarget.MaxCount .. ")"
+
+		end
+		self.taskDesc.text = str
+	end
+	
+	if state == 0 then
+		local str= baseNow.Desc
+		local maxnum = GameManager.Instance:GetSevenDayTaskMaxNum(taskID);
+		str=str.. "(" .. maxnum .. "/" .. maxnum .. ")"
+		self.taskDesc.text = str
+	end
+	
+
+    local rewards=ConfigDataAccessor.GetTaskReward(taskID);
+    if rewards == nil then
+        return;
+    end
+    for k,v in pairs(rewards) do
+        local _go = newObject(self.rewardItem)
+        _go.transform:SetParent(self.rewardItem.transform.parent)
+        _go.transform.localPosition = Vector3.zero
+        _go.transform.localScale = Vector3.one
+		_go:SetActive(true);
+
+        local qualityImg = _go.transform:GetComponent(typeof(Image));
+        local icon = _go.transform:Find("Icon"):GetComponent(typeof(Image));
+        local num = _go.transform:Find("Num"):GetComponent(typeof(Text));
+
+        local itemBtn = _go.transform:GetComponent(typeof(Button));
+        
+
+        local itemData = ConfigDataAccessor.Item[k]
+
+
+        itemBtn.onClick:AddListener(function()
+            LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",{ itemData.Id,false ,0,_go.transform, 0});
+        end);
+
+
+        ResourceHelper:LoadIconAsync(icon, "", itemData.Icon, false)
+        local quality = itemData.Quality;
+        ResourceHelper:LoadIconByAtlasAsync(qualityImg, ResourceHelper.AtlasPathCommonItem,"Bag_Grid_sq" .. quality, false)
+    
+        num.text = tostring(v);
+    end
+	
+	if state == 2 then
+		self.getBtn.gameObject:SetActive(true);
+		self.goBtn.gameObject:SetActive(false);
+		self.getedObj:SetActive(false);
+	elseif state == 1 then
+		self.getBtn.gameObject:SetActive(false);
+		self.goBtn.gameObject:SetActive(true);
+		self.getedObj:SetActive(false);
+	elseif state == 0 then
+		self.getBtn.gameObject:SetActive(false);
+		self.goBtn.gameObject:SetActive(false);
+		self.getedObj:SetActive(true);
+	end
+
+    if self.cfgData.JumpID == 0 then
+        self.goBtn.gameObject:SetActive(false);
+    end
+end
+
+return TaskItem

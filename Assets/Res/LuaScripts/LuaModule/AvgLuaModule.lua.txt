@@ -1,0 +1,738 @@
+--[[
+*文件名   :   Avg LuaModule
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/10/25 10:10:21"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+AvgLuaModule = class("AvgLuaModule", BaseLuaModule)
+
+local AvgTalkBoxPath = "Avg/AvgTalkBox"
+
+--LuaModule 消息模块
+AvgLuaModule.ModuleMessages = {
+    --方法名 + 函数
+
+    --大对话框
+    --ModuleManager.Instance.SendMessage(ModuleDef.AvgLuaModule, "OnOpenAvg({ 4 }); //只要传一个对话ID
+    ["OnOpenAvg"] = function(...)
+        AvgLuaModule:OnOpenAvg(...)
+    end,
+    --大对话框
+    --ModuleManager.Instance.SendMessage(ModuleDef.AvgLuaModule, "OnOpenAvgTalkBox({ 4 }); //只要传一个对话ID
+    ["OnOpenAvgTalkBox"] = function(...)
+        AvgLuaModule:OnOpenAvgTalkBox(...)
+    end,
+    --气泡对话框
+    --ModuleManager.Instance.SendMessage(ModuleDef.AvgLuaModule, "OnOpenAvgPopBox({ 1 }); //只要传一个对话ID
+    ["OnOpenAvgPopBox"] = function(...)
+        AvgLuaModule:OnOpenAvgPopBox(...)
+    end,
+    --显隐气泡
+    --ModuleManager.Instance.SendMessage(ModuleDef.AvgPopBoxModule, "OnShowHideAvgPopBox", {true});
+    ["OnShowHideAvgPopBox"] = function(...)
+        AvgLuaModule:OnShowHideAvgPopBox(...)
+    end,
+    --副本对话框
+    --ModuleManager.Instance.SendMessage(ModuleDef.AvgLuaModule, "OnOpenAvgZoneBox({ 1 }); //只要传一个对话ID
+    ["OnOpenAvgZoneBox"] = function(...)
+        AvgLuaModule:OnOpenAvgZoneBox(...)
+    end,
+    --心灵对话框
+    ["OnOpenAvgMindBox"] = function(...)
+        AvgLuaModule:OnOpenAvgMindBox(...)
+    end,
+    --心灵对话框
+    ["OnOpenAvgMindWindow"] = function(...)
+        AvgLuaModule:OnOpenAvgMindWindow(...)
+    end,
+    --旁白对话框
+    ["OnOpenAvgAsideBox"] = function(...)
+        AvgLuaModule:OnOpenAvgAsideBox(...)
+    end,
+    --书页对话框
+    ["OnOpenAvgBookBox"] = function(...)
+        AvgLuaModule:OnOpenAvgBookBox(...)
+    end,
+    --服务器触发的对话
+    ["OnOpenAvgFromServer"] = function(...)
+        AvgLuaModule:OnOpenAvgFromServer(...)
+    end,
+    --黑白幕转场
+    ["OnTransition"] = function(...)
+        AvgLuaModule:OnTransition(...)
+    end,
+    --大对话框
+    --ModuleManager.Instance.SendMessage(ModuleDef.AvgLuaModule, "OnOpenAvgTalkBox({ 4 }); //只要传一个对话ID
+    ["OnOpenAvgTalkBoxForTimeLine"] = function(...)
+        AvgLuaModule:OnOpenAvgTalkBoxForTimeLine(...)
+    end
+}
+
+function AvgLuaModule:OnTransition(...)
+    local tb = ...
+
+    local id = 0
+    local effectID = 0
+
+    --传入道具ID
+    if type(tb) == "table" then
+        --Lua调用
+        id = tb[1]
+        effectID = tb[2]
+    else
+        --C#调用
+        id = tb[0]
+        effectID = tb[1]
+    end
+
+    UIManager.Instance:OpenWidgetAsync("Avg/TransitionWidget", nil, false, {id, effectID}, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, true)
+end
+
+function AvgLuaModule:OnOpenAvgFromServer(...)
+    local tb = ...
+
+    local dialogID = 0
+    local entityID = 0
+
+    --传入道具ID
+    if type(tb) == "table" then
+        --Lua调用
+        dialogID = tb[1]
+        entityID = tb[2]
+    else
+        --C#调用
+        dialogID = tb[0]
+        entityID = tb[1]
+    end
+
+    local dialogItem = ConfigDataAccessor.CommonDialog[dialogID]
+    if dialogItem == nil then
+        --SGF.Debuger.LogWarning($"OnDialogNotifyMsg() dialogID={dialogID},找不到!!!");
+        return
+    end
+    if dialogItem.Dialog_type == 1 or dialogItem.Dialog_type == 9 then
+        self:OnOpenAvgTalkBox({dialogID, nil, entityID})
+    elseif dialogItem.Dialog_type == 2 then
+        self:OnOpenAvgPopBox({dialogID, 0, entityID})
+    elseif dialogItem.Dialog_type == 3 then
+        self:OnOpenAvgZoneBox({dialogID})
+    elseif dialogItem.Dialog_type == 6 then
+        self:OnOpenAvgAsideBox({dialogID})
+    elseif dialogItem.Dialog_type == 7 then
+        self:OnOpenAvgBookBox({dialogID})
+    else
+        self:OnOpenAvgZoneBox({dialogID})
+    end
+    Log("打开AVG:" .. dialogID)
+end
+
+function AvgLuaModule:OnShowHideAvgPopBox(...)
+    local tb = ...
+    local isShow = false
+    --传入道具ID
+    if type(tb) == "table" then
+        --Lua调用
+        isShow = tb[1]
+    else
+        --C#调用
+        isShow = tb[0]
+    end
+
+    if self.avgPopBoxView ~= nil then
+        self.avgPopBoxView.gameObject:SetActive(isShow)
+    end
+end
+
+--打开AVG对话框
+function AvgLuaModule:OnOpenAvg(...)
+    local tb = ...
+
+    local scriptIdx = 0
+    --传入道具ID
+    if type(tb) == "table" then
+        --Lua调用
+        scriptIdx = tb[1]
+    else
+        --C#调用
+        scriptIdx = tb[0]
+    end
+
+    --预热avg
+    if self.IsPreLoadAvgTalkbox == nil then
+        self:PreLoadAvgTalkbox()
+        self.IsPreLoadAvgTalkbox = true
+    end
+
+    local data2 = ConfigDataAccessor.TeleDialog[scriptIdx]
+    Log("打开AVG:" .. scriptIdx)
+    --优先找心灵对话
+    if data2 ~= nil then
+        self:OnOpenAvgMindBox(tb)
+    else
+        local data = ConfigDataAccessor.CommonDialog[scriptIdx]
+        --local data=LocalDataManager.Instance:GetCommonDialogDataCell(scriptIdx);
+
+        if data == nil then
+            print("对话加载失败 id=", scriptIdx)
+            return
+        end
+
+        if data.Dialog_type == 1 or data.Dialog_type == 9 then
+            self:OnOpenAvgTalkBox(tb)
+        elseif data.Dialog_type == 2 then
+            self:OnOpenAvgPopBox(tb)
+        elseif data.Dialog_type == 3 then
+            self:OnOpenAvgZoneBox(tb)
+        elseif data.Dialog_type == 6 then
+            self:OnOpenAvgAsideBox(tb)
+        elseif data.Dialog_type == 7 then
+            self:OnOpenAvgBookBox(tb)
+        end
+    end
+end
+--打开AVG对话框
+function AvgLuaModule:OnOpenAvgTalkBoxForTimeLine(...)
+    local tb = ...
+
+    --UIManager.Instance:CloseAllLoadedWindowNWidget()
+
+    self.AsyncLoadAvgTalkBoxCb = function(ui)
+        if ui ~= nil then
+            if self.avgTalkBoxView == nil then
+                self.avgTalkBoxView = ui:GetLuaPanel().ScriptTable
+                self.avgTalkBoxView:BindModule(self)
+                --别人可以这么调用
+                self.evtOnFinishAvgTalkBox = LuaModuleDispatcher:Event(ModuleDef.AvgLuaModule, "OnFinishAvgTalkBox")
+            --自己可以这么调用
+            --self.evtOnFinishAvgTalkBox = self.LuaEventTable:GetEvent("OnFinishAvgTalkBox")
+            end
+
+            self.SelectedIdx = 0
+            --self.EffectID_TalkBox = nil
+            --self.NPCEnityID = nil
+            --self.NeedCheckService = false --是否需要检查基础服务
+            --self.BaseServiceSelectedIdx = 1 --从外面选择的基础服务的下标
+            local scriptIdx = 0
+            --传入道具ID
+            if type(tb) == "table" then
+                --Lua调用
+                scriptIdx = tb[1]
+                if #tb > 1 then
+                    self.EffectID_TalkBox = tb[2]
+                end
+                if #tb > 2 then
+                    self.NPCEnityID = tb[3]
+                end
+                if #tb > 3 then
+                    self.NeedCheckService = tb[4]
+                end
+                if #tb > 4 then
+                    self.BaseServiceSelectedIdx = tb[5]
+                end
+            else
+                --C#调用
+                scriptIdx = tb[0]
+                if tb.Length > 1 then
+                    self.EffectID_TalkBox = tb[1]
+                end
+                if tb.Length > 2 then
+                    self.NPCEnityID = tb[2]
+                end
+                if tb.Length > 3 then
+                    self.NeedCheckService = tb[3]
+                end
+                if tb.Length > 4 then
+                    self.BaseServiceSelectedIdx = tb[4]
+                end
+            end
+
+            if self.NPCEnityID ~= nil then
+                self.BaseID = GameManager.Instance:GetEntityCfgID(self.NPCEnityID)
+            else
+                self.BaseID = nil
+            end
+
+            self.avgTalkBoxView:StartTalkBox(scriptIdx)
+
+            GameManager.Instance.IsOpenTalkBox = true
+        end
+        self.AsyncLoadAvgTalkBoxCb = nil
+    end
+    UIManager.Instance:OpenWidgetAsync(AvgTalkBoxPath, self.AsyncLoadAvgTalkBoxCb, true, nil, nil, CS.StarProjectDef.MainPageCommond.HideBoth, false, true)
+end
+
+function AvgLuaModule:PreLoadAvgTalkbox()
+    --预加载avg
+    self.AsyncLoadAvgTalkBoxCb = function(ui)
+        if ui ~= nil then
+            if self.avgTalkBoxView == nil then
+                self.avgTalkBoxView = ui:GetLuaPanel().ScriptTable
+                self.avgTalkBoxView:BindModule(self)
+                --别人可以这么调用
+                self.evtOnFinishAvgTalkBox = LuaModuleDispatcher:Event(ModuleDef.AvgLuaModule, "OnFinishAvgTalkBox")
+            --自己可以这么调用
+            --self.evtOnFinishAvgTalkBox = self.LuaEventTable:GetEvent("OnFinishAvgTalkBox")
+            end
+
+            --加载完直接关闭
+            UIManager.Instance:CloseWidget("Avg/AvgTalkBox", nil, true)
+        end
+        self.AsyncLoadAvgTalkBoxCb = nil
+    end
+    UIManager.Instance:OpenWidgetAsync(AvgTalkBoxPath, self.AsyncLoadAvgTalkBoxCb, true, nil, nil, CS.StarProjectDef.MainPageCommond.HideBoth, false, true)
+end
+
+--打开AVG对话框
+function AvgLuaModule:OnOpenAvgTalkBox(...)
+    local tb = ...
+
+    --UIManager.Instance:CloseAllLoadedWindowNWidget()
+
+    self.SelectedIdx = 0
+    self.EffectID_TalkBox = nil
+    self.NPCEnityID = nil
+    self.NeedCheckService = false --是否需要检查基础服务
+    self.BaseServiceSelectedIdx = 1 --从外面选择的基础服务的下标
+    local scriptIdx = 0
+    --传入道具ID
+    if type(tb) == "table" then
+        --Lua调用
+        scriptIdx = tb[1]
+        if #tb > 1 then
+            self.EffectID_TalkBox = tb[2]
+        end
+        if #tb > 2 then
+            self.NPCEnityID = tb[3]
+        end
+        if #tb > 3 then
+            self.NeedCheckService = tb[4]
+        end
+        if #tb > 4 then
+            self.BaseServiceSelectedIdx = tb[5]
+        end
+    else
+        --C#调用
+        scriptIdx = tb[0]
+        if tb.Length > 1 then
+            self.EffectID_TalkBox = tb[1]
+        end
+        if tb.Length > 2 then
+            self.NPCEnityID = tb[2]
+        end
+        if tb.Length > 3 then
+            self.NeedCheckService = tb[3]
+        end
+        if tb.Length > 4 then
+            self.BaseServiceSelectedIdx = tb[4]
+        end
+    end
+
+    if self.NPCEnityID ~= nil then
+        self.BaseID = GameManager.Instance:GetEntityCfgID(self.NPCEnityID)
+    else
+        self.BaseID = nil
+    end
+
+    self.AsyncLoadAvgTalkBoxCb = function(ui)
+        if ui ~= nil then
+            if self.avgTalkBoxView == nil then
+                self.avgTalkBoxView = ui:GetLuaPanel().ScriptTable
+                self.avgTalkBoxView:BindModule(self)
+                --别人可以这么调用
+                self.evtOnFinishAvgTalkBox = LuaModuleDispatcher:Event(ModuleDef.AvgLuaModule, "OnFinishAvgTalkBox")
+            --自己可以这么调用
+            --self.evtOnFinishAvgTalkBox = self.LuaEventTable:GetEvent("OnFinishAvgTalkBox")
+            end
+
+            self.avgTalkBoxView:StartTalkBox(scriptIdx)
+            Log("打开AVG:" .. scriptIdx)
+            GameManager.Instance.IsOpenTalkBox = true
+        end
+        self.AsyncLoadAvgTalkBoxCb = nil
+    end
+    UIManager.Instance:OpenWidgetAsync(AvgTalkBoxPath, self.AsyncLoadAvgTalkBoxCb, true, nil, nil, CS.StarProjectDef.MainPageCommond.HideBoth, false, true)
+end
+
+--完成对话的通用事件
+function AvgLuaModule:OnFinishAvgAction()
+    if self.NeedCheckService and self.BaseServiceSelectedIdx > 0 then
+        local lobbyServiceReq = CS.ProtoMsg.LobbyServiceReq()
+        lobbyServiceReq.MapID = GameManager.Instance:GetCurMapId()
+        lobbyServiceReq.UID = self.NPCEnityID
+        lobbyServiceReq.ObjID = self.BaseID
+        lobbyServiceReq.Index = self.BaseServiceSelectedIdx --这里要看外边点的是哪一个
+        lobbyServiceReq.ObjType = CS.ProtoMsg.ServiceObjEnum.ObjNpc
+        CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, lobbyServiceReq, false)
+    end
+
+    self.EffectID = nil
+end
+
+--选择选项的通用事件
+function AvgLuaModule:OnTalkBoxSelectAction(idx)
+    --回调效果
+    self.SelectedIdx = idx
+end
+
+--打开AVG气泡对话框
+function AvgLuaModule:OnOpenAvgPopBox(...)
+    local tb = ...
+
+    if self.avgPopBoxView == nil then
+        local avgPopBoxCs = UIManager.Instance:OpenWidget("Avg/AvgPopBox", false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, false, true)
+        self.avgPopBoxView = avgPopBoxCs:GetLuaPanel().ScriptTable
+        self.avgPopBoxView:BindModule(self)
+        self.evtOnFinishAvgPopBox = LuaModuleDispatcher:Event(ModuleDef.AvgLuaModule, "OnFinishAvgPopBox")
+    end
+
+    local scriptIdx = 0
+    self.PopEntityID = 0
+    self.EffectID_AvgPop = nil
+    --传入道具ID
+    if type(tb) == "table" then
+        --Lua调用
+        scriptIdx = tb[1]
+        if #tb > 1 then
+            self.EffectID_AvgPop = tb[2] --弹框绑定的实体
+        end
+        if #tb > 2 then
+            self.PopEntityID = tb[3] --弹框绑定的实体
+        end
+    else
+        --C#调用
+        scriptIdx = tb[0]
+        if tb.Length > 1 then
+            self.EffectID_AvgPop = tb[1] --弹框绑定的实体
+        end
+        if tb.Length > 2 then
+            self.PopEntityID = tb[2] --弹框绑定的实体
+        end
+    end
+
+    self.avgPopBoxView:GetTalkContentById(scriptIdx, self.PopEntityID)
+end
+
+--打开AVG副本对话框
+function AvgLuaModule:OnOpenAvgZoneBox(...)
+    local tb = ...
+
+    local scriptIdx = 0
+    --传入道具ID
+    if type(tb) == "table" then
+        --Lua调用
+        scriptIdx = tb[1]
+        if #tb > 1 then
+            self.EffectID_AvgZone = tb[2]
+        end
+    else
+        --C#调用
+        scriptIdx = tb[0]
+        if tb.Length > 1 then
+            self.EffectID_AvgZone = tb[1]
+        end
+    end
+
+    self.AsyncLoadAvgZoneBoxCb = function(ui)
+        if ui ~= nil then
+            if self.avgZoneBoxView == nil then
+                self.avgZoneBoxView = ui:GetLuaPanel().ScriptTable
+                self.avgZoneBoxView:BindModule(self)
+                self.evtOnFinishAvgZoneBox = LuaModuleDispatcher:Event(ModuleDef.AvgLuaModule, "OnFinishAvgZoneBox")
+            end
+
+            self.avgZoneBoxView:StartTalkBox(scriptIdx)
+
+            GameManager.Instance.IsOpenTalkBox = true
+        end
+        self.AsyncLoadAvgZoneBoxCb = nil
+    end
+    UIManager.Instance:OpenWidgetAsync("Avg/AvgZoneBox", self.AsyncLoadAvgZoneBoxCb, false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, false, true)
+end
+
+--打开AVG旁白对话框
+function AvgLuaModule:OnOpenAvgAsideBox(...)
+    local tb = ...
+
+    local scriptIdx = 0
+    --传入道具ID
+    if type(tb) == "table" then
+        --Lua调用
+        scriptIdx = tb[1]
+        if #tb > 1 then
+            self.EffectID_AvgAside = tb[2]
+        end
+    else
+        --C#调用
+        scriptIdx = tb[0]
+        if tb.Length > 1 then
+            self.EffectID_AvgAside = tb[1]
+        end
+    end
+
+    self.AsyncLoadAvgAsideBoxCb = function(ui)
+        if ui ~= nil then
+            if self.avgAsideBoxView == nil then
+                self.avgAsideBoxView = ui:GetLuaPanel().ScriptTable
+                self.avgAsideBoxView:BindModule(self)
+                self.evtOnFinishAvgAsideBox = LuaModuleDispatcher:Event(ModuleDef.AvgLuaModule, "OnFinishAvgAsideBox")
+            end
+
+            self.avgAsideBoxView:GetTalkContentById(scriptIdx)
+
+            GameManager.Instance.IsOpenTalkBox = true
+        end
+        self.AsyncLoadAvgAsideBoxCb = nil
+    end
+    UIManager.Instance:OpenWidgetAsync("Avg/AvgAsideBox", self.AsyncLoadAvgAsideBoxCb, false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, false, true)
+end
+
+--打开AVG书页对话框
+function AvgLuaModule:OnOpenAvgBookBox(...)
+    local tb = ...
+
+    local scriptIdx = 0
+    --传入道具ID
+    if type(tb) == "table" then
+        --Lua调用
+        scriptIdx = tb[1]
+        if #tb > 1 then
+            self.EffectID_AvgBook = tb[2]
+        end
+    else
+        --C#调用
+        scriptIdx = tb[0]
+        if tb.Length > 1 then
+            self.EffectID_AvgBook = tb[1]
+        end
+    end
+
+    self.AsyncLoadAvgBookBoxCb = function(ui)
+        if ui ~= nil then
+            if self.avgBookBoxView == nil then
+                self.avgBookBoxView = ui:GetLuaPanel().ScriptTable
+                self.avgBookBoxView:BindModule(self)
+                self.evtOnFinishAvgBookBox = LuaModuleDispatcher:Event(ModuleDef.AvgLuaModule, "OnFinishAvgBookBox")
+            end
+
+            self.avgBookBoxView:GetTalkContentById(scriptIdx)
+            GameManager.Instance.IsOpenTalkBox = true
+        end
+        self.AsyncLoadAvgBookBoxCb = nil
+    end
+    UIManager.Instance:OpenWidgetAsync("Avg/AvgBookBox", self.AsyncLoadAvgBookBoxCb, false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, false, true)
+end
+
+--打开AVG心灵对话框弹窗
+function AvgLuaModule:OnOpenAvgMindBox(...)
+    local tb = ...
+
+    local scriptIdx = 0
+
+    --传入道具ID
+    if type(tb) == "table" then
+        --Lua调用
+        scriptIdx = tb[1]
+        if #tb > 1 then
+            self.EffectID_AvgMind = tb[2]
+        end
+    else
+        --C#调用
+        scriptIdx = tb[0]
+        if tb.Length > 1 then
+            self.EffectID_AvgMind = tb[1]
+        end
+    end
+
+    UIManager.Instance:OpenWidgetAsync("Avg/AvgMindPopWidget", nil, false, scriptIdx, nil, CS.StarProjectDef.MainPageCommond.HideBoth, false, true)
+end
+
+--打开AVG心灵对话框
+function AvgLuaModule:OnOpenAvgMindWindow(...)
+    local tb = ...
+
+    local scriptIdx = 0
+    --self.EffectID_AvgMind=nil;
+    --传入道具ID
+    if type(tb) == "table" then
+        --Lua调用
+        scriptIdx = tb[1]
+        if #tb > 1 then
+        --self.EffectID_AvgMind=tb[2];
+        end
+    else
+        --C#调用
+        scriptIdx = tb[0]
+        if tb.Length > 1 then
+        --self.EffectID_AvgMind=tb[1];
+        end
+    end
+
+    self.AsyncLoadAvgMindBoxCb = function(ui)
+        if ui ~= nil then
+            if self.avgAvgMindView == nil then
+                self.avgAvgMindView = ui:GetLuaPanel().ScriptTable
+                self.avgAvgMindView:BindModule(self)
+                self.evtOnFinishAvgMindBox = LuaModuleDispatcher:Event(ModuleDef.AvgLuaModule, "OnFinishAvgMindBox")
+            end
+
+            self.avgAvgMindView:StartMindTalk(scriptIdx)
+            GameManager.Instance.IsOpenTalkBox = true
+        end
+        self.AsyncLoadAvgMindBoxCb = nil
+    end
+    UIManager.Instance:OpenWidgetAsync("Avg/AvgMindBox", self.AsyncLoadAvgMindBoxCb, false, nil, nil, CS.StarProjectDef.MainPageCommond.HideBoth, false, true)
+end
+
+--获取配置Item
+function AvgLuaModule:CommonDialogDataCellById(idx)
+    local data = ConfigDataAccessor.CommonDialog[idx]
+    --local data=LocalDataManager.Instance:GetCommonDialogDataCell(idx);
+
+    if data == nil then
+        print("对话加载失败 id=", idx)
+    end
+    if data.Dialog_type == 1 then
+        data.Dialog_desc2 = BusinessManager.Instance:ReplacePlayerName(data.Dialog_desc)
+    else
+        data.Dialog_desc2 = BusinessManager.Instance:ReplacePlayerName(data.Dialog_desc, "")
+    end
+    data.Name2 = BusinessManager.Instance:ReplacePlayerName(data.Name, "")
+    --[[
+        local targetID = GameManager.Instance.mainPlayerId
+    if targetID ~= nil and targetID ~= 0 then
+        local playerName = GameManager.Instance:GetEntityNameById(targetID)
+        if playerName ~= nil and playerName ~= "" then
+            local pname = "<color=#f7cf46>" .. playerName .. "</color>"
+            data.Name2 = string.gsub(data.Name, "@player", playerName)
+            if data.Dialog_type == 1 then
+                data.Dialog_desc2 = string.gsub(data.Dialog_desc, "@player", pname)
+            else
+                data.Dialog_desc2 = string.gsub(data.Dialog_desc, "@player", playerName)
+            end
+        end
+    end
+    ]]
+    return data
+    --self:RefeshTalkInfo();
+end
+
+--AvgLuaModule.evt11 = LuaModuleDispatcher:Event(ModuleDef.LoginModule, "testLoginModuleEvt")
+--print("evt11"..type(AvgLuaModule.evt11))
+--AvgLuaModule.evt11:Invoke("stringValue")
+
+--完成AVG普通对话框通知
+function AvgLuaModule:OnFinishAvgTalkBox(arg)
+    --选项回调效果
+    if self.EffectID_TalkBox ~= nil then
+        if self.SelectedIdx == 0 or self.SelectedIdx == nil then
+            CS.StarProject.GlobalEvent.OnSelectEffect:Invoke(self.EffectID_TalkBox, 0)
+        else
+            CS.StarProject.GlobalEvent.OnSelectEffect:Invoke(self.EffectID_TalkBox, self.SelectedIdx - 1)
+        end
+    end
+    self:OnFinishAvgAction()
+    self.evtOnFinishAvgTalkBox:Invoke()
+    self.NPCEnityID = nil
+    BusinessManager.Instance:ResumeLast(self.BaseID)
+    GameManager.Instance.IsOpenTalkBox = false
+end
+
+--完成AVG气泡对话框通知
+function AvgLuaModule:OnFinishAvgPopBox(arg)
+    self.evtOnFinishAvgPopBox:Invoke()
+    GameManager.Instance.IsOpenTalkBox = false
+end
+
+--完成AVG副本对话框通知
+function AvgLuaModule:OnFinishAvgZoneBox(arg)
+    --选项回调效果
+    if self.EffectID_AvgZone ~= nil then
+        if self.SelectedIdx == 0 or self.SelectedIdx == nil then
+            CS.StarProject.GlobalEvent.OnSelectEffect:Invoke(self.EffectID_AvgZone, 0)
+            self.EffectID_AvgZone = nil
+        else
+            CS.StarProject.GlobalEvent.OnSelectEffect:Invoke(self.EffectID_AvgZone, self.SelectedIdx - 1)
+            self.EffectID_AvgZone = nil
+        end
+    end
+
+    self:OnFinishAvgAction()
+    self.evtOnFinishAvgZoneBox:Invoke()
+    GameManager.Instance.IsOpenTalkBox = false
+end
+
+--完成AVG旁白对话框通知
+function AvgLuaModule:OnFinishAvgAsideBox(arg)
+    --选项回调效果
+    if self.EffectID_AvgAside ~= nil then
+        if self.SelectedIdx == 0 or self.SelectedIdx == nil then
+            CS.StarProject.GlobalEvent.OnSelectEffect:Invoke(self.EffectID_AvgAside, 0)
+        else
+            CS.StarProject.GlobalEvent.OnSelectEffect:Invoke(self.EffectID_AvgAside, self.SelectedIdx - 1)
+        end
+        self.EffectID_AvgAside = nil
+    end
+
+    self:OnFinishAvgAction()
+    self.evtOnFinishAvgAsideBox:Invoke()
+    GameManager.Instance.IsOpenTalkBox = false
+end
+
+--完成AVG心灵对话框通知
+function AvgLuaModule:OnFinishAvgMindBox(arg)
+    --选项回调效果
+    if self.EffectID_AvgMind ~= nil then
+        if self.SelectedIdx == 0 or self.SelectedIdx == nil then
+            CS.StarProject.GlobalEvent.OnSelectEffect:Invoke(self.EffectID_AvgMind, 0)
+        else
+            CS.StarProject.GlobalEvent.OnSelectEffect:Invoke(self.EffectID_AvgMind, self.SelectedIdx - 1)
+        end
+        self.EffectID_AvgMind = nil
+    end
+
+    self:OnFinishAvgAction()
+    self.evtOnFinishAvgMindBox:Invoke()
+    GameManager.Instance.IsOpenTalkBox = false
+end
+
+--完成AVG书页对话框通知
+function AvgLuaModule:OnFinishAvgBookBox(arg)
+    --选项回调效果
+    if self.EffectID_AvgBook ~= nil then
+        if self.SelectedIdx == 0 or self.SelectedIdx == nil then
+            CS.StarProject.GlobalEvent.OnSelectEffect:Invoke(self.EffectID_AvgBook, 0)
+        else
+            CS.StarProject.GlobalEvent.OnSelectEffect:Invoke(self.EffectID_AvgBook, self.SelectedIdx - 1)
+        end
+        self.EffectID_AvgBook = nil
+    end
+
+    self:OnFinishAvgAction()
+    self.evtOnFinishAvgBookBox:Invoke()
+    GameManager.Instance.IsOpenTalkBox = false
+end
+
+--LuaModule 创建
+function AvgLuaModule:OnModuleCreate(arg)
+    --print("on lua module create................")
+    LuaModuleDispatcher:Register(ModuleDef.AvgLuaModule, self)
+end
+
+--LuaModule 消息处理
+function AvgLuaModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...)
+end
+
+--LuaModule显示
+function AvgLuaModule:OnModuleShow(arg)
+    --print("on lua module show................")
+end
+
+--LuaModule 释放
+function AvgLuaModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.AvgLuaModule)
+end
+
+return AvgLuaModule

@@ -1,0 +1,148 @@
+-- 技能条目
+local SkillSwitchItemNew = {}
+SkillSwitchItemNew.__index = SkillSwitchItemNew
+
+SkillSwitchItemNew.AtlasPath = "UI/Icons/Atlas/IconSkill"
+function SkillSwitchItemNew:New(obj, w)
+    local self = {}
+    setmetatable(self, SkillSwitchItemNew)
+
+    self:InitControls(obj)
+
+    self.skillWindow = w
+
+    return self
+end
+
+function SkillSwitchItemNew:InitControls(obj)
+    self.gameObject = obj
+    self.transform = obj.transform
+
+    self.normalGo = self.transform:Find("Normal").gameObject
+
+    self.skillIcon = self.transform:Find("Icon"):GetComponent(typeof(Image))
+    self.usedGo = self.transform:Find("Used").gameObject
+    self.usedGo:SetActive(false)
+
+    -- self.talentLevel = {}
+    -- for i = 1, 3, 1 do
+    --     local levelItem = self.transform:Find("Level" .. i).gameObject
+    --     self.talentLevel[i] = levelItem
+    -- end
+
+    self.upgradeGo = self.transform:Find("Upgrade").gameObject
+    self.upgradeGo:SetActive(false)
+    self.percentText = self.transform:Find("Percent"):GetComponent(typeof(Text))
+    self.nameText = self.transform:Find("Name"):GetComponent(typeof(Text))
+
+    self.SkillJb = self.transform:Find("Icon"):GetComponent(typeof(JButton))
+
+    -- 已经装载节点
+    -- self.dressed = self.transform:Find("Dressed").gameObject
+
+    -- self.SkillJb.OnLongPressDown = function()
+    --     self.skillWindow:OnLongPressDown(self.skillId, self.transform.position, false)
+    -- end
+    -- self.SkillJb.OnLongPressUp = function()
+    --     self.skillWindow:OnLongPressUp(self.skillId, 1, self.gameObject, nil)
+    -- end
+    self.SkillJb.OnClick = function()
+        self.skillWindow:OnSkillItemClick(self)
+    end
+
+    self.SkillJb.OnLongPressDown = function()
+        self.skillWindow:OnLongPressDown(self)
+    end
+
+    self.SkillJb.OnLongPressUp = function()
+        self.skillWindow:OnLongPressUp(self)
+    end
+
+    self.selGo = self.transform:Find("Sel").gameObject
+    self.selGo:SetActive(false)
+
+    self.HighLight = self.transform:Find("HighLight").gameObject
+end
+
+function SkillSwitchItemNew:Refresh(skillId, open, talentId, lv, curSel)
+    self.skillId = skillId
+    self.talentID = talentId
+    self.skillLV = lv
+    self:Show(true)
+
+    -- open表示 是否已经装在在 技能槽中
+    self.usedGo:SetActive(open);
+
+    -- self.dressed:SetActive(open)
+
+    self:SetSel(false)
+    self:MarkHighLight(false)
+
+    local skillName = nil
+    -- TODO: DL
+    -- 擦, 发现这块 原代码逻辑有问题, 一个天赋 可能有多个 技能, 所以 此处默认采用第一个 可能有问题
+    -- 应该采用 能够显示的 那个技能.
+    local id = ConfigDataAccessor.TalentList[talentId].BattleActive[1]
+    for _, v in pairs(ConfigDataAccessor.SkillDescList) do
+        if v.SkillID == id and v.Level == lv then
+            ResourceHelper:LoadIconByAtlasAsync(self.skillIcon, ResourceHelper.AtlasPathSkill, v.IconPath, false)
+            skillName = v.SkillName
+            break
+        end
+    end
+
+    -- 设置天赋 (目前装载界面不显示)
+
+    for _, v in pairs(ConfigDataAccessor.TalentList) do
+        if talentId == v.ID then
+            self:RefreshTalent(v.TalentType)
+
+            local playerLevel = GameManager.Instance:GetPlayerLevel();
+            if playerLevel >= v.LimitLv then
+                self:Show(true);
+            else
+                self:Show(false);
+            end
+
+        end
+    end
+
+    local maxLevel = 0
+    for k, v in pairs(ConfigDataAccessor.SkillLevelList) do
+        if v.SkillID == skillId then
+            if v.Skill_Level > maxLevel then
+                maxLevel = v.Skill_Level
+            end
+        end
+    end
+    self.percentText.text = lv --[[..'/'..maxLevel]] -- ;
+    self.nameText.text = skillName
+
+    -- self.selGo:SetActive(skillId == curSel);
+end
+
+function SkillSwitchItemNew:RefreshTalent(talentType)
+    -- for k, v in pairs(self.talentLevel) do
+    --     local isLevel = k == talentType + 1
+    --     self.talentLevel[k].gameObject:SetActive(isLevel)
+    -- end
+end
+
+function SkillSwitchItemNew:Show(b)
+    self.gameObject:SetActive(b)
+end
+
+function SkillSwitchItemNew:SetSel(isSel)
+    self.selGo:SetActive(isSel)
+end
+
+function SkillSwitchItemNew:MarkHighLight(isHighLight)
+    self.HighLight:SetActive(isHighLight)
+end
+
+-- 普工的 可以切换的技能默认都是 非普工
+function SkillSwitchItemNew:IsNormalSkill()
+    return false
+end
+
+return SkillSwitchItemNew

@@ -1,0 +1,105 @@
+local TreesPanel = {}
+TreesPanel.__index = TreesPanel
+
+function TreesPanel:New(obj,module)
+	local self = {};
+	setmetatable(self, TreesPanel);
+	self.module = module
+	self:InitControls(obj, treeNode)
+
+	return self;
+end
+
+function TreesPanel:InitControls(obj)
+	self.gameObject = obj;
+	self.transform = obj.transform;
+
+	self.nameText = self.transform:Find("TalentName/Name"):GetComponent(typeof(Text));
+	self.numText = self.transform:Find("TalentName/LightNum"):GetComponent(typeof(Text));
+	--self.treeBtn1 = self.transform:Find("1"):GetComponent(typeof(Button));
+	--self.treeBtn1.onClick:AddListener(function()
+	--LuaModuleDispatcher:SendMessage(ModuleDef.TalentModule, "OnOpenTreeNodes",{ 1 });
+	--end);
+	--self.treeBtn2 = self.transform:Find("2"):GetComponent(typeof(Button));
+	--self.treeBtn2.onClick:AddListener(function()
+	--LuaModuleDispatcher:SendMessage(ModuleDef.TalentModule, "OnOpenTreeNodes",{ 2 });
+	--end);
+	--self.treeBtn3 = self.transform:Find("3"):GetComponent(typeof(Button));
+	--self.treeBtn3.onClick:AddListener(function()
+	--LuaModuleDispatcher:SendMessage(ModuleDef.TalentModule, "OnOpenTreeNodes",{ 3 });
+	--end);
+
+	local attriTTCondition = ConfigDataAccessor.AttriTTCondition;
+	local playerJob=GameManager.Instance:GetPlayerJob()
+	for k, v in pairs(attriTTCondition) do
+		local nodeItem = self.transform:Find(tostring(k));
+		if nodeItem ~= nil then
+			local treeBtn = self.transform:Find(tostring(k)):GetComponent(typeof(Button));
+			if treeBtn~=nil then
+				local active=v.JobID==playerJob;
+				treeBtn.onClick:AddListener(function()
+					if active and GameManager.Instance:IsConditionMete(v.Condition) then
+						LuaModuleDispatcher:SendMessage(ModuleDef.TalentModule, "OnOpenTreeNodes",{ tonumber(k) }) 
+					else
+						local groups = GetCMconditionByGroupID(v.Condition)
+						Util.ShowMessage(groups[1].Desc);
+					end
+				end );
+				treeBtn.gameObject:SetActive(active)
+			end
+		end
+	end
+end
+
+function TreesPanel:InitData(data)
+	if data == nil then
+		return;
+	end
+	local attriTTNode = ConfigDataAccessor.AttriTTNode;
+
+	local lightNum = 0;
+	for k,v in pairs(data.AllTree) do
+		for k2,v2 in pairs(v.Tree) do
+			if attriTTNode[k2]~=nil then
+				lightNum = lightNum + v2;
+			end
+		end
+	end
+
+	local attriTTCondition = ConfigDataAccessor.AttriTTCondition;
+	local playerJob = GameManager.Instance:GetPlayerJob();
+	for k,v in pairs(attriTTCondition) do
+		if v.JobID == playerJob then
+			self.nameText.text = v.TreeName;
+			break;
+		end
+	end
+	
+	local allTreeIDs = {};
+	for k,v in pairs(attriTTCondition) do
+		if v.JobID == playerJob then
+			table.insert(allTreeIDs, v.RootNode);
+		end
+	end
+	
+	local totalNum = 0;
+	for k,v in pairs(attriTTNode) do
+		local f = false;
+		for _, v2 in pairs(allTreeIDs) do
+			if v2 == v.FromTree then
+				f = true;
+			end
+		end
+		if f then
+			totalNum = totalNum + v.MaxLevel;
+		end
+	end
+	
+	self.numText.text = lightNum.."/"..totalNum;
+end
+
+function TreesPanel:Show(isShow)
+	self.gameObject:SetActive(isShow);
+end
+
+return TreesPanel

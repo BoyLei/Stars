@@ -1,0 +1,86 @@
+--[[
+*文件名   :   PartnerJoinWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/02 11:43:21"
+*创建人   :   "quzhenxin"
+*版权所有 :   游卡网络科技技术有限公司
+]] PartnerJoinWidget = class("PartnerJoinWidget", UIPanel)
+
+function PartnerJoinWidget:Awake()
+    self.transform = self.prefab.transform
+    self.gameObject = self.transform.gameObject
+
+    local FrameTransForm = self.transform:Find("Cut4Cam90/AssemblyRatio2").transform;
+    self.HeadIconBg = FrameTransForm:Find("bg/HeadIconBg"):GetComponent(typeof(Image))
+    self.HeadIcon = FrameTransForm:Find("bg/HeadIconBg/HeadIcon"):GetComponent(typeof(Image))
+    self.PartnerName = FrameTransForm:Find("bg/PartnerName"):GetComponent(typeof(Text))
+    self.PartnerQuality = FrameTransForm:Find("bg/HeadIconBg/Head"):GetComponent(typeof(Image))
+end
+
+-- 打开界面
+function PartnerJoinWidget:OnOpen(data)
+    local config = ConfigDataAccessor.Partner[data]
+    if config then
+        self:LoadPartnerInfo(config)
+    end
+    -- 自动关闭界面
+    self:AutoCloseAfterDelay()
+end
+
+-- 加载合作伙伴信息
+function PartnerJoinWidget:LoadPartnerInfo(config)
+    local avatarData = ConfigDataAccessor.Avatar[config.AvatarID]
+    if avatarData then
+        local headConfig = ConfigDataAccessor.ModelHead[avatarData.HeadID]
+        if headConfig then
+            ResourceHelper:LoadIconByAtlasAsync(self.HeadIcon, headConfig.HeadAtlasName, headConfig.MaxHead, false,
+                self.OnIconLoaded)
+        end
+    end
+
+    local qualityName = self:GetPartnerQuiltyIconName(config.Quality)
+    ResourceHelper:GetSpriteInAtlasByName(ResourceHelper.Recruitment, qualityName, function(sp)
+        if sp ~= nil then
+            self.PartnerQuality.sprite = sp
+        end
+    end)
+    self.PartnerName.text = config.Name
+    self.PartnerName.color = ColorDefine.Instance:GetColor(self:GetQualityNameColor(config.Quality))
+end
+
+function PartnerJoinWidget:GetPartnerQuiltyIconName(quality)
+    local name = "";
+    if quality == 4 then
+        name = "Recruitment_icon_01";
+    elseif quality == 3 then
+        name = "Recruitment_icon_02";
+    elseif quality == 2 then
+        name = "Recruitment_icon_03";
+    elseif quality == 1 then
+        name = "Recruitment_icon_04";
+    end
+end
+
+function PartnerJoinWidget:GetQualityNameColor(quality)
+    return "Partner_Head_" .. quality;
+end
+
+-- 图标加载完成的回调
+function PartnerJoinWidget:OnIconLoaded()
+    -- 这里可以添加图标加载完成后的逻辑
+end
+
+-- 自动关闭界面
+function PartnerJoinWidget:AutoCloseAfterDelay()
+    DOVirtual.DelayedCall(2.5, function()
+        self.Close()
+    end)
+end
+
+-- 关闭界面
+function PartnerJoinWidget:OnClose()
+    -- 清理资源，关闭界面的逻辑
+end
+
+return PartnerJoinWidget

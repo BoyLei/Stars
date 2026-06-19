@@ -1,0 +1,457 @@
+--[[
+*文件名   :   RingTaskRandomWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/10/31 15:00:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+RingTaskRandomWidget = class("RingTaskRandomWidget", UIPanel)
+RingTaskRandomWidget.IsOpen = false
+
+function RingTaskRandomWidget:Awake()
+    self.transform = self.prefab.transform
+
+    --测试代码
+    self.IsTest = false
+
+    --是否播放动画
+    self.IsPlayAnim = false
+
+    self.rotateSpeed = 900 --轮盘旋转速度（角度/s）
+    if self.IsPlayAnim then
+        self.rotateSpeed = 1200
+    end
+
+    --动画相关
+    self.anim = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ring/Root"):GetComponent(typeof(Animator))
+
+    --开始转盘按钮
+    self.go_CanRoll = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ring/BtnGacha").gameObject
+    self.go_CantRoll = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ring/CantRoll").gameObject
+    self.go_CanRoll:GetComponent(typeof(JButton)).OnClick = (function()
+        self:PlayRandomAnim()
+    end)
+
+    --关闭UI按钮
+    local btnCloseInfo = self.transform:Find("Background"):GetComponent(typeof(Button))
+    btnCloseInfo.onClick:AddListener(
+        function()
+            --不停下来不给关闭
+            if self.isPause then
+                self:OnPlayBack()
+            end
+        end
+    )
+    --转盘
+    self.Turnplate = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ring/Root/Circle")
+
+    --初始化道具
+    self.turnplateItemList = {}
+    for i = 1, 8 do
+        local turnpItem = {}
+        turnpItem.Icon = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ring/Root/Circle/cell" .. i .. "/icon"):GetComponent(typeof(Image))
+        turnpItem.Rarity = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ring/Root/Circle/cell" .. i .. "/rarity"):GetComponent(typeof(Image))
+        turnpItem.NumTex = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ring/Root/Circle/cell" .. i .. "/numBg/num"):GetComponent(typeof(Text))
+
+        turnpItem.Icon.gameObject:GetComponent(typeof(JButton)).OnClick = (function()
+            self:ShowItemTips(i)
+        end)
+
+        turnpItem.BaseID = 0
+        turnpItem.Num = 0
+        turnpItem.topValue = 22.5 - 45 * (i - 1)
+        turnpItem.downValue = turnpItem.topValue - 45
+        turnpItem.sibling = i - 1
+        table.insert(self.turnplateItemList, turnpItem)
+    end
+
+    self.RefeshReward = function(data)
+        self:OnRingTaskExRet(data)
+    end
+
+    self.isPause = true
+
+    self.module = nil
+end
+
+function RingTaskRandomWidget:ShowItemTips(idx)
+    local baseID = self.turnplateItemList[idx].BaseID
+    local tr = self.turnplateItemList[idx].Icon.transform
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", {baseID, false, 0, tr, 0})
+end
+
+function RingTaskRandomWidget:GetQualityImage(quality)
+    if quality == 1 then
+        return "RingTask_Quality_gray"
+    elseif quality == 2 then
+        return "RingTask_Quality_green"
+    elseif quality == 3 then
+        return "RingTask_Quality_blue"
+    elseif quality == 4 then
+        return "RingTask_Quality_purple"
+    elseif quality == 5 then
+        return "RingTask_Quality_orange"
+    end
+end
+
+--设置奖励
+function RingTaskRandomWidget:SetRewardsItem()
+    local pLv = GameManager.Instance:GetPlayerLevel()
+
+    local ringTaskGroupCfg = ConfigDataAccessor.GetRingTaskGroupByLevel(pLv)
+
+    local allNum = #ringTaskGroupCfg.AwardsDisplay
+
+    --所有道具
+    for i = 1, allNum do
+        local turnpItem = self.turnplateItemList[i]
+
+        turnpItem.BaseID = ringTaskGroupCfg.AwardsDisplay[i]
+        turnpItem.Num = ringTaskGroupCfg.AwardsDisplayNum[i]
+
+        turnpItem.NumTex.text = turnpItem.Num
+
+        local cfg = ConfigDataAccessor.Item[turnpItem.BaseID]
+        --ICON
+        turnpItem.Icon.gameObject:SetActive(false)
+        ResourceHelper:LoadIconAsync(
+            turnpItem.Icon,
+            "",
+            cfg.Icon,
+            false,
+            function()
+                turnpItem.Icon.gameObject:SetActive(true)
+            end
+        )
+        local quality = cfg.Quality
+        if quality == 99 then
+            quality = 1
+        end
+        turnpItem.Rarity.gameObject:SetActive(false)
+        ResourceHelper:LoadIconByAtlasAsync(
+            turnpItem.Rarity,
+            ResourceHelper.AtlasPathRingTask,
+            self:GetQualityImage(quality),
+            false,
+            function()
+                turnpItem.Rarity.gameObject:SetActive(true)
+            end
+        )
+    end
+
+    --不足的用最后一个补足
+    for i = allNum, 8 do
+        local turnpItem = self.turnplateItemList[i]
+
+        turnpItem.BaseID = ringTaskGroupCfg.AwardsDisplay[allNum]
+        turnpItem.Num = ringTaskGroupCfg.AwardsDisplayNum[allNum]
+
+        turnpItem.NumTex.text = turnpItem.Num
+        local cfg = ConfigDataAccessor.Item[turnpItem.BaseID]
+        --ICON
+        turnpItem.Icon.gameObject:SetActive(false)
+        ResourceHelper:LoadIconAsync(
+            turnpItem.Icon,
+            "",
+            cfg.Icon,
+            false,
+            function()
+                turnpItem.Icon.gameObject:SetActive(true)
+            end
+        )
+        local quality = cfg.Quality
+        if quality == 99 then
+            quality = 1
+        end
+        turnpItem.Rarity.gameObject:SetActive(false)
+        ResourceHelper:LoadIconByAtlasAsync(
+            turnpItem.Rarity,
+            ResourceHelper.AtlasPathRingTask,
+            self:GetQualityImage(quality),
+            false,
+            function()
+                turnpItem.Rarity.gameObject:SetActive(true)
+            end
+        )
+    end
+
+    return self.turnplateItemList[1]
+end
+
+--根据回调找对应的
+function RingTaskRandomWidget:GetTurnplateItem()
+    for i = 1, #self.turnplateItemList do
+        if self.turnplateItemList[i].BaseID == self.BaseID and self.turnplateItemList[i].Num == self.Num then
+            return self.turnplateItemList[i]
+        end
+    end
+
+    --无视数量
+    for i = 1, #self.turnplateItemList do
+        if self.turnplateItemList[i].BaseID == self.BaseID then
+            return self.turnplateItemList[i]
+        end
+    end
+
+    return nil
+end
+
+--[[
+    播放大转盘
+]]
+function RingTaskRandomWidget:PlayRandomAnim()
+    if self.isPause then
+        if self.IsTest then
+            --临时测试
+            local idx = math.ceil(CS.UnityEngine.Random.Range(1, 8))
+            self.BaseID = self.turnplateItemList[idx].BaseID
+            self.Num = self.turnplateItemList[idx].Num
+            self:Begin()
+            CS.StarProject.GlobalEvent.OnFinishRingTaskRandom:Invoke()
+        else
+            --环任务领取奖励
+            BusinessManager.Instance:RingTaskExReq()
+            CS.StarProject.GlobalEvent.OnFinishRingTaskRandom:Invoke()
+        end
+    end
+end
+
+--开始转
+function RingTaskRandomWidget:Begin()
+    if self.isPause then
+        self.turnplateItem = self:GetTurnplateItem() --获得轮盘资源
+
+        if self.turnplateItem ~= nil then
+            self.isPause = false
+            self:Reset()
+            self:StartReallyRotate()
+        end
+    end
+end
+
+function RingTaskRandomWidget:Reset()
+    --安全校验
+    if self.firstRotate ~= nil then
+        self.firstRotate:Kill()
+    end
+    if self.secondRotate ~= nil then
+        self.secondRotate:Kill()
+    end
+    if self.turnplateItemShake ~= nil then
+        self.turnplateItemShake:Kill()
+    end
+    self.Turnplate.localRotation = Quaternion(0, 0, 0, 0) --恢复状态
+end
+
+function RingTaskRandomWidget:StartReallyRotate()
+    local turnplateItem = self.turnplateItem
+
+    local angle = CS.UnityEngine.Random.Range(turnplateItem.downValue + 7, turnplateItem.topValue - 7)
+
+    --直接到中点
+    angle = (turnplateItem.downValue + turnplateItem.topValue) / 2
+
+    self.firstRotate = self.Turnplate:DORotate(Vector3(0, 0, self.Turnplate.localEulerAngles.z - 360), 360 / self.rotateSpeed, RotateMode.FastBeyond360):SetEase(Ease.Linear):SetAutoKill() --第一次原地旋转无效果
+    self.firstRotate:OnKill(
+        function()
+            angle = angle - 360 --防止反转
+            self.secondRotate = self.Turnplate:DORotate(Vector3(0, 0, angle), math.abs(angle) / self.rotateSpeed, RotateMode.FastBeyond360):SetEase(Ease.Linear):SetAutoKill() --第二次转到指定位置
+            self.secondRotate:OnKill(
+                function()
+                    self.FinishMode = Ease.OutQuart
+
+                    self.thirdRotate =
+                        self.Turnplate:DORotate(Vector3(0, 0, self.Turnplate.localEulerAngles.z - 360), 360 * 2 / self.rotateSpeed * 2, RotateMode.FastBeyond360):SetEase(self.FinishMode):SetAutoKill() --第三次原地减速旋转
+
+                    --Ease.OutSine,Ease.OutFlash
+                    self.thirdRotate:OnKill(
+                        function()
+                            if self.IsPlayAnim then
+                                self.anim.gameObject:SetActive(false)
+                                self.anim.gameObject:SetActive(true)
+                                self.anim:Play("Random")
+
+                                DOVirtual.DelayedCall(
+                                    3,
+                                    function()
+                                        self.turnplateItemShake = self.Turnplate:GetChild(turnplateItem.sibling):DOShakeScale(0.3, 0.1) --获得指定资源物抖动
+                                        self.turnplateItemShake:OnKill(
+                                            function()
+                                                self:Finish()
+                                            end
+                                        ) --结束回调
+                                    end
+                                )
+                            else
+                                DOVirtual.DelayedCall(
+                                    0.5,
+                                    function()
+                                        self:Finish()
+                                    end
+                                )
+                            end
+                        end
+                    )
+                end
+            )
+        end
+    )
+end
+
+function RingTaskRandomWidget:Finish()
+    self.isPause = true
+
+    local rewardsList = {}
+    -- 直接显示奖励
+
+    local rw = {}
+    rw.BaseID = self.BaseID
+    rw.Num = self.Num
+    rw.EntityID = 0
+    table.insert(rewardsList, rw)
+
+    -- 弹窗逻辑（先塞进去之后在外面调用）
+    LuaModuleDispatcher:SendMessage(ModuleDef.RewardsPopModule, "OnOpenRewardsPop", {rewardsList})
+
+    --不能再转了
+    if not (self.IsTest) then
+        --测试代码
+        self.go_CanRoll:SetActive(false)
+        self.go_CantRoll:SetActive(true)
+    end
+end
+
+function RingTaskRandomWidget:BindModule(m)
+    self.module = m
+end
+
+function RingTaskRandomWidget:Start()
+end
+
+function RingTaskRandomWidget:OnEnable()
+end
+
+function RingTaskRandomWidget:OnDisable()
+end
+
+function RingTaskRandomWidget:OnDestroy()
+end
+
+function RingTaskRandomWidget:CheckIsFinishAll(id)
+    local isFinish = false
+
+    if id ~= nil and id > 0 then
+        local idNow = id
+        local isLast = false
+        local configNow = TaskHelper.GetTaskConfig(idNow)
+        local baseNow = nil
+        if configNow ~= nil then
+            baseNow = configNow.Base
+        else
+            isLast = true
+        end
+
+        --读取配置表的环任务
+        local ringTaskCfg = ConfigDataAccessor.GetRingTaskConfigById(id)
+        while not (isLast) do
+            --任务状态
+            if TaskHelper.ContainTask(idNow) then
+                --正在进行
+                self.TaskId = idNow
+                isLast = true
+            elseif TaskHelper.IsTaskFinsh(idNow) then
+                if baseNow.NextTaskID == 0 then
+                    --已经完成
+                    self.TaskId = idNow
+                    isLast = true
+                    isFinish = true
+                else
+                    --继续往下查
+                    configNow = TaskHelper.GetTaskConfig(baseNow.NextTaskID)
+                    if configNow ~= nil then
+                        idNow = baseNow.NextTaskID
+                        baseNow = configNow.Base
+                    else
+                        --结束
+                        baseNow = nil
+                        isLast = true
+                        print("任务ID：" .. baseNow.NextTaskID .. "不存在")
+                    end
+                end
+            else
+                --还没开始
+                self.TaskId = idNow
+                isLast = true
+            end
+        end
+    end
+
+    return isFinish
+end
+function RingTaskRandomWidget:OnOpen(arg)
+    self.IsOpen = true
+    self.CanRoll = false
+
+    --判断是否完成了任务
+    local TaskIDs = BusinessManager.Instance:GetAllRingTaskIDs()
+    local thirdId = TaskIDs[2]
+    if self:CheckIsFinishAll(thirdId) then
+        self.CanRoll = true
+    end
+    if self.IsTest then
+        --测试代码
+        self.CanRoll = true
+    end
+    if self.CanRoll then
+        self.go_CanRoll:SetActive(true)
+        self.go_CantRoll:SetActive(false)
+    else
+        self.go_CanRoll:SetActive(false)
+        self.go_CantRoll:SetActive(true)
+    end
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.RingTaskExRetID, self.RefeshReward, nil)
+
+    self:SetRewardsItem()
+end
+
+function RingTaskRandomWidget:OnClose(arg)
+    self.IsOpen = false
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.RingTaskExRetID, self.RefeshReward, nil)
+end
+
+function RingTaskRandomWidget:OnPlayBack()
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips", {})
+    self.IsOpen = false
+    --self.anim:Play("RingTaskRandomWidgetAnim_Close");
+
+    self.tw_close =
+        DOVirtual.DelayedCall(
+        0.01,
+        function()
+            UIManager.Instance:CloseWidget("RingTask/RingTaskRandomWidget", nil, true)
+        end
+    )
+end
+
+function RingTaskRandomWidget:OnRingTaskExRet(data)
+    if data.data ~= nil then
+        -- 成功
+        local ExReward = data.data.ExReward
+
+        if ExReward ~= nil then
+            local data = ExReward.Data
+
+            for k, v in pairs(data) do
+                self.BaseID = k
+                self.Num = v
+            end
+
+            --开始转
+            self:Begin()
+        end
+    end
+end
+
+return RingTaskRandomWidget

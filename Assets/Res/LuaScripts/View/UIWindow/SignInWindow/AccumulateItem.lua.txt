@@ -1,0 +1,60 @@
+local AccumulateItem = {}
+AccumulateItem.__index = AccumulateItem
+
+function AccumulateItem:New(obj)
+    local self = {};
+    setmetatable(self, AccumulateItem);
+
+    self:InitControls(obj)
+
+    return self;
+end
+
+function AccumulateItem:InitControls(obj)
+    self.gameObject = obj;
+    self.transform = obj.transform;
+
+    self.dayText = self.transform:Find("Day/Text"):GetComponent(typeof(Text));
+    self.iconImg = self.transform:Find("iconmask/Icon"):GetComponent(typeof(Image));
+    self.iconNum = self.transform:Find("iconmask/Icon/Num"):GetComponent(typeof(Text))
+    self.tipsBtn = self.transform:Find("TipsBtn"):GetComponent(typeof(Button));
+    self.getObj = self.transform:Find("Get").gameObject;
+    self.rewardBtn = self.transform:Find("RewardBtn"):GetComponent(typeof(Button));
+    self.arrowObj = self.transform:Find("Arrow").gameObject;
+
+    self.rewardBtn.onClick:AddListener(function()
+        local msg = CS.ProtoMsg.CheckInCountRewardReq();
+        msg.CountDay = self.curDay
+
+        local gameSocket = NetworkManager.Instance.gameSocket;
+        gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, msg, false);
+    end);
+
+    self.tipsBtn.onClick:AddListener(function()
+        LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",{ self.BaseID,false,0,self.transform,0});     
+    end);
+end
+
+function AccumulateItem:Init(data, checkInCount, countList)
+    --self.dayText.text = data.AccumulatedNum.."天"
+    self.dayText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_AccumulateItem_day"), {data.AccumulatedNum});
+
+
+    self.BaseID = data.Reward;
+    local itemData = ConfigDataAccessor.Item[data.Reward]
+    ResourceHelper:LoadIconAsync(self.iconImg, "", itemData.Icon, false)
+    self.iconNum.text = data.RewardNum
+    self.getObj:SetActive(false);
+    for i=0, countList.CountList.Count-1 do
+        if countList.CountList[i] == data.AccumulatedNum then
+            self.getObj:SetActive(true);
+            break;
+        end
+    end
+
+    self.rewardBtn.gameObject:SetActive(data.AccumulatedNum <= checkInCount and not self.getObj.activeSelf);
+
+    self.curDay = data.AccumulatedNum;
+end
+
+return AccumulateItem

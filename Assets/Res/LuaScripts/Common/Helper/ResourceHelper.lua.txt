@@ -1,0 +1,212 @@
+--[[
+*文件名   :   ResourceHelper
+*内  容   :	 资源加载
+*说  明   :
+*创建日期 :
+*创建人   :
+*版权所有 :   游卡网络科技技术有限公司
+]] ResourceHelper = class("ResourceHelper")
+
+function ResourceHelper:ctor()
+    self.AtlasPathEtchSkill = "UI/Icons/Atlas/IconEtchSkill"
+    self.AtlasPathSkill = "UI/Icons/Atlas/IconSkill"
+    self.AtlasPathSkillPanel = "UI/Skill/Atlas/Skill"
+    self.AtlasPathItem = "UI/Icons/Atlas/IconItem"
+    self.AtlasPathCommonItem = "ui/common/atlas/commonitem"
+    self.AtlasPathRune = "ui/amulet/atlas/rune"
+    self.AtlasPathShop = "ui/shop/atlas/shop"
+    self.AtlasPathRole = "UI/Icons/Atlas/IconRole"
+    self.AtlasPathBuff = "UI/Icons/Atlas/IconBuff"
+    self.AtlasPathEmo1 = "UI/Icons/Atlas/IconEmo"
+    self.AtlasPathCommon = "ui/commonatlas/commonatlas"
+    self.AtlasPathHud = "ui/starworld/atlas/hud"
+    self.AtlasPathAdventure = "ui/adventurelevel/atlas/adventure"
+    self.AtlasPathCommonctrl = "ui/common/atlas/commonctrl"
+    self.AtlasPathCopyTeam = "ui/dailyteam/atlas/copyteam"
+    self.AtlasPathTextMap = "fonts/text/textmap"
+    self.AtlasPathTextBattle = "fonts/text/TextBattle"
+    self.AtlasPathIconAttribute = "ui/icons/atlas/iconattribute"
+    self.AtlasPathBag = "ui/bag/atlas/bag"
+    self.AtlasPathWorldLine = "ui/worldline/atlas/worldline"
+    self.AtlasGuild = "ui/guild/atlas/guild"
+    self.Recruitment = "ui/DrawCard/atlas/Recruitment"
+    self.AtlasPathRingTask = "ui/RingTask/atlas/RingTask"
+    self.HeadIconAtlasPath = "UI/Icons/Atlas/IconRoleAvg"
+    self.HeadAtlasPath = "UI/Common/Textures/Role/"
+end
+
+function ResourceHelper:Clear()
+end
+
+function ResourceHelper:LoadSpriteAtlasAsync(imageComponent, spriteAtlasPath, spriteName, isNativeSize, cb, isPng)
+    if imageComponent == nil or Util.IsNull(imageComponent.gameObject) or spriteAtlasPath == "" then
+        return
+    end
+
+    if isPng == nil then
+        isPng = false
+    end
+
+    ResourceManager.Instance:LoadSpriteAtlasAsync(
+        spriteAtlasPath,
+        spriteName,
+        function(sp)
+            -- Log("图集图片加载 22222222 atlasPath=" .. atlasPath .. " iconName=" .. spriteAtlasPath)
+            -- 直接找
+            if sp ~= nil then
+                if imageComponent ~= nil and Util.IsNull(imageComponent) == false and Util.IsNull(imageComponent.gameObject) == false then
+                    -- Log("图集图片加载 33333333333 atlasPath=" .. atlasPath .. " iconName=" .. spriteAtlasPath)
+                    imageComponent.sprite = sp
+                    if isNativeSize then
+                        imageComponent:SetNativeSize()
+                    end
+                    if cb ~= nil then
+                        cb()
+                    end
+                end
+            end
+        end,
+        isPng
+    )
+end
+
+-- 异步加载图片
+--- 优先在iconPath里直接加载
+--- 后在图集里面加载
+---- imageComponent:image组件
+---- atlasPath:图集路径
+---- iconPath:图片路径
+---- isNativeSize:是否原尺寸
+function ResourceHelper:LoadIconAsync(imageComponent, atlasPath, iconPath, isNativeSize, cb)
+    local start, _, _ = string.find(iconPath, "&")
+    local path = string.split(iconPath, "&")[1]
+    if start then
+        local iconExt = string.sub(iconPath, start + 1)
+        self:LoadRoleItemAsync(imageComponent, "", path, isNativeSize, cb, iconExt)
+    else
+        self:LoadRoleItemAsync(imageComponent, atlasPath, iconPath, isNativeSize, cb)
+    end
+end
+
+function ResourceHelper:LoadRoleItemAsync(imageComponent, atlasPath, iconPath, isNativeSize, cb, iconExt)
+    if imageComponent == nil or Util.IsNull(imageComponent.gameObject) or iconPath == "" then
+        return
+    end
+
+    if atlasPath ~= "" then 
+        self:LoadIconByAtlasAsync(imageComponent, atlasPath, iconPath, isNativeSize, cb)
+    else
+        -- Log("图集图片加载 111111 atlasPath=" .. atlasPath .. " iconName=" .. iconPath)
+        ResourceManager.Instance:LoadSpriteAsync(
+            iconPath,
+            function(sp)
+                -- Log("图集图片加载 22222222 atlasPath=" .. atlasPath .. " iconName=" .. iconPath)
+                -- 直接找
+                if sp ~= nil then
+                    if imageComponent ~= nil and Util.IsNull(imageComponent) == false and Util.IsNull(imageComponent.gameObject) == false then
+                        -- Log("图集图片加载 33333333333 atlasPath=" .. atlasPath .. " iconName=" .. iconPath)
+                        imageComponent.sprite = sp
+                        if isNativeSize then
+                            imageComponent:SetNativeSize()
+                        end
+                        if cb ~= nil then
+                            cb()
+                        end
+                    end
+                else
+                    -- 在图集里面再找一次
+                    self:LoadIconByAtlasAsync(imageComponent, atlasPath, iconPath, isNativeSize, cb)
+                end
+            end,
+            iconExt
+        )
+    end
+end
+
+function ResourceHelper:LoadAtlasPathIconAsync(imageComponent, iconPath, isNativeSize, cb)
+    local path = string.split(iconPath, "|")
+    local atlasPath = path[1]
+    local iconName = path[2]
+
+    ResourceHelper:LoadIconByAtlasAsync(imageComponent, atlasPath, iconName, isNativeSize, cb)
+end
+
+-- 异步加载图片
+---- imageComponent:image组件
+---- atlasPath:图集路径
+---- iconPath:图片路径
+---- isNativeSize:是否原尺寸
+function ResourceHelper:LoadRawIconAsync(imageComponent, iconName, isNativeSize, cb)
+    if imageComponent == nil or Util.IsNull(imageComponent.gameObject) or iconName == "" then
+        return
+    end
+    ResourceManager.Instance:LoadTextureAsync(
+        iconName,
+        function(sp)
+            -- 直接找
+            if sp ~= nil then
+                if imageComponent ~= nil and Util.IsNull(imageComponent) == false and Util.IsNull(imageComponent.gameObject) == false then
+                    imageComponent.texture = sp
+                    if isNativeSize then
+                        imageComponent:SetNativeSize()
+                    end
+                    if cb ~= nil then
+                        cb()
+                    end
+                end
+            end
+        end
+    )
+end
+
+-- 异步在图集里加载资源
+---- imageComponent:image组件
+---- atlasPath:图集路径
+---- iconName:图片名字
+---- isNativeSize:是否原尺寸
+function ResourceHelper:LoadIconByAtlasAsync(imageComponent, atlasPath, iconName, isNativeSize, cb)
+    if imageComponent == nil or Util.IsNull(imageComponent.gameObject) or atlasPath == "" or iconName == "" then
+        return
+    end
+    -- Log("加载图片 atlasPath=" .. atlasPath);
+    -- Log("加载图片 iconName=" .. iconName);
+    local callback = function(sprite)
+        -- Log("加载图片 完成 iconName=" .. iconName);
+        if imageComponent ~= nil and Util.IsNull(imageComponent) == false and Util.IsNull(imageComponent.gameObject) == false and sprite ~= nil then
+            imageComponent.sprite = sprite
+            if isNativeSize then
+                imageComponent:SetNativeSize()
+            end
+            if cb ~= nil then
+                cb()
+            end
+        end
+    end
+    self:GetSpriteByNameAsync(atlasPath, iconName, callback)
+end
+
+-- 异步在图集里面获取资源
+---- atlasPath:图集路径
+---- iconName:图片名字
+---- callback:回调
+local test str = "Icon_prop_currency5"
+function ResourceHelper:GetSpriteByNameAsync(atlasPath, iconName, callback)
+	--  if iconName == str or iconName == "[".."str".."]" then 
+	--  	LogError("1")		
+	--  end
+  --  LogError("get in atlas == ",atlasPath,"iconname == ",iconName)
+    AtlasManager.Instance:GetSpriteAsync(atlasPath, iconName, callback)
+end
+
+-- 在图集里直接获取资源
+---- atlas:图集
+---- name:图片名字
+function ResourceHelper:GetSpriteInAtlasByName(atlasPath, name, callback)
+	-- if iconName == str or iconName == "[".."str".."]" then
+	--  	LogError("1")
+	--  end
+    --  LogError("get in atlas == ",atlasPath,"iconname == ",iconName)
+    AtlasManager.Instance:GetSpriteAsync(atlasPath, name, callback)
+end
+
+return ResourceHelper

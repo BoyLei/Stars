@@ -1,0 +1,278 @@
+local RateInfo = {}
+RateInfo.__index = RateInfo
+
+function RateInfo:New(obj)
+    local self = {};
+    setmetatable(self, RateInfo);
+
+    self:InitControls(obj)
+
+    return self;
+end
+
+function RateInfo:InitControls(obj)
+    self.gameObject = obj;
+    self.transform = obj.transform;
+
+    -- upinfo
+    self.upTitle = self.transform:Find("ScrollView/Viewport/Content/UpTitle");
+    self.upRoles = self.transform:Find("ScrollView/Viewport/Content/UpRoles");
+    self.upSsrItem = self.transform:Find("ScrollView/Viewport/Content/UpRoles/Items/SSR");
+    self.upSrItem = self.transform:Find("ScrollView/Viewport/Content/UpRoles/Items/SR");
+    self.upRItem = self.transform:Find("ScrollView/Viewport/Content/UpRoles/Items/R");
+    self.upNItem = self.transform:Find("ScrollView/Viewport/Content/UpRoles/Items/N");
+
+    -- normalinfo
+    self.normalTitle = self.transform:Find("ScrollView/Viewport/Content/NormalTitle");
+    self.normalRoles = self.transform:Find("ScrollView/Viewport/Content/NormalRoles");
+
+    -- 公示信息
+    self.rateTitle = self.transform:Find("ScrollView/Viewport/Content/RateTitle");
+    self.rate = self.transform:Find("ScrollView/Viewport/Content/Rate");
+    self.rateDescText = self.transform:Find("ScrollView/Viewport/Content/Rate/Text"):GetComponent(typeof(Text));
+
+    self.allItems = {}
+    self.upItems = {};
+
+    local hideBtn = self.transform:Find("ScrollView/Viewport/Content/RateTitle/HideBtn"):GetComponent(typeof(Button));
+    local iconTrans = hideBtn.transform:Find("icon");
+    hideBtn.onClick:AddListener(function()
+        self.rate.gameObject:SetActive(not self.rate.gameObject.activeSelf);
+        if self.rate.gameObject.activeSelf then
+            iconTrans.localScale = Vector3(1, -1, 1);
+        else
+            iconTrans.localScale = Vector3(1, 1, 1);
+        end
+    end);
+end
+
+function RateInfo:InitData(id)
+    self.curId = id;
+    local cardPool = ConfigDataAccessor.CardPool;
+    local cardData = cardPool[self.curId];
+    local partnerGroup = ConfigDataAccessor.PartnerGroup;
+
+    -- local upItems = {}
+    -- local ssrItems = {}
+    -- local srItems = {}
+    -- local rItems = {}
+    -- local nItems = {}
+    -- for k, v in pairs(partnerGroup) do
+    -- if v.IsProbUP then
+    -- table.insert(upItems, v);
+    -- end
+
+    -- if v.PartnerGroup == cardData.SSRGroup then
+    -- table.insert(ssrItems, v);
+    -- end
+
+    -- if v.PartnerGroup == cardData.SRGroup then
+    -- table.insert(srItems, v);
+    -- end
+
+    -- if v.PartnerGroup == cardData.RGroup then
+    -- table.insert(rItems, v);
+    -- end
+
+    -- if v.PartnerGroup == cardData.NGroup then
+    -- table.insert(nItems, v);
+    -- end
+    -- end
+    for _, v in pairs(self.allItems) do
+        GameObject.Destroy(v);
+    end
+    self.allItems = {};
+
+    for _, v in pairs(self.upItems) do
+        GameObject.Destroy(v);
+    end
+    self.upItems = {};
+
+    local upItems = self:GetUpItems();
+    self:InitUpItems(upItems);
+
+    local descs = ConfigDataAccessor.CardPool[self.curId].ProbDesc;
+    self.descsArr = string.split(descs, "|");
+    self.curIndex = 1;
+
+    local ssrItems = self:GetQualityItems(4);
+    self:InitNormalItems(4, ssrItems);
+    local srItems = self:GetQualityItems(3);
+    self:InitNormalItems(3, srItems);
+    local rItems = self:GetQualityItems(2);
+    self:InitNormalItems(2, rItems);
+    local nItems = self:GetQualityItems(1);
+    self:InitNormalItems(1, nItems);
+
+    self.rateTitle:SetAsLastSibling();
+    self.rate:SetAsLastSibling();
+    self.rateDescText.text = ConfigDataAccessor.CardPool[self.curId].ProbText;
+end
+
+function RateInfo:GetUpItems()
+    local pool = ConfigDataAccessor.CardPool[self.curId];
+    local tb = {};
+    local pg = ConfigDataAccessor.PartnerGroup;
+    for _, v in pairs(pg) do
+        if v.PartnerGroup == pool.SSRGroup or v.PartnerGroup == pool.SRGroup then
+            if v.IsProbUP then
+                table.insert(tb, v.IncludePartner);
+            end
+        end
+    end
+    return tb;
+end
+
+function RateInfo:GetQualityItems(lv)
+    local pool = ConfigDataAccessor.CardPool[self.curId];
+    local tb = {};
+    local pg = ConfigDataAccessor.PartnerGroup;
+    for _, v in pairs(pg) do
+        if (lv == 4 and v.PartnerGroup == pool.SSRGroup) or lv == 3 and v.PartnerGroup == pool.SRGroup or lv == 2 and
+            v.PartnerGroup == pool.RGroup or lv == 1 and v.PartnerGroup == pool.NGroup then
+            table.insert(tb, v.IncludePartner);
+        end
+    end
+    return tb;
+end
+
+function RateInfo:InitUpItems(data)
+    local upDesc = self.upRoles:Find("Text"):GetComponent(typeof(Text));
+    local tmp = ConfigDataAccessor.Probability[ConfigDataAccessor.CardPool[self.curId].UseProbGroup];
+    --upDesc.text = "特殊说明：上列概率提升角色，占SSR召唤基础概率的：" .. (tmp.UPSSRProb / 100) .. "%；SR召唤基础概率的：" .. (tmp.UPSRProb / 100) .. "%";
+    upDesc.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_RateInfo_upDesc"), {(tmp.UPSSRProb / 100), (tmp.UPSRProb / 100)});
+
+    self.upTitle.gameObject:SetActive(tmp.UPSSRProb > 0 or tmp.UPSRProb > 0);
+    self.upRoles.gameObject:SetActive(tmp.UPSSRProb > 0 or tmp.UPSRProb > 0);
+
+    local partner = ConfigDataAccessor.Partner;
+    for k, v in pairs(data) do
+        local partnerId = v;
+
+        local go = nil;
+        local quality = partner[partnerId].Quality;
+        if quality == 4 then
+            go = self.upSsrItem;
+        elseif quality == 3 then
+            go = self.upSrItem;
+        elseif quality == 2 then
+            go = self.upRItem;
+        elseif quality == 1 then
+            go = self.upNItem
+        end
+
+        local item = newObject(go.gameObject);
+        item.transform:SetParent(go.transform.parent);
+        item.transform.localPosition = Vector3.zero
+        item.transform.localScale = Vector3.one
+        item:SetActive(true);
+        item.transform:SetAsLastSibling();
+
+        local img = item.transform:Find("icon"):GetComponent(typeof(Image));
+        local avatarDataCell = ConfigDataAccessor.Avatar[partner[partnerId].AvatarID];
+        local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID];
+        if headCfg ~= nil then
+
+
+            --ResourceHelper:LoadIconAsync(img, "", headCfg.HalfDrawing, false)
+            self:GetSpriteByAtlas(headCfg.HeadAtlasName,headCfg.MinHead,function (sp)
+					img.sprite=sp				
+			end);
+
+            -- ResourceManager.Instance:LoadSpriteAsync(headCfg.HalfDrawing,function (sp)
+            -- 		if img ~= nil and sp ~= nil then
+            -- 			img.sprite = sp;
+            -- 			--img.sprite:SetNativeSize();
+            -- 		end
+            -- 	end)
+        end
+
+        table.insert(self.upItems, item);
+    end
+end
+
+function RateInfo:InitNormalItems(quality, data)
+    local tmp = ConfigDataAccessor.Probability[ConfigDataAccessor.CardPool[self.curId].UseProbGroup];
+    local isVisiable = (quality == 4 and tmp.SSRProb > 0) or (quality == 3 and tmp.SRProb > 0) or
+                           (quality == 2 and tmp.RProb > 0) or (quality == 1 and tmp.NProb > 0)
+
+    local partner = ConfigDataAccessor.Partner;
+    if isVisiable then
+        local title = newObject(self.normalTitle.gameObject);
+        title.transform:SetParent(self.normalTitle.parent);
+        title.transform.localPosition = Vector3.zero
+        title.transform.localScale = Vector3.one
+        title:SetActive(true);
+        title.transform:SetAsLastSibling();
+
+        local roles = newObject(self.normalRoles.gameObject);
+        roles.transform:SetParent(self.normalRoles.parent);
+        roles.transform.localPosition = Vector3.zero
+        roles.transform.localScale = Vector3.one
+        roles:SetActive(true);
+        roles.transform:SetAsLastSibling();
+
+        local roleItem = roles.transform:Find("Item");
+        for k, v in pairs(data) do
+            local roleItemGo = newObject(roleItem.gameObject);
+            roleItemGo.transform:SetParent(roleItem.parent);
+            roleItemGo.transform.localPosition = Vector3.zero
+            roleItemGo.transform.localScale = Vector3.one
+            roleItemGo:SetActive(true);
+            roleItemGo.transform:SetAsLastSibling();
+
+            local bg = roleItemGo.transform:GetComponent(typeof(Image));
+            local img = roleItemGo.transform:Find("Image"):GetComponent(typeof(Image));
+            local partnerId = v;
+
+            local itemCfg = ConfigDataAccessor.Item[partnerId];
+            local quality = itemCfg.Quality;
+            -- bg.sprite = AtlasManager.Instance:GetSprite("ui/common/atlas/commonitem","Bag_Grid_sq"..quality);
+            ResourceHelper:LoadIconByAtlasAsync(bg, ResourceHelper.AtlasPathCommonItem, "Bag_Grid_sq" .. quality, false)
+            local headCfg = ConfigDataAccessor.ModelHead[partner[partnerId].AvatarID];
+            if headCfg ~= nil then
+                -- local path = headCfg.MaxHead;
+                -- img.sprite=AtlasManager.Instance:GetSprite(headCfg.HeadAtlasName, headCfg.MaxHead);
+                ResourceHelper:LoadIconByAtlasAsync(img, headCfg.HeadAtlasName, headCfg.MinHead, false)
+            end
+
+            local name = roleItemGo.transform:Find("Name"):GetComponent(typeof(Text));
+            name.text = ConfigDataAccessor.Item[partnerId].Name;
+        end
+        self:SetTitle(title, roles, quality);
+
+        table.insert(self.allItems, title);
+        table.insert(self.allItems, roles);
+    end
+    -- if quality == 1 then
+
+    -- end
+end
+
+function RateInfo:SetTitle(go, go2, lv)
+    local ssr = go.transform:Find("Quality/Ssr").gameObject;
+    local sr = go.transform:Find("Quality/Sr").gameObject;
+    local r = go.transform:Find("Quality/R").gameObject;
+    local n = go.transform:Find("Quality/N").gameObject;
+    ssr:SetActive(lv == 4);
+    sr:SetActive(lv == 3);
+    r:SetActive(lv == 2);
+    n:SetActive(lv == 1);
+
+    local rateText = go.transform:Find("Text"):GetComponent(typeof(Text));
+    local hideBtn = go.transform:Find("HideBtn"):GetComponent(typeof(Button));
+    local iconTrans = go.transform:Find("HideBtn/icon");
+    hideBtn.onClick:AddListener(function()
+        go2:SetActive(not go2.activeSelf);
+        if go2.activeSelf then
+            iconTrans.localScale = Vector3(1, -1, 1);
+        else
+            iconTrans.localScale = Vector3(1, 1, 1);
+        end
+    end);
+
+    rateText.text = self.descsArr[self.curIndex];
+    self.curIndex = self.curIndex + 1;
+end
+
+return RateInfo

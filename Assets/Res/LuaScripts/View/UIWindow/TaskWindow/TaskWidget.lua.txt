@@ -1,0 +1,388 @@
+--[[
+*文件名   :   TaskWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/10/25 11:09:17"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+TaskWidget = class("TaskWidget", UIPanel)
+TaskWidget.m_DailyTeamItem = nil;
+TaskWidget.m_TaskItem = nil;
+TaskWidget.m_Tasks = nil;
+TaskWidget.m_Content = nil;
+TaskWidget.m_TaskTypeMap = {}
+TaskWidget.ContentVerticalLayoutGroup = nil;
+TaskWidget.ContentContentSizeFitter = nil;
+TaskWidget.TaskMap = {}
+
+TaskWidget.OnNoneGameInput=nil;
+TaskWidget.MainTaskFinishTutorial=nil;
+TaskWidget.Root=nil;
+--------------------------------组队相关------------------------------
+local WantedSortIndex = 0; --排序索引
+TaskWidget.wantedTaskItem = nil;
+local dailySortIndex = 1;  --排序索引
+TaskWidget.dailyTeamItem = nil;
+
+local WantedTaskItem = require("View/UIWindow/Wanted/WantedTaskItem")
+local DailyTeamItem = require("View/UIWindow/DailyTeam/DailyTeamItem")
+local BeginnerTask = require("View/UIWindow/Wanted/BeginnerTask")
+local TaskItem = require("View/UIWindow/TaskWindow/TaskItem")
+
+--------------------------------------------------------------------
+
+function TaskWidget:ctor(go, atlas,root)
+	self.prefab = go;
+	self.AtlasPath = atlas;
+	self.Root=root;
+	self.m_TaskTypeMap = {}
+	self.m_WantedTaskItem = self:Find("Tasks/ScrollView/Viewport/Content/WantedTaskItem").gameObject;
+	self.m_DailyTeamItem = self:Find("Tasks/ScrollView/Viewport/Content/DailyTeamItem").gameObject;
+	self.m_BeginnerTarget = self:Find("Tasks/BeginnerTarget").gameObject;
+	self.m_TaskItem = self:Find("TaskItem").gameObject;
+	self.m_Tasks = self:Find("Tasks");
+    self.m_ScrollView = self:Find("Tasks/ScrollView");
+	self.m_Content = self:Find("Tasks/ScrollView/Viewport/Content");
+	self.ContentVerticalLayoutGroup = self.m_Content:GetComponent(typeof(VerticalLayoutGroup));
+	self.ContentContentSizeFitter = self.m_Content:GetComponent(typeof(ContentSizeFitter));
+
+	for i = 0, 7 do
+		self.m_TaskTypeMap[i] = self:Find("Tasks/ScrollView/Viewport/Content/" .. i);
+	end
+
+	--组队
+	self.m_WantedTaskItem.transform:SetSiblingIndex(WantedSortIndex);
+	self.wantedTaskItem = WantedTaskItem.new(self.m_WantedTaskItem, self.AtlasPath);
+	self.m_DailyTeamItem.transform:SetSiblingIndex(dailySortIndex);
+	self.dailyTeamItem = DailyTeamItem.new(self.m_DailyTeamItem, self.AtlasPath);
+	self.BeginnerTarget = BeginnerTask.new(self.m_BeginnerTarget, self.AtlasPath);
+
+	self.TDEntryOpenNtfChanageAction = function(value)
+		self:OnTDEntryOpenNtfChanageAction(value);
+	end
+	BusinessManager.Instance:RegisterTDEntryOpenNtfChanageAction(self.TDEntryOpenNtfChanageAction)
+
+	self.TaskStageChangeFunc = function(type, taskid)
+		self:TaskStageChange(type, taskid)
+	end
+
+	self.TaskOnDeleteFunc = function(taskid)
+		self:TaskOnDelete(taskid)
+	end
+	CS.StarProject.GlobalEvent.TaskStageChange:AddListener(self.TaskStageChangeFunc);
+
+	self:OnTDEntryOpenNtfChanageAction(nil);
+
+	self.OnNoneGameInput=function(input)
+		self:NoneGameInput(input)
+	end
+	self.MainTaskFinishTutorial=function(id)
+		self:OnShowGuidanceMainTask(id)
+	end
+
+	if not TaskHelper.IsTaskFinsh(SystemConstConfigs.Guidance_NoInputHLEndTask) then
+		CS.StarProject.GlobalEvent.OnGameNoneInputChange:AddListener(self.OnNoneGameInput);
+
+		CS.StarProject.GlobalEvent.OnShowGuidanceMainTask:AddListener(self.MainTaskFinishTutorial);
+	end
+
+	CS.StarProject.GlobalEvent.TaskScrollRectChange:AddListener(function (index)
+		self:ForceClean();
+	end)
+	CS.StarProject.GlobalEvent.OnBackLogin:AddListener(function (againLoginType)
+			if againLoginType ~= CS.StarProjectDef.AgainLoginType.ChangeLanguage then
+				self:OnReLogin();
+			end
+		end)
+
+	self.GuideTaskID=0;
+	self.OnRefreshBeginnerTask=function()
+		self:RefreshBeginnerTask()
+	end
+	CS.StarProject.GlobalEvent.OnBeginnerRefresh:AddListener(self.OnRefreshBeginnerTask);
+	CS.StarProject.GlobalEvent.OnRoleCreateComplete:AddListener(self.OnRefreshBeginnerTask);
+end
+function TaskWidget:RefreshBeginnerTask()
+	local FriendModule = ModuleManager.Instance:GetModule(ModuleDef.BeginnerTargetModule);
+	local BeginnerTargetData
+	if FriendModule then
+		local luatable = FriendModule:GetLuaTable()
+		BeginnerTargetData = luatable:GetChapterData();
+	end
+
+	if BeginnerTargetData and BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.BeginnerTarget)
+		and not BeginnerTargetData.IsEnd and BeginnerTargetData.TaskDataList then
+		self.m_BeginnerTarget.gameObject:SetActive(true)
+        self.m_ScrollView.transform.sizeDelta = GlobalVector2:Set(self.m_ScrollView.transform.sizeDelta.x, 268)
+		self.BeginnerTarget:Refresh(BeginnerTargetData)
+	else
+		self.m_BeginnerTarget.gameObject:SetActive(false)
+        self.m_ScrollView.transform.sizeDelta = GlobalVector2:Set(self.m_ScrollView.transform.sizeDelta.x, 360)
+	end
+	self:FreshLayout()
+end
+
+function TaskWidget:OnReLogin()
+	self:ClearAll();
+end
+
+function TaskWidget:SelectFirstMainTask(str)
+	if self.GuideTaskID==0 then
+		for k, v in pairs(self.TaskMap) do
+			if v~=nil then
+				local cfg=TaskHelper.GetTaskConfig(k)
+				if cfg~=nil then
+					if cfg.Base.TaskType==CS.Task.TaskClassifyType.MainLine then
+						v:ActiveSelect();
+						self.GuideTaskID=k
+						GameManager.Instance:EventPreNewPlayerEvent("13_" .. self.GuideTaskID);
+						print(str)
+						break;
+					end
+				end
+			end
+		end
+	end
+end
+
+function TaskWidget:NoneGameInput(input)
+	if input then
+		self:SelectFirstMainTask("玩家无输入")
+	end
+end
+
+function TaskWidget:OnShowGuidanceMainTask(id)
+	self:SelectFirstMainTask("引导主线")
+end
+
+
+function TaskWidget:TaskOnDelete(taskid)
+	if self.TaskMap[taskid] ~= nil and self.TaskMap[taskid].prefab ~= nil then
+		GameObject.DestroyImmediate(self.TaskMap[taskid].prefab)--这里最好加个对象池 复用
+	end
+	self:FreshLayout()
+	self.TaskMap[taskid] = nil;
+end
+
+function TaskWidget:ForceClean()
+	if self.GuideTaskID~=0 then
+		if self.TaskMap[self.GuideTaskID]~=nil then
+			self.TaskMap[self.GuideTaskID]:DisableSelect()
+		end
+		self.GuideTaskID=0;
+	end
+	self:FreshLayout()
+end
+
+--[[
+1 任务新增
+2 任务失败
+3 任务删除
+4 任务数据变化
+]]
+function TaskWidget:TaskStageChange(type, taskid)
+	--任何数据变化都清除标记
+	if taskid==self.GuideTaskID then
+		if self.TaskMap[self.GuideTaskID]~=nil then
+			self.TaskMap[self.GuideTaskID]:DisableSelect()
+		end
+		self.GuideTaskID=0;
+	end
+
+	--删除
+	if type == 3 then
+		if self.TaskMap[taskid] ~= nil then
+			local data = TaskHelper.GetRunningTask(taskid);
+			self.TaskMap[taskid]:DeleteTask(data, self.TaskOnDeleteFunc);
+		end
+		self:ChekRemoveListener(taskid)
+		self:FreshLayout()
+		return
+	end
+	--新增
+	if type == 1 then
+		local data = TaskHelper.GetRunningTask(taskid);
+		local taskItem = self:CreatTask(data)
+		if taskItem ~= nil then
+			taskItem:NewTask(data)
+		end
+		self:FreshLayout()
+		return
+	end
+
+	--修改
+	if type == 4 or type == 2 then
+		if self.TaskMap[taskid] ~= nil then
+			local data = TaskHelper.GetRunningTask(taskid);
+			if data ~= nil then
+				self.TaskMap[taskid]:OnUpdateContent(data)
+				if  data.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStageFinished and data.ClickFinish then
+					self:Fresh()
+				end
+			end
+		end
+		self:FreshLayout()
+		return
+	end
+end
+
+function TaskWidget:ChekRemoveListener(taskid)
+	if taskid==SystemConstConfigs.Guidance_NoInputHLEndTask then
+		if self.OnNoneGameInput~=nil then
+			CS.StarProject.GlobalEvent.OnGameNoneInputChange:RemoveListener(self.OnNoneGameInput);
+		end
+		if self.MainTaskFinishTutorial~=nil then
+			CS.StarProject.GlobalEvent.OnShowGuidanceMainTask:RemoveListener(self.MainTaskFinishTutorial);
+		end
+		if self.TaskMap[self.GuideTaskID]~=nil then
+			self.TaskMap[self.GuideTaskID]:DisableSelect()
+		end
+	end
+end
+
+function TaskWidget:OnTDEntryOpenNtfChanageAction(value)
+	local entry = BusinessManager.Instance:GetTDEntryOpenNtf()
+	if entry == nil then
+		self.dailyTeamItem:OnHide()
+	else
+		self.dailyTeamItem:OnShow(entry)
+	end
+end
+
+----------------- 通缉任务item ⬇⬇⬇⬇⬇⬇⬇⬇⬇⬇⬇
+
+-- 通知通缉任务更新状态
+-- 0全刷1刷新阶位信息2刷新次数
+function TaskWidget:InformWantedTask(informState)
+	if self.wantedTaskItem ~= nil then
+		self.wantedTaskItem:SetWantedTask(informState);
+	end
+end
+
+----------------- 通缉任务item ⬆⬆⬆⬆⬆⬆⬆⬆⬆⬆⬆
+
+
+function TaskWidget:OnEnable()
+
+end
+
+function TaskWidget:OnDisable()
+	print("任务界面关闭了")
+end
+
+function TaskWidget:OnDestroy()
+
+end
+
+function TaskWidget:ClearAll()
+	if self.TaskMap ~= nil then
+		for k, v in pairs(self.TaskMap) do
+			v:OnClear();
+			self.TaskMap[k] = nil;
+		end
+	end
+
+
+	if self.m_TaskTypeMap ~= nil then
+		for k, v in pairs(self.m_TaskTypeMap) do
+			if v ~= nil then
+				local count = v.transform.childCount
+				while count > 0 do
+					GameObject.DestroyImmediate(v.transform:GetChild(count - 1).gameObject)
+					count = count - 1;
+				end
+			end
+		end
+	end
+	self.TaskMap = {}
+	if self.dailyTeamItem ~=nil then
+		self.dailyTeamItem:OnHide()
+	end
+
+	self:FreshLayout()
+end
+
+function TaskWidget:OnDisableSelect(taskid)
+	if self.GuideTaskID==taskid then
+		self.GuideTaskID=0;
+	end
+end
+
+function TaskWidget:CreatTask(data)
+	if data == nil then
+		return nil;
+	end
+
+	if self.m_TaskItem == nil then
+		return nil;
+	end
+
+	if self.m_TaskTypeMap == nil then
+		return nil;
+	end
+
+	if self.TaskMap == nil then
+		self.TaskMap = {}
+	end
+
+	local parent
+	if (data.TaskType == 2 and data.Chapter == 602) or (data.TaskType == 5 and data.Chapter == 1) or (data.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStageFinished and data.ClickFinish) then--冒险等级突破  转职  特殊处理   排序在主线任务之上
+		parent = self.m_TaskTypeMap[0];
+	else
+		parent = self.m_TaskTypeMap[data.TaskType];
+	end
+	if parent ~= nil then
+		local go = GameObject.Instantiate(self.m_TaskItem)
+		go.transform:SetParent(parent)
+		go.transform.localScale=Vector3.one;
+		go:SetActive(true)
+		local taskItem = TaskItem.new(go, self.AtlasPath,self.prefab,function(taskid)
+				self:OnDisableSelect(taskid)
+			end)
+		self.TaskMap[data.TaskID] = taskItem;
+		return taskItem;
+	end
+
+	return nil
+end
+
+function TaskWidget:Fresh()
+	self:ClearAll();
+	local list = TaskHelper.GetAllTask();
+	if list ~= nil and list.Count > 0 then
+		for i = 1, list.Count do
+			local v = list[i - 1]
+			local parent
+			if (v.TaskType == 2 and v.Chapter == 602) or (v.TaskType == 5 and v.Chapter == 1) or (v.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStageFinished and v.ClickFinish) then--冒险等级突破特殊处理  排序在主线任务之上
+				parent = self.m_TaskTypeMap[0];
+			else
+				parent = self.m_TaskTypeMap[v.TaskType];
+			end
+			if parent ~= nil then
+				local taskItem = self:CreatTask(v)
+				if taskItem ~= nil then
+					taskItem:InitTask(v)
+				end
+			end
+		end
+	end
+	self:FreshLayout()
+end
+function TaskWidget:FreshLayout()
+	if self.m_Content then
+		CS.UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(self.m_Content.transform);
+	end
+end
+function TaskWidget:OnOpen(arg)
+	self:Fresh();
+	self:InformWantedTask(0)
+	self:RefreshBeginnerTask()
+end
+
+function TaskWidget:OnClose(arg)
+	CS.StarProject.GlobalEvent.OnBeginnerRefresh:RemoveListener(self.OnRefreshBeginnerTask);
+	CS.StarProject.GlobalEvent.OnRoleCreateComplete:RemoveListener(self.OnRefreshBeginnerTask);
+end
+
+return TaskWidget

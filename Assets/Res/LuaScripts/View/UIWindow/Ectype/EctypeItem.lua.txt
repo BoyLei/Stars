@@ -1,0 +1,52 @@
+-- 副本入口界面
+local EctypeItem = {}
+
+EctypeItem.__index = EctypeItem
+
+function EctypeItem:New(go,data,cb)
+    local self = {};
+    setmetatable(self, EctypeItem);
+
+    self.transform = go.transform;
+    self.gameObject = go;
+
+    self.data = data;
+
+    self.lvlimit = data.UnlockConditions;
+
+    local btn = self.transform:GetComponent(typeof(Button));
+    btn.onClick:AddListener(function()
+        --选择副本
+        if cb ~= nil then
+            cb(data);
+        end
+    end);
+
+    --背景
+    self.selGo = self.transform:Find("selected").gameObject;
+
+    --名字
+    self.nameTxt = self.transform:Find("Name"):GetComponent(typeof(Text));
+    --等级
+    self.lvTxt = self.transform:Find("Level"):GetComponent(typeof(Text));
+
+
+    self.nameTxt.text = data.Name;
+    --self.lvTxt.text = data.UnlockConditions .. "级";
+    self.lvTxt.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {data.UnlockConditions});
+
+	return self;
+end
+
+function EctypeItem:SetSelect(sel)
+    self.selGo:SetActive(sel);
+end
+
+function EctypeItem:SetLevel(lv)
+    --self.lvTxt.text = lv .. "级";
+    self.lvTxt.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {lv});
+
+    self.lvlimit = lv;
+end
+
+return EctypeItem

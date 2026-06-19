@@ -1,0 +1,359 @@
+--[[
+*文件名   :   AnnouncementWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/09 17:09:51"
+*创建人   :   "dl"
+*版权所有 :   游卡网络科技技术有限公司
+]] AnnouncementWindow = class("AnnouncementWindow", UIPanel)
+AnnouncementWindow.IsOpen = false;
+
+local AnnouncementLeftTabItem = require("View/UIWindow/AnnouncementWindow/AnnouncementLeftTabItem");
+
+function AnnouncementWindow:BindModule(m)
+    self.module = m;
+end
+
+function AnnouncementWindow:Awake()
+    self.transform = self.prefab.transform;
+    self.gameObject = self.transform.gameObject;
+
+    self.UIContent = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/UIContent");
+
+    self.TopTab = self.UIContent:Find("BGImg/TopTab");
+    self.TopTabMenu = self.TopTab:GetComponent(typeof(StarUITabMenu));
+
+    self.LeftTab = self.UIContent:Find("BGImg/LeftTab");
+
+    self.LeftTabBtnCopy = self.LeftTab:Find("LeftTabBtnCopy");
+    self.LeftTabBtnCopy.gameObject:SetActive(false);
+    self.LeftScrollViewContent = self.LeftTab:Find("LeftScrollView/Viewport/Layout");
+
+    self.LeftTabMenu = self.LeftScrollViewContent:GetComponent(typeof(StarUITabMenu));
+
+    self.ScrollViewContent = self.UIContent:Find("Context/Scroll View/Viewport/Content");
+    self.TitleText = self.ScrollViewContent:Find("Title/Text"):GetComponent(typeof(TextMeshProHtmlRichText));
+    self.TitleTime = self.ScrollViewContent:Find("Title/Time"):GetComponent(typeof(TextMeshProHtmlRichText));
+    self.ContentText = self.ScrollViewContent:Find("Content/Text"):GetComponent(typeof(TextMeshProHtmlRichText));
+
+    -- 默认的选择类型 为 1, 公告(活动 1， 公告 2)
+    self.topTabIdx = 1;
+
+    -- 左边选中的 tab, 默认为 -1, 表示 没有选中
+    self.leftTabIdx = -1;
+
+    -- 左侧的 所有按钮, 默认应该为 空
+    self.leftTabBtns = {};
+
+    -- 活动类型所有数据
+    self.activityDatas = {};
+
+    -- 公告类型所有数据
+    self.announcementDatas = {};
+
+    -- 当前的 数据, 需要根据 selectType 去刷新 新的数据
+    self.curDatas = {};
+
+    self.TopTabMenu:Init(0, function(idx)
+        -- print("[公告] 上侧 选中 idx: " .. idx);
+
+        self:OnSelectTopTab(idx);
+    end);
+
+end
+
+-- http 下发是数据 data 结构 为 
+-- public class Announcements
+-- {
+--     public int code;
+--     public List<AnnouncementData> data;
+-- }
+
+-- public class AnnouncementData
+-- {
+--     public int id;
+--     public string tab_title;
+--     public string page_title;
+--     public string type;
+--     public string content;
+--     public int weight;
+-- }
+-- topSelect 表示 选中的是 活动 还是 公告, 活动为 1 ，公告为 2
+function AnnouncementWindow:OnShow(data, topSelect)
+
+    if data == nil or data.code ~= 0 then
+        print("[公告] 回复数据 code 0, 没有数据");
+        return;
+    end
+
+    if data.data.Count == 0 then
+        print("[公告] 回复数据 data数量 0, 没有数据");
+        return;
+    end
+
+    TableClear(self.announcementDatas);
+    TableClear(self.activityDatas);
+
+    -- C#层的list 数据从 0 开始
+    for i = 1, data.data.Count, 1 do
+        local v = data.data[i - 1];
+        -- 如果是公告类型
+        if v.type == "announcement" then
+            table.insert(self.announcementDatas, v);
+        elseif v.type == "activity" then
+            table.insert(self.activityDatas, v);
+        end
+    end
+
+    self.topTabIdx = topSelect;
+
+    self:UpdateCurData();
+
+    SDKManager.Instance:EventPreEvent(E_SDK_PreEvent.SHOW_ANNOUNCEMENT);
+
+end
+
+-- 更新 当前的数据, 同时属性对应的 view
+function AnnouncementWindow:UpdateCurData()
+    local datas = {};
+    -- 1 表示选中的是 活动标签, 2 表示 公告标签
+    if self.topTabIdx == 1 then
+        datas = self.activityDatas;
+    elseif self.topTabIdx == 2 then
+        datas = self.announcementDatas;
+    end
+
+    TableClear(self.curDatas);
+
+    -- 遍历每一个数据, 生成 显示 需要格式的数据
+    -- self.curDatas 的结构为:
+    -- {
+    --  id ,
+    --  tabTitle 文本,redPointState 红点状态 ,
+    --  pageTitle 文本, titleTime 公告时间, 
+    --  content: 公告内容
+    -- }
+    for i, v in ipairs(datas) do
+        local data = {};
+        data.id = v.id;
+        data.tabTitle = v.tab_title;
+        data.pageTitle = v.page_title;
+        -- 时间 先不填，目前公告数据中没有带过来
+        data.titleTime = MillsSecToFullString3(v.time_release * 1000);
+        data.content = v.content;
+        -- 红点状态
+        data.redPointState = self.module:CheckRedPointState(v.id);
+        table.insert(self.curDatas, data);
+    end
+
+    -- 先把 leftTabIdx 设置为 默认 -1
+    self.leftTabIdx = -1;
+
+    -- 如果 当前的 数据 >0 , 那左边的 self.leftTabIdx 设置为 第一个
+    if #self.curDatas > 0 then
+        self.leftTabIdx = 1;
+    end
+
+    -- 更新view
+    self:UpdateView();
+end
+
+-- 刷新 view 的显示
+function AnnouncementWindow:UpdateView()
+    -- 首先 根据 self.topTabType  刷新左边的 tab 按钮后
+    self:RefreshTabItems();
+
+    -- 然后 根据 左边的 self.leftTabIdx 刷新具体 显示什么公告
+    -- 如果 左侧tab 未选中, 右边就 啥都不显示
+    if self.leftTabIdx == -1 then
+        self:UpdateContentView(nil);
+        return;
+    end
+
+    self:UpdateContentView(self.curDatas[self.leftTabIdx]);
+
+end
+
+function AnnouncementWindow:RefreshTabItems()
+    -- 初始化 左侧按钮tab，需要根据 页面进入时的数据 决定显示几个
+    local datasCount = #self.curDatas;
+
+    local leftTabCount = #self.leftTabBtns;
+
+    -- 如果 按钮数量 小于数据数量, 表明需要创建 左侧按钮
+    local isNeedCreateTab = leftTabCount < datasCount;
+
+    -- 如果 按钮数量 大于 数据的长度, 那就需要 隐藏 多余的左侧按钮
+    local isNeedDisableTab = leftTabCount > datasCount;
+
+    -- print("[公告] 左侧按钮数: " .. leftTabCount .. " , 数据数: " .. datasCount);
+
+    -- 如果需要创建 左侧 tab按钮, 那就去创建
+    if isNeedCreateTab then
+        -- print("[公告] 需要 [创建] 左侧按钮 ");
+
+        -- 创建 tabs
+        for i = leftTabCount + 1, datasCount, 1 do
+            -- print("[公告] 关闭 左侧按钮 idx: " .. i);
+
+            local leftTab = self:CreateLeftTabItem();
+            table.insert(self.leftTabBtns, leftTab);
+
+        end
+
+        -- 初始化 子节点的 index
+        self.LeftTabMenu:InitMenuByEditor();
+
+        -- 刷新 starUITabMenu
+        self.LeftTabMenu:Init(0, function(idx)
+            -- print("[公告] 左侧 选中 idx: " .. idx);
+
+            -- 选中 左侧的 tab 按钮
+            self:OnSelectLeftTab(idx);
+        end);
+    end
+
+    if isNeedDisableTab then
+        -- print("[公告] 需要 [关闭] 左侧按钮 ");
+
+        for i = datasCount + 1, leftTabCount, 1 do
+            -- print("[公告] 关闭 左侧按钮 idx: " .. i);
+
+            self.leftTabBtns[i].gameObject:SetActive(false);
+        end
+    end
+
+    -- 按照 数据 刷新 tab 的表现
+    for i = 1, datasCount do
+        self.leftTabBtns[i].gameObject:SetActive(true);
+        -- 刷新左侧按钮的 
+        self:UpdateLeftTabItem(self.leftTabBtns[i], self.curDatas[i]);
+    end
+
+end
+
+-- 创建左边的 tab 按钮,并且 与 AnnouncementLeftTabItem 绑定
+function AnnouncementWindow:CreateLeftTabItem()
+    local _go = newObject(self.LeftTabBtnCopy.gameObject);
+    _go.transform:SetParent(self.LeftScrollViewContent);
+    _go.transform.localPosition = Vector3.zero
+    _go.transform.localScale = Vector3.one
+    _go:SetActive(true);
+
+    local leftTabItem = AnnouncementLeftTabItem:New(_go);
+    return leftTabItem;
+end
+
+-- 刷新左侧 tab 按钮的显示
+function AnnouncementWindow:UpdateLeftTabItem(leftTabBtn, data)
+    -- 目前 左侧按钮 的 数据结构 需要包含 {tabTitle 文本,redPointState 红点状态}
+    leftTabBtn:UpdateData(data);
+end
+
+-- 显示 公告 内容, 公告的 内容需要包含 {pageTitle 文本, titleTime 公告时间, content: 公告内容}
+function AnnouncementWindow:UpdateContentView(data)
+    -- 根据 传入的 选中的 类型(活动/公告)决定哪个 页签 被选中
+    -- 刷新 活动/公告 按钮选中状态
+    self.TopTabMenu:Check(self.topTabIdx);
+
+    -- 刷新左侧 tab 按钮显示
+    if self.leftTabIdx > 0 then
+        self.LeftTabMenu:Check(self.leftTabIdx);
+
+        -- 当点击了 左侧按钮后, 需要 将 tab 的 红点状态 设置为 false, 并且存在本地;
+        self:RefreshLeftTabRedPointState(self.leftTabIdx);
+    end
+
+    -- 刷新红点相关数据
+    -- self.module:RefreshRedPointData();
+
+    -- 没有数据, content 父节点 关闭显示
+    if data == nil then
+        self.ScrollViewContent.gameObject:SetActive(false);
+        return;
+    end
+    self.ScrollViewContent.gameObject:SetActive(true);
+
+--    self.TitleText:SetText(data.pageTitle);
+    ---self.TitleTime:SetText(data.titleTime);
+    --self.ContentText:SetText(data.content);
+
+   -- local contentRect = self.ContentText.transform:GetComponent(typeof(RectTransform));
+    --CS.UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(contentRect);
+
+    local svContentRect = self.ScrollViewContent:GetComponent(typeof(RectTransform));
+    CS.UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(svContentRect);
+
+end
+
+-- 当 左侧 按钮 点击的接口, 刷新 contentView
+function AnnouncementWindow:OnSelectLeftTab(idx)
+
+    -- 左侧选中的按钮
+    self.leftTabIdx = idx;
+
+    -- 更新公告显示的 内容
+    self:UpdateContentView(self.curDatas[idx]);
+
+end
+
+-- 刷新 选中的 数据, 
+function AnnouncementWindow:RefreshLeftTabRedPointState(selectIdx)
+
+    -- 只有 这个 按钮本身红点状态为 true 的时候, 才需要刷新它的红点状态
+    if self.curDatas[selectIdx].redPointState then
+
+        -- 首先将这个 数据的红点 设置为 false
+        self.curDatas[selectIdx].redPointState = false;
+
+        -- 将数据 存入本地缓存
+        LocalCacheManager.Instance:SetValueType("AnnounceMent_" .. self.curDatas[selectIdx].id, true);
+
+        -- 刷新 按钮显示
+        self:UpdateLeftTabItem(self.leftTabBtns[selectIdx], self.curDatas[selectIdx])
+    end
+	
+	self.module:RefreshRedPointData();
+end
+
+-- 当 上策 按钮 点击的接口, 刷新 当前的 self.curDatas, 以及对应的 view
+function AnnouncementWindow:OnSelectTopTab(idx)
+
+    -- 更新 顶部按钮 idx
+    self.topTabIdx = idx;
+
+    -- 更新 完数据后  会自动 更新 view
+    self:UpdateCurData();
+
+end
+
+function AnnouncementWindow:OnOpen(arg)
+    self.IsOpen = true;
+    self.onCloseDestroy(true)
+end
+
+function AnnouncementWindow:OnClose(arg)
+    self:CloseWindow();
+
+    if self.module == nil then
+        return;
+    end
+
+    self.module.AnnouncementWindow = nil;
+
+    SDKManager.Instance:EventPreEvent(E_SDK_PreEvent.SHUT_ANNOUNCEMENT);
+end
+
+function AnnouncementWindow:CloseWindow()
+    self.IsOpen = false;
+    LuaModuleDispatcher:SendMessage(ModuleDef.AnnouncementModule, "OnWindowClose", nil);
+    -- GameObject.Destroy(self.gameObject)
+
+    if self.module == nil then
+        return;
+    end
+
+    self.module.AnnouncementWindow = nil;
+end
+
+return AnnouncementWindow

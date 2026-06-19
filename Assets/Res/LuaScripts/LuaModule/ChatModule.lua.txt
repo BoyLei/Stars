@@ -1,0 +1,593 @@
+ChatModule = class("ChatModule", BaseLuaModule)
+
+local ChatChannelWindowPath = "Chat/Prefab/ChatChannelWindow"
+local ChatInputPath = "Chat/Prefab/ChatInput"
+local ChatHudWidgetPath = "Chat/Prefab/ChatHudWidget"
+local ChatBarrageWidgetPath = "Chat/Prefab/ChatBarrageWidget"
+
+local FriendModule = nil
+
+ChatModule.ModuleMessages = {
+    ["OnSendChatMsg"] = function(...)
+        ChatModule:OnSendChatMsg(...)
+    end,
+    ["OnAnalogReceptionChatMsg"] = function(...)
+        ChatModule:OnAnalogReceptionChatMsg(...)
+    end,
+    ["OnOpenChat"] = function(...)
+        ChatModule:OnOpenChat(...)
+    end,
+    ["OnOpenChatWindowShow"] = function(...)
+        ChatModule:OnOpenChatWindowShow(...)
+    end,
+    ["OnOpenChatInput"] = function(...)
+        ChatModule:OnOpenChatInput(...)
+    end,
+    ["OnOpenHUDChatBarrage"] = function(...)
+        ChatModule:OnOpenHUDChatBarrage(...)
+    end,
+    ["OnOpenChatHud"] = function(...)
+        ChatModule:OnOpenChatHud(...)
+    end,
+    ["OnInput2Channel"] = function(...)
+        ChatModule:SyncInput2Channel(...)
+    end,
+    ["OnOpenChatBarrage"] = function(...)
+        ChatModule:OnOpenChatBarrage(...)
+    end,
+    ["OnChatHudShow"] = function(...)
+        ChatModule:OnChatHudShow(...)
+    end,
+    ["OnClearChatItemType"] = function(...)
+        ChatModule:OnClearChatItemType(...)
+    end,
+    ["OnSyncCurrentSelect"] = function(...)
+        ChatModule:OnSyncCurrentSelect(...)
+    end,
+    ["OnChangeRoot"] = function(...)
+        ChatModule:OnChangeRoot(...)
+    end,
+    ["OnResetRoot"] = function(...)
+        ChatModule:OnResetRoot(...)
+    end,
+    ["OnClearAllChatItem"] = function(...)
+        ChatModule:OnClearAllChatItem(...)
+    end,
+    ["ShowRewardTips"] = function(...)
+        ChatModule:ShowRewardTips(...)
+    end
+}
+
+-- 重置父节点到hud
+function ChatModule:OnResetRoot(...)
+    local tb = ...
+
+    if self.chatHudWidget ~= nil then
+        self.chatHudWidget.Transform:SetParent(self.OldParent)
+        self.chatHudWidget.RectTr.anchoredPosition = Vector2(0, 110)
+    end
+end
+
+-- 改变父节点
+function ChatModule:OnChangeRoot(...)
+    local tb = ...
+
+    local rectPos = nil
+    local root = nil
+    -- 传入道具ID
+    if type(tb) == "table" then
+        -- Lua调用
+        root = tb[1]
+        rectPos = tb[2]
+    else
+        -- C#调用
+        root = tb[0]
+        rectPos = tb[1]
+    end
+
+    if self.chatHudWidget ~= nil then
+        self.chatHudWidget.Transform:SetParent(root)
+        self.chatHudWidget.RectTr.anchoredPosition = rectPos
+    end
+end
+
+function ChatModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...)
+end
+
+function ChatModule:OnOpenChat(...)
+    -- local chatChannelWindowCS = UIManager.Instance:OpenWindow(ChatChannelWindowPath, nil,
+    -- 	CS.StarProjectDef.MainPageCommond.HideNone, true);
+    -- if self.chatChannelWindowCS == nil then
+    -- 	self.chatChannelWindowCS = chatChannelWindowCS:GetLuaPanel().ScriptTable;
+    -- 	self.chatChannelWindowCS:BindModule(self);
+    -- 	-- self.chatChannelWindowCS:Init();
+    -- else
+    -- 	self.chatChannelWindowCS:SetShow(false);
+    -- end
+
+    self.AsyncLoadChatChannelWindowCb = function(ui)
+        if ui ~= nil then
+            if self.chatChannelWindowCS == nil then
+                self.chatChannelWindowCS = ui:GetLuaPanel().ScriptTable
+                self.chatChannelWindowCS:BindModule(self)
+            -- self.chatChannelWindowCS:Init();
+            end
+            self.chatChannelWindowCS:SetShow(false, false)
+        end
+        self.AsyncLoadChatChannelWindowCb = nil
+    end
+    UIManager.Instance:OpenWindowAsync(ChatChannelWindowPath, self.AsyncLoadChatChannelWindowCb, nil, CS.StarProjectDef.MainPageCommond.HideNone, true)
+end
+
+function ChatModule:OnChatWindowShow(isShow)
+    if self.chatChannelWindowCS == nil then
+        -- local chatChannelWindowCS = UIManager.Instance:OpenWindow(ChatChannelWindowPath, nil,
+        -- 	CS.StarProjectDef.MainPageCommond.HideNone, true);
+        -- if self.chatChannelWindowCS == nil then
+        -- 	self.chatChannelWindowCS = chatChannelWindowCS:GetLuaPanel().ScriptTable;
+        -- 	self.chatChannelWindowCS:BindModule(self);
+        -- 	self.chatChannelWindowCS:SetShow(isShow, true);
+        -- end
+        self.AsyncLoadChatChannelWindowCb = function(ui)
+            if ui ~= nil then
+                if self.chatChannelWindowCS == nil then
+                    self.chatChannelWindowCS = ui:GetLuaPanel().ScriptTable
+                    self.chatChannelWindowCS:BindModule(self)
+                end
+                self.chatChannelWindowCS:SetShow(isShow, true)
+            end
+            self.AsyncLoadChatChannelWindowCb = nil
+        end
+        UIManager.Instance:OpenWindowAsync(ChatChannelWindowPath, self.AsyncLoadChatChannelWindowCb, nil, CS.StarProjectDef.MainPageCommond.HideNone, true)
+    else
+        self.chatChannelWindowCS:SetShow(isShow, true)
+    end
+end
+
+function ChatModule:OnOpenChatWindowShow(...)
+    local tb = ...
+    local isShow = nil
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        isShow = tb[1]
+    else
+        -- C#调用
+        isShow = tb[0]
+    end
+    self:OnChatWindowShow(isShow)
+end
+
+function ChatModule:OnOpenChatInput(...)
+    local tb = ...
+    local ip = nil
+    local sources = 0
+
+    local textFromChannelWindow = ""
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        ip = tb[1]
+        sources = tb[2]
+        if #tb > 2 then
+            textFromChannelWindow = tb[3]
+        end
+    else
+        -- C#调用
+        ip = tb[0]
+        sources = tb[1]
+        if tb.Length > 2 then
+            textFromChannelWindow = tb[2]
+        end
+    end
+
+    self.AsyncLoadChatInputCb = function(ui)
+        if ui ~= nil then
+            if self.chatInputWindow == nil then
+                self.chatInputWindow = ui:GetLuaPanel().ScriptTable
+                self.chatInputWindow:BindModule(self)
+                self.chatInputWindow:Init()
+            end
+            self.chatInputWindow:SyncInput(ip, sources, textFromChannelWindow)
+        end
+        self.AsyncLoadChatInputCb = nil
+    end
+    UIManager.Instance:OpenWindowAsync(ChatInputPath, self.AsyncLoadChatInputCb, nil, CS.StarProjectDef.MainPageCommond.HideNone)
+end
+
+-- 打开HUD聊天
+function ChatModule:OnOpenChatHud(...)
+    local tb = ...
+    local parent = nil
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        parent = tb[1]
+    else
+        -- C#调用
+        parent = tb[0]
+    end
+
+    -- local chatHudWidget = UIManager.Instance:OpenWidget(ChatHudWidgetPath, false, nil, parent,
+    -- 	CS.StarProjectDef.MainPageCommond.HideNone, true, true);
+    -- if self.chatHudWidget == nil then
+    -- 	self.chatHudWidget = chatHudWidget:GetLuaPanel().ScriptTable;
+    -- 	self.chatHudWidget:BindModule(self);
+    -- 	-- self.chatHudWidget:Init();
+
+    -- 	self.OldParent = parent;
+    -- end
+
+    self.AsyncLoadChatHudWidgetCb = function(ui)
+        if ui ~= nil then
+            if self.chatHudWidget == nil then
+                self.chatHudWidget = ui:GetLuaPanel().ScriptTable
+                self.chatHudWidget:BindModule(self)
+                -- self.chatHudWidget:Init();
+
+                self.OldParent = parent
+            end
+        end
+        self.AsyncLoadChatHudWidgetCb = nil
+    end
+    UIManager.Instance:OpenWidgetAsync(ChatHudWidgetPath, self.AsyncLoadChatHudWidgetCb, false, nil, parent, CS.StarProjectDef.MainPageCommond.HideNone, true)
+end
+-- 打开弹幕
+function ChatModule:OnOpenChatBarrage(...)
+    -- local chatBarrageWidget = UIManager.Instance:OpenWidget(ChatBarrageWidgetPath, false, nil, nil,
+    -- 	CS.StarProjectDef.MainPageCommond.HideNone, true, true);
+    -- if self.chatBarrageWidget == nil then
+    -- 	self.chatBarrageWidget = chatBarrageWidget:GetLuaPanel().ScriptTable;
+    -- 	self.chatBarrageWidget:BindModule(self);
+    -- 	-- self.chatBarrageWidget:Init();
+    -- end
+
+    self.AsyncLoadChatBarrageWidgetCb = function(ui)
+        if ui ~= nil then
+            if self.chatBarrageWidget == nil then
+                self.chatBarrageWidget = ui:GetLuaPanel().ScriptTable
+            -- self.chatBarrageWidget:BindModule(self);
+            -- self.chatBarrageWidget:Init();
+            end
+        end
+        self.AsyncLoadChatBarrageWidgetCb = nil
+    end
+    UIManager.Instance:OpenWidgetAsync(ChatBarrageWidgetPath, self.AsyncLoadChatBarrageWidgetCb, false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone, true)
+end
+-- 主角遥感控制HUD聊天显示时事件
+function ChatModule:OnChatHudShow(...)
+    local tb = ...
+    local isShow = nil
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        isShow = tb[1]
+    else
+        -- C#调用
+        isShow = tb[0]
+    end
+    if self.chatHudWidget ~= nil then
+        self.chatHudWidget:SetShow(isShow)
+    end
+end
+-- 设置频道聊天弹幕状态
+function ChatModule:SetBarrageChannelState(channel, isOpen)
+    if self.chatBarrageWidget ~= nil then
+        self.chatBarrageWidget:SetChannelState(channel, isOpen)
+    end
+end
+
+function ChatModule:OnModuleCreate(...)
+    LuaModuleDispatcher:Register(ModuleDef.ChatModule, self)
+
+    self.SendChatMsgRetCmd = function(data)
+        self:OnSendChatMsgRet(data)
+    end
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.SendChatMsgRetID, self.SendChatMsgRetCmd, nil)
+
+    -- 世界、当前、系统
+    self.ChatMsgNoticeSCmd = function(data)
+        self:OnChatMsgNoticeS(data)
+    end
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.ChatMsgNoticeSID, self.ChatMsgNoticeSCmd, nil)
+
+    -- -- 冒险团和队伍的聊天协议
+    -- self.ChatMsgNoticeCmd = function(data)
+    --     self:OnChatMsgNotice(data)
+    -- end
+    --NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.ChatMsgNoticeID, self.ChatMsgNoticeCmd, nil);
+
+    self.selectPlayerId = 0
+end
+
+-- LuaModule 释放
+function ChatModule:OnModuleRelease()
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.SendChatMsgRetID, self.SendChatMsgRetCmd, nil)
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.ChatMsgNoticeSID, self.ChatMsgNoticeSCmd, nil)
+    --NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.ChatMsgNoticeID, self.ChatMsgNoticeCmd, nil);
+
+    LuaModuleDispatcher:UnRegister(ModuleDef.ChatModule)
+end
+
+function ChatModule:OnSendChatMsgRet(data)
+    if data == nil or data.data == nil then
+        return
+    end
+
+    if data.data.Result == CS.ProtoMsg.ChatOPResult.ChatOk then
+        -- if self.chatChannelWindowCS ~= nil then
+        --     self.chatChannelWindowCS:ClearInput(data.data.AllowChatTime);
+        -- end
+        -- if self.chatInputWindow ~= nil then
+        --     self.chatInputWindow:ClearInput(data.data.AllowChatTime);
+        -- end
+    elseif data.data.Result == CS.ProtoMsg.ChatOPResult.ChatFailedNotEnoughCondition then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_231"))
+    end
+end
+
+-- function ChatModule:OnChatMsgNotice(data)
+--     if data == nil or data.data == nil then
+--         return;
+--     end
+--     local isMyBlackList = self:GetChatSendPidIsMyBlackList(data.data);
+--     if isMyBlackList then
+--         -- 黑名单的就过滤
+--         return;
+--     end
+--     if self.chatChannelWindowCS ~= nil then
+--         -- 如果是私聊就不在任何一个频道显示
+--         if not self:MsgFilter(data.data) then
+--             self.chatChannelWindowCS:AddMsgItem(data.data);
+--         end
+--     end
+--     -- 通知 -> [弹幕挂件]
+--     if self.chatBarrageWidget ~= nil and self.chatBarrageWidget.IsShow then
+
+--         self.chatBarrageWidget:AddMsgItem(data.data);
+--     end
+--     -- 通知HUD上的聊天挂件
+--     if self.chatHudWidget ~= nil and self.chatHudWidget.IsOpen then
+--         self.chatHudWidget:AddMsgItem(data.data);
+--     end
+-- end
+
+function ChatModule:MsgFilter(chatMsgNotice)
+    local isFilter = false
+    if chatMsgNotice.Channel == CS.ProtoMsg.ChatChannel.ChannelPrivate then
+        isFilter = true
+    end
+    return isFilter
+end
+
+function ChatModule:OnChatMsgNoticeS(data)
+    if data == nil or data.data == nil or data.data.CMNotices == nil then
+        return
+    end
+
+    Log("聊天信息长度=》" .. data.data.CMNotices.Count)
+    local channelPrivateList = {}
+    if data.data.CMNotices.Count > 0 then
+        for i = 0, data.data.CMNotices.Count - 1 do
+            -- 黑名单的就过滤
+            local item = data.data.CMNotices[i]
+            local isMyBlackList = self:GetChatSendPidIsMyBlackList(item)
+            if isMyBlackList == false then
+                -- 如果是私聊就不在任何一个频道显示
+                if self.chatChannelWindowCS ~= nil then
+                    local res = self:MsgFilter(item)
+                    if res then
+                        table.insert(channelPrivateList, item)
+                    else
+                        self.chatChannelWindowCS:AddMsgItem(item)
+                    end
+                end
+                -- 通知 -> [弹幕挂件]
+                if self.chatBarrageWidget ~= nil and self.chatBarrageWidget.IsShow then
+                    self.chatBarrageWidget:AddMsgItem(item)
+                end
+                -- 通知HUD上的聊天挂件
+                if self.chatHudWidget ~= nil and self.chatHudWidget.IsOpen then
+                    self.chatHudWidget:AddMsgItem(item)
+                end
+            end
+        end
+    end
+    if channelPrivateList ~= {} and #channelPrivateList > 0 then
+        LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnSyncMsgData", {channelPrivateList})
+    end
+end
+
+-- 获取聊天发送的PID是否是我的黑名单
+function ChatModule:GetChatSendPidIsMyBlackList(CMNotices)
+    if FriendModule == nil then
+        FriendModule = LuaModuleDispatcher:GetModule(ModuleDef.FriendModule)
+    end
+    if CMNotices == nil then
+        return false
+    end
+    local Channel = CMNotices.Channel
+    if Channel == CS.ProtoMsg.ChatChannel.ChannelSystem then
+        return false
+    end
+
+    local friendRelation = FriendModule:GetFriendRelation(CMNotices.PID)
+
+    return friendRelation == 2
+end
+
+-- 【此方法是LUA调用】
+function ChatModule:OnClearChatItemType(...)
+    if self.chatHudWidget ~= nil then
+        local tb = ...
+        local type = tb[1]
+        self.chatHudWidget:ClearItemByType(type)
+    end
+end
+
+-- input 关闭的时候，同步当前的输入信息给window的input
+function ChatModule:SyncInput2Channel(...)
+    local tb = ...
+    local ip = nil
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        ip = tb[1]
+    else
+        -- C#调用
+        ip = tb[0]
+    end
+    if self.chatChannelWindowCS ~= nil then
+        self.chatChannelWindowCS:SyncInput(ip)
+    end
+end
+
+function ChatModule:GetCurrentChannel()
+    if self.chatChannelWindowCS ~= nil then
+        return self.chatChannelWindowCS.CurrentChannel
+    end
+end
+
+function ChatModule:SendDataByChatInput(ip)
+    if self.chatChannelWindowCS ~= nil then
+        return self.chatChannelWindowCS:SendDataByChatInput(ip)
+    end
+end
+
+function ChatModule:OnSyncCurrentSelect(...)
+    local tb = ...
+    self.selectPlayerId = 0
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        if #tb > 0 then
+            self.selectPlayerId = tb[1]
+        end
+    else
+        -- C#调用
+        self.selectPlayerId = tb[0]
+    end
+end
+
+function ChatModule:OnClearAllChatItem(...)
+    -- local tb = ...;
+    if self.chatChannelWindowCS ~= nil then
+        self.chatChannelWindowCS:ClearAllChatItem()
+    end
+
+    if self.chatHudWidget ~= nil then
+        self.chatHudWidget:ClearAllChatItem()
+    end
+
+    if self.chatBarrageWidget ~= nil then
+        self.chatBarrageWidget:ClearAllChatItem()
+    end
+end
+
+-- 发送聊天信息
+------ 文本信息 包含【标签-道具】
+------ 发送频道
+------ 字节流 包含【每个类型的特殊信息】
+------ PID
+function ChatModule:OnSendChatMsg(...)
+    local tb = ...
+    local chatMsg = ""
+    local chatChannel = CS.ProtoMsg.ChatChannel.ChannelNull
+    local extrainfos = nil
+    local PID = 0
+    if type(tb) == "table" then
+        -- Lua调用
+        chatMsg = tb[1]
+        chatChannel = tb[2]
+        extrainfos = tb[3]
+        PID = tb[4]
+    else
+        -- C#调用
+        chatMsg = tb[0]
+        chatChannel = tb[1]
+        extrainfos = tb[2]
+        PID = tb[3]
+    end
+
+    local sendChatMsgReq = CS.ProtoMsg.SendChatMsgReq()
+    sendChatMsgReq.ChatMsg = chatMsg
+    sendChatMsgReq.Channel = chatChannel
+    sendChatMsgReq.ChatTime = TimeUtils.ServerNowStampMilli
+    if extrainfos ~= nil then
+        sendChatMsgReq.SendData:Add(ExtraData.ToByteString(extrainfos))
+    end
+    sendChatMsgReq.PID = PID
+    NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, sendChatMsgReq, false)
+end
+
+-- 模拟接收聊天信息
+function ChatModule:OnAnalogReceptionChatMsg(...)
+    local tb = ...
+    local ChatMsgNotices = nil
+
+    local msg = CS.ProtoMsg.ChatMsgNoticeS()
+    local info = {
+        data = msg
+    }
+
+    if type(tb) == "table" then
+        -- Lua调用
+        ChatMsgNotices = tb[1]
+        if ChatMsgNotices == nil or ChatMsgNotices == {} or #ChatMsgNotices <= 0 then
+            return
+        end
+        for i = 1, #ChatMsgNotices, 1 do
+            local item = ChatMsgNotices[i]
+            msg.CMNotices:Add(item)
+        end
+    else
+        -- C#调用
+        ChatMsgNotices = tb[0]
+        for i = 0, ChatMsgNotices.Count - 1, 1 do
+            local item = ChatMsgNotices[i]
+            msg.CMNotices:Add(item)
+        end
+    end
+
+    self:OnChatMsgNoticeS(info)
+end
+function ChatModule:ShowRewardTips(...)
+    local tb = ...
+    local id = 0
+    local num = 0
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        id = tb[1]
+        num = tb[2]
+    else
+        -- C#调用
+        id = tb[0]
+        num = tb[1]
+    end
+    local msgList = {}
+    local jobID = GameManager.Instance:GetPlayerJob()
+    local strLanVal = LanguageHelp:GetLanguageByKey("Local_Str_Tips_GetReward")
+    local itemCfg = ConfigDataAccessor.Item[id]
+    local equipStrSp = ExtraData.GetEquipStrByID(id);
+    local quality = 1
+    local itemName = ""
+    if itemCfg ~= nil then
+        quality = itemCfg.Quality
+        itemName = itemCfg.Name
+    end
+
+    local chatMsgNotice = CS.ProtoMsg.ChatMsgNotice()
+    chatMsgNotice.EID = 0
+    chatMsgNotice.PID = 0
+    local strContentVal = equipStrSp .. GetQualityColor(quality) .. itemName .. "</color>x" .. num
+    chatMsgNotice.Data = StringFormat(strLanVal, {strContentVal})
+    chatMsgNotice.Channel = CS.ProtoMsg.ChatChannel.ChannelSystem
+    chatMsgNotice.ChatTime = TimeUtils.ServerNowStampMilli
+    chatMsgNotice.ChatLevel = 1
+    chatMsgNotice.JobID = jobID
+    table.insert(msgList, chatMsgNotice)
+    LuaModuleDispatcher:SendMessage(ModuleDef.ChatModule, "OnAnalogReceptionChatMsg", {msgList})
+end
+return ChatModule

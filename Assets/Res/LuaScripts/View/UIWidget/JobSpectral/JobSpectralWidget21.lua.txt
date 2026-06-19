@@ -1,0 +1,264 @@
+---------------------------------------------------------------------
+-- Stars (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-03-31 13:43:46
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class JobSpectralWidget21
+
+JobSpectralWidget21 = class("JobSpectralWidget21", UIPanel)
+
+JobSpectralWidget21.CommonState = nil;
+JobSpectralWidget21.CommonStateSpectral1Bar1 = nil;
+JobSpectralWidget21.CommonStateSpectral1Bar2 = nil;
+JobSpectralWidget21.CommonStateSpectral1Count = nil;
+JobSpectralWidget21.CommonStateSpectral2Root = nil;
+JobSpectralWidget21.CommonStateSpectral2List = nil;
+
+JobSpectralWidget21.ActiveState = nil;
+JobSpectralWidget21.ActiveStateSpectral1Bar1 = nil;
+JobSpectralWidget21.ActiveStateSpectral1Bar2 = nil;
+JobSpectralWidget21.ActiveStateSpectral1Count = nil;
+JobSpectralWidget21.ActiveStateSpectral2Root = nil;
+JobSpectralWidget21.ActiveStateSpectral2List = nil;
+
+----------- 量谱数值
+JobSpectralWidget21.m_TruthSpectral1 = 1;
+JobSpectralWidget21.m_TruthSpectral2 = 1;
+JobSpectralWidget21.m_CurSpectral1 = 1;
+JobSpectralWidget21.m_CurSpectral2 = 1;
+
+function JobSpectralWidget21:Awake()
+    self.onCloseDestroy(true)
+
+	self.CommonState = self:Find("CommonState");
+	self.CommonStateSpectral1Bar1 = self.CommonState:Find("CommonStateSpectral1Bar1"):GetComponent(typeof(Image));
+	self.CommonStateSpectral1Bar2 = self.CommonState:Find("CommonStateSpectral1Bar2"):GetComponent(typeof(Image));
+	self.CommonStateSpectral1Count = self.CommonState:Find("CommonStateSpectral1Count"):GetComponent(typeof(Text));
+	self.CommonStateSpectral2List = {};
+	table.insert(self.CommonStateSpectral2List, self.CommonState:Find("ItemRoot/Anim1").gameObject);
+	table.insert(self.CommonStateSpectral2List, self.CommonState:Find("ItemRoot/Anim2").gameObject);
+	table.insert(self.CommonStateSpectral2List, self.CommonState:Find("ItemRoot/Anim3").gameObject);
+	table.insert(self.CommonStateSpectral2List, self.CommonState:Find("ItemRoot/Anim4").gameObject);
+	table.insert(self.CommonStateSpectral2List, self.CommonState:Find("ItemRoot/Anim5").gameObject);
+
+
+	self.ActiveState = self:Find("ActiveState");
+	self.ActiveStateSpectral1Bar1 = self.ActiveState:Find("ActiveStateSpectral1Bar1"):GetComponent(typeof(Image));
+	self.ActiveStateSpectral1Bar2 = self.ActiveState:Find("ActiveStateSpectral1Bar2"):GetComponent(typeof(Image));
+	self.ActiveStateSpectral1Count = self.ActiveState:Find("ActiveStateSpectral1Count"):GetComponent(typeof(Text));
+	self.ActiveStateSpectral2List = {};
+	table.insert(self.ActiveStateSpectral2List, self.ActiveState:Find("ItemRoot/Anim1").gameObject);
+	table.insert(self.ActiveStateSpectral2List, self.ActiveState:Find("ItemRoot/Anim2").gameObject);
+	table.insert(self.ActiveStateSpectral2List, self.ActiveState:Find("ItemRoot/Anim3").gameObject);
+	table.insert(self.ActiveStateSpectral2List, self.ActiveState:Find("ItemRoot/Anim4").gameObject);
+	table.insert(self.ActiveStateSpectral2List, self.ActiveState:Find("ItemRoot/Anim5").gameObject);
+
+
+	self.AddSpectralSkillLuaActionFun = function(isEnter)
+		self:OnSpectralSkillBuffAction(isEnter)
+	end
+	----------------- AOI修改回调
+	self.AoiTruthSpectral1Fun = function(key, value)
+		self:SetTruthSpectral1(value);
+	end
+	self.AoiTruthSpectral2Fun = function(key, value)
+		self:SetTruthSpectral2(value);
+	end
+	self.AoicurSpectral1Fun = function(key, value)
+		self:SetCurSpectral1(value);
+	end
+	self.AoicurSpectral2Fun = function(key, value)
+		self:SetCurSpectral2(value);
+	end
+end
+
+function JobSpectralWidget21:Start()
+
+end
+
+function JobSpectralWidget21:OnEnable()
+
+end
+
+function JobSpectralWidget21:OnDisable()
+
+end
+
+function JobSpectralWidget21:OnDestroy()
+
+end
+
+function JobSpectralWidget21:OnOpen(arg)
+	self.M_EntityBase = arg;
+	if self.M_EntityBase == nil then
+		print("JobSpectralWidget21:OnOpen() arg is nil error!!!");
+		return;
+	end
+
+	------ 量谱
+	self.m_TruthSpectral1 = self.M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Long,
+		CS.StarProjectDef.AOIAttrDefine.TruthSpectral1);
+	self.m_TruthSpectral2 = self.M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Long,
+		CS.StarProjectDef.AOIAttrDefine.TruthSpectral2);
+	self.m_CurSpectral1 = self.M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Long,
+		CS.StarProjectDef.AOIAttrDefine.curSpectral1);
+	self.m_CurSpectral2 = self.M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Long,
+		CS.StarProjectDef.AOIAttrDefine.curSpectral2);
+	self.jobId = self.M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Uint,
+		CS.StarProjectDef.AOIAttrDefine.Job);
+	self:SetUISpectral1();
+	self:SetUISpectral2();
+	------ 量谱
+
+	-- 绑定属性同步回调  START
+	self.attrLuaKey = "JobSpectralWidget21_" .. GameManager.Instance.mainPlayerId;
+	self:InitAttribute();
+	-- 绑定属性同步回调----- END
+
+	-- 绑定BUFF回调------  START
+
+	self.M_EntityBase:AddSpectralSkillLuaAction(self.AddSpectralSkillLuaActionFun);
+
+	-- 绑定BUFF回调------  END
+end
+
+function JobSpectralWidget21:OnClose(arg)
+	if self.M_EntityBase ~= nil then
+		self:ReleaseInfo();
+	end
+end
+
+function JobSpectralWidget21:InitAttribute()
+	self.M_EntityBase.Data:RegisterAttribute(CS.StarProjectDef.AOIAttrDefine.TruthSpectral1, self.AoiTruthSpectral1Fun);
+	self.M_EntityBase.Data:RegisterAttribute(CS.StarProjectDef.AOIAttrDefine.TruthSpectral2, self.AoiTruthSpectral2Fun);
+	self.M_EntityBase.Data:RegisterAttribute(CS.StarProjectDef.AOIAttrDefine.curSpectral1, self.AoicurSpectral1Fun);
+	self.M_EntityBase.Data:RegisterAttribute(CS.StarProjectDef.AOIAttrDefine.curSpectral2, self.AoicurSpectral2Fun);
+end
+
+function JobSpectralWidget21:DelAttribute()
+	self.M_EntityBase.Data:UnRegisterAttribute(CS.StarProjectDef.AOIAttrDefine.TruthSpectral1, self.AoiTruthSpectral1Fun);
+	self.M_EntityBase.Data:UnRegisterAttribute(CS.StarProjectDef.AOIAttrDefine.TruthSpectral2, self.AoiTruthSpectral2Fun);
+	self.M_EntityBase.Data:UnRegisterAttribute(CS.StarProjectDef.AOIAttrDefine.curSpectral1, self.AoicurSpectral1Fun);
+	self.M_EntityBase.Data:UnRegisterAttribute(CS.StarProjectDef.AOIAttrDefine.curSpectral2, self.AoicurSpectral2Fun);
+end
+
+function JobSpectralWidget21:OnSpectralSkillBuffAction(isEnter)
+	--self.CommonState.gameObject:SetActive(not(isEnter));
+	--self.ActiveState.gameObject:SetActive(isEnter);
+
+	local animName = "JobSpectralWidget21Anim_Swich01";
+	if isEnter then
+		animName = "JobSpectralWidget21Anim_Swich02";
+	end
+
+	self.PlayAnimation(animName, function()
+		--
+	end)
+
+	if isEnter == true then
+		SoundManager.Instance:PlayWwiseAudio("UI_Spectra_Full_Sound", false,
+			CS.StarProjectDef.E_SoundNTFtype.MyListener_SystemSound, nil);
+	end
+end
+
+---------------- [更新/设置] [属性变化] [START]------------
+
+function JobSpectralWidget21:SetTruthSpectral1(value)
+	if self.M_EntityBase == nil or self.M_EntityBase.Data == nil then
+		return
+	end
+	self.m_TruthSpectral1 = value;
+	if self.m_CurSpectral1 > self.m_TruthSpectral1 then
+		self.m_TruthSpectral1 = self.m_CurSpectral1;
+	end
+	self:SetUISpectral1();
+end
+
+function JobSpectralWidget21:SetCurSpectral1(value)
+	if self.M_EntityBase == nil or self.M_EntityBase.Data == nil then
+		return
+	end
+	self.m_CurSpectral1 = value;
+	if self.m_CurSpectral1 > self.m_TruthSpectral1 then
+		self.m_TruthSpectral1 = self.m_CurSpectral1;
+	end
+	self:SetUISpectral1();
+end
+
+function JobSpectralWidget21:SetUISpectral1()
+	--local ratio = self.m_TruthSpectral1 <= 0 and 0 or self.m_CurSpectral1 / self.m_TruthSpectral1;
+	local ratio = 0;
+	if self.m_TruthSpectral1 > 0 then
+		ratio = self.m_CurSpectral1 / self.m_TruthSpectral1;
+		if ratio > 1 then
+			ratio = 1;
+		end
+	end
+	self.CommonStateSpectral1Bar1.fillAmount = ratio;
+	self.CommonStateSpectral1Bar2.fillAmount = ratio;
+
+	self.ActiveStateSpectral1Bar1.fillAmount = ratio;
+	self.ActiveStateSpectral1Bar2.fillAmount = ratio;
+	---- 每个职业的量谱拿取规则不一样
+	--local val = self.m_CurSpectral1;
+	---- 31是枪炮的职业 取高8位
+	--if self.jobId == 31 then
+	--val = GetInt64High2Low8(self.m_CurSpectral1);
+	--end
+	--local countStr = tostring(val);
+	--countStr = "";
+	--self.CommonStateSpectral1Count.text = countStr;
+	--self.ActiveStateSpectral1Count.text = countStr;
+end
+
+function JobSpectralWidget21:SetTruthSpectral2(value)
+	if self.M_EntityBase == nil or self.M_EntityBase.Data == nil then
+		return
+	end
+	self.m_TruthSpectral2 = value;
+	if self.m_CurSpectral2 > self.m_TruthSpectral2 then
+		self.m_TruthSpectral2 = self.m_CurSpectral2;
+	end
+	self:SetUISpectral2();
+end
+
+function JobSpectralWidget21:SetCurSpectral2(value)
+	if self.M_EntityBase == nil or self.M_EntityBase.Data == nil then
+		return
+	end
+	self.m_CurSpectral2 = value;
+	if self.m_CurSpectral2 > self.m_TruthSpectral2 then
+		self.m_TruthSpectral2 = self.m_CurSpectral2;
+	end
+	self:SetUISpectral2();
+end
+
+function JobSpectralWidget21:SetUISpectral2()
+	for i = 1, #self.CommonStateSpectral2List do
+		self.CommonStateSpectral2List[i]:SetActive(i <= self.m_CurSpectral2);
+		self.ActiveStateSpectral2List[i]:SetActive(i <= self.m_CurSpectral2);
+	end
+end
+
+---------------- [更新/设置] [属性变化] [END]------------
+
+
+function JobSpectralWidget21:ReleaseInfo()
+	if self.M_EntityBase == nil or self.M_EntityBase.Data == nil then
+		return;
+	end
+	-- 解绑属性同步回调
+	self:DelAttribute();
+
+	self.M_EntityBase:DelSpectralSkillLuaAction(self.AddSpectralSkillLuaActionFun);
+
+	--MonoHelper.RemoveUpdateListener(function ()
+	--self:UpdateData()
+	--end)
+end
+
+return JobSpectralWidget21;

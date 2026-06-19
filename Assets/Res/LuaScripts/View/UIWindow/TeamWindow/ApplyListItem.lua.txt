@@ -1,0 +1,53 @@
+local ApplyListItem = {}
+
+ApplyListItem.__index = ApplyListItem
+
+function ApplyListItem:New(go, data, cb)
+    local self = {};
+    setmetatable(self, ApplyListItem);
+
+    self.transform = go.transform;
+    self.gameObject = go;
+
+	self.headIcon = self.transform:Find("HeadIcon"):GetComponent(typeof(Image));
+	self.nameText = self.transform:Find("Name"):GetComponent(typeof(Text));
+	self.levelText = self.transform:Find("Level"):GetComponent(typeof(Text));
+
+    local refuseBtn = self.transform:Find("RefuseBtn"):GetComponent(typeof(Button));
+    refuseBtn.onClick:AddListener(function()
+        --拒绝
+        cb(data, false);
+    end);
+
+    local acceptBtn = self.transform:Find("AcceptBtn"):GetComponent(typeof(Button));
+    acceptBtn.onClick:AddListener(function()
+        --接受
+        cb(data, true);
+    end);
+    
+	self:Init(data);
+	
+    return self;
+end
+
+function ApplyListItem:Init(data)
+	local jobDataCell = ConfigDataAccessor.Job[data.UserInfo.JobId];
+	if jobDataCell ~= nil then
+		local avatarDataCell= ConfigDataAccessor.Avatar[jobDataCell.AvatarID];
+		if avatarDataCell ~= nil then
+			local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID];
+			if headCfg ~= nil then
+				if self.headIcon ~= nil then
+					--self.headIcon.sprite = AtlasManager.Instance:GetSprite(headCfg.HeadAtlasName,headCfg.MinHead);
+					ResourceHelper:LoadIconByAtlasAsync(self.headIcon, headCfg.HeadAtlasName, headCfg.MinHead, false)
+				end
+			end
+		end
+	end
+	self.nameText.text = data.UserInfo.UserName;
+	--self.levelText.text = data.UserInfo.Level .. "级";
+	self.levelText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {data.UserInfo.Level});
+
+end
+
+return ApplyListItem

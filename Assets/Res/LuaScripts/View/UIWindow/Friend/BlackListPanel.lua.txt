@@ -1,0 +1,209 @@
+---------------------------------------------------------------------
+-- Stars (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-08-03 17:52:34
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class BlackListPanel
+local BlackListPanel = {}
+BlackListPanel.__index = BlackListPanel
+
+local ItemBlackList = require("View/UIWindow/Friend/ItemBlackList");
+
+function BlackListPanel:New(obj, idx)
+	local self = {};
+	setmetatable(self, BlackListPanel);
+	self.Idx = idx;
+	self:InitControls(obj)
+
+	return self;
+end
+
+function BlackListPanel:InitControls(obj)
+	self.gameObject = obj;
+	self.transform = obj.transform;
+
+	self.ContentCanvasGroup = self.gameObject:GetComponent(typeof(CanvasGroup));
+	self.Count = self.transform:Find("Count"):GetComponent(typeof(Text));
+
+	self.ItemList = {};
+	self.ScrollViewContent = self.transform:Find("FriendScrollView/Mask/List")
+	self.ScrollView = self.transform:Find("FriendScrollView"):GetComponent(typeof(SuperScrollViewController));
+	self.ScrollView:NewScroll(self.transform:Find("ItemBlackList").gameObject, 0, function(tr, idx)
+		self:OnItemRefesh(tr, idx);
+	end);
+	-- 空提示
+	self.EmptyTips = self.transform:Find("bg/EmptyTips").gameObject;
+
+	-- 移出黑名单
+	self.OnRemoveBlackRespFun = function(PID)
+		self:OnRemoveBlackResp(PID);
+	end
+end
+
+function BlackListPanel:BindParent(parent)
+	self.Parent = parent;
+end
+
+function BlackListPanel:MakeSelected(b)
+	local alpha = 0;
+	if b == true then
+		alpha = 1;
+	end
+	if b == true then
+		self.transform:SetAsFirstSibling();
+		self:RefreshBlackList(self.Parent.module.BlackList);
+	end
+	self.ContentCanvasGroup.alpha = alpha;
+	self.ContentCanvasGroup.blocksRaycasts = b;
+end
+
+function BlackListPanel:RefreshBlackList(list)
+	self.BlackInfoList = list;
+
+	local count = #self.BlackInfoList;
+	--self.Count.text = "黑名单（<color=#6A3432>" .. count .. "</color>/200）";
+	self.Count.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Friend_BlackList_Count"), {count});
+
+	self.EmptyTips:SetActive(count <= 0);
+	self.ScrollView:ContinueScroll(count, false);
+end
+
+----------------------------------------------------- 无限列表 【STAR】 ------------------------------------------
+
+function BlackListPanel:OnItemRefesh(tr, idx)
+	if self.ItemList == nil then
+		return;
+	end
+	local data = self.BlackInfoList[idx + 1]; --idx是从0开始，如果ItemDataList是lua的table需要idx+1
+	for i = 1, #self.ItemList do
+		if self.ItemList[i].prefab.transform == tr then
+			self.ItemList[i]:UpdateContent(data);
+			return;
+		end
+	end
+	local sp = ItemBlackList.new(tr.gameObject, self.ScrollViewContent, function(pid)
+		self:OnRelieveFinishCB(pid);
+	end, function(UserInfo, tr)
+		self:OnHeadSelect(UserInfo, tr);
+	end);
+	sp:UpdateContent(data);
+	table.insert(self.ItemList, sp);
+end
+
+-- 移除黑名单列表
+function BlackListPanel:OnRelieveFinishCB(pid)
+	local index = self:GetIsHasCacheBlackInfoListByPID(pid);
+	if index == -1 then
+		return;
+	end
+	table.remove(self.BlackInfoList, index);
+	LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "CacheBlackList", { self.BlackInfoList });
+	local count = #self.BlackInfoList;
+	--self.Count.text = "黑名单（<color=#6A3432>" .. count .. "</color>/200）";
+	self.Count.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Friend_BlackList_Count"), {count});
+
+	self.EmptyTips:SetActive(count <= 0);
+	self.ScrollView:ContinueScroll(count, false);
+end
+
+-- 判断缓存的黑名单里是否有pid
+function BlackListPanel:GetIsHasCacheBlackInfoListByPID(pid)
+	if self.BlackInfoList == nil or self.BlackInfoList == {} then
+		return -1;
+	end
+	for i = 1, #self.BlackInfoList do
+		local item = self.BlackInfoList[i];
+		if item.BlackUserInfo ~= nil and item.BlackUserInfo.UserPID == pid then
+			return i;
+		end
+	end
+	return -1;
+end
+
+function BlackListPanel:OnHeadSelect(UserInfo, transform)
+	if UserInfo == nil then
+		return;
+	end
+	-------- 0没有任何关系 1只有好友关系 2在我的黑名单中
+	local friendRelation = self.Parent:GetFriendRelation(UserInfo.BlackUserInfo.UserPID);
+
+	local playerInfo = {
+		PID = UserInfo.BlackUserInfo.UserPID,
+		JobID = UserInfo.BlackUserInfo.JobID,
+		Level = UserInfo.BlackUserInfo.Level,
+		UserName = UserInfo.BlackUserInfo.UserName,
+		GuildName = UserInfo.BlackUserInfo.GuildName
+	};
+	local btnStrs = {};
+	local btnCBs = {};
+	if friendRelation == 0 then
+		-- 0没有任何关系
+	elseif friendRelation == 1 then
+		-- 1只有好友关系
+	elseif friendRelation == 2 then
+		-- 2在我的黑名单中
+		btnStrs = { LanguageHelp:GetLanguageByKey("Local_Str_Be_blacklist") };
+		btnCBs = { self.OnRemoveBlackRespFun };
+	end
+
+	if #btnStrs <= 0 or #btnCBs <= 0 then
+		return;
+	end
+
+	LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnOpenFriendTipsWidget",
+		{ playerInfo, btnStrs, btnCBs, transform });
+end
+
+-- 获取item
+function BlackListPanel:GetItemByPID(PID)
+	if self.ItemList ~= nil or self.ItemList ~= {} or #self.ItemList > 0 then
+		for i = 1, #self.ItemList do
+			local item = self.ItemList[i];
+			if item ~= nil and item.BlackInfo.BlackUserInfo ~= nil and item.BlackInfo.BlackUserInfo.UserPID == PID then
+				return item;
+			end
+		end
+	end
+
+	return nil;
+end
+
+----------------------------------------------------- 无限列表 【END】 ------------------------------------------
+
+----------------------------------------------------- 玩家头像点击事件 【STAR】 ------------------------------------------
+
+
+-- 发起聊天
+function BlackListPanel:OnInitiateChat(pid)
+	self.Parent:InitiateChat(pid);
+end
+
+-- 移出黑名单
+function BlackListPanel:OnRemoveBlackResp(pid)
+	local item = self:GetItemByPID(pid);
+	if item == nil then
+		return;
+	end
+	item:OnClickJBtnRelieve();
+end
+
+-- 邀请组队
+function BlackListPanel:OnInviteTeam(pid)
+	-- 等毛哥来了再写
+end
+
+----------------------------------------------------- 玩家头像点击事件 【END】 ------------------------------------------
+
+
+
+----------------------------------------------------- 按钮点击事件 【STAR】 ------------------------------------------
+
+----------------------------------------------------- 按钮点击事件 【END】 ------------------------------------------
+
+
+
+return BlackListPanel;

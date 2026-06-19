@@ -1,0 +1,1462 @@
+--[[
+*文件名   :   EnemyInfoWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/03 17:33:55"
+*创建人   :   "quzhenxin"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+EnemyInfoWidget = class("EnemyInfoWidget", UIPanel)
+
+EnemyInfoWidget.m_ProgressSkill = nil;
+EnemyInfoWidget.m_DeBuffContainer = nil;
+EnemyInfoWidget.m_BuffContainer = nil;
+EnemyInfoWidget.m_TargetName = nil;
+EnemyInfoWidget.m_PortraitBg = nil;
+EnemyInfoWidget.m_Portrait = nil;
+EnemyInfoWidget.m_ProgessHp = nil;
+EnemyInfoWidget.m_BarHp = nil;
+EnemyInfoWidget.m_BarHpRect = nil;
+EnemyInfoWidget.m_BarHp2 = nil;
+EnemyInfoWidget.m_BarWhiteHp = nil;
+EnemyInfoWidget.m_BarWhiteHpRect = nil;
+EnemyInfoWidget.m_HpSumText = nil;
+EnemyInfoWidget.m_HpCount = nil;
+EnemyInfoWidget.m_State = nil;
+EnemyInfoWidget.m_Name = nil;
+EnemyInfoWidget.m_Level = nil;
+EnemyInfoWidget.m_BarSkill = nil;
+EnemyInfoWidget.m_SkillName = nil;
+
+EnemyInfoWidget.m_transform = nil;
+
+--BUFFList
+EnemyInfoWidget.m_BuffListContainer = nil;
+
+EnemyInfoWidget.m_BuffPrefab = nil;
+EnemyInfoWidget.m_DeBuffPrefab = nil;
+---------- 怪物数据
+EnemyInfoWidget.m_EntityBase = nil;
+EnemyInfoWidget.m_HPSum = 100;
+EnemyInfoWidget.m_HPLastCur = 100;
+EnemyInfoWidget.m_HPCur = 100;
+-- 血条资源icon
+EnemyInfoWidget.m_HpIconPathList = {
+	"Hud_Progress_01_1",
+	"Hud_Progress_01_2",
+	"Hud_Progress_01_3",
+	"Hud_Progress_01_4",
+	"Hud_Progress_01_5",
+};
+-- 血条资源引用
+EnemyInfoWidget.m_HpIconList = {};
+
+EnemyInfoWidget.m_HpWidthCfg = 382;       -- 血条的宽度
+EnemyInfoWidget.m_HpRowAverage = 100;     -- 血量平均数，，， 一管血条的数值
+EnemyInfoWidget.m_CurHpRowCount = 1;      -- 当前血条的数量
+EnemyInfoWidget.m_HpRowSum = 5;           -- 血条总数数
+EnemyInfoWidget.m_WhiteHpRowCount = 1;    -- 白血条数
+EnemyInfoWidget.m_OnceHpResidueNum = 100; -- 剩余一管血的数值
+
+
+EnemyInfoWidget.OnAttributeHandlers = {}; -- 属性同步字典
+
+EnemyInfoWidget.m_skillEntity = nil;
+EnemyInfoWidget.energyTime = 0;         -- 单层蓄力的时间
+EnemyInfoWidget.energyedCount = 0;      -- 已经蓄力的层数,可能蓄力0层
+EnemyInfoWidget.curEnergyTime = 0;      -- 当前蓄力的时间
+EnemyInfoWidget.energyMaxNum = 0;       -- 最大蓄力层数
+EnemyInfoWidget.m_isShowEnergy = false; -- 是否显示蓄力
+
+local ItemBuff = require("View/Item/ItemBuff");
+local BuffListSp = require("View/UIWidget/BuffList");
+EnemyInfoWidget.BuffItems = {};
+EnemyInfoWidget.DeBuffItems = {};
+EnemyInfoWidget.SkillBuffList = {};
+EnemyInfoWidget.SkillDeBuffList = {};
+
+EnemyInfoWidget.m_BuffList = nil;
+
+EnemyInfoWidget.IsPlayingFade = false;
+EnemyInfoWidget.IsPlayingMove = false;
+
+-- 血条颜色
+EnemyInfoWidget.HpColorList = {
+	[1] = "#f44949",
+	[2] = "#f4a549",
+	[3] = "#cee036",
+	[4] = "#58bbd3",
+	[5] = "#bea1f9",
+};
+
+EnemyInfoWidget.m_NewPlayerPreFlag = true;
+
+function EnemyInfoWidget:Awake()
+	self.m_transform = self.prefab.transform;
+
+	self.m_animation = self.prefab:GetComponent(typeof(Animation));
+
+	self.m_PortraitBg = self:Find("PortraitBg"):GetComponent(typeof(Image));
+	self.m_Portrait = self:Find("PortraitBg/Portrait"):GetComponent(typeof(Image));
+	self.m_ProgessHp = self:Find("ProgessHp"):GetComponent(typeof(Image));
+	self.m_HpMoveAnim = self:Find("ProgessHp/HpPanter"):GetComponent(typeof(AnimParamsShow));
+	self.m_BarHp = self:Find("ProgessHp/HpPanter/BarHp"):GetComponent(typeof(Image));
+	-- self.M_ShieldValBarLeft = self:Find("ProgressHp/HpPanter/ShieldValBarLeft"):GetComponent(typeof(Image));
+	-- self.M_ShieldValBarRight = self:Find("ProgressHp/HpPanter/ShieldValBarRight"):GetComponent(typeof(Image));
+	self.m_BarHpAnim = self:Find("ProgessHp/HpPanter/BarHp"):GetComponent(typeof(AnimParamsShow));
+	self.m_BarHpRect = self:Find("ProgessHp/HpPanter/BarHp"):GetComponent(typeof(RectTransform));
+	self.m_BarHp2 = self:Find("ProgessHp/HpPanter/BarHp2"):GetComponent(typeof(Image));
+	self.m_BarWhiteHp = self:Find("ProgessHp/HpPanter/BarWhiteHp"):GetComponent(typeof(Image));
+	self.m_BarWhiteHpRect = self:Find("ProgessHp/HpPanter/BarWhiteHp"):GetComponent(typeof(RectTransform));
+	self.m_BarGlow = self:Find("ProgessHp/HpPanter/BarGlow").gameObject;
+	self.m_HpSumText = self:Find("ProgessHp/HpSum"):GetComponent(typeof(Text));
+	self.m_HpCount = self:Find("ProgessHp/HpCount"):GetComponent(typeof(Text));
+	--self.m_State=self:Find("State"):GetComponent(typeof(Image));
+	self.m_Name = self:Find("Name"):GetComponent(typeof(Text));
+	self.m_Level = self:Find("LevelBg/Level"):GetComponent(typeof(Text));
+	self.m_ProgressSkill = self:Find("ProgressSkill");
+	self.m_BarSkill = self:Find("ProgressSkill/BarSkill"):GetComponent(typeof(Image));
+	self.m_SkillName = self:Find("ProgressSkill/SkillName"):GetComponent(typeof(Text));
+	self.m_BuffContainer = self:Find("BuffContainer");
+	self.m_DeBuffContainer = self:Find("DeBuffContainer");
+	self.m_TargetName = self:Find("TargetName"):GetComponent(typeof(Text));
+
+	self.m_BuffListContainer = self:Find("BuffListContainer");
+	self.m_BuffPrefab = self.m_BuffContainer:Find("ItemBuff").gameObject;
+	self.m_DeBuffPrefab = self.m_DeBuffContainer:Find("ItemDeBuff").gameObject;
+	self.BuffItems = {};
+	self.DeBuffItems = {};
+	--local progessHpRect = self:Find("ProgessHp"):GetComponent(typeof(RectTransform));
+	--m_HpWidthCfg = progessHpRect.rect.width;
+
+	--------------------------------------------- 事件
+
+	-- update事件
+	self.UpdateFun = function()
+		self:UpdateDataHp();
+		self:UpdateData();
+	end
+
+	-- 蓄力开始
+	self.AddEnergyStartLuaAction = function(action)
+		self:OnActionOnEnergyStart(action);
+	end;
+	-- 蓄力结束
+	self.AddEnergyEndLuaAction = function(action)
+		self:OnActionOnEnergyEnd(action);
+	end
+	-- 技能结束（蓄力直接打断）
+	self.AddEndSkillStageLuaAction = function(skillEntity, e_SkillExitType)
+		self:OnActionOnEndSkillStage(skillEntity, e_SkillExitType);
+	end
+
+	-- Buff创建
+	self.AddBuffCreateLuaAction = function(skillBuff, buffCreateRet)
+		self:OnActionOnBuffCreate(skillBuff, buffCreateRet);
+	end
+	-- Buff结束
+	self.AddBuffEndLuaAction = function(skillBuff, buffEndRet)
+		self:OnActionOnBuffEnd(skillBuff, buffEndRet);
+	end
+	-- Buff更新数据
+	self.AddBuffUpdateLuaAction = function(skillBuff)
+		self:OnActionOnBuffUpdate(skillBuff);
+	end
+
+	----------------- AOI修改回调
+	self.AoicurHpFun = function(key, value)
+		self:SetHp(value);
+	end
+
+	self.AoiTruthHpFun = function(key, value)
+		self:UpdateTruthHp(value);
+	end
+
+	self.AoiTargetBattleEntityIDFun = function(key, value)
+		self:UpdateTargetBattleEntityID(value);
+	end
+
+	--------------------------- 点击事件
+	self.BuffItemClickFun = function(skillBuff)
+		self:ItemBuffCallBack(skillBuff);
+	end
+
+	self.OnItemBuffClickFun = function(item)
+		self:OnItemBuffClick(item);
+	end
+
+	------------------- 动画事件
+	self.OnAnimFinishFun = function()
+		self.IsPlayingFade = false;
+	end
+
+	self.OnAnimFinish2Fun = function()
+		self.IsPlayingMove = false;
+	end
+
+	--------------------------
+end
+
+function EnemyInfoWidget:Start()
+
+end
+
+function EnemyInfoWidget:OnEnable()
+
+end
+
+function EnemyInfoWidget:OnDisable()
+
+end
+
+function EnemyInfoWidget:OnDestroy()
+	MonoHelper.RemoveUpdateListener(self.UpdateFun);
+end
+
+function EnemyInfoWidget:OnOpen(arg)
+	self:SetEnemyInfo(arg);
+end
+
+function EnemyInfoWidget:SetEnemyInfo(arg)
+	if arg == nil then
+		self:CloseWidget();
+		return;
+	end
+
+	if self.m_EntityBase ~= nil and arg.EntityId == self.m_EntityBase.EntityId then
+		return;
+	end
+	self.m_EntityBase = arg;
+	
+	if self.m_EntityBase == nil or self.m_EntityBase.Data == nil or self.m_EntityBase.Data.Attrs == nil then
+		return;
+	end
+	-- 血条配置信息
+	self:InitEnemyHpConfData();
+	-- 敌方头像
+	self:InitEnemyHeadImg();
+	-- 名字等级
+	self:InitLevelAndName();
+	-- 当前目标
+	self:InitTargetId();
+	-- 获取BUFF信息
+	self:ReleaseBuffItems();
+	self:InitGetBuffs();
+	-- 注册委托
+	self:InitRegisterAction();
+
+	self.m_NewPlayerPreFlag = false;
+	self.m_NewPlayerPreFlagList = {};
+	local mapSubType = GameManager.Instance:GetMapSubType()
+	if mapSubType ~= nil and mapSubType ~= "" then
+		self.m_NewPlayerPreFlag = mapSubType == "PlotSecond";
+	end
+
+	if not self.m_transform.gameObject.activeSelf then
+		self.m_transform.gameObject:SetActive(true);
+	end
+end
+
+function EnemyInfoWidget:OnClose(arg)
+	if self.m_EntityBase ~= nil then
+		self:ReleaseInfo();
+	end
+end
+
+function EnemyInfoWidget:CloseWidget()
+	if self.m_EntityBase ~= nil then
+		self:ReleaseInfo();
+	end
+	self.Close();
+	self.m_transform.gameObject:SetActive(false);
+end
+
+-- 敌方头像
+function EnemyInfoWidget:InitEnemyHeadImg()
+	if self.m_EntityBase.EntityType == CS.StarProjectDef.E_EntityType.Monster then
+		self:InitMonsterEntityHeadImg();
+	elseif self.m_EntityBase.EntityType == CS.StarProjectDef.E_EntityType.Player then
+		self:InitPlayerEntityHeadImg();
+	end
+end
+
+-- 敌方头像-》怪物类型头像
+function EnemyInfoWidget:InitMonsterEntityHeadImg()
+	local MonsterType = 1;
+	--local PortraitBgPath = "UI/StarWorldPage/Textures/CHeadFra_Boss_02";	-- 头像背景
+	local PortraitPath = "Hud_Icon_Blame01"; -- 头像
+	--local ProgessHpPath = "UI/StarWorldPage/Textures/Hud_Boss_bg_01";	-- 血条背景
+	--local StatePath = "UI/StarWorldPage/Textures/Hud_Icon_Blame03";	-- 怪物类型
+	--local HpIconPath = "UI/StarWorldPage/Textures/Hud_Bossblood_0";	-- 血条
+	local indexValue = self.m_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Uint,
+		CS.StarProjectDef.AOIAttrDefine.Index);
+	local monsterAttrDataCell = ConfigDataAccessor.Monster[tonumber(indexValue)];
+	if monsterAttrDataCell ~= nil then
+		--self.m_HpRowSum = monsterAttrDataCell.HealthBarCount;
+		MonsterType = monsterAttrDataCell.MonType;
+	end
+	-- 1是普通怪物 2是精英怪物 3是boss
+	if MonsterType == 1 then
+		PortraitPath = "Hud_Icon_Blame01";
+	elseif MonsterType == 2 then
+		PortraitPath = "Hud_Icon_Blame02";
+	elseif MonsterType == 3 then
+		PortraitPath = "Hud_Icon_Blame03";
+	end
+
+	--for i = 5, 1,-1 do
+	--local path = HpIconPath..i;
+	--table.insert(m_HpIconPathList, path);
+	--end
+
+	self:GetSprite(PortraitPath, function(sp)
+		self.m_Portrait.sprite = sp
+	end);
+	-- 怪物类型icon
+end
+
+-- 敌方头像-》玩家类型头像
+function EnemyInfoWidget:InitPlayerEntityHeadImg()
+	-- 玩家的图标先显示怪物的
+	local PortraitPath = "Hud_Icon_Blame01"; -- 头像
+
+	self:GetSprite(PortraitPath, function(sp)
+		self.m_Portrait.sprite = sp
+	end);
+end
+
+-- 血条配置信息
+function EnemyInfoWidget:InitEnemyHpConfData()
+	self.m_HPSum = self.m_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Long,
+		CS.StarProjectDef.AOIAttrDefine.TruthHp);
+	self.m_HPCur = self.m_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Long,
+		CS.StarProjectDef.AOIAttrDefine.curHp);
+	self.m_HPLastCur = self.m_HPCur;
+
+	self.m_HpRowSum = 1;
+	if self.m_EntityBase.EntityType == CS.StarProjectDef.E_EntityType.Monster then
+		local indexValue = self.m_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Uint,
+			CS.StarProjectDef.AOIAttrDefine.Index);
+		local monsterAttrDataCell = ConfigDataAccessor.Monster[tonumber(indexValue)];
+		if monsterAttrDataCell ~= nil then
+			--self.m_HpRowSum = monsterAttrDataCell.HealthBarCount;
+			MonsterType = monsterAttrDataCell.MonType;
+		end
+		-- 1是普通怪物 2是精英怪物 3是boss
+		if MonsterType == 1 then
+			self.m_HpRowSum = 1;
+		elseif MonsterType == 2 then
+			self.m_HpRowSum = 3;
+		elseif MonsterType == 3 then
+			self.m_HpRowSum = 5;
+		end
+	end
+
+	self:RefreshHpData();
+end
+
+-- 当前目标
+function EnemyInfoWidget:InitTargetId()
+	local targetEntityId = self.m_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Ulong,
+		CS.StarProjectDef.AOIAttrDefine.TargetBattleEntityID);
+	local targetId = tonumber(targetEntityId);
+	local targetName = "";
+	if targetId > 0 then
+		targetName = GameManager.Instance:GetEntityNameById(targetId);
+	end
+	self.m_TargetName.text = targetName;
+	self.m_TargetName.gameObject:SetActive(targetName ~= "");
+end
+
+-- 名字等级
+function EnemyInfoWidget:InitLevelAndName()
+	local level = self.m_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Int,
+		CS.StarProjectDef.AOIAttrDefine.EntityLevel);
+	if level < 1 then
+		level = 1;
+	end
+	local showLevel = self.m_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Int,
+		CS.StarProjectDef.AOIAttrDefine.ShowLevel);
+	if showLevel < 1 then
+		showLevel = 1;
+	end
+	local show = level;
+	if showLevel > 1 then
+		show = showLevel
+	end
+	
+	local Name=self.m_EntityBase.M_Name;
+	if Name==nil or Name=='' or Name=="" then
+		local cfg= ConfigDataAccessor.Monster[self.m_EntityBase.ConfigIndex]
+		if cfg~=nil then
+			Name=cfg.Name
+		end
+	end
+	
+	--levelAndEntityName = "<color=#FFFFEB><size=20>" .. show .. "级</size></color> " .. self.m_EntityBase.M_Name;
+	self.m_Name.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_levelAndEntityName"), {show, Name});
+end
+
+-- 刷新血量信息
+function EnemyInfoWidget:RefreshHpData()
+	-- 计算血量平均数，，， 一管血条的数值
+	self.m_HpRowAverage = self.m_HPSum / self.m_HpRowSum;
+	-- 当前血条的数量
+	self.m_CurHpRowCount = math.ceil(self.m_HPCur / self.m_HpRowAverage);
+	self.m_WhiteHpRowCount = self.m_CurHpRowCount;
+	self.m_HpCount.text = "x" .. self.m_CurHpRowCount;
+	-- 设置血条的图片信息
+	self:SetHpIcon();
+	-- 一关血 目前的比例数值
+	self.m_OnceHpResidueNum = self.m_HPCur % self.m_HpRowAverage; -- 剩余一管血的数值
+	if (self.m_HPCur % self.m_HpRowAverage) == 0 then
+		self.m_OnceHpResidueNum = self.m_HpRowAverage;
+	end
+	if self.m_OnceHpResidueNum <= 0.0001 then
+		self.m_OnceHpResidueNum = self.m_HpRowAverage;
+	end
+	local ratio = self.m_OnceHpResidueNum / self.m_HpRowAverage;
+	if ratio > 1 then
+		ratio = 1;
+	end
+
+	-- self.m_BarHpRect:SetWidth(self.m_HpWidthCfg * ratio);
+	-- self.m_BarWhiteHpRect:SetWidth(self.m_HpWidthCfg * ratio);
+
+	self.m_BarHp.fillAmount = ratio;
+	self.m_BarWhiteHp.fillAmount = ratio;
+	self:SetBarGlowX(ratio);
+
+	--self.m_HpSumText.text = tostring(self.m_HPCur).."/"..tostring(self.m_HPSum);
+	local hpRatio = self.m_HPCur / self.m_HPSum;
+	if hpRatio > 1 then
+		hpRatio = 1;
+	end
+	local percent = roundToDecimal(hpRatio * 100, 2);
+	self.m_HpSumText.text = percent .. "%";
+end
+
+-- 设置血条图标
+function EnemyInfoWidget:SetHpIcon()
+	-- 计算当前血条颜色的下标
+	local m_CurHpIdx = self.m_CurHpRowCount;
+	if m_CurHpIdx > 5 then
+		local remainder = math.ceil(m_CurHpIdx % 5);
+		if remainder == 0 then
+			remainder = 5;
+		end
+		m_CurHpIdx = remainder;
+	end
+
+	-- 当前血条的图片
+	--local res,color = CS.UnityEngine.ColorUtility.TryParseHtmlString(self.HpColorList[m_CurHpIdx]);
+	--self.m_BarHp.color = color;
+
+	self:GetSprite(self.m_HpIconPathList[m_CurHpIdx], function(sp)
+		self.m_BarHp.sprite = sp
+	end);
+
+	local nextHpIconIdx = m_CurHpIdx - 1;
+	if nextHpIconIdx >= 1 then
+		--local res,color = CS.UnityEngine.ColorUtility.TryParseHtmlString(self.HpColorList[nextHpIconIdx]);
+		--self.m_BarHp2.color = color;
+		self:GetSprite(self.m_HpIconPathList[nextHpIconIdx], function(sp)
+			self.m_BarHp2.sprite = sp
+		end);
+		self.m_BarHp2.gameObject:SetActive(true);
+	else
+		self.m_BarHp2.gameObject:SetActive(false);
+	end
+end
+
+-- 注册委托
+function EnemyInfoWidget:InitRegisterAction()
+	if self.m_EntityBase ~= nil and self.m_EntityBase.Data ~= nil then
+		-- 绑定属性同步回调  START
+		self:RegisterAttributeAction();
+		-- 绑定技能回调------  START
+		self:RegisterEnergySkillAction();
+		-- 绑定BUFF回调------  START
+		self:RegisterBuffAction();
+	end
+
+	MonoHelper.RemoveUpdateListener(self.UpdateFun);
+	MonoHelper.AddUpdateListener(self.UpdateFun);
+end
+
+-- 解绑注册委托
+function EnemyInfoWidget:UnRegisterAction()
+	if self.m_EntityBase ~= nil and self.m_EntityBase.Data ~= nil then
+		-- 解绑属性同步回调
+		self:UnRegisterAttributeAction();
+		-- 解绑技能回调
+		self:UnRegisterEnergySkillAction();
+		-- 解绑BUFF回调------  START
+		self:UnRegisterBuffAction();
+	end
+	MonoHelper.RemoveUpdateListener(self.UpdateFun);
+end
+
+-- 绑定属性同步委托
+function EnemyInfoWidget:RegisterAttributeAction()
+	self.m_EntityBase.Data:RegisterAttribute(CS.StarProjectDef.AOIAttrDefine.curHp, self.AoicurHpFun);
+	self.m_EntityBase.Data:RegisterAttribute(CS.StarProjectDef.AOIAttrDefine.TruthHp, self.AoiTruthHpFun);
+	self.m_EntityBase.Data:RegisterAttribute(CS.StarProjectDef.AOIAttrDefine.TargetBattleEntityID,
+		self.AoiTargetBattleEntityIDFun);
+end
+
+-- 解除绑定属性同步委托
+function EnemyInfoWidget:UnRegisterAttributeAction()
+	self.m_EntityBase.Data:UnRegisterAttribute(CS.StarProjectDef.AOIAttrDefine.curHp, self.AoicurHpFun);
+	self.m_EntityBase.Data:UnRegisterAttribute(CS.StarProjectDef.AOIAttrDefine.TruthHp, self.AoiTruthHpFun);
+	self.m_EntityBase.Data:UnRegisterAttribute(CS.StarProjectDef.AOIAttrDefine.TargetBattleEntityID,
+		self.AoiTargetBattleEntityIDFun);
+end
+
+-- 绑定蓄力技能委托
+function EnemyInfoWidget:RegisterEnergySkillAction()
+	---- 蓄力开始
+	--self.m_EntityBase:AddEnergyStartLuaAction(self.AddEnergyStartLuaAction);
+	---- 蓄力结束
+	--self.m_EntityBase:AddEnergyEndLuaAction(self.AddEnergyEndLuaAction);
+	---- 技能结束（蓄力直接打断）
+	--self.m_EntityBase:AddEndSkillStageLuaAction(self.AddEndSkillStageLuaAction);
+end
+
+-- 解除绑定蓄力技能委托
+function EnemyInfoWidget:UnRegisterEnergySkillAction()
+	---- 蓄力开始
+	--self.m_EntityBase:DelEnergyStartLuaAction(self.AddEnergyStartLuaAction);
+	---- 蓄力结束
+	--self.m_EntityBase:DelEnergyEndLuaAction(self.AddEnergyEndLuaAction);
+	---- 技能结束（蓄力直接打断）
+	--self.m_EntityBase:DelEndSkillStageLuaAction(self.AddEndSkillStageLuaAction);
+end
+
+-- 绑定BUFF委托
+function EnemyInfoWidget:RegisterBuffAction()
+	-- buff创建
+	self.m_EntityBase:AddBuffCreateLuaAction(self.AddBuffCreateLuaAction);
+	-- Buff结束
+	self.m_EntityBase:AddBuffEndLuaAction(self.AddBuffEndLuaAction);
+	-- Buff更新数据
+	self.m_EntityBase:AddBuffUpdateLuaAction(self.AddBuffUpdateLuaAction);
+end
+
+-- 解除绑定BUFF委托
+function EnemyInfoWidget:UnRegisterBuffAction()
+	-- buff创建
+	self.m_EntityBase:DelBuffCreateLuaAction(self.AddBuffCreateLuaAction);
+	-- Buff结束
+	self.m_EntityBase:DelBuffEndLuaAction(self.AddBuffEndLuaAction);
+	-- Buff更新数据
+	self.m_EntityBase:DelBuffUpdateLuaAction(self.AddBuffUpdateLuaAction);
+end
+
+---------------- [更新/设置] [属性变化] [START]------------
+function EnemyInfoWidget:SetHp(value)
+	if self.m_HPLastCur == value then
+		return;
+	end
+	self.m_HPCur = value;
+	if self.m_EntityBase == nil or self.m_EntityBase.Data == nil then
+		return;
+	end
+	-- if self.m_HPCur > self.m_HPSum then
+	-- 	self.m_HPSum = self.m_HPCur;
+	-- end
+
+	local delHp = self.m_HPLastCur - self.m_HPCur;
+	if delHp < 0 then
+		-- 说明怪物脱战，回满血了
+		self:RefreshHpData();
+		self.m_HPLastCur = self.m_HPCur;
+	else
+		local residueNum = self.m_OnceHpResidueNum - delHp;
+		if residueNum > 0 then
+			self.m_OnceHpResidueNum = residueNum;
+		else
+			self.m_OnceHpResidueNum = 0;
+		end
+		if self.m_OnceHpResidueNum == 0 then
+			if self.m_HPCur > 0 then
+				self.m_OnceHpResidueNum = self.m_HPCur % self.m_HpRowAverage; -- 剩余一管血的数值
+			end
+			-- 当前血条的数量
+			self.m_CurHpRowCount = math.ceil(self.m_HPCur / self.m_HpRowAverage);
+		else
+			local ratio = self.m_OnceHpResidueNum / self.m_HpRowAverage;
+			if ratio > 1 then
+				ratio = 1;
+			end
+			--self.m_BarHpRect:SetWidth(self.m_HpWidthCfg * ratio);
+
+			self.m_BarHp.fillAmount = ratio;
+			self:SetBarGlowX(ratio);
+		end
+
+		self.m_HpCount.text = "x" .. self.m_CurHpRowCount;
+		--self.m_HpSumText.text = tostring(self.m_HPCur).."/"..tostring(self.m_HPSum);
+		local hpRatio = self.m_HPCur / self.m_HPSum;
+		if hpRatio > 1 then
+			hpRatio = 1;
+		end
+		local percent = roundToDecimal(hpRatio * 100, 2);
+		self.m_HpSumText.text = percent .. "%";
+
+		self.m_HPLastCur = self.m_HPCur;
+
+		-- 播放闪白动画
+		--if self.IsPlayingFade == false then
+		self.IsPlayingFade = true;
+		self.m_BarHpAnim:PlayAnimByKey("fade", self.OnAnimFinishFun);
+		--end
+		-- 震动
+		--self.PlayAnimation("EnemyInfoWidget_Anim", nil)
+		self.m_animation:Play("EnemyInfoWidget_Anim");
+
+		-- --if self.IsPlayingMove == false then
+		-- self.IsPlayingMove = true;
+		-- self.m_HpMoveAnim:PlayAnimByKey("move", self.OnAnimFinish2Fun);
+		-- --end
+		-- 打点
+		if self.m_NewPlayerPreFlag then
+			local stepID = "11";
+			local isFind = false;
+			if hpRatio <= 0.2 then
+				stepID = "11" .. "_20";
+				isFind = true;
+				self.m_NewPlayerPreFlag = false;
+			elseif hpRatio <= 0.4 then
+				stepID = "11" .. "_40";
+				isFind = true;
+			elseif hpRatio <= 0.6 then
+				stepID = "11" .. "_60";
+				isFind = true;
+			elseif hpRatio <= 0.8 then
+				stepID = "11" .. "_80";
+				isFind = true;
+			end
+			if isFind then
+				local isHave = self:GetNewPlayerPreFlagIsContainsValue(stepID)
+				if isHave == false then
+					GameManager.Instance:EventPreNewPlayerEvent(stepID);
+					self:AddNewPlayerPreFlag(stepID);
+				end
+			end
+		end
+	end
+end
+
+EnemyInfoWidget.m_NewPlayerPreFlagList = {};
+function EnemyInfoWidget:AddNewPlayerPreFlag(stepID)
+	local isHave = self:GetNewPlayerPreFlagIsContainsValue(stepID)
+	if isHave == false then
+		table.insert(self.m_NewPlayerPreFlagList, stepID);
+	else
+		Log("BOSS血条新手上报重复了=" .. stepID);
+	end
+end
+
+function EnemyInfoWidget:GetNewPlayerPreFlagIsContainsValue(stepID)
+	return table.ContainsValue(self.m_NewPlayerPreFlagList, stepID);
+end
+
+function EnemyInfoWidget:UpdateTruthHp(value)
+	if self.m_EntityBase == nil or self.m_EntityBase.Data == nil then
+		return
+	end
+	self.m_HPSum = value;
+	-- if self.m_HPCur > self.m_HPSum then
+	-- 	self.m_HPSum = self.m_HPCur;
+	-- end
+
+	self.m_OnceHpResidueNum = self.m_HPCur % self.m_HpRowAverage; -- 剩余一管血的数值
+	if (self.m_HPCur % self.m_HpRowAverage) == 0 then
+		self.m_OnceHpResidueNum = self.m_HpRowAverage;
+	end
+	if self.m_OnceHpResidueNum <= 0 then
+		self.m_OnceHpResidueNum = self.m_HpRowAverage;
+	end
+	--self.m_HpSumText.text = tostring(self.m_HPCur).."/"..tostring(self.m_HPSum);
+	local hpRatio = self.m_HPCur / self.m_HPSum;
+	if hpRatio > 1 then
+		hpRatio = 1;
+	end
+	local percent = roundToDecimal(hpRatio * 100, 2);
+	self.m_HpSumText.text = percent .. "%";
+end
+
+function EnemyInfoWidget:SetMixHpShield()
+	local isHaveShield = self.ShieldValSum > 0;
+	if isHaveShield then
+		local mixHp = self.ShieldValSum + self.m_HPCur;
+		local isExceedMaxHp = mixHp > self.m_HPSum;
+		if isExceedMaxHp then
+			-- 超过实体的最大血量
+			local ratio = 0;
+			if self.m_HPSum > 0 then
+				ratio = self.m_HPCur / mixHp;
+				if ratio > 1 then
+					ratio = 1;
+				end
+			end
+			self.M_HPBar.fillAmount = ratio;
+
+			local ratio2 = 0;
+			if self.ShieldValSum > 0 then
+				ratio2 = self.ShieldValSum / mixHp;
+				if ratio2 > 1 then
+					ratio2 = 1;
+				end
+			end
+			self.M_ShieldValBarRight.fillAmount = ratio2;
+			self.M_ShieldValBarLeft.fillAmount = 0;
+		else
+			local ratio = 0;
+			if self.m_HPSum > 0 then
+				ratio = self.m_HPCur / self.m_HPSum;
+				if ratio > 1 then
+					ratio = 1;
+				end
+			end
+			self.M_HPBar.fillAmount = ratio;
+
+			local ratio2 = 0;
+			if self.m_HPSum > 0 then
+				ratio2 = self.ShieldValSum / self.m_HPSum;
+				if ratio2 > 1 then
+					ratio2 = 1;
+				end
+			end
+			self.M_ShieldValBarLeft.fillAmount = ratio + ratio2;
+			self.M_ShieldValBarRight.fillAmount = 0;
+		end
+	else
+		local ratio = 0;
+		if self.m_HPSum > 0 then
+			ratio = self.m_HPCur / self.m_HPSum;
+			if ratio > 1 then
+				ratio = 1;
+			end
+		end
+		self.M_HPBar.fillAmount = ratio;
+		self.M_ShieldValBarLeft.fillAmount = 0;
+		self.M_ShieldValBarRight.fillAmount = 0;
+	end
+end
+
+function EnemyInfoWidget:SetBarGlowX(ratio)
+	local BarGlowX = self.m_HpWidthCfg * ratio;
+	if BarGlowX > self.m_HpWidthCfg / 2 then
+		BarGlowX = BarGlowX - self.m_HpWidthCfg / 2;
+		BarGlowX = BarGlowX - 2;
+	else
+		BarGlowX = self.m_HpWidthCfg / 2 - BarGlowX;
+		BarGlowX = -BarGlowX - 2;
+	end
+	local v3 = Vector3.zero;
+	v3.x = BarGlowX;
+	self.m_BarGlow.transform.localPosition = v3;
+end
+
+function EnemyInfoWidget:UpdateTargetBattleEntityID(value)
+	if self.m_EntityBase == nil or self.m_EntityBase.Data == nil then
+		return
+	end
+	-- 目标ID等于0的话，就没有目标了	
+	local targetId = tonumber(value);
+	local targetName = "";
+	if targetId > 0 then
+		targetName = GameManager.Instance:GetEntityNameById(targetId);
+	end
+	self.m_TargetName.text = targetName;
+	self.m_TargetName.gameObject:SetActive(targetName ~= "");
+end
+
+---------------- [更新/设置] [属性变化] [END]------------
+
+
+---------------- [绑定技能回调] [START]------------
+
+function EnemyInfoWidget:UpdateData()
+	if self.m_isShowEnergy and self.m_skillEntity ~= nil and self.m_SkillTime ~= nil then
+		self.curEnergyTime = self.m_EntityBase:GetCurEnergyTime(true);
+		self.energyedCount = self.m_EntityBase:GetCurEnergyCount(true);
+
+		local time = math.ceil(self.curEnergyTime) / 1000;
+		local times = string.format("%.1f", time);
+		self.m_SkillTime.text = times .. "s";
+		self:UpdatErnergy(math.ceil(self.curEnergyTime % self.energyTime));
+	end
+end
+
+function EnemyInfoWidget:OnActionOnEnergyStart(skillEntity)
+	self:SetEenergy(skillEntity);
+end
+
+function EnemyInfoWidget:SetEenergy(skillEntity)
+	self.m_skillEntity = skillEntity;
+	self.energyTime = self.m_skillEntity.EnergyItemTime;
+	self.energyMaxNum = self.m_skillEntity.EnergyMaxCount;
+	self.energyedCount = self.m_EntityBase:GetCurEnergyCount(false);
+	self.curEnergyTime = self.m_EntityBase:GetCurEnergyTime(false);
+
+	self.m_SkillName.text = "Skill_" .. self.m_skillEntity.skillId;
+	self:SetEnergyValShow(true);
+end
+
+function EnemyInfoWidget:SetEnergyValShow(isShow)
+	if isShow == self.m_isShowEnergy then
+		return;
+	end
+	self.m_isShowEnergy = isShow;
+	if not self.m_isShowEnergy then
+		self.m_skillEntity = nil;
+	end
+	self.m_ProgressSkill.gameObject:SetActive(self.m_skillEntity);
+end
+
+function EnemyInfoWidget:UpdatErnergy(curEnerg)
+	local ratio = 0;
+	if self.energyTime > 0 then
+		ratio = curEnerg / self.energyTime;
+	end
+	self.m_BarSkill.fillAmount = ratio;
+end
+
+function EnemyInfoWidget:OnActionOnEnergyEnd(skillEntity)
+	if self.m_skillEntity ~= nil and skillEntity ~= nil and skillEntity.runtimeID == self.m_skillEntity.runtimeID then
+		self:SetEnergyValShow(false);
+	end
+end
+
+function EnemyInfoWidget:OnActionOnEndSkillStage(skillEntity, e_SkillExitType)
+	if self.m_skillEntity ~= nil and skillEntity ~= nil and skillEntity.runtimeID == self.m_skillEntity.runtimeID then
+		self:SetEnergyValShow(false);
+	end
+end
+
+---------------- [绑定技能回调] [END]------------
+
+
+---------------- [绑定BUFF回调] [start]------------
+
+function EnemyInfoWidget:UpdateDataHp()
+	-- 更新血条 fillAmount
+	if self.m_WhiteHpRowCount ~= self.m_CurHpRowCount or self.m_BarHp.fillAmount ~= self.m_BarWhiteHp.fillAmount then
+		local deltaTime = tonumber(Time.deltaTime);
+		--Log("EnemyInfoWidget:UpdateDataHp 怪物掉血 deltaTime="..deltaTime);
+		-- 减去白色血条
+		if self.m_WhiteHpRowCount == self.m_CurHpRowCount then
+			-- 如果在同一个血条内掉血
+			local width = self.m_BarWhiteHp.fillAmount - deltaTime / 10;
+			if width <= self.m_BarHp.fillAmount then
+				width = self.m_BarHp.fillAmount;
+			end
+			--self.m_BarWhiteHpRect:SetWidth(width);
+			self.m_BarWhiteHp.fillAmount = width
+			--local hpAmount = self.m_BarHpRect.fillAmount;
+			--local whiteHpAmount = self.m_BarWhiteHpRect.fillAmount;
+			--local difRatio = self.m_BarHpRect.fillAmount / self.m_BarWhiteHpRect.fillAmount;
+			--local time = difRatio * 5;
+			--self.m_BarWhiteHpRect:DOFillAmount(ratio, time);
+			--Log("更新血量=>  width",width);
+		else
+			-- 差了几条血，后，加速掉白色血
+			local width = self.m_BarWhiteHp.fillAmount - deltaTime;
+			self.m_BarWhiteHp.fillAmount = width
+
+			--self.m_BarWhiteHpRect:SetWidth(self.m_BarWhiteHpRect.rect.width - deltaTime * 100);
+			--local width = self.m_BarWhiteHpRect.rect.width;
+			--Log("更新血量22222=>  width",width);
+		end
+
+		if self.m_BarWhiteHp.fillAmount <= 0 then
+			if self.m_WhiteHpRowCount - 1 < self.m_CurHpRowCount then
+				self.m_WhiteHpRowCount = self.m_CurHpRowCount;
+				self:SetHpIcon();
+			else
+				self.m_WhiteHpRowCount = self.m_WhiteHpRowCount - 1;
+				if self.m_WhiteHpRowCount > 0 then
+					self.m_BarWhiteHp.fillAmount = 1
+
+					--self.m_BarWhiteHpRect:SetWidth(self.m_HpWidthCfg);
+					--Log("更新血量 3333333 =>  width",m_HpWidthCfg);
+					self:SetHpIcon();
+
+					local ratio = self.m_OnceHpResidueNum / self.m_HpRowAverage;
+					if ratio > 1 then
+						ratio = 1;
+					end
+					--self.m_BarHpRect:SetWidth(self.m_HpWidthCfg * ratio);
+					self.m_BarHp.fillAmount = ratio
+					self:SetBarGlowX(ratio);
+				end
+			end
+		end
+	end
+	-- if self.m_WhiteHpRowCount ~= self.m_CurHpRowCount or self.m_BarWhiteHpRect.rect.width ~= self.m_BarHpRect.rect.width then
+	-- 	local deltaTime = tonumber(Time.deltaTime);
+	-- 	-- 减去白色血条
+	-- 	if self.m_WhiteHpRowCount == self.m_CurHpRowCount then
+	-- 		-- 如果在同一个血条内掉血
+	-- 		local width = self.m_BarWhiteHpRect.rect.width - deltaTime * 50;
+	-- 		if width <= self.m_BarHpRect.rect.width then
+	-- 			width = self.m_BarHpRect.rect.width;
+	-- 		end
+	-- 		self.m_BarWhiteHpRect:SetWidth(width);
+	-- 		--local hpAmount = self.m_BarHpRect.fillAmount;
+	-- 		--local whiteHpAmount = self.m_BarWhiteHpRect.fillAmount;
+	-- 		--local difRatio = self.m_BarHpRect.fillAmount / self.m_BarWhiteHpRect.fillAmount;
+	-- 		--local time = difRatio * 5;
+	-- 		--self.m_BarWhiteHpRect:DOFillAmount(ratio, time);
+	-- 		--Log("更新血量=>  width",width);
+	-- 	else
+	-- 		-- 差了几条血，后，加速掉白色血
+	-- 		self.m_BarWhiteHpRect:SetWidth(self.m_BarWhiteHpRect.rect.width - deltaTime * 100);
+	-- 		--local width = self.m_BarWhiteHpRect.rect.width;
+	-- 		--Log("更新血量22222=>  width",width);
+	-- 	end
+
+	-- 	if self.m_BarWhiteHpRect.rect.width <= 0 then
+	-- 		if self.m_WhiteHpRowCount - 1 < self.m_CurHpRowCount then
+	-- 			self.m_WhiteHpRowCount = self.m_CurHpRowCount;
+	-- 			self:SetHpIcon();
+	-- 		else
+	-- 			self.m_WhiteHpRowCount = self.m_WhiteHpRowCount - 1;
+	-- 			if self.m_WhiteHpRowCount > 0 then
+	-- 				self.m_BarWhiteHpRect:SetWidth(self.m_HpWidthCfg);
+	-- 				--Log("更新血量 3333333 =>  width",m_HpWidthCfg);
+	-- 				self:SetHpIcon();
+
+	-- 				local ratio = self.m_OnceHpResidueNum / self.m_HpRowAverage;
+	-- 				if ratio > 1 then
+	-- 					ratio = 1;
+	-- 				end
+	-- 				self.m_BarHpRect:SetWidth(self.m_HpWidthCfg * ratio);
+	-- 			end
+	-- 		end
+	-- 	end
+	-- end
+end
+
+function EnemyInfoWidget:ReleaseBuffItems()
+	for i = 1, #self.DeBuffItems do
+		local item = self.DeBuffItems[i];
+		item:SetUse(false);
+	end
+
+	for i = 1, #self.BuffItems do
+		local item = self.BuffItems[i];
+		item:SetUse(false);
+	end
+end
+
+function EnemyInfoWidget:InitGetBuffs()
+	local buffsList = self.m_EntityBase:GetSkillBuffs();
+	if buffsList == nil or buffsList.Count <= 0 then
+		return
+	end
+
+	-- 区分增益减益BUFF
+	for i = 0, buffsList.Count - 1 do
+		local buff = buffsList[i];
+		if buff ~= nil and buff.BuffInfo ~= nil and buff.BuffInfo.Cfg ~= nil then
+			local isHave = self:GetBuffIndexById(buff.BuffInfo.Cfg.IsDebuff, buff.RuntimeID);
+			local isHaveCfg = buff.BuffInfo:GetHaveBUFFUIShowState(E_BUFFUIShowPosEnum.HUDHpUp);
+			if isHaveCfg then
+				if isHave == -1 then
+					self:AddBuffList(buff);
+					local item = self:OnBuffCreate(buff.BuffInfo.Cfg.IsDebuff);
+					if item ~= nil then
+						local count = self:GetBuffListCount(buff.BuffInfo.Cfg.IsDebuff);
+						item:SetBuffCout(count, i);
+						item:SetCallBack(self.BuffItemClickFun);
+						item:SetItem(buff);
+					end
+				end
+			end
+			if isHave == -1 then
+				-- 获取BUFF护盾总数
+				self:CheckBuffShieldVal(buff, true);
+			end
+		end
+	end
+end
+
+function EnemyInfoWidget:CreateBuff(isDeBuff)
+	local _go;
+	if isDeBuff then
+		if #self.DeBuffItems < 3 then
+			_go = newObject(self.m_DeBuffPrefab);
+			_go.transform:SetParent(self.m_DeBuffContainer);
+		end
+	else
+		if #self.BuffItems < 3 then
+			_go = newObject(self.m_BuffPrefab);
+			_go.transform:SetParent(self.m_BuffContainer);
+		end
+	end
+	if _go ~= nil then
+		_go.transform.localPosition = Vector3.zero;
+		_go.transform.localScale = Vector3.one;
+		local item = ItemBuff:New(_go, self.OnItemBuffClickFun);
+		if isDeBuff then
+			table.insert(self.DeBuffItems, item);
+		else
+			table.insert(self.BuffItems, item);
+		end
+		return item;
+	end
+	return nil;
+end
+
+function EnemyInfoWidget:OnItemBuffClick(item)
+	if item == nil or item.BuffEntity == nil or item.BuffEntity.BuffInfo == nil or item.BuffEntity.BuffInfo.Cfg == nil then
+		return;
+	end
+	local buffList = self:GetAllBuffList(item.BuffEntity.BuffInfo.Cfg.IsDebuff);
+	if self.m_BuffList == nil then
+		local go = ResourceManager.Instance:LoadGameObject("UI/StarWorld/BuffList");
+		go.transform:SetParent(self.m_BuffListContainer);
+		go.transform.localPosition = Vector3.zero;
+		go.transform.localScale = Vector3.one;
+		go.name = "EnemyInfoWidget_BuffList";
+		self.m_BuffList = BuffListSp:New(go.gameObject);
+		self.m_BuffList:Init(buffList, item.BuffEntity.BuffInfo.Cfg.IsDebuff);
+	else
+		self.m_BuffList:Init(buffList, item.BuffEntity.BuffInfo.Cfg.IsDebuff);
+	end
+end
+
+function EnemyInfoWidget:GetAllBuffList(isDeBuff)
+	local buffList;
+	if isDeBuff then
+		buffList = TableConcat(self.SkillDeBuffList, self.SkillBuffList);
+	else
+		buffList = TableConcat(self.SkillBuffList, self.SkillDeBuffList);
+	end
+	return buffList;
+end
+
+function EnemyInfoWidget:ItemBuffCallBack(skillItem)
+	if skillItem ~= nil then
+		local isDeBuff = false;
+		if skillItem.BuffEntity ~= nil and skillItem.BuffEntity.BuffInfo ~= nil and skillItem.BuffEntity.BuffInfo.Cfg ~= nil then
+			self:DelBuffList(skillItem.BuffEntity);
+			isDeBuff = skillItem.BuffEntity.BuffInfo.Cfg.IsDebuff;
+			----删除BUFFUI时，如果buff总数超过了5个
+			---- 需要通知最后一个更新BUFF总数
+			--if #SkillDeBuffList >= 5 or #SkillBuffList >= 5 then
+			---- 更新最后一个
+			--local lastBuffItem = self:GetLastBuffItem(skillBuff.BuffInfo.Cfg.IsDebuff);
+			--if lastBuffItem ~= nil then
+			--local count = self:GetBuffListCount(skillBuff.BuffInfo.Cfg.IsDebuff);
+			--lastBuffItem:SetBuffCout(count);
+			--end
+			--end
+		else
+			self:DelBuffItemInList(skillItem.IsDeBuff, skillItem.RunTimeId);
+			isDeBuff = skillItem.IsDeBuff;
+		end
+		-- 重新刷新其他Item的信息
+		local count = self:GetBuffListCount(isDeBuff);
+		if isDeBuff then
+			for i = 1, #self.DeBuffItems do
+				local buffItem = self.DeBuffItems[i];
+				if #self.SkillDeBuffList >= i then
+					local item = self.SkillDeBuffList[i];
+					buffItem:SetBuffCout(count, i);
+					buffItem:SetItem(item);
+				else
+					buffItem:SetUse(false);
+				end
+			end
+		else
+			for i = 1, #self.BuffItems do
+				local buffItem = self.BuffItems[i];
+				if #self.SkillBuffList >= i then
+					local item = self.SkillBuffList[i];
+					buffItem:SetBuffCout(count, i);
+					buffItem:SetItem(item);
+				else
+					buffItem:SetUse(false);
+				end
+			end
+		end
+	end
+end
+
+function EnemyInfoWidget:GetBuff(skillBuff)
+	if skillBuff ~= nil then
+		if skillBuff.BuffInfo.Cfg == nil then
+			Log("霸服 EnemyInfoWidget:GetBuff skillBuff.BuffInfo.Cfg=nil err");
+			return nil;
+		end
+		if skillBuff.BuffInfo.Cfg.IsDebuff then
+			return self:GetDeBuffItem(skillBuff);
+		else
+			return self:GetBuffItem(skillBuff);
+		end
+	end
+
+	return nil;
+end
+
+function EnemyInfoWidget:GetBuffItem(skillBuff)
+	for i = 1, #self.BuffItems do
+		local buffItem = self.BuffItems[i];
+		if buffItem.IsUsed and buffItem.BuffEntity ~= nil then
+			if buffItem.BuffEntity.RuntimeID == skillBuff.RuntimeID then
+				return buffItem;
+			end
+		elseif buffItem.RunTimeId == skillBuff.RuntimeID then
+			return buffItem;
+		end
+	end
+
+	return nil;
+end
+
+function EnemyInfoWidget:GetIdleBuffItem()
+	for i = 1, #self.BuffItems do
+		local buffItem = self.BuffItems[i];
+		if not buffItem.IsUsed and buffItem.BuffEntity == nil then
+			return buffItem;
+		end
+	end
+	return nil;
+end
+
+function EnemyInfoWidget:GetDeBuffItem(skillBuff)
+	for i = 1, #self.DeBuffItems do
+		local buffItem = self.DeBuffItems[i];
+		if buffItem.IsUsed and buffItem.BuffEntity ~= nil then
+			if buffItem.BuffEntity.RuntimeID == skillBuff.RuntimeID then
+				return buffItem;
+			end
+		elseif buffItem.RunTimeId == skillBuff.RuntimeID then
+			return buffItem;
+		end
+	end
+
+	return nil;
+end
+
+--- 获取空闲的DebuffItem
+function EnemyInfoWidget:GetIdleDeBuffItem()
+	for i = 1, #self.DeBuffItems do
+		local buffItem = self.DeBuffItems[i];
+		if not buffItem.IsUsed and buffItem.BuffEntity == nil then
+			return buffItem;
+		end
+	end
+	return nil;
+end
+
+function EnemyInfoWidget:GetLastBuffItem(isDeBuff)
+	local item = nil;
+	local max = -1;
+	if isDeBuff then
+		for i = #self.DeBuffItems, 1, -1 do
+			local buffItem = self.DeBuffItems[i];
+			if buffItem.IsUsed and buffItem.BuffEntity ~= nil then
+				local index = buffItem.Index;
+				if index > max then
+					max = index;
+					item = buffItem;
+				end
+			end
+		end
+	else
+		for i = #self.BuffItems, 1, -1 do
+			local buffItem = self.BuffItems[i];
+			if buffItem.IsUsed and buffItem.BuffEntity ~= nil then
+				local index = buffItem.Index;
+				if index > max then
+					max = index;
+					item = buffItem;
+				end
+			end
+		end
+	end
+	return item;
+end
+
+function EnemyInfoWidget:GetBuffListCount(isDeBuff)
+	if isDeBuff then
+		return #self.SkillDeBuffList;
+	else
+		return #self.SkillBuffList;
+	end
+end
+
+function EnemyInfoWidget:AddBuffList(skillBuff)
+	if skillBuff.BuffInfo.Cfg.IsDebuff then
+		table.insert(self.SkillDeBuffList, skillBuff);
+	else
+		table.insert(self.SkillBuffList, skillBuff);
+	end
+
+	if self.m_BuffList ~= nil and self.m_BuffList.M_IsOpen then
+		local buffList = self:GetAllBuffList(skillBuff.BuffInfo.Cfg.IsDebuff);
+		if buffList ~= nil then
+			self.m_BuffList:UpdateData(buffList);
+		end
+	end
+end
+
+-- 【防错方法】根据buff类型和运行时ID在buffList里面删除
+function EnemyInfoWidget:DelBuffItemInList(isDebuff, runtimeID)
+	local index = self:GetBuffIndexById(isDebuff, runtimeID);
+	if index == -1 then
+		return;
+	end
+	if isDebuff then
+		table.remove(self.SkillDeBuffList, index);
+	else
+		table.remove(self.SkillBuffList, index);
+	end
+
+	if self.m_BuffList ~= nil and self.m_BuffList.M_IsOpen then
+		local buffList = self:GetAllBuffList(isDebuff);
+		if buffList ~= nil then
+			self.m_BuffList:UpdateData(buffList);
+		end
+	end
+end
+
+-- 【防错方法】根据buff类型和运行时ID在buffList里面找到相同运行时ID的下标
+function EnemyInfoWidget:GetBuffIndexById(isDebuff, runtimeID)
+	if isDebuff then
+		for i = 1, #self.SkillDeBuffList do
+			local item = self.SkillDeBuffList[i];
+			if item.RuntimeID == runtimeID then
+				return i;
+			end
+		end
+	else
+		for i = 1, #self.SkillBuffList do
+			local item = self.SkillBuffList[i];
+			if item.RuntimeID == runtimeID then
+				return i;
+			end
+		end
+	end
+	return -1;
+end
+
+function EnemyInfoWidget:DelBuffList(skillBuff)
+	local index = self:GetBuffIndex(skillBuff);
+	if index == -1 then
+		return;
+	end
+	if skillBuff.BuffInfo.Cfg.IsDebuff then
+		table.remove(self.SkillDeBuffList, index);
+	else
+		table.remove(self.SkillBuffList, index);
+	end
+
+	if self.m_BuffList ~= nil and self.m_BuffList.M_IsOpen then
+		local buffList = self:GetAllBuffList(skillBuff.BuffInfo.Cfg.IsDebuff);
+		if buffList ~= nil then
+			self.m_BuffList:UpdateData(buffList);
+		end
+	end
+end
+
+function EnemyInfoWidget:GetBuffIndex(skillBuff)
+	if skillBuff.BuffInfo.Cfg.IsDebuff then
+		for i = 1, #self.SkillDeBuffList do
+			local item = self.SkillDeBuffList[i];
+			if item.RuntimeID == skillBuff.RuntimeID then
+				return i;
+			end
+		end
+	else
+		for i = 1, #self.SkillBuffList do
+			local item = self.SkillBuffList[i];
+			if item.RuntimeID == skillBuff.RuntimeID then
+				return i;
+			end
+		end
+	end
+	return -1;
+end
+
+function EnemyInfoWidget:OnBuffCreate(isDeBuff)
+	local item = nil;
+	if isDeBuff then
+		item = self:GetIdleDeBuffItem();
+	else
+		item = self:GetIdleBuffItem();
+	end
+	if item == nil then
+		item = self:CreateBuff(isDeBuff);
+	end
+	return item;
+end
+
+function EnemyInfoWidget:OnActionOnBuffCreate(skillBuff, buffCreateRet)
+	--Log("霸服 EnemyInfoWidget:OnActionOnBuffEnd 委托通知创建 runtimeid=",skillBuff.RuntimeID);
+	if skillBuff ~= nil then
+		if skillBuff.BuffInfo ~= nil and skillBuff.BuffInfo.Cfg ~= nil then
+			-- 获取BUFF护盾总数
+			local isChanage = self:CheckBuffShieldVal(skillBuff, true);
+			if isChanage then
+				self:SetShieldValSum();
+			end
+			local isHaveCfg = skillBuff.BuffInfo:GetHaveBUFFUIShowState(E_BUFFUIShowPosEnum.HUDHpUp);
+			if not isHaveCfg then
+				return;
+			end
+			local isHave = self:GetBuffIndexById(skillBuff.BuffInfo.Cfg.IsDebuff, skillBuff.RuntimeID);
+			if isHave == -1 then
+				self:AddBuffList(skillBuff);
+				local item = self:OnBuffCreate(skillBuff.BuffInfo.Cfg.IsDebuff);
+				if item ~= nil then
+					local count = self:GetBuffListCount(skillBuff.BuffInfo.Cfg.IsDebuff);
+					local index = #self.SkillBuffList;
+					if skillBuff.BuffInfo.Cfg.IsDebuff then
+						index = #self.SkillDeBuffList;
+					end
+					item:SetBuffCout(count, index);
+					item:SetCallBack(self.BuffItemClickFun);
+					item:SetItem(skillBuff);
+				else
+					--添加BUFFUI时，如果没创建出来
+					-- 那就是超过5个了，需要通知最后一个增加BUFF总数
+					if #self.SkillDeBuffList >= 3 or #self.SkillBuffList >= 3 then
+						-- 更新最后一个
+						local lastBuffItem = self:GetLastBuffItem(skillBuff.BuffInfo.Cfg.IsDebuff);
+						if lastBuffItem ~= nil then
+							local count = self:GetBuffListCount(skillBuff.BuffInfo.Cfg.IsDebuff);
+							local index = #self.SkillBuffList;
+							if skillBuff.BuffInfo.Cfg.IsDebuff then
+								index = #self.SkillDeBuffList;
+							end
+							lastBuffItem:SetBuffCout(count, index);
+						end
+					end
+				end
+			end
+		end
+	end
+end
+
+function EnemyInfoWidget:OnActionOnBuffEnd(skillBuff, buffEndRet)
+	if skillBuff == nil then
+		Log("霸服 EnemyInfoWidget:OnActionOnBuffEnd 委托通知关闭 skillBuff=nil err");
+		return;
+	end
+	--Log("霸服 EnemyInfoWidget:OnActionOnBuffEnd 委托通知关闭 runtimeid=",skillBuff.RuntimeID);
+	local buffItem = self:GetBuff(skillBuff);
+	if buffItem ~= nil then
+		buffItem:ExecuteCallBack();
+		----删除BUFFUI时，如果buff总数超过了5个
+		---- 需要通知最后一个更新BUFF总数
+		--if #SkillDeBuffList >= 5 or #SkillBuffList >= 5 then
+		---- 更新最后一个
+		--local lastBuffItem = self:GetLastBuffItem(skillBuff.BuffInfo.Cfg.IsDebuff);
+		--if lastBuffItem ~= nil then
+		--local count = self:GetBuffListCount(skillBuff.BuffInfo.Cfg.IsDebuff);
+		--lastBuffItem:SetBuffCout(count);
+		--end
+		--end
+	else
+		self:DelBuffList(skillBuff);
+	end
+	-- 获取BUFF护盾总数
+	local isChanage = self:CheckBuffShieldVal(skillBuff, false);
+	if isChanage then
+		self:SetShieldValSum();
+	end
+end
+
+function EnemyInfoWidget:OnActionOnBuffUpdate(skillBuff)
+	local buffItem = self:GetBuff(skillBuff);
+	if buffItem ~= nil then
+		buffItem:BuffUpdate(skillBuff);
+	end
+	-- 获取BUFF护盾总数
+	local isChanage = self:CheckBuffShieldVal(skillBuff, true);
+	if isChanage then
+		self:SetShieldValSum();
+	end
+end
+
+---------------- 【BUFF】护盾 --------------------------
+
+EnemyInfoWidget.buffShieldDic = {}
+EnemyInfoWidget.ShieldValSum = 0
+
+function EnemyInfoWidget:CheckBuffShieldVal(skillBuff, isOpen)
+	local isChanage = false;
+	if skillBuff == nil or skillBuff.BuffInfo == nil or skillBuff.BuffInfo.Cfg == nil then
+		LogWarning("霸服 EnemyInfoWidget:CheckBuffShieldVal skillBuff=nil err");
+		return isChanage;
+	end
+	local shieldVal = 0;
+	if isOpen then
+		shieldVal = skillBuff.ShieldVal
+	end
+
+	local lastShield = 0;
+	local isHave = false;
+	for key, value in pairs(self.buffShieldDic) do
+		if key == skillBuff.RuntimeID then
+			lastShield = value;
+			isHave = true;
+			break;
+		end
+	end
+	if isHave then
+		if shieldVal > 0 then
+			if shieldVal ~= lastShield then
+				self.buffShieldDic[skillBuff.RuntimeID] = shieldVal;
+				isChanage = true;
+			end
+		else
+			--table.remove(self.buffShieldDic, skillBuff.RuntimeID);
+			self.buffShieldDic[skillBuff.RuntimeID] = 0;
+			isChanage = true;
+		end
+	elseif shieldVal > 0 then
+		self.buffShieldDic[skillBuff.RuntimeID] = shieldVal;
+		isChanage = true;
+	end
+
+	return isChanage;
+end
+
+function EnemyInfoWidget:SetShieldValSum()
+	local sum = 0;
+	for key, value in pairs(self.buffShieldDic) do
+		sum = sum + value;
+	end
+	self.ShieldValSum = sum;
+	-- 通知血条比例修改
+	--self:SetMixHpShield();
+end
+
+---------------- 【BUFF】护盾 --------------------------
+
+---------------- [绑定BUFF回调] [END]------------
+
+function EnemyInfoWidget:ReleaseInfo()
+	self:UnRegisterAction();
+	self.m_TargetName.text = "";
+	self:ReleaseBuffItems();
+	self.m_skillEntity = nil;
+	self.m_EntityBase = nil;
+	self.SkillBuffList = {};
+	self.SkillDeBuffList = {};
+	if self.m_BuffList ~= nil and self.m_BuffList.M_IsOpen then
+		local buffList = {};
+		self.m_BuffList:UpdateData(buffList);
+	end
+	--Log("怪物目标  清空 =", self.m_TargetName.text);
+end
+
+return EnemyInfoWidget

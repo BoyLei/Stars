@@ -1,0 +1,66 @@
+--[[
+*文件名   :   GngEffectItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/18 18:36:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local GngEffectItem = {}
+
+GngEffectItem.__index = GngEffectItem
+
+function GngEffectItem:New(_go,onItemClick) 
+    local self = {};    
+    setmetatable(self, GngEffectItem); 
+    
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+    if onItemClick~= nil then
+        self.OnItemClick=onItemClick;
+    end
+
+    self.go_Null=self.transform:Find("Null").gameObject;
+    self.go_Have=self.transform:Find("Have").gameObject;
+
+    self.Icon=self.transform:Find("Have/Icon"):GetComponent(typeof(Image));
+
+
+    --点击事件
+    self.btnClick=self.transform:GetComponent(typeof(JButton));
+    self.btnClick.OnClick=(function() 
+        if self.OnItemClick ~= nil then
+            self.OnItemClick(self.BuffID); 
+        end
+    end);
+
+
+    return self;    --返回自身
+end
+
+
+function GngEffectItem:SetItem(buffID)
+    self.BuffID=buffID;
+    if buffID==0 then
+
+        self.go_Null:SetActive(true);
+        self.go_Have:SetActive(false);
+        
+    else
+
+        local cfg=ConfigDataAccessor.GNActivPassive[buffID];
+        --ResourceHelper:LoadIconByAtlasAsync(self.Icon, ResourceHelper.AtlasPathCopyTeam, cfg.PassiveIcon, false)
+
+
+        self.go_Null:SetActive(false);
+        self.go_Have:SetActive(true);
+    end
+end
+
+
+
+
+
+return GngEffectItem;

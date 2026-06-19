@@ -1,0 +1,93 @@
+--[[
+*文件名   :   ItemHighAttr
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/06 15:34:41"
+*创建人   :   "quzhenxin"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local ItemHighAttr = {}
+
+ItemHighAttr.__index = ItemHighAttr;
+
+local ItemBaseAttr = require("View/UIWindow/PlayerAttrWindow/ItemBaseAttr");
+
+function ItemHighAttr:New(_go)
+	local self = {};
+	setmetatable(self, ItemHighAttr);
+	self.BaseAttrItemList = {};
+	self.CallBack = nil;
+	self.AttrData = nil;
+
+	self.Transform = _go.transform;
+	--self.MyLayout=self.Transform:GetComponent(typeof(ContentSizeFitter));
+	self.TypeIcon = self.Transform:Find("Declare/TypeIcon"):GetComponent(typeof(Image));
+	self.TypeText = self.Transform:Find("Declare/TypeText"):GetComponent(typeof(Text));
+	self.Layout = self.Transform:Find("Layout");
+	--self.Layout=self.Transform:Find("Layout"):GetComponent(typeof(ContentSizeFitter));
+
+	self.ItemBaseAttrClickFun = function(data)
+		self:OnItemBaseAttrClick(data);
+	end
+
+	return self;
+end
+
+function ItemHighAttr:SetItem(type, baseAttrList, item, callBack)
+	local typeName = E_AttrOwnModuleType[type];
+	self.TypeText.text = typeName;
+	self.CallBack = callBack;
+	local index = 0;
+	for k, v in pairs(baseAttrList) do
+		local gob = newObject(item);
+		self:CreateItemBaseAttr(gob, v, index);
+		gob.transform:SetParent(self.Layout);
+		gob.transform.localPosition = Vector3.zero;
+		gob.transform.localScale = Vector3.one;
+		index = index + 1;
+	end
+end
+
+function ItemHighAttr:CreateItemBaseAttr(gameObject, data, index)
+	local item = ItemBaseAttr:New(gameObject, self.ItemBaseAttrClickFun);
+	item:UpdateContent(data);
+	local isShow = (index % 2) == 0;
+	item:SetBgShow(isShow);
+	item.gameObject:SetActive(true);
+	table.insert(self.BaseAttrItemList, item);
+end
+
+function ItemHighAttr:OnItemBaseAttrClick(data)
+	self:CleanBaseAttrAllSelected();
+
+	if data == nil then
+		return;
+	end
+	-- 显示属性详细界面
+	self.CallBack(data);
+end
+
+-- 清空所有基础属性的选中
+function ItemHighAttr:CleanBaseAttrAllSelected()
+	if self.BaseAttrItemList ~= nil then
+		for i = 1, #self.BaseAttrItemList do
+			self.BaseAttrItemList[i]:OnSelect(false);
+		end
+	end
+end
+
+function ItemHighAttr:CheckItemByAttrId(id)
+	if self.BaseAttrItemList == nil then
+		return;
+	end
+	for i = 1, #self.BaseAttrItemList do
+		local item = self.BaseAttrItemList[i];
+		if item ~= nil and item.AttrData ~= nil and item.AttrData.AttrId == id then
+			item:OnSelect(true);
+			return;
+		end
+	end
+end
+
+return ItemHighAttr;

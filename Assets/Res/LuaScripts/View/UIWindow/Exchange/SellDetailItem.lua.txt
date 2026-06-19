@@ -1,0 +1,73 @@
+--[[
+*文件名   :   SellDetailItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/10/16 16:01:09"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+SellDetailItem=class("SellDetailItem",UIPanel)
+SellDetailItem.m_Info=nil;
+SellDetailItem.m_BgRare=nil;
+SellDetailItem.m_Icon=nil;
+SellDetailItem.m_Selected=nil;
+SellDetailItem.OnSelectCallBack=nil;
+SellDetailItem.Data=nil;
+local SelectionFunc=nil;
+function SellDetailItem:ctor(go, atlas)
+	self.prefab = go;
+	self.AtlasPath = atlas;
+	self.m_Info=self:Find("Info").gameObject;
+	self.m_BgRare=self:Find("Info/BgRare"):GetComponent(typeof(Image));
+	self.m_Icon=self:Find("Info/Icon"):GetComponent(typeof(Image));
+	self.m_Selected=self:Find("Info/Selected").gameObject
+
+	self.m_Btn=self.prefab:GetComponent(typeof(JButton));
+	SelectionFunc=function() self:OnClickSelectBtn(); end;
+	self.m_Btn.OnClick= SelectionFunc;
+end
+
+function SellDetailItem:OnClickSelectBtn()
+	if self.OnSelectCallBack~=nil then
+		if self.Data~=nil then
+			self.OnSelectCallBack(self.Data);
+		end
+
+	end
+end
+function SellDetailItem:Select(select)
+	self.m_Selected:SetActive(select)
+end
+
+
+function SellDetailItem:UpdateContent(arg,id,cb)
+	self:Select(false);
+	self.OnSelectCallBack=cb;
+	self.Data=arg;
+	if self.Data==nil then
+		self.m_Info:SetActive(false)
+		return ;
+	end
+	if self.Data.CIndex==id then
+		self.OnSelectCallBack(self.Data);
+	end
+	self:Select(self.Data.CIndex==id);
+	
+	local config=ConfigDataAccessor.Item[self.Data.data.BaseID]
+	if config~=nil then
+		--self.m_Name.text=config.Name
+		local quality=config.Quality;
+		ResourceHelper:LoadIconByAtlasAsync(
+			self.m_BgRare,
+			ResourceHelper.AtlasPathCommonItem,
+			"Bag_Grid_sq"..quality,
+			false
+		)
+		ResourceHelper:LoadIconAsync(self.m_Icon, "", config.Icon, false)
+	end
+	self.m_Info:SetActive(true)
+end
+
+
+
+return  SellDetailItem

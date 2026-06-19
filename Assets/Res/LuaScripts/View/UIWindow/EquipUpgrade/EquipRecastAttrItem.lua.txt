@@ -1,0 +1,81 @@
+--[[
+*文件名   :   EquipRecastAttrItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/24 15:31:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local EquipRecastAttrItem = {}
+
+EquipRecastAttrItem.__index = EquipRecastAttrItem
+
+function EquipRecastAttrItem:New(_go) 
+    local self = {};    
+    setmetatable(self, EquipRecastAttrItem); 
+    
+
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+
+
+    self.Name=self.transform:Find("tex"):GetComponent(typeof(Text));
+    self.go_cantUse=self.transform:Find("cantUse").gameObject;
+
+    return self;    --返回自身
+end
+
+
+--设置Item
+function EquipRecastAttrItem:RefeshAttrProb(info,selectedSubType)
+
+    local data=info.Data;
+    local add=data.Value;
+    local type=data.PropType;
+
+    --决定颜色
+    local quality = data.Quality;
+    
+
+    local cfgID = data.CfgID;
+
+    if type==4 then
+		
+		
+		--特殊副属性，给技能用的 （ID是技能ID ）
+		local name = ConfigDataAccessor.EquipSub[cfgID].Name
+		local num = ConfigDataAccessor.EquipSub[cfgID].Num[1]
+		
+		if info.CantUse~=1 then
+			self.Name.text=GetQualityColor(quality)..name.." +"..num .."</color>";
+		else
+			self.Name.text=name;
+			--self.Name.color=Color(0.58,0.59,0.63)
+		end
+		
+    else
+
+		local name = ConfigDataAccessor.EquipSub[cfgID].Name
+
+        if info.CantUse~=1 then
+            self.Name.text=GetQualityColor(quality)..name.." +"..add .."</color>";
+        else
+            self.Name.text=name;
+            --self.Name.color=Color(0.58,0.59,0.63)
+        end
+
+
+    end
+
+    --判断是否可用
+    self.go_cantUse:SetActive(info.CantUse==1);
+    
+
+end
+
+
+
+
+return EquipRecastAttrItem;

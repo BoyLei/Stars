@@ -1,0 +1,413 @@
+--[[
+*文件名   :   PartnerTeamAttributeWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/02/17 16:09:37"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+PartnerTeamAttributeWidget=class("PartnerTeamAttributeWidget",UIPanel)
+PartnerTeamAttributeWidget.m_BattleScrollView=nil;
+PartnerTeamAttributeWidget.m_BattleItem=nil;
+PartnerTeamAttributeWidget.m_AssistScrollView=nil;
+PartnerTeamAttributeWidget.m_AssistItem=nil;
+
+PartnerTeamAttributeWidget.BattlePartnerItems={}
+PartnerTeamAttributeWidget.BattleDatas={}
+
+PartnerTeamAttributeWidget.AssistPartnerItems={}
+PartnerTeamAttributeWidget.AssistDatas={}
+PartnerTeamAttributeWidget.m_Close=nil;
+function PartnerTeamAttributeWidget:Awake()
+	self.m_BattleScrollView=self:Find("Image/Battle/PropScrollView"):GetComponent(typeof(SuperScrollViewController));
+	self.m_BattleItem=self:Find("Image/Battle/ItemGrid").gameObject
+	self.m_AssistScrollView=self:Find("Image/Assist/PropScrollView"):GetComponent(typeof(SuperScrollViewController));
+	self.m_AssistItem=self:Find("Image/Assist/ItemGrid").gameObject
+
+	self.m_Close=self:Find("Close"):GetComponent(typeof(Button));
+	self.m_IntroduceBtn=self:Find("Image/Help"):GetComponent(typeof(Button));
+	self.m_BattleScrollView:NewScroll(self.m_BattleItem, 0, function (tr,idx)
+			self:OnBattleItemRefesh(tr,idx);
+		end);
+
+	self.m_AssistScrollView:NewScroll(self.m_AssistItem, 0, function (tr,idx)
+			self:OnAssistItemRefesh(tr,idx);
+		end);
+
+	self.m_IntroduceBtn.onClick:AddListener(function() CS.StarProjectDef.UIAPI.ShowGameplayInfo(10303) end);
+end
+
+function PartnerTeamAttributeWidget:GetActiveTagName(tag)
+	if tag== 1 then
+		return "Partner_icon_life"
+	elseif tag== 2 then
+		return "Partner_icon_defense"
+	elseif tag== 3 then
+		return "Partner_icon_attack"
+	elseif tag== 4 then
+		return "Partner_icon_mix"
+	end
+end
+
+function PartnerTeamAttributeWidget:OnBattleItemRefesh(tr,idx)
+	if self.BattlePartnerItems==nil then
+		return;
+	end
+	for i=1,#self.BattlePartnerItems do
+		if self.BattlePartnerItems[i].transform == tr then
+			local PropName=self.BattlePartnerItems[i].transform:Find("PropName"):GetComponent(typeof(Text));
+			local Proptext=self.BattlePartnerItems[i].transform:Find("PropVaule"):GetComponent(typeof(Text));
+
+			local data=self.BattleDatas[idx+1];
+			local AoiAttr= LocalDataManager.Instance:GetAttrPropByAttrIdx(data.Key)
+			if AoiAttr~=nil then
+
+				local config1=  ConfigDataAccessor.GetAttrByID(data.Key);
+				local attrName1 = "";
+				if config1 ~= nil then
+					attrName1 = config1.Name;
+				end
+
+				PropName.text=attrName1;
+				Proptext.text=tostring(math.floor(data.Vaule));
+			end
+		end
+	end
+	tr.gameObject:SetActive(true);
+	local PropName=tr.transform:Find("PropName"):GetComponent(typeof(Text));
+	local Proptext=tr.transform:Find("PropVaule"):GetComponent(typeof(Text));
+	local data=self.BattleDatas[idx+1];
+	local AoiAttr= LocalDataManager.Instance:GetAttrPropByAttrIdx(data.Key)
+	if AoiAttr~=nil then
+
+		local config1=  ConfigDataAccessor.GetAttrByID(data.Key);
+		local attrName1 = "";
+		if config1 ~= nil then
+			attrName1 = config1.Name;
+		end
+
+		PropName.text=attrName1;
+		Proptext.text=data.Vaule;
+	end
+	table.insert(self.BattlePartnerItems, tr);
+end
+
+
+function PartnerTeamAttributeWidget:SetAssetInfo(tr,data,slotInfo)
+	if slotInfo==nil then
+		return
+	end
+	local playerJob=GameManager.Instance:GetPlayJobBaseID();
+
+	local Tag=tr.transform:Find("Tag"):GetComponent(typeof(Image));
+	self:GetSprite(self:GetActiveTagName(slotInfo.Mark),function (sp)
+			Tag.sprite=sp
+			Tag:SetNativeSize();
+	end)
+
+
+	local di=tr.transform:Find("Image").gameObject;
+	local num1,num2=math.modf(slotInfo.Slot/2)
+	if(num2==0)then
+		di:SetActive(false)
+	else
+		di:SetActive(true)
+	end
+	local Proptext=tr.transform:Find("Text"):GetComponent(typeof(Text));
+	local Atr1=tr.transform:Find("Atr1")
+
+	local Atr2=tr.transform:Find("Atr2")
+
+	if data==nil then
+		--无数据
+		Atr1.gameObject:SetActive(false)
+		Atr2.gameObject:SetActive(false)
+		Proptext.gameObject:SetActive(true)
+		Proptext.text=''
+		if slotInfo~=nil then
+			local unlocked= GameManager.Instance:IsConditionMete(slotInfo.Condition);
+			if unlocked then
+				--已经解锁
+				Proptext.text=LanguageHelp:GetLanguageByKey("Local_Str_UnplacedPartner")
+			else
+				Proptext.text=LanguageHelp:GetLanguageByKey("Local_Str_SlotUnlocked")
+
+			end
+		end
+	else
+		Proptext.gameObject:SetActive(false)
+		local index=1;
+		Atr1.gameObject:SetActive(false)
+		Atr2.gameObject:SetActive(false)
+
+		local Assists=	ConfigDataAccessor.PartnerAssist[playerJob][slotInfo.Slot]
+		if Assists==nil then
+			return
+		end
+		if index>2 then
+			return
+		end
+
+		local info=Assists[1];
+		if info==nil then
+			return
+		end
+
+		for i = 1, #info.Qualifications do
+			for k, v in pairs(data.AMD.Aptitudes) do
+				if info.Qualifications[i]==k then
+					local ProptextAtr=nil;
+					if index==1 then
+						ProptextAtr=tr.transform:Find("Atr1/Text"):GetComponent(typeof(Text));
+						Atr1.gameObject:SetActive(true)
+					end
+
+					if index==2 then
+						ProptextAtr=tr.transform:Find("Atr2/Text"):GetComponent(typeof(Text));
+						Atr2.gameObject:SetActive(true)
+					end
+
+					index=index+1;
+
+					if ProptextAtr==nil then
+						return
+					end
+
+					local id=info.Nature[i];
+					local ratio=info.Ratio[i]
+					local base=v.BaseValue
+
+					local AoiAttr1= LocalDataManager.Instance:GetAttrPropByAttrIdx(id)
+					if AoiAttr1~=nil then
+						local va=math.floor(base*ratio*0.0001)
+
+
+						local config1=  ConfigDataAccessor.GetAttrByID(id);
+						local attrName1 = "";
+						if config1 ~= nil then
+							attrName1 = config1.Name;
+						end
+
+
+						ProptextAtr.text=attrName1..":"..va
+					end
+					break;
+				end
+			end
+
+
+		end
+	end
+end
+
+function PartnerTeamAttributeWidget:OnAssistItemRefesh(tr,idx)
+	if self.AssistPartnerItems==nil then
+		return;
+	end
+	local playerJob=GameManager.Instance:GetPlayJobBaseID();
+	local data=self.AssistDatas[idx].data;
+	local jobCfg=ConfigDataAccessor.PartnerAssistSlot[playerJob];
+	if jobCfg==nil then
+		Log("not find config by job "..playerJob)
+		return
+	end
+	local slotInfo=jobCfg[idx]
+	if slotInfo==nil then
+		return
+	end
+
+	for i=1,#self.AssistPartnerItems do
+		if self.AssistPartnerItems[i].transform == tr then
+			self:SetAssetInfo(tr,data,slotInfo)
+		end
+	end
+
+	self:SetAssetInfo(tr,data,slotInfo)
+	table.insert(self.AssistPartnerItems, tr);
+end
+
+function PartnerTeamAttributeWidget:Start()
+	self.m_Close.onClick:AddListener(function() self:OnClickCloseBtn() end);
+end
+
+function PartnerTeamAttributeWidget:OnClickCloseBtn()
+	LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OnClosePartnerTeamAttributeWidget");
+end
+
+function PartnerTeamAttributeWidget:OnEnable()
+
+end
+
+function PartnerTeamAttributeWidget:OnDisable()
+
+end
+
+function PartnerTeamAttributeWidget:OnDestroy()
+
+end
+
+
+function PartnerTeamAttributeWidget:CalculatePartnerBattleProp(data)
+	local Battle={}
+	local config=ConfigDataAccessor.Partner[data.Index];
+	if config~=nil then
+		local temp={}
+		local  PartnerNature=ConfigDataAccessor.PartnerNature[config.Nature][data.Level]
+		if PartnerNature~=nil then
+
+			for i = 1, #PartnerNature.AttrID do
+				local AoiAttr= LocalDataManager.Instance:GetAttrPropByAttrIdx(PartnerNature.AttrID[i])
+				if AoiAttr~=nil then
+
+					local config1=  ConfigDataAccessor.GetAttrByID(PartnerNature.AttrID[i]);
+					local attrName1 = "";
+					if config1 ~= nil then
+						attrName1 = config1.Name;
+					end
+
+
+					temp[PartnerNature.AttrID[i]]={Equip=0,id=PartnerNature.AttrID[i],PropName=attrName1,Base=PartnerNature.AttrValue[i],NewCer=0,Cer=0,CerRatio=0,Star=0}
+				end
+
+			end
+
+			---伙伴身上的资质
+			for k, v in pairs(data.AMD.Aptitudes) do
+				local convert= ConfigDataAccessor.ParConversion[k];
+				if convert~=nil then
+					for k1, v1 in pairs(convert.Natures) do
+						if temp[k1]~=nil then
+							--比v 小的最大值
+							local te=nil;
+							for k2, v2 in pairs(v1) do
+								if v.BaseValue<v2.Range or v.BaseValue==v2.Range then
+									if te==nil then
+										te=v2
+									else
+										if v2.Range>te.Range then
+											te=v2
+										end
+									end
+								end
+							end
+
+							if te~=nil then
+								local t=math.floor(v.BaseValue*te.Ratio*0.0001)
+								temp[k1].NewCer=temp[k1].NewCer+t
+							end
+						end
+					end
+				end
+			end
+
+			---星级
+			local starExpend= ConfigDataAccessor.StarExpend[config.Quality][data.CurStar]
+			if starExpend~=nil then
+				for k = 1, GetTableLen(starExpend.Nature) do
+					if temp[starExpend.Nature[k]]~=nil then
+						temp[starExpend.Nature[k]].Star=starExpend.Value[k];
+					end
+				end
+			end
+
+			if data~= nil then
+				for i=1,3 do
+					local data=BusinessManager.Instance:GetPartnerEquipedEquip(data.ID,i);
+					if data~= nil then
+						local Nature=ConfigDataAccessor.PartnerEquip[data.BaseID].Nature;
+						local Value=ConfigDataAccessor.PartnerEquip[data.BaseID].Value;
+						for j=1,#Nature do
+							local t=temp[Nature[j]];
+							if t~=nil then
+								t.Equip=t.Equip+Value[j];
+								temp[Nature[j]]=t;
+							end
+						end
+					end
+				end
+			end
+		end
+
+		local index;
+		for k, v in pairs(temp) do
+			local r,t=self:GetNatureTran(k)
+			local vaule=(v.Base+v.NewCer)*(1+v.Star*0.0001)+v.Equip
+			if r then
+				vaule=math.floor(math.floor(vaule)*t*0.0001)
+				Battle[k]=math.floor(vaule)
+			end
+		end
+	end
+	return Battle
+end
+
+
+function PartnerTeamAttributeWidget:OnOpen(arg)
+	--遍历伙伴
+	self.BattleDatas={}
+
+	--助战
+	self.AssistDatas={}
+	for i = 0, 5 do
+		self.AssistDatas[i]={idx=i,data=nil};
+	end
+
+	local temp={}
+
+	if arg~=nil then
+		for k, v in pairs(arg) do
+			if v.State==CS.ProtoMsg.PartnerState.InBattle or v.State==CS.ProtoMsg.PartnerState.Concretization then
+				local c=self:CalculatePartnerBattleProp(v)
+				for k, v in pairs(c) do
+					if temp[k] ==nil then
+						temp[k]=v
+					else
+						temp[k]=temp[k]+v
+					end
+				end
+			else
+				if  v.State==CS.ProtoMsg.PartnerState.Assist then
+					self.AssistDatas[v.CurSeat].data=v
+				end
+			end
+		end
+	end
+
+	for k, v in pairs(temp) do
+		--local r,t=self:GetNatureTran(k)
+		--if r then
+		--table.insert(self.BattleDatas,{Key=k,Vaule=tonumber(math.floor(v*t*0.0001))})
+		--end
+		table.insert(self.BattleDatas,{Key=k,Vaule=math.floor(v)})
+	end
+	table.sort(self.BattleDatas,function (p1,p2)
+			return p1.Key<p2.Key;
+		end);
+	self.m_BattleScrollView:ContinueScroll(GetTableLen(self.BattleDatas));
+	self.m_AssistScrollView:ContinueScroll(GetTableLen(self.AssistDatas));
+	self.prefab.transform:SetAsLastSibling();
+
+end
+
+function PartnerTeamAttributeWidget:GetNatureTran(nature)
+	local tr=10000;
+	local r=false;
+	local list=ConfigDataAccessor.NatureTrans;
+	for i = 1, #list do
+		if list[i].Natures==nature then
+			tr=list[i].Ratio;
+			r=true
+			break;
+		end
+	end
+	return r,tr;
+	--NatureTrans
+end
+
+function PartnerTeamAttributeWidget:OnClose(arg)
+
+end
+
+
+
+return  PartnerTeamAttributeWidget

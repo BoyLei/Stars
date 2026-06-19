@@ -1,0 +1,324 @@
+--[[
+*文件名   :   GuildInfoWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/02/03 13:09:51"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] GuildInfoWindow = class("GuildInfoWindow", UIPanel)
+GuildInfoWindow.IsOpen = false
+
+local SelectBtn = require("View/Item/SelectBtn")
+
+local GuildInfo = require("View/Uiwindow/Guild/GuildInfo")
+local GuildMember = require("View/Uiwindow/Guild/GuildMember")
+local GuildFunction = require("View/Uiwindow/Guild/GuildFunction")
+local CurrencyBar = require("View/Item/CurrencyBar")
+
+function GuildInfoWindow:Awake()
+end
+
+function GuildInfoWindow:BindModule(m)
+    self.module = m
+end
+
+function GuildInfoWindow:InitItems()
+    self.transform = self.prefab.transform
+    self.gameObject = self.transform.gameObject
+
+    self.idxNow = -1
+
+    self.currencyBar = CurrencyBar:New(nil, self.transform:Find("Cut4Cam90/AssemblyRatio2/CurrencyAhchor"))
+
+    -- 关闭信息
+    local btnCloseInfo = self.transform:Find("Block"):GetComponent(typeof(Button))
+    btnCloseInfo.onClick:AddListener(
+        function()
+            self:OnCloseInfoClick()
+        end
+    )
+
+    self.go_menu = self.transform:Find("Cut4Cam90/AssemblyRatio2/RightMenu").gameObject
+
+    -- 背包菜单按钮
+    self.MenuBtns = {}
+
+    local btn1 = SelectBtn:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/RightMenu/BtnInfo").gameObject)
+    btn1:InitItem(
+        1,
+        function(idx)
+            self:OnMenuBtnClick(idx)
+        end
+    )
+    table.insert(self.MenuBtns, btn1)
+
+    local btn2 = SelectBtn:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/RightMenu/BtnMember").gameObject)
+    btn2:InitItem(
+        2,
+        function(idx)
+            self:OnMenuBtnClick(idx)
+        end
+    )
+    table.insert(self.MenuBtns, btn2)
+
+    local btn3 = SelectBtn:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/RightMenu/BtnFunc").gameObject)
+    btn3:InitItem(
+        3,
+        function(idx)
+            self:OnMenuBtnClick(idx)
+        end
+    )
+    table.insert(self.MenuBtns, btn3)
+
+    self.GuildInfo = GuildInfo:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Info").gameObject, self)
+    self.GuildMember = GuildMember:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Member").gameObject, self)
+    self.GuildFunction = GuildFunction:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Function").gameObject, self)
+
+    self.m_CloseBtn = self:Find("Cut4Cam90/AssemblyRatio2/RightMenu/BtnClose"):GetComponent(typeof(Button))
+    self.m_CloseBtn.onClick:AddListener(
+        function()
+            self:OnClickCloseBtn()
+        end
+    )
+
+    self.anim = self.transform:GetComponent(typeof(Animator))
+
+    -- 冒险团信息回调
+    self.message1 = function(data)
+        self:OnGuildMyGetBaseRet(data)
+    end
+
+    -- 冒险团成员列表回调
+    self.message2 = function(data)
+        self:OnGuildMyGetPlayerListRet(data)
+    end
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.GuildMyGetBaseRetID, self.message1, nil)
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.GuildMyGetPlayerListRetID, self.message2, nil)
+
+    self.GuildInfo:OnMessage()
+    self.GuildMember:OnMessage()
+end
+
+function GuildInfoWindow:ShowMenu(b)
+    self.go_menu:SetActive(b)
+    if self.GuildInfo ~= nil then
+        self.GuildInfo:Show(b)
+    end
+end
+
+function GuildInfoWindow:Refesh()
+    -- 刷新货币
+    local coins = {4, 3, 2, 1}
+    self.currencyBar:RefeshBar(coins)
+    self.currencyBar:PlayAnim(true)
+
+    self.idxNow = -1
+    self:OnMenuBtnClick(1)
+
+    if self.IsPlayOpen then
+        self.GuildInfo:Show(false)
+        self.GuildMember:Show(false)
+        self.GuildFunction:Show(false)
+    end
+end
+
+function GuildInfoWindow:OnMenuBtnClick(idx)
+    if self.idxNow == idx then
+        return
+    end
+
+    if idx == 1 then
+        -- 拉取冒险团信息
+        local msg = CS.ProtoMsg.GuildMyGetBaseReq()
+        SendClient2CenterReq(msg)
+    elseif idx == 2 then
+        self:RefeshGuildMemberData()
+    elseif idx == 3 then
+        self:RefeshData(idx)
+    end
+end
+
+function GuildInfoWindow:RefeshGuildMemberData()
+    -- 拉取成员列表
+    local msg = CS.ProtoMsg.GuildMyGetPlayerListReq()
+    SendClient2CenterReq(msg)
+end
+
+-- 刷新数据
+function GuildInfoWindow:RefeshData(idx)
+    if idx == 1 then
+        self.GuildInfo:Show(true)
+        self.GuildMember:Show(false)
+        self.GuildFunction:Show(false)
+        if not (self.IsPlayOpen) then
+            self.anim:Play("Info")
+        else
+            self.anim:Play("Open")
+            self.IsPlayOpen = false
+        end
+    elseif idx == 2 then
+        self.GuildInfo:Show(false)
+        self.GuildMember:Show(true)
+        self.GuildFunction:Show(false)
+        self.anim:Play("Member")
+    elseif idx == 3 then
+        self.GuildInfo:Show(false)
+        self.GuildMember:Show(false)
+        self.GuildFunction:Show(true)
+        self.anim:Play("Function")
+    end
+
+    self.idxNow = idx
+
+    for i = 1, #self.MenuBtns do
+        self.MenuBtns[i]:MakeSelected(false)
+    end
+    self.MenuBtns[idx]:MakeSelected(true)
+
+    -- 关闭道具Tips
+    if GameManager.Instance.IsOpenItemTips then
+        self.module:CloseItemTips()
+    end
+end
+
+-- 收到冒险团信息后进入冒险团详情
+function GuildInfoWindow:OnGuildMyGetBaseRet(data)
+    if data.data ~= nil then
+        -- 成功
+        self.module.GuildInfo = data.data.GuildInfo.GuildData
+        self.module.AllGuildInfo = data.data.GuildInfo
+
+        if self.module.IsFirstJoin == 1 and self.module.GuildInfo.BaseInfo.Notice ~= "" then
+            -- 发送加入冒险团成功的消息
+            -- 模拟接收系统消息
+            local msgList = {}
+            local chatMsgNotice = CS.ProtoMsg.ChatMsgNotice()
+            chatMsgNotice.EID = 0
+            chatMsgNotice.PID = 0
+            chatMsgNotice.Data = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_258"), {self.module.GuildInfo.BaseInfo.Notice})
+
+            chatMsgNotice.Channel = CS.ProtoMsg.ChatChannel.ChannelUnion
+            chatMsgNotice.ChatTime = TimeUtils.ServerNowStampMilli
+            chatMsgNotice.ChatLevel = 1
+            chatMsgNotice.JobID = GameManager.Instance:GetPlayerJob()
+            table.insert(msgList, chatMsgNotice)
+            LuaModuleDispatcher:SendMessage(ModuleDef.ChatModule, "OnAnalogReceptionChatMsg", {msgList})
+        end
+
+        -- local player=data.data.Player;--GuildPlayerMD
+        self:RefeshData(1)
+    else
+        -- 失败
+        -- Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_113"));
+    end
+end
+
+-- 冒险团成员列表回调
+function GuildInfoWindow:OnGuildMyGetPlayerListRet(data)
+    if data.data ~= nil and data.data.PlayerList ~= nil then
+        -- 成功
+        self.module.UserInfos = data.data.PlayerList
+
+        self:RefeshData(2)
+    else
+        -- 失败
+        -- Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_114"));
+    end
+end
+
+function GuildInfoWindow:Start()
+    print("GuildInfoWindow:Start")
+end
+
+function GuildInfoWindow:OnEnable()
+end
+
+function GuildInfoWindow:OnDisable()
+end
+
+function GuildInfoWindow:OnDestroy()
+end
+
+function GuildInfoWindow:OnOpen(arg)
+    self.IsOpen = true
+
+    self.IsPlayOpen = true
+end
+
+function GuildInfoWindow:OnClose(arg)
+    -- self:CloseWindow();
+
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.GuildMyGetBaseRetID, self.message1, nil)
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.GuildMyGetPlayerListRetID, self.message2, nil)
+
+    self.GuildMember:OffMessage()
+    self.GuildInfo:OffMessage()
+
+    self.module.guildInfoWindowView = nil
+
+    self.GuildInfo:Show(false)
+    self.GuildMember:Show(false)
+
+    self.currencyBar:OffListener()
+    self.currencyBar:PlayAnim(false)
+end
+
+function GuildInfoWindow:OnCloseInfoClick()
+    -- 关闭道具Tips
+    if self.module.IsOpenTips then
+        self.module.IsOpenTips = false
+        self.module:CloseItemTips()
+    else
+        -- UIManager.Instance:CloseWindow("Item/GuildInfoWindow");
+    end
+    self.module.guildInfoWindowView = nil
+end
+
+function GuildInfoWindow:OnClickCloseBtn()
+    if self.module.IsOpenTips then
+        self.module.IsOpenTips = false
+        self.module:CloseItemTips()
+    end
+    self.idxNow = -1
+    self.IsOpen = false
+    self.module:OnCloseBox()
+
+    for i = 1, #self.MenuBtns do
+        self.MenuBtns[i]:MakeSelected(false)
+    end
+
+    self.anim:Play("Null")
+    self.Close()
+
+    self.module.guildInfoWindowView = nil
+end
+
+-- 判断是是否拥有某项权力
+function GuildInfoWindow:IsHaveGuildPower(powerID)
+    --[[
+	1=审批入会
+	2=踢人
+	3=禁言
+	4=任职
+	5=冒险团改名、修改公告、修改宣言、修改标签
+	8=修改招人等级
+	10=邀请入会
+	]]
+    local posLevelID = BusinessManager.Instance:GetGuildPosLevel()
+    if posLevelID == 0 then
+        return
+    end
+
+    local powerList = ConfigDataAccessor.GuildTitle[posLevelID].Power
+
+    for k, v in pairs(powerList) do
+        if v == powerID then
+            return true
+        end
+    end
+
+    return false
+end
+
+return GuildInfoWindow

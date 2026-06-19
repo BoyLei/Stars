@@ -1,0 +1,147 @@
+--[[
+*文件名   :   EventItem
+*内  容   :   定轨组中的一行
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local EventItem = {}
+
+EventItem.__index = EventItem
+local ObjectPool = require("Common/Helper/ObjectPool")
+
+function EventItem:New(_go)
+    local self = {}
+    setmetatable(self, EventItem)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.go_have = self.transform:Find("Have").gameObject
+    self.go_null = self.transform:Find("Null").gameObject
+
+    self.bg = self.transform:Find("Have/bg"):GetComponent(typeof(Image))
+
+    self.name = self.transform:Find("Have/name"):GetComponent(typeof(Text))
+
+    self.time = self.transform:Find("Have/time"):GetComponent(typeof(Text))
+
+    self.go_actived = self.transform:Find("Selected").gameObject
+    self.go_actived2 = self.transform:Find("Selected01").gameObject
+    --self:MakeSelected(false);
+
+    self.go_Finish = self.transform:Find("Finish").gameObject
+
+    --点击自己
+    local btnClick = self.transform:GetComponent(typeof(JButton))
+    if btnClick ~= nil then
+        btnClick.OnClick = (function()
+            if self.OnClick ~= nil then
+                self.OnClick(self.EventData)
+            end
+        end)
+    end
+
+    --标签
+    local _go = self.transform:Find("Have/Tag/TagItem").gameObject
+    self.eventTagItemPool =
+        ObjectPool:New(
+        2,
+        "View.Uiwindow.Event.EventTagItem",
+        _go,
+        _go.transform.parent,
+        function(it)
+            it:InitItem()
+        end,
+        --回收回调
+        function(ritem)
+            ritem:SetUse(false)
+        end,
+        nil
+    )
+
+    return self --返回自身
+end
+
+function EventItem:InitItem(onClick)
+    self.OnClick = onClick
+    self.IsUsed = false
+    self.gameObject:SetActive(false)
+    self:MakeActived(false)
+end
+
+function EventItem:MakeActived(b)
+    self.IsActived = b
+    self.go_actived:SetActive(b)
+    self.go_actived2:SetActive(b)
+end
+
+function EventItem:SetUse(b)
+    self.IsUsed = b
+    self.gameObject:SetActive(b)
+end
+
+function EventItem:RefeshItem(event)
+    self.EventData = event
+    self.EventID = event.id
+
+    if self.EventID > 0 then
+        self.go_have:SetActive(true)
+        self.go_null:SetActive(false)
+
+        local cfg = ConfigDataAccessor.RecyclePlay[event.id]
+        self.name.text = cfg.PlayName
+
+        --加载图片
+        ResourceHelper:LoadIconAsync(self.bg, "", cfg.EntryPic, false)
+
+        local closeHour = event.closeHour
+        local closeMin = event.closeMin
+
+        local serverNowTime = math.floor(GameManager.Instance:GetServerTimeStamp() / 1000)
+
+        self:SetUse(true)
+
+        --暂时隐藏
+
+        --[[
+        self.eventTagItemPool:RecycleAll();
+        local eventTagItem =self.eventTagItemPool:Spawn();
+        eventTagItem:SetItem("金币");
+        ]]
+        local serverOpenTime = event.serverOpenTime
+        local serverCloseTime = event.serverCloseTime
+
+        if serverNowTime >= serverOpenTime and serverNowTime <= serverCloseTime then
+            self.time.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips22")
+            self.IsOpen = true
+            self:MakeActived(true)
+            self.go_Finish:SetActive(serverNowTime > serverCloseTime) --已经结束
+            return true
+        else
+            self.go_Finish:SetActive(serverNowTime > serverCloseTime) --已经结束
+
+            local opMin = event.openMin
+            if event.openMin < 10 then
+                opMin = "0" .. event.openMin
+            end
+
+            if closeMin > 9 then
+                self.time.text = "" .. event.openHour .. ":" .. opMin .. "~" .. closeHour .. ":" .. closeMin
+            else
+                self.time.text = "" .. event.openHour .. ":" .. opMin .. "~" .. closeHour .. ":0" .. closeMin
+            end
+            self.IsOpen = false
+            self:MakeActived(false)
+            return false
+        end
+    else
+        self:MakeActived(false)
+        self.go_have:SetActive(false)
+        self.go_null:SetActive(true)
+        self:SetUse(true)
+    end
+end
+
+return EventItem

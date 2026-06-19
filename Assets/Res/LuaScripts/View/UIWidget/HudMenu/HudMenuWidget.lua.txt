@@ -1,0 +1,604 @@
+---------------------------------------------------------------------
+-- Stars (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-08-31 13:52:28
+---------------------------------------------------------------------
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+---@class HudMenuWidget
+HudMenuWidget = class("HudMenuWidget", UIPanel)
+
+HudMenuWidget.BigIconPath = "UI/HudMenu/Textures/" -- 大图路径
+
+local RedeemCodeWidgetPath = "HudMenu/Prefab/RedeemCodeWidget" -- 兑换码路径
+local PartnerWindowPath = "Partner/Prefab/PartnerWindow"
+local TaskWindowPath = "TaskWindow/Prefab/TaskWindow"
+
+function HudMenuWidget:Awake()
+    self.transform = self.prefab.transform
+    self.gameObject = self.transform.gameObject
+
+    self.PanelOffLineData = self.transform:GetComponent(typeof(PanelOffLineData))
+    local FrameTransForm = self.transform:Find("Cut4Cam90/AssemblyRatio2/Cover/Bg").transform
+    ---------------------------------------------顶部按钮
+    -- 关闭按钮
+    local JBtnClose = FrameTransForm:Find("Top/CloseBtn"):GetComponent(typeof(JButton))
+    self.CloseBtnFun = function()
+        self.PlayAnimation("Com_Position_R_Out", function()
+            self.Close()
+        end)
+    end
+    JBtnClose.OnClick = self.CloseBtnFun
+    -- 关闭按钮2
+    self.BlockAll = self.transform:Find("BlockAll").gameObject
+
+    local Close = self.transform:Find("Block"):GetComponent(typeof(Button))
+    Close.onClick:RemoveAllListeners()
+    Close.onClick:AddListener(self.CloseBtnFun)
+
+    local TopLayout = FrameTransForm:Find("Top/Layout")
+    -- 背包按钮
+    local JBtnBag = TopLayout:Find("JBtnBag"):GetComponent(typeof(JButton))
+    self.JBtnBagFun = function()
+        self:OnJBtnBagFun()
+    end
+    JBtnBag.OnClick = self.JBtnBagFun
+    -- 交易按钮
+    local JBtnTrade = TopLayout:Find("JBtnTrade"):GetComponent(typeof(JButton))
+    self.JBtnTradeFun = function()
+        self:OnJBtnTradeFun()
+    end
+    JBtnTrade.OnClick = self.JBtnTradeFun
+
+    -- 金币商城按钮
+    local JBtnGoldShop = TopLayout:Find("JBtnGoldShop"):GetComponent(typeof(JButton))
+    self.JBtnGoldShopFun = function()
+        self:OnJBtnShopFun()
+    end
+    JBtnGoldShop.OnClick = self.JBtnGoldShopFun
+
+    -- 商城按钮
+    local JBtnShop = TopLayout:Find("JBtnShop"):GetComponent(typeof(JButton))
+    self.JBtnShopFun = function()
+        if self.go_JBtnShop.activeSelf then
+            self:OnJBtnShopFun()
+        else
+            self:OnJBtnFirstCharge1Fun()
+        end
+    end
+    JBtnShop.OnClick = self.JBtnShopFun
+
+    self.go_JBtnShop = TopLayout:Find("JBtnShop/shop").gameObject
+    self.go_JBtnFirstCharge1 = TopLayout:Find("JBtnShop/charge").gameObject
+
+    -- 玩法按钮
+    local JBtnPlay = TopLayout:Find("JBtnPlay"):GetComponent(typeof(JButton))
+    self.JBtnPlayFun = function()
+        self:OnJBtnPlayFun()
+    end
+    JBtnPlay.OnClick = self.JBtnPlayFun
+    -- 活动按钮
+    local JBtnActivity = TopLayout:Find("JBtnActivity"):GetComponent(typeof(JButton))
+    self.JBtnActivityFun = function()
+        self:OnJBtnActivityFun()
+    end
+    JBtnActivity.OnClick = self.JBtnActivityFun
+    ---------------------------------------------顶部按钮
+
+    ---------------------------------------------中部按钮
+    -- 冒险等级按钮
+    local JBtnRiskLv = FrameTransForm:Find("JobLabelIcon"):GetComponent(typeof(JButton))
+    JBtnRiskLv.OnClick = function()
+        -- 暂时关闭冒险等级
+        if IsOpenAdvLv() then
+            if BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.AdventureLV) then
+                LuaModuleDispatcher:SendMessage(ModuleDef.AdventureLevelModule, "OnOpenAdventureLevel", {})
+                self:CloseWidget()
+            end
+        end
+    end
+    -- 冒险者档案按钮
+    local JBtnRiskRecord = FrameTransForm:Find("Middle/JBtnRiskRecord"):GetComponent(typeof(JButton))
+    JBtnRiskRecord.OnClick = function()
+        local propPanelReq = CS.ProtoMsg.PropPanelReq()
+        propPanelReq.EntityID = GameManager.Instance.mainPlayerId
+        propPanelReq.Panel = CS.ProtoMsg.PropPanel.PanelRoleBattle
+        NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace, propPanelReq, false)
+        self:CloseWidget()
+    end
+    -- 技能按钮
+    self.SkillSystemItem = FrameTransForm:Find("Middle/JBtnSkill"):GetComponent(typeof(SystemItem))
+    self.SkillSystemItemClick = function()
+        self:CloseWidget()
+        LuaModuleDispatcher:SendMessage(ModuleDef.SkillWindowModule, "OnOpenSkill", {
+            -- 标识是否是从外部进入
+            isEnter = true
+        })
+    end
+    self.SkillSystemItem:RegisterSystemClick(self.SkillSystemItemClick)
+    -- 战技按钮
+    self.DeedRotationSystemItem = FrameTransForm:Find("Middle/JBtnDeedRotation"):GetComponent(typeof(SystemItem))
+    self.DeedRotationSystemItemClick = function()
+        self:CloseWidget()
+        LuaModuleDispatcher:SendMessage(ModuleDef.InscriptionModule, "OnOpenInscription", {})
+    end
+    self.DeedRotationSystemItem:RegisterSystemClick(self.DeedRotationSystemItemClick)
+    -- 命座按钮
+    local JBtnOrderSeat = FrameTransForm:Find("Middle/JBtnOrderSeat"):GetComponent(typeof(JButton))
+    JBtnOrderSeat.OnClick = function()
+        -- LuaModuleDispatcher:SendMessage(ModuleDef.BagModule, "OnOpenBag", {1});
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_70"))
+        --self:CloseWidget()
+    end
+    -- 伙伴按钮
+    self.PartnerSystemItem = FrameTransForm:Find("Middle/JBtnPartner"):GetComponent(typeof(SystemItem))
+    self.PartnerSystemItemClick = function()
+        local partnerMgr = BusinessManager.Instance:GetPartnerMDMgr()
+        local partners = partnerMgr:GetPartners()
+
+        if partners == nil or partners.Count < 1 then
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("partner_sys_22"))
+            return
+        end
+
+        self:CloseWidget()
+        -- UIManager.Instance:OpenWindow(PartnerWindowPath, nil, CS.StarProjectDef.MainPageCommond.HideBoth)
+
+        UIManager.Instance:OpenWindowAsync("Partner/Prefab/NewPartner/PartnerMainWindow", nil, nil,
+            CS.StarProjectDef.MainPageCommond.HideBoth)
+    end
+    self.PartnerSystemItem:RegisterSystemClick(self.PartnerSystemItemClick)
+    -- -- 阵容按钮  删除了
+    -- local JBtnBattleTeam = FrameTransForm:Find("Middle/JBtnBattleTeam"):GetComponent(typeof(JButton))
+    -- JBtnBattleTeam.OnClick = function()
+    --     --UIManager.Instance:OpenWindow(PartnerWindowPath, nil, CS.StarProjectDef.MainPageCommond.HideBoth)
+    --     UIManager.Instance:OpenWindowAsync(PartnerWindowPath, nil, nil, CS.StarProjectDef.MainPageCommond.HideBoth)
+    --     self:CloseWidget()
+    -- end
+    -- 装备按钮
+    self.EquipSystemItem = FrameTransForm:Find("Middle/JBtnEquip"):GetComponent(typeof(SystemItem))
+    self.EquipSystemItemClick = function()
+        self:CloseWidget()
+        LuaModuleDispatcher:SendMessage(ModuleDef.EquipUpgradeModule, "OnOpenEquipUpgrade", {0, 0})
+    end
+    self.EquipSystemItem:RegisterSystemClick(self.EquipSystemItemClick)
+    -- 纹章按钮
+    self.AmuletSystemItem = FrameTransForm:Find("Middle/JBtnAmulet"):GetComponent(typeof(SystemItem))
+    self.AmuletSystemItemClick = function()
+        LuaModuleDispatcher:SendMessage(ModuleDef.AmuletModule, "OnOpenAmulet", {0, 0})
+        self:CloseWidget()
+    end
+    self.AmuletSystemItem:RegisterSystemClick(self.AmuletSystemItemClick)
+    -- -- 任务按钮  删除了
+    -- local JBtnTask = FrameTransForm:Find("Middle/JBtnTask"):GetComponent(typeof(JButton))
+    -- JBtnTask.OnClick = function()
+    --     -- UIManager.Instance:OpenWindow(TaskWindowPath, TaskHelper.GetAllWindow(true),
+    --     --     CS.StarProjectDef.MainPageCommond.HideBoth)
+    --     UIManager.Instance:OpenWindowAsync(TaskWindowPath, nil, TaskHelper.GetAllWindow(true),
+    --         CS.StarProjectDef.MainPageCommond.HideBoth)
+    --     self:CloseWidget()
+    -- end
+    -- 冒险团按钮
+    self.GuildSystemItem = FrameTransForm:Find("Middle/JBtnGuild"):GetComponent(typeof(SystemItem))
+    self.GuildSystemItemClick = function()
+        self:CloseWidget()
+        LuaModuleDispatcher:SendMessage(ModuleDef.GuildModule, "OnOpenGuild", {})
+    end
+    self.GuildSystemItem:RegisterSystemClick(self.GuildSystemItemClick)
+    -- 排行按钮
+    local JBtnRank = FrameTransForm:Find("Middle/JBtnRank"):GetComponent(typeof(JButton))
+    JBtnRank.OnClick = function()
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_70"))
+        -- LuaModuleDispatcher:SendMessage(ModuleDef.BagModule, "OnOpenBag", {1});
+        -- self:CloseWidget();
+    end
+    -- 生活按钮
+    self.LiveSystemItem = FrameTransForm:Find("Middle/JBtnLive"):GetComponent(typeof(SystemItem))
+    self.LiveSystemItemClick = function()
+        self:CloseWidget()
+        LuaModuleDispatcher:SendMessage(ModuleDef.LivingSkillsModule, "OpenLivingSkillsWindow", {})
+    end
+    self.LiveSystemItem:RegisterSystemClick(self.LiveSystemItemClick)
+    -- -- 成就按钮 删除了
+    -- local JBtnAchievement = FrameTransForm:Find("Middle/JBtnAchievement"):GetComponent(typeof(JButton))
+    -- JBtnAchievement.OnClick = function()
+    --     Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_70"))
+    --     -- LuaModuleDispatcher:SendMessage(ModuleDef.BagModule, "OnOpenBag", {1});
+    --     -- self:CloseWidget();
+    -- end
+    -- 图鉴按钮
+    self.Lllustrations = FrameTransForm:Find("Middle/JBtnLllustrations"):GetComponent(typeof(SystemItem))
+    self.LllustrationsClick = function()
+        -- Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_70"))
+        self:CloseWidget()
+        LuaModuleDispatcher:SendMessage(ModuleDef.WorldLineModule, "OnOpenWorldLine", {})
+    end
+    self.Lllustrations:RegisterSystemClick(self.LllustrationsClick)
+    -- 抽卡（心启寻梦）
+    self.CardSystemItem = FrameTransForm:Find("Middle/JBtnCard"):GetComponent(typeof(SystemItem))
+    self.CardSystemItemClick = function()
+        self:CloseWidget()
+        LuaModuleDispatcher:SendMessage(ModuleDef.DrawCardModule, "OnOpenDrawCard", {})
+    end
+    self.CardSystemItem:RegisterSystemClick(self.CardSystemItemClick)
+    -- 排行
+    local JBtnRank = FrameTransForm:Find("Middle/JBtnRank"):GetComponent(typeof(JButton))
+    JBtnRank.OnClick = function()
+        -- Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_70"))
+        LuaModuleDispatcher:SendMessage(ModuleDef.RankModule, "OnOpenRankWindow", {})
+        self:CloseWidget()
+    end
+
+    ------------banner轮播
+    self.BannerImgRoot = FrameTransForm:Find("Middle/BannerPanel/BannerImgRoot");
+
+    self.BannerTagRoot = FrameTransForm:Find("Middle/BannerPanel/BannerTagRoot");
+
+
+    ------------banner轮播
+
+    ---------------------------------------------中部按钮
+
+    ---------------------------------------- 职业
+    self.JobLabelIcon = FrameTransForm:Find("JobLabelIcon"):GetComponent(typeof(Image))
+    self.GuildIcon = FrameTransForm:Find("JobLabelIcon/GuildName/GuildIcon"):GetComponent(typeof(Image))
+    self.JobHeadImg = FrameTransForm:Find("JobLabelIcon/JobHeadImg"):GetComponent(typeof(Image))
+    self.JobTypeBg = FrameTransForm:Find("JobLabelIcon/JobTypeBg"):GetComponent(typeof(Image))
+    self.JobTypeIcon = FrameTransForm:Find("JobLabelIcon/JobTypeBg/JobTypeIcon"):GetComponent(typeof(Image))
+    self.ExpProgress = FrameTransForm:Find("JobLabelIcon/ExpProgressBg/ExpProgress"):GetComponent(typeof(Image))
+
+    self.RiskIcon = FrameTransForm:Find("JobLabelIcon/RiskBg/RiskIcon"):GetComponent(typeof(Image))
+    self.RiskText = FrameTransForm:Find("JobLabelIcon/RiskBg/RiskText"):GetComponent(typeof(Text))
+
+    self.RiskGo = FrameTransForm:Find("JobLabelIcon/RiskBg").gameObject
+    -- 隐藏冒险等级
+    self.RiskGo:SetActive(IsOpenAdvLv())
+
+    self.PlayerName = FrameTransForm:Find("JobLabelIcon/PlayerName"):GetComponent(typeof(Text))
+    self.GuildName = FrameTransForm:Find("JobLabelIcon/GuildName"):GetComponent(typeof(Text))
+    self.AreaName = FrameTransForm:Find("JobLabelIcon/AreaName"):GetComponent(typeof(Text))
+    self.Level = FrameTransForm:Find("JobLabelIcon/Level"):GetComponent(typeof(Text))
+    self.Exp = FrameTransForm:Find("JobLabelIcon/Exp"):GetComponent(typeof(Text))
+    ---------------------------------------- 职业
+    ---------------------------------------------底部按钮
+    -- 公告按钮
+    local JBtnShare = FrameTransForm:Find("Down/JBtnAnnouncement"):GetComponent(typeof(JButton))
+    self.JBtnAnnouncementFun = function()
+        self:OnJBtnAnnouncementFun()
+        -- 分享按钮暂时替换为 [公告] 按钮
+    end
+    JBtnShare.OnClick = self.JBtnAnnouncementFun
+    -- 设置按钮
+    local JBtnSetting = FrameTransForm:Find("Down/JBtnSetting"):GetComponent(typeof(JButton))
+    self.JBtnSettingFun = function()
+        self:OnJBtnSettingFun()
+    end
+    JBtnSetting.OnClick = self.JBtnSettingFun
+    -- 关闭游戏按钮
+    local JBtnCloseGame = FrameTransForm:Find("Down/JBtnCloseGame"):GetComponent(typeof(JButton))
+    self.JBtnCloseGameFun = function()
+        self:OnJBtnCloseGameFun()
+    end
+    JBtnCloseGame.OnClick = self.JBtnCloseGameFun
+    -- 兑换码按钮
+    local JBtnRedeemCode = FrameTransForm:Find("Down/JBtnRedeemCode"):GetComponent(typeof(JButton))
+    self.JBtnRedeemCodeFun = function()
+        self:OnJBtnRedeemCodeFun()
+    end
+    JBtnRedeemCode.OnClick = self.JBtnRedeemCodeFun
+
+    ---------------------------------------------底部按钮
+
+    ---------------------------------------------中间按钮
+
+    ---------------------------------------------中间按钮
+end
+
+function HudMenuWidget:Start()
+end
+
+function HudMenuWidget:OnEnable()
+end
+
+function HudMenuWidget:OnDisable()
+end
+
+function HudMenuWidget:OnDestroy()
+end
+
+function HudMenuWidget:OnOpen(arg)
+    self:InitData()
+    -- self.onCloseDestroy(true)
+end
+
+function HudMenuWidget:OnClose(arg)
+    self.PlayAnimation("Com_Position_R_Out", nil)
+    self.PanelOffLineData.enabled = false;
+end
+
+function HudMenuWidget:CloseWidget()
+    self.Close()
+end
+
+function HudMenuWidget:RefeshShopBtn()
+    if not (GameManager.Instance:IsUnLockPayFunction()) then
+        -- 没有开启支付系统不显示首充
+        self.go_JBtnFirstCharge1.transform.parent.gameObject:SetActive(false)
+        return
+    end
+
+    local FirstPaySignInfo = GameManager.Instance.FirstPaySignInfo
+
+    if FirstPaySignInfo == nil then
+        -- 临时关闭钻石商店
+        -- self.go_JBtnFirstCharge1:SetActive(false);
+        -- self.go_JBtnShop:SetActive(true);
+        self.go_JBtnFirstCharge1.transform.parent.gameObject:SetActive(false)
+
+        return
+    end
+
+    local isFinishFirstCharge = FirstPaySignInfo.HaveFirstPayAct
+    local isGetAllFirstChargeItem = FirstPaySignInfo.GetFirstPayAwardNum > 3
+    local LastGetFirstPayAwardTime = FirstPaySignInfo.LastGetFirstPayAwardTime
+
+    -- 判断是不是同一天
+    local serverNowTime = math.floor(GameManager.Instance:GetServerTimeStamp() / 1000)
+    local day1 = GetDay(serverNowTime - 5 * 3600)
+    local day2 = 0
+    if LastGetFirstPayAwardTime ~= 0 then
+        day2 = GetDay(LastGetFirstPayAwardTime - 5 * 3600) -- 凌晨五点刷新（扣除5小时）
+    end
+
+    if isGetAllFirstChargeItem then
+        -- 临时关闭钻石商店
+        -- 领完了(最后一天)
+        -- self.go_JBtnFirstCharge1:SetActive(false);
+        -- self.go_JBtnShop:SetActive(true);
+        self.go_JBtnFirstCharge1.transform.parent.gameObject:SetActive(false)
+    else
+        if isFinishFirstCharge then
+            -- 临时关闭钻石商店
+            -- 首充过了
+            -- self.go_JBtnFirstCharge1:SetActive(false);
+            -- self.go_JBtnShop:SetActive(true);
+            self.go_JBtnFirstCharge1.transform.parent.gameObject:SetActive(false)
+        else
+            -- 临时关闭钻石商店
+            -- 没首充
+            self.go_JBtnFirstCharge1:SetActive(true)
+            self.go_JBtnShop:SetActive(false)
+            self.go_JBtnFirstCharge1.transform.parent.gameObject:SetActive(true)
+        end
+    end
+end
+
+function HudMenuWidget:InitData()
+    self.M_EntityBase = GameManager.Instance.M_MainPlayerCtrlBase
+    if self.M_EntityBase == nil then
+        return
+    end
+    -- 等级
+    self.m_LevelCur = self.M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Int,
+        CS.StarProjectDef.AOIAttrDefine.PlayerLevel)
+    self:SetLevel(self.m_LevelCur)
+    -- 经验
+    self.m_EXPSum = self:GetCurLevelExp()
+    self.m_EXPCur = self.M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Int,
+        CS.StarProjectDef.AOIAttrDefine.PlayerExp)
+    self:UpdatePlayerExp(self.m_EXPCur)
+    -- 渠道名
+    self.AreaName = ""
+    -- 玩家角色名
+    self.PlayerName.text = self.M_EntityBase.M_Curr.M_Name
+
+    -- 冒险等级
+    local RiskInfo = GameManager.Instance.M_MainPlayerCtrlBase.Data.Attrs:GetProtoValue(
+        CS.StarProjectDef.AOIAttrDefine.RiskInfo)
+    if RiskInfo ~= nil then
+        local curRiskLevel = RiskInfo.CurRiskLevel
+        local cfg = ConfigDataAccessor.AdvGradeExp[curRiskLevel]
+        if cfg ~= nil then
+            self.RiskText.text = cfg.AdvClass .. GetRomaNum(cfg.AdvOrder)
+        end
+    end
+
+    -- 冒险团
+    local guidName = BusinessManager.Instance:GetGuildName()
+    if guidName == "" then
+        guidName = LanguageHelp:GetLanguageByKey("Local_Str_guidName")
+    end
+    self.GuildName.text = guidName
+    -- 职业头像
+    local jobId = self.M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Uint,
+        CS.StarProjectDef.AOIAttrDefine.Job)
+    local jobCfg = ConfigDataAccessor.Job[jobId]
+    if jobCfg ~= nil then
+        local avatarDataCell = ConfigDataAccessor.Avatar[jobCfg.AvatarID]
+        if avatarDataCell ~= nil then
+            local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID]
+            if headCfg ~= nil then
+                self:GetSpriteByAtlas(headCfg.HeadAtlasName, headCfg.MiddleHead, function(sp)
+                    self.JobHeadImg.sprite = sp
+                end)
+            end
+        end
+    end
+    -- 职业标签图标
+    local jobshi = math.floor(jobId / 10)
+    local jobLabelIconPath = self.BigIconPath .. "IconRoleLabel_" .. jobshi
+    ResourceHelper:LoadIconAsync(self.JobLabelIcon, "", jobLabelIconPath, false)
+
+    -- 职业类型icon设置
+    local jobTypeBgName = "Icon_ArmBg" .. jobshi
+    ResourceHelper:LoadIconByAtlasAsync(self.JobTypeBg, ResourceHelper.AtlasPathRole, jobTypeBgName, false)
+    local jobTypeName = "Icon_Arm" .. jobshi
+    ResourceHelper:LoadIconByAtlasAsync(self.JobTypeIcon, ResourceHelper.AtlasPathRole, jobTypeName, false)
+    self:RefeshShopBtn()
+
+    self.BlockAll:SetActive(true)
+    self.PlayAnimation("Com_Position_R_Open", function()
+        self.BlockAll:SetActive(false)
+        self.PanelOffLineData.enabled = true;
+        SoundManager.Instance:PlayEventName("UI_Windows_Side_01", self.gameObject, self.gameObject)
+    end)
+end
+
+function HudMenuWidget:GetCurLevelExp()
+    if self.m_LevelCur == 0 then
+        return 0
+    end
+    local cfg = ConfigDataAccessor.LevelExp[self.m_LevelCur]
+    if cfg ~= nil then
+        return cfg.Exp
+    end
+    return 0
+    -- return ConfigDataAccessor.LevelExp[self.m_LevelCur].Exp
+end
+
+function HudMenuWidget:UpdatePlayerExp(value)
+    if self.M_EntityBase == nil or self.M_EntityBase.Data == nil then
+        return
+    end
+    self.m_EXPCur = value
+    self:SetExpUI()
+end
+
+function HudMenuWidget:UpdatePlayerExpSum(value)
+    if self.M_EntityBase == nil or self.M_EntityBase.Data == nil then
+        return
+    end
+    self.m_EXPSum = value
+    self:SetExpUI()
+end
+
+function HudMenuWidget:SetExpUI()
+    local ratio = 0
+    if self.m_EXPSum > 0 then
+        ratio = self.m_EXPCur / self.m_EXPSum
+        if ratio > 1 then
+            ratio = 1
+        end
+    end
+    self.ExpProgress.fillAmount = ratio
+    self.Exp.text = tostring(self.m_EXPCur) .. "/" .. tostring(self.m_EXPSum)
+end
+
+function HudMenuWidget:SetLevel(value)
+    if self.M_EntityBase == nil or self.M_EntityBase.Data == nil then
+        return
+    end
+    local isUpgrade = self.m_LevelCur ~= tonumber(value)
+    self.m_LevelCur = tonumber(value)
+    -- self.Level.text = "角色等级 " .. self.m_LevelCur
+    self.Level.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Level2"), {self.m_LevelCur})
+
+    if isUpgrade then
+        self:UpgradeLevel()
+    end
+end
+
+function HudMenuWidget:UpgradeLevel()
+    local expSum = self:GetCurLevelExp()
+    self:UpdatePlayerExpSum(expSum)
+end
+
+----------------------------------------------------- 按钮点击事件 【STAR】 ------------------------------------------
+
+-- 背包
+function HudMenuWidget:OnJBtnBagFun()
+    self:CloseWidget()
+    LuaModuleDispatcher:SendMessage(ModuleDef.BagModule, "OnOpenBag", {1})
+end
+
+-- 交易按钮
+function HudMenuWidget:OnJBtnTradeFun()
+    self:CloseWidget()
+    LuaModuleDispatcher:SendMessage(ModuleDef.RechargeModule, "OnOpen", {})
+end
+
+-- 商城按钮
+function HudMenuWidget:OnJBtnShopFun()
+    LuaModuleDispatcher:SendMessage(ModuleDef.ShopModule, "OnOpenShop", {0})
+    self:CloseWidget()
+end
+
+-- 玩法按钮
+function HudMenuWidget:OnJBtnPlayFun()
+    LuaModuleDispatcher:SendMessage(ModuleDef.GamePlayChoiceModule, "OnOpenGamePlayChoice", {})
+    self:CloseWidget()
+end
+
+function HudMenuWidget:OnJBtnFirstCharge1Fun()
+    UIManager.Instance:CloseAllLoadedWindowNWidget()
+    LuaModuleDispatcher:SendMessage(ModuleDef.CommercializationModule, "OnOpenCommercialization", {1})
+    -- UIManager.Instance:OpenWidget("Shop/FirstPayWidget", false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone,false, false);
+end
+
+-- 活动按钮
+function HudMenuWidget:OnJBtnActivityFun()
+    -- CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage("敬请期待")
+    -- self:CloseWidget();
+
+    -- 打开活动
+    UIManager.Instance:CloseAllLoadedWindowNWidget()
+
+    if GameManager.Instance.FirstPaySignInfo ~= nil then
+        local isGetAllFirstChargeItem = (GameManager.Instance.FirstPaySignInfo.GetFirstPayAwardNum >= 3)
+
+        if isGetAllFirstChargeItem then
+            -- UIManager.Instance:OpenWidget("Shop/MoonCardWidget", false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone,false, false);
+            LuaModuleDispatcher:SendMessage(ModuleDef.CommercializationModule, "OnOpenCommercialization", {2})
+        else
+            -- UIManager.Instance:OpenWidget("Shop/FirstPayWidget", false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone,false, false);
+            LuaModuleDispatcher:SendMessage(ModuleDef.CommercializationModule, "OnOpenCommercialization", {1})
+        end
+    else
+        -- UIManager.Instance:OpenWidget("Shop/MoonCardWidget", false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone,false, false);
+        LuaModuleDispatcher:SendMessage(ModuleDef.CommercializationModule, "OnOpenCommercialization", {2})
+    end
+end
+
+-- 分享按钮
+function HudMenuWidget:OnJBtnAnnouncementFun()
+    LuaModuleDispatcher:SendMessage(ModuleDef.AnnouncementModule, "OnOpen", {1, false})
+    self:CloseWidget()
+    -- CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage("敬请期待")
+end
+
+-- 设置按钮
+function HudMenuWidget:OnJBtnSettingFun()
+    -- UIManager.Instance:OpenWindow(CS.StarProjectDef.UIDef.SettingWindow, nil, CS.StarProjectDef.MainPageCommond.HideBoth)
+    UIManager.Instance:OpenWindowAsync(CS.StarProjectDef.UIDef.SettingWindow, nil, nil,
+        CS.StarProjectDef.MainPageCommond.HideBoth)
+    self:CloseWidget()
+    -- CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage("敬请期待")
+    -- self:CloseWidget();
+end
+
+-- 关闭游戏按钮
+function HudMenuWidget:OnJBtnCloseGameFun()
+    UIAPI.ShowMsgBox(49, function(EventName)
+        if EventName == "SURE" then
+            UIManager.Instance:ReLogin(CS.StarProjectDef.AgainLoginType.BacktrackSelectRole)
+        end
+    end, nil)
+    -- CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage("敬请期待")
+    -- self:CloseWidget();
+end
+
+-- 兑换码游戏按钮
+function HudMenuWidget:OnJBtnRedeemCodeFun()
+    -- UIManager.Instance:OpenWidget(CS.StarProjectDef.UIDef.RedeemCodeWidget, false, nil, nil,
+    --     CS.StarProjectDef.MainPageCommond.HideNone,
+    --     true, false);
+    -- UIManager.Instance:OpenWidget(RedeemCodeWidgetPath, false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone,
+    --     false, false);
+    UIManager.Instance:OpenWidgetAsync(RedeemCodeWidgetPath, nil, false, nil, nil,
+        CS.StarProjectDef.MainPageCommond.HideNone, false, false)
+    self:CloseWidget()
+end
+
+----------------------------------------------------- 按钮点击事件 【END】 ------------------------------------------
+
+return HudMenuWidget

@@ -1,0 +1,244 @@
+--[[
+*文件名   :   ExchangeUI
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/10/16 15:39:48"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+ExchangeUI=class("ExchangeUI",UIPanel)
+--购买
+local Purchase=require("View/UIWindow/Exchange/Purchase");
+
+--出售
+local Sell=require("View/UIWindow/Exchange/Sell");
+
+--我的关注
+local Attention=require("View/UIWindow/Exchange/Attention");
+
+ExchangeUI.m_PurchaseSelect=nil;
+ExchangeUI.m_PurchaseNoSelect=nil;
+ExchangeUI.m_SellBtn=nil;
+ExchangeUI.m_SellSelect=nil;
+ExchangeUI.m_SellNoSelect=nil;
+ExchangeUI.m_AttentionBtn=nil;
+ExchangeUI.m_AttentionSelect=nil;
+ExchangeUI.m_AttentionNoSelect=nil;
+ExchangeUI.m_Purchase=nil;
+ExchangeUI.m_RecordBtn=nil;
+ExchangeUI.m_FinderBtn=nil;
+ExchangeUI.m_InputField=nil;
+ExchangeUI.m_CleanBtn=nil;
+ExchangeUI.m_Sell=nil;
+ExchangeUI.m_Attention=nil;
+ExchangeUI.m_Finder=nil;
+ExchangeUI.TabIndex=0;
+
+ExchangeUI.ChildViews={}
+
+local PurchaseBtnFunc=nil;
+local SellBtnFunc=nil;
+local AttentionBtnFunc=nil;
+local RecordBtnFunc=nil;
+local FinderBtnFunc=nil;
+local CleanBtnFunc=nil;
+local OnInputFunc=nil;
+
+function ExchangeUI:ctor(go, atlas)
+	self.prefab = go;
+	self.AtlasPath = atlas;
+	self.m_PurchaseBtn=self:Find("ToggleGroup/PurchaseBtn"):GetComponent(typeof(JButton));
+	self.m_PurchaseSelect=self:Find("ToggleGroup/PurchaseBtn/selected").gameObject;
+	self.m_PurchaseNoSelect=self:Find("ToggleGroup/PurchaseBtn/noselected").gameObject;
+	self.m_SellBtn=self:Find("ToggleGroup/SellBtn"):GetComponent(typeof(JButton));
+	self.m_SellSelect=self:Find("ToggleGroup/SellBtn/selected").gameObject;
+	self.m_SellNoSelect=self:Find("ToggleGroup/SellBtn/noselected").gameObject;
+	self.m_AttentionBtn=self:Find("ToggleGroup/AttentionBtn"):GetComponent(typeof(JButton));
+	self.m_AttentionSelect=self:Find("ToggleGroup/AttentionBtn/selected").gameObject;
+	self.m_AttentionNoSelect=self:Find("ToggleGroup/AttentionBtn/noselected").gameObject;
+	self.m_Purchase=self:Find("Root/Purchase").gameObject;
+	self.m_Sell=self:Find("Root/Sell").gameObject;
+	self.m_Attention=self:Find("Root/Attention").gameObject;
+	self.m_Finder=self:Find("ToggleGroup/Finder").gameObject;
+	self.m_RecordBtn=self:Find("ToggleGroup/RecordBtn"):GetComponent(typeof(JButton));
+	self.m_FinderBtn=self:Find("ToggleGroup/Finder/FinderBtn"):GetComponent(typeof(JButton));
+	self.m_InputField=self:Find("ToggleGroup/Finder/InputField"):GetComponent(typeof(InputField));
+	self.m_CleanBtn=self:Find("ToggleGroup/Finder/CleanBtn"):GetComponent(typeof(JButton));
+	
+	
+	RecordBtnFunc=function() self:OnClickRecordBtn(); end;
+	FinderBtnFunc=function() self:OnClickFinderBtn(); end;
+	PurchaseBtnFunc=function() self:OnClickPurchaseBtn(); end;
+	SellBtnFunc=function() self:OnClickSellBtn(); end;
+	AttentionBtnFunc=function() self:OnClickAttentionBtn(); end;
+	CleanBtnFunc=function() self:OnCleanBtn(); end;
+	
+	OnInputFunc=function(input)
+		self:OnInputHandler(input)
+	end
+	
+	self.ChildViews={}
+	self.ChildViews[1]=Purchase.new(self.m_Purchase,self.AtlasPath,function(active)
+		self:SetFinderState(active)
+	end)
+	self.ChildViews[2]=Sell.new(self.m_Sell,self.AtlasPath)
+	self.ChildViews[3]=Attention.new(self.m_Attention,self.AtlasPath)
+	self:Start();
+end
+
+function ExchangeUI:OnInputHandler(input)
+	
+	if self.m_InputField~=nil then
+		local active=false;
+		if self.m_InputField.text~=nil and self.m_InputField.text~="" and self.m_InputField.text~=''
+			and  self.m_InputField.text~=" " and self.m_InputField.text~=' ' then
+			active=true;
+		end
+		self.m_CleanBtn.gameObject:SetActive(active)
+	end
+	
+end
+
+function ExchangeUI:Start()
+	self.m_PurchaseBtn.OnClick= PurchaseBtnFunc;
+	self.m_SellBtn.OnClick= SellBtnFunc;
+	self.m_AttentionBtn.OnClick= AttentionBtnFunc;
+	self.m_RecordBtn.OnClick= RecordBtnFunc;
+	self.m_FinderBtn.OnClick= FinderBtnFunc;
+	self.m_CleanBtn.OnClick= CleanBtnFunc;
+	self.m_InputField.onValueChanged:AddListener(OnInputFunc);
+end
+
+function ExchangeUI:OnCleanBtn()
+	self.m_InputField.text=""
+	self.m_CleanBtn.gameObject:SetActive(false)
+end
+
+function ExchangeUI:HideOld()
+	if self.ChildViews[self.TabIndex]~=nil then
+		self.ChildViews[self.TabIndex]:OnHide();
+	end
+	
+	if self.TabIndex==1 then
+		self.m_Purchase:SetActive(false)	
+		self.m_PurchaseSelect:SetActive(false)
+		self.m_PurchaseNoSelect:SetActive(true)	
+	elseif self.TabIndex==2 then
+		self.m_Sell:SetActive(false)
+		self.m_SellSelect:SetActive(false)
+		self.m_SellNoSelect:SetActive(true)
+	elseif self.TabIndex==3 then
+		self.m_Attention:SetActive(false)
+		self.m_AttentionSelect:SetActive(false)
+		self.m_AttentionNoSelect:SetActive(true)
+	end
+end
+
+function ExchangeUI:ShowCurrent(index)
+	self:HideOld()
+	self.TabIndex=index;
+	if self.TabIndex==1 then
+		self.m_Purchase:SetActive(true)
+		self.m_PurchaseSelect:SetActive(true)
+		self.m_PurchaseNoSelect:SetActive(false)
+	elseif self.TabIndex==2 then
+		self.m_Sell:SetActive(true)
+		self.m_SellSelect:SetActive(true)
+		self.m_SellNoSelect:SetActive(false)
+	elseif self.TabIndex==3 then
+		self.m_Attention:SetActive(true)
+		self.m_AttentionSelect:SetActive(true)
+		self.m_AttentionNoSelect:SetActive(false)
+	end
+	
+	if self.ChildViews[self.TabIndex]~=nil then
+		self.ChildViews[self.TabIndex]:OnOpen();
+	end
+	
+	local active=self.TabIndex==1;
+	
+	self.m_Finder:SetActive(active);
+	--self.m_RecordBtn.gameObject:SetActive(active);
+end
+
+function ExchangeUI:SetFinderState(active)
+	self.m_Finder:SetActive(active);
+end
+
+function ExchangeUI:OnEnable()
+
+end
+
+function ExchangeUI:OnDisable()
+
+end
+
+function ExchangeUI:OnDestroy()
+
+	self.m_PurchaseBtn.OnClick= nil;
+	self.m_SellBtn.OnClick= nil;
+	self.m_AttentionBtn.OnClick= nil;
+	self.m_RecordBtn.OnClick= nil;
+	self.m_FinderBtn.OnClick= nil;
+	self.m_CleanBtn.OnClick= nil;
+	self.m_InputField.onValueChanged:RemoveListener(OnInputFunc);
+	
+
+	for k, v in pairs(self.ChildViews) do
+		v:OnDestroy();
+		self.ChildViews[k]=nil
+	end
+	
+end
+
+function ExchangeUI:OnOpen(arg)
+	self:ShowCurrent(1);
+	local playerinfo= BusinessManager.Instance.M_BankPlayerMD;
+	
+	--OnRequstGoods
+	---LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule,"OnRequstGoods")
+
+end
+
+function ExchangeUI:Close()
+	self:HideOld()
+	self.prefab:SetActive(false)
+end
+
+function ExchangeUI:OnClickRecordBtn()
+	UIManager.Instance:OpenWidget(
+		"Recharge/Prefab/ExchangeRecordWidget",
+		false,
+		nil,
+		nil,
+		CS.StarProjectDef.MainPageCommond.HideNone,
+		false,
+		false
+	)
+end
+
+function ExchangeUI:OnClickFinderBtn()
+	LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule,"OnFuzzySearch",{self.m_InputField.text})
+	--if self.m_InputField.gameObject.activeInHierarchy then
+
+		--self.m_InputField.gameObject:SetActive(false)
+	--else
+		--self.m_InputField.gameObject:SetActive(true)
+	--end
+end
+
+function ExchangeUI:OnClickPurchaseBtn()
+	self:ShowCurrent(1);
+end
+
+function ExchangeUI:OnClickSellBtn()
+	self:ShowCurrent(2);
+end
+
+function ExchangeUI:OnClickAttentionBtn()
+	self:ShowCurrent(3);
+end
+
+
+
+return  ExchangeUI

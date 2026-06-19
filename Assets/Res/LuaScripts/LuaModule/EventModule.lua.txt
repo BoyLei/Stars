@@ -1,0 +1,482 @@
+--[[
+*文件名   :   EventModule
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/02/03 13:39:39"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] EventModule = class("EventModule", BaseLuaModule)
+
+local EventWindowPath = "Event/EventWindow"
+local EventSuccessWindowPath = "Event/EventSuccessWindow"
+local EventPopWindowPath = "Event/EventPopWindow"
+
+EventModule.IsOpenTips = false
+
+-- LuaModule 消息模块
+EventModule.ModuleMessages = {
+    -- 打开
+    -- ModuleManager.Instance.SendMessage(ModuleDef.EventModule, "OnOpenEquip", new object[] { xxxx });
+    ["OnOpenEvent"] = function(...)
+        EventModule:OnOpenEventMsg(...)
+    end,
+    -- ModuleManager.Instance.SendMessage(ModuleDef.EventModule, "OnOpenEquip", new object[] { xxxx });
+    ["OnOpenWildBoss"] = function(...)
+        EventModule:OnOpenWildBossMsg(...)
+    end,
+    -- 关闭
+    -- ModuleManager.Instance.SendMessage(ModuleDef.EventModule, "OnCloseEquip", new object[] { xxxx });
+    ["OnCloseEvent"] = function(...)
+        EventModule:OnCloseEventMsg(...)
+    end,
+    -- 计算活动开启时间
+    -- ModuleManager.Instance.SendMessage(ModuleDef.EventModule, "OnCloseEquip", new object[] { xxxx });
+    ["OnCalEventOpenTime"] = function(...)
+        EventModule:OnCalEventOpenTime(...)
+    end,
+    ["OnOpenEventPopWindow"] = function(...)
+        EventModule:OnOpenEventPopWindow(...)
+    end
+}
+
+function EventModule:OnOpenWildBossMsg(...)
+    local tb = ...
+
+    -- local idx=1;
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        -- idx=tb[1];
+    else
+        -- C#调用
+        -- idx=tb[0];
+    end
+
+    local nextRefreshTimeStamp = nil
+    local nextDaySec = nil
+    local curServerTimeSec = math.floor(GameManager.Instance:GetServerTimeStamp() / 1000)
+    for i = 1, #self.openedEvent do
+        local e = self.openedEvent[i]
+        if e.gameID == 4 then
+            if nextDaySec == nil then
+                nextDaySec = GetFutureTimeSec(e.serverOpenTime, 1, 0, 0, 0)
+            end
+
+            -- 找到离当前时间最近还没刷新的活动
+            if e.serverOpenTime > curServerTimeSec then
+                nextRefreshTimeStamp = e.serverOpenTime
+                break
+            end
+        end
+    end
+    -- 没找到就是跨天了，用次日的第一场时间
+    if nextRefreshTimeStamp == nil then
+        nextRefreshTimeStamp = nextDaySec
+    end
+
+    LuaModuleDispatcher:SendMessage(ModuleDef.WildBossModule, "OnOpenWildBossWindow", {nextRefreshTimeStamp})
+end
+
+-- 获取开服后野外boss每日第一场时间对应的秒数
+function EventModule:GetWildBossDailyFirstRefreshSec()
+    self:OnCalEventOpenTime()
+
+    local nextDaySec = nil
+    for i = 1, #self.openedEvent do
+        local event = self.openedEvent[i]
+        if event.gameID == 4 then
+            local dailyOpenTimeSec = ConfigDataAccessor.SystemList[63].Value
+            local gamePlayOpenTimeSec = GetFutureTimeSec(0, 0, event.openHour, event.openMin, 0)
+            if nextDaySec == nil then
+                nextDaySec = GetFutureTimeSec(gamePlayOpenTimeSec, 1, 0, 0, 0)
+            end
+            if gamePlayOpenTimeSec > dailyOpenTimeSec then
+                return gamePlayOpenTimeSec
+            end
+
+            -- 没找到的话就是次日第一条时间了
+            return nextDaySec
+        end
+    end
+
+    return 0
+end
+
+function EventModule:OnOpenEventPopWindow(...)
+    local tb = ...
+
+    local idx = 1
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        idx = tb[1]
+    else
+        -- C#调用
+        idx = tb[0]
+    end
+
+    -- UIManager.Instance:OpenWindow(EventPopWindowPath,self.openedEvent[idx],CS.StarProjectDef.MainPageCommond.HideBoth);
+    UIManager.Instance:OpenWindowAsync(EventPopWindowPath, nil, self.openedEvent[idx], CS.StarProjectDef.MainPageCommond.HideBoth)
+end
+
+function EventModule:OnEventTimeUpdate()
+    if self.openedEvent == nil then
+        return
+    end
+
+    local serverNowTime = math.floor(GameManager.Instance:GetServerTimeStamp() / 1000)
+
+    for i = 1, #self.openedEvent do
+        local event = self.openedEvent[i]
+        local serverCloseTime = event.serverCloseTime
+        local serverOpenTime = event.serverOpenTime
+        local serverPrepareTime = event.serverOpenTime -- 准备时间
+
+        if event.gameID == 1 then
+            -- 侧边入口，提前15分钟出现，到玩法结束后消失；
+            serverPrepareTime = serverPrepareTime - 15 * 60
+        elseif event.gameID == 2 then
+            -- 活动时间前15分钟 至 活动结束，主界面出现活动提示（与梦境入侵相同）
+            serverPrepareTime = serverPrepareTime - 15 * 60
+        elseif event.gameID == 3 then
+            -- 活动时间前5分钟 至 活动结束，提前五分钟报名
+            serverPrepareTime = serverPrepareTime - 5 * 60
+        elseif event.gameID == 4 then
+            -- 活动时间前5分钟 至 活动结束，提前五分钟报名
+            serverPrepareTime = serverPrepareTime - 5 * 60
+        elseif event.gameID == 5 then
+            -- 活动时间前5分钟 至 活动结束，五分钟后开始
+            serverOpenTime = serverPrepareTime + 5 * 60
+        end
+
+        if serverNowTime <= serverCloseTime and serverNowTime >= serverPrepareTime then
+            if event.gameID == 1 and self.openedGVEID ~= event.gameID then
+                self.openedGVEID = event.gameID
+                print("有GVE活动开启：" .. event.gameID)
+
+                CS.StarProject.GlobalEvent.OnSetEventTime:Invoke(event.gameID, i, serverOpenTime, serverCloseTime, serverPrepareTime)
+            elseif event.gameID == 2 and self.openedGNGID ~= event.gameID then
+                self.openedGNGID = event.gameID
+                print("有GNG活动开启：" .. event.gameID)
+
+                CS.StarProject.GlobalEvent.OnSetEventTime:Invoke(event.gameID, i, serverOpenTime, serverCloseTime, serverPrepareTime)
+            elseif event.gameID == 3 and self.openedPVPID ~= event.gameID then
+                self.openedPVPID = event.gameID
+                print("有PVP活动开启：" .. event.gameID)
+                CS.StarProject.GlobalEvent.OnSetEventTime:Invoke(event.gameID, i, serverOpenTime, serverCloseTime, serverPrepareTime)
+            elseif event.gameID == 4 and self.openedWildID ~= event.gameID then
+                self.openedWildID = event.gameID
+                print("有Wild活动开启：" .. event.gameID)
+                CS.StarProject.GlobalEvent.OnSetEventTime:Invoke(event.gameID, i, serverOpenTime, serverCloseTime, serverPrepareTime)
+            elseif event.gameID == 5 and self.openedPartyID ~= event.gameID then
+                self.openedPartyID = event.gameID
+                print("有Party活动开启：" .. event.gameID)
+                CS.StarProject.GlobalEvent.OnSetEventTime:Invoke(event.gameID, i, serverOpenTime, serverCloseTime, serverPrepareTime)
+            end
+        end
+    end
+end
+
+-- 计算活动开启时间
+function EventModule:OnCalEventOpenTime()
+    --[[
+	1.搜索出当天的
+	2.按照时间排序
+	3.要开的放在左
+	4.最后面补三个空的
+	]]
+    local tt = GameManager.Instance:GetServerTimeStamp()
+    local serverNowTime = math.floor(tt / 1000)
+
+    if self.openedEvent == nil then
+        self.openedEvent = {}
+    else
+        -- self.openedEvent ={}
+        for k, _ in pairs(self.openedEvent) do
+            self.openedEvent[k] = nil
+        end
+    end
+
+    for k, v in pairs(ConfigDataAccessor.RecyclePlay) do
+        local DateList = v.DateList -- 开放日期，暂时不知道干啥(暂时不管)
+
+        local LoopType = v.LoopType -- 开放循环类型 0 不循环(暂时不管) 1 日循环 2 周循环 3 半月循环
+
+        local LoopParam = v.LoopParam -- 循环时间参数  0/1 不填； 2 填对应的周几；周日需填0；3 填半月对应的第几天；
+
+        local TimeList = v.TimeList
+
+        -- 周循环
+        if LoopType == 2 then
+            -- 半月循环
+            -- 获得当前是周几
+            local weekDay = GetWeekDay(serverNowTime)
+            for i = 1, #LoopParam do
+                if weekDay == LoopParam[i] then
+                    for j = 1, #TimeList do
+                        self:AddTimeItem(v, TimeList[j], serverNowTime)
+                    end
+                end
+            end
+        elseif LoopType == 3 then
+            -- 日循环
+            -- 获得当前是几号
+            local day = GetDay(serverNowTime)
+
+            for i = 1, #LoopParam do
+                if day == LoopParam[i] or day + 15 == LoopParam[i] then
+                    for j = 1, #TimeList do
+                        self:AddTimeItem(v, TimeList[j], serverNowTime)
+                    end
+                end
+            end
+        elseif LoopType == 1 then
+            for j = 1, #TimeList do
+                self:AddTimeItem(v, TimeList[j], serverNowTime)
+            end
+        end
+    end
+
+    -- 按照时间排序
+    if #self.openedEvent > 1 then
+        self:SortItem(self.openedEvent)
+    end
+end
+
+function EventModule:AddTimeItem(cfg, timeItem, serverNowTime)
+    -- 如果野外boss没有一个boss到了可刷新的开服时间则不显示
+    if cfg.GameID == 4 then
+        local wildBossModule = LuaModuleDispatcher:GetModule(ModuleDef.WildBossModule)
+        if wildBossModule == nil then
+            return
+        end
+        if not wildBossModule:IsAvailableCreateBoss() then
+            return
+        end
+    end
+
+    local event = {}
+    event.id = cfg.ID
+    local str = string.split(timeItem, "h")
+    event.openHour = tonumber(str[1])
+    if str[2] ~= nil and str[2] ~= "" then
+        event.openMin = tonumber(string.split(str[2], "m")[1])
+    else
+        event.openMin = 0
+    end
+
+    local addHour = math.floor((cfg.MinuteNum + event.openMin) / 60)
+    event.closeHour = event.openHour + addHour
+    event.closeMin = (cfg.MinuteNum + event.openMin) - addHour * 60
+
+    -- 这里再计算一个和开服时间相关得time
+    event.serverCloseTime = GetAimTime(serverNowTime, event.closeHour, event.closeMin)
+    event.serverOpenTime = GetAimTime(serverNowTime, event.openHour, event.openMin)
+
+    event.gameID = cfg.GameID
+
+    --跑马灯相关
+    if cfg.GameID == 1 then
+        --梦境入侵
+        self:AddToRunHorse("RunHorse_Gve_15Min", event.serverOpenTime, 15 * 60, 2001)
+        self:AddToRunHorse("RunHorse_Gve_5Min", event.serverOpenTime, 5 * 60, 2002)
+    elseif cfg.GameID == 2 then
+        --无畏之战
+        self:AddToRunHorse("RunHorse_Gng_15Min", event.serverOpenTime, 15 * 60, 7001)
+        self:AddToRunHorse("RunHorse_Gng_5Min", event.serverOpenTime, 5 * 60, 7002)
+    elseif cfg.GameID == 3 then
+        --风暴对抗
+        self:AddToRunHorse("RunHorse_Pvp_15Min", event.serverOpenTime, 15 * 60, 8001)
+    elseif cfg.GameID == 4 then
+        --协会讨伐
+        self:AddToRunHorse("RunHorse_Wild_15Min", event.serverOpenTime, 5 * 60, 3001)
+    elseif cfg.GameID == 5 then
+        --派对时刻
+        self:AddToRunHorse("RunHorse_PartyTime_15Min", event.serverOpenTime, 15 * 60, 9001)
+    end
+
+    table.insert(self.openedEvent, event)
+end
+
+function EventModule:AddToRunHorse(key, openTime, delay, runHorseCfgId)
+    local tt = GameManager.Instance:GetServerTimeStamp()
+    local serverNowTime = math.floor(tt / 1000)
+
+    local t1 = openTime - serverNowTime
+    if t1 < 0 then
+        return
+    end
+    local t2 = t1 - delay
+    if t2 < 0 then
+        return
+    end
+
+    DelayInvoker.CancelInvoke(key)
+    DelayInvoker.DelayInvoke(
+        key,
+        t2,
+        function(...)
+            LuaModuleDispatcher:SendMessage(ModuleDef.RunHorseModule, "OnAddRunHorse", {runHorseCfgId})
+        end
+    )
+end
+
+function EventModule:SortItem(tbl)
+    if #tbl > 1 then
+        table.sort(
+            tbl,
+            function(a, b)
+                if a.openHour < b.openHour then
+                    -- 按照小时升序
+                    return true
+                elseif a.openHour == b.openHour then
+                    -- 按照分钟升序
+                    if a.openMin < b.openMin then
+                        return true
+                    elseif a.openMin == b.openMin then
+                        -- 按id升序
+                        return a.id < b.id
+                    end
+                end
+                return false
+            end
+        )
+    end
+end
+
+function EventModule:OnCloseEventMsg()
+    if self.EventWindowView ~= nil then
+        self.EventWindowView:CloseWindow()
+    end
+end
+
+-- 监听打开奖励面板
+function EventModule:OnOpenEventMsg(...)
+    local tb = ...
+
+    -- --列表
+    -- if type(tb)=="table" then
+    -- 	--Lua调用
+    -- else
+    -- 	--C#调用
+    -- end
+
+    -- local EventWindowCs =UIManager.Instance:OpenWindow(EventWindowPath,nil,CS.StarProjectDef.MainPageCommond.HideBoth);
+    -- if self.EventWindowView == nil then
+    -- 	self.EventWindowView=EventWindowCs:GetLuaPanel().ScriptTable;
+    -- 	self.EventWindowView:BindModule(self);
+    -- 	self.EventWindowView:InitItems();
+    -- 	self.evtOnCloseEvent = LuaModuleDispatcher:Event(ModuleDef.EventModule, "OnCloseEventEvt")
+    -- end
+    -- --显示
+    -- self.EventWindowView:OpenEvent();
+
+    local playID = 0
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        if #tb > 0 then
+            playID = tb[1]
+        end
+    else
+        -- C#调用
+        if tb.Length > 0 then
+            playID = tb[1]
+        end
+    end
+
+    self.AsyncLoadEventWindowCb = function(ui)
+        if ui ~= nil then
+            if self.EventWindowView == nil then
+                self.EventWindowView = ui:GetLuaPanel().ScriptTable
+                self.EventWindowView:BindModule(self)
+                self.EventWindowView:InitItems()
+                self.evtOnCloseEvent = LuaModuleDispatcher:Event(ModuleDef.EventModule, "OnCloseEventEvt")
+            end
+            -- 显示
+            self.EventWindowView:OpenEvent(playID)
+        end
+        self.AsyncLoadEventWindowCb = nil
+    end
+    UIManager.Instance:OpenWindowAsync(EventWindowPath, self.AsyncLoadEventWindowCb, nil, CS.StarProjectDef.MainPageCommond.HideBoth)
+end
+
+-- 关闭回调
+function EventModule:OnCloseEventEvt(arg)
+    self.evtOnCloseEvent:Invoke()
+    self.EventWindowView = nil
+end
+
+-- 关闭
+function EventModule:OnCloseEvent()
+    self:OnCloseEventEvt()
+end
+
+-- LuaModule 创建
+function EventModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.EventModule, self)
+
+    -- 消息接收
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.GVEEndNtfID,
+        function(data)
+            self:OnGVEEndNtfRet(data)
+        end,
+        nil
+    )
+
+    self.openedGVEID = -1
+    self.openedGNGID = -1
+    self.openedPVPID = -1
+    self.openedWildID = -1
+    self.openedPartyID = -1
+    MonoHelper.AddSecTimeUpdateListener(
+        function()
+            self:OnEventTimeUpdate()
+        end
+    )
+end
+
+function EventModule:OnGVEEndNtfRet(data)
+    print("GVEBoss结束回调")
+
+    local pb = data.data
+
+    local score = pb.Total
+    local maps = pb.Maps
+    local playID = pb.PlayID
+    local effectLv = pb.EffectLv
+
+    local mapID = GameManager.Instance.M_Map:GetMapId()
+
+    for i = 0, maps.Count - 1 do
+        if maps[i] == mapID then
+            local data = {}
+            data.score = score
+            data.playID = playID
+            data.effectLv = effectLv
+            -- UIManager.Instance:OpenWindow(EventSuccessWindowPath,data);
+            UIManager.Instance:OpenWindowAsync(EventSuccessWindowPath, nil, data)
+        end
+    end
+end
+
+-- LuaModule 消息处理
+function EventModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...)
+end
+
+-- LuaModule显示
+function EventModule:OnModuleShow(arg)
+    self:OnOpenEventMsg(arg)
+end
+
+function EventModule:OnModuleHide(arg)
+end
+
+-- LuaModule 释放
+function EventModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.EventModule)
+end
+
+return EventModule

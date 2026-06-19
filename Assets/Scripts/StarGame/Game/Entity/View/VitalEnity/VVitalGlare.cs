@@ -1,0 +1,55 @@
+﻿
+
+using StarProject.Game.Entity.Factory;
+
+namespace StarProject.Game.Entity.View
+{
+
+	public class VVitalGlare : ViewModel
+	{
+		public enum GlareDirection
+		{
+			Forward,
+			Backward,
+		}
+
+		public GlareDirection direction;
+
+        protected override void Create(EntityObject entity)
+        {
+            throw new System.NotImplementedException();
+        }
+
+        protected override void Release()
+        {
+            throw new System.NotImplementedException();
+        }
+
+        /*protected override void Update()
+		{
+
+			base.Update();
+
+			//if (m_renderer != null && m_entity != null)
+			//{
+			//	Color c = m_renderer.color;
+
+			//	if (direction == GlareDirection.Backward)
+			//	{
+			//		c.a =
+			//			Math.Abs(10 -
+			//					 (m_context.currentFrameIndex +
+			//					  (int)((m_entity.Data.length - m_entity.Index) / m_entity.Data.keyStep)) % 20) / 10f;
+			//	}
+			//	else
+			//	{
+			//		c.a = Math.Abs(10 - (m_context.currentFrameIndex + (int)((m_entity.Index) / m_entity.Data.keyStep)) % 20) / 10f;
+			//	}
+
+			//	m_renderer.color = c;
+
+			//}
+		}*/
+    }
+
+}

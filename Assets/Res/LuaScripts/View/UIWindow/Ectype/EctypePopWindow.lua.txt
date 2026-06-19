@@ -1,0 +1,88 @@
+-- 副本确认界面
+EctypePopWindow = class("EctypePopWindow", UIPanel)
+EctypePopWindow.IsOpen = false
+local RewardItem = require("View/UIWindow/Ectype/RewardItem")
+
+function EctypePopWindow:Awake()
+end
+
+function EctypePopWindow:BindModule(m)
+    EctypePopWindow.module = m
+end
+
+function EctypePopWindow:InitControls()
+    self.transform = self.prefab.transform
+    self.gameObject = self.transform.gameObject
+
+    --额外奖励
+    local playerLv = GameManager.Instance:GetPlayerLevel()
+    local extraRewards = {}
+    local dailyCopyDifficulty = ConfigDataAccessor.DailyCopyDifficultyList
+    for _, v in pairs(dailyCopyDifficulty) do
+        if v.UnlockConditions <= playerLv then
+            extraRewards = v.BaseAwardsShow
+        end
+    end
+
+    self.extraPassRewardItem = self.transform:Find("Image/Rewards/Viewport/Content/Item").gameObject
+
+    self.extraItems = {}
+    for _, reward in pairs(extraRewards) do
+        local gob = newObject(self.extraPassRewardItem)
+        gob:SetActive(true)
+        gob.transform:SetParent(self.extraPassRewardItem.transform.parent)
+        gob.transform.localPosition = Vector3.zero
+        gob.transform.localScale = Vector3.one
+        local it = RewardItem:New(gob, reward, 0)
+        self.extraItems[reward] = gob
+    end
+
+    local gotoBtn = self.transform:Find("Image/GotoBtn"):GetComponent(typeof(Button))
+    gotoBtn.onClick:AddListener(
+        function()
+            --跑到npc那边去
+            BusinessManager.Instance:FindNpcPath(
+                9,
+                9024,
+                1,
+                function(result)
+                    if result then
+                        LuaModuleDispatcher:SendMessage(ModuleDef.EctypeEntranceModule, "OnOpenEctypeEntrance", {})
+                    end
+                end
+            )
+
+            UIManager.Instance:CloseWindow("Ectype/Prefab/GamePlayChoiceWindow")
+            UIManager.Instance:CloseWindow("Ectype/Prefab/EctypePopWindow")
+        end
+    )
+end
+
+function EctypePopWindow:Start()
+    print("EctypeBagWindow:Start")
+end
+
+function EctypePopWindow:OnEnable()
+end
+
+function EctypePopWindow:OnDisable()
+end
+
+function EctypePopWindow:OnDestroy()
+end
+
+function EctypePopWindow:OnOpen(arg)
+    EctypePopWindow.IsOpen = true
+end
+
+function EctypePopWindow:OnClose(arg)
+    EctypePopWindow:CloseWindow()
+    self.module.ectypePopWindow = nil
+end
+
+function EctypePopWindow:CloseWindow()
+    EctypePopWindow.IsOpen = false
+    self.module.ectypePopWindow = nil
+end
+
+return EctypePopWindow

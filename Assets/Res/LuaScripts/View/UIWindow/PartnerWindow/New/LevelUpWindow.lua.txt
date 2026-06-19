@@ -1,0 +1,505 @@
+---@class LevelUpWindow
+LevelUpWindow = class("LevelUpWindow", UIPanel)
+
+function LevelUpWindow:Awake()
+
+end
+
+function LevelUpWindow:BindModule(m)
+	LevelUpWindow.module = m;
+end
+
+function LevelUpWindow:InitControls()
+	self.transform = self.prefab.transform;
+	self.gameObject = self.transform.gameObject;
+
+    self.closeBtn = self.transform:Find("Root/BtnClose"):GetComponent(typeof(Button));
+    self.closeBtn.onClick:AddListener(function()
+        --关闭窗口
+    end);
+
+    self.itemIcon1 = self.transform:Find("Root/Item1/BG/Have/Icon"):GetComponent(typeof(Image));
+    self.itemBtn1 = self.transform:Find("Root/Item1/BG/Have/Icon"):GetComponent(typeof(Button));
+    self.itemBtn1.onClick:AddListener(function()
+        LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",
+        {self.curEquipID,false ,self.curEquipEID,self.itemBtn1.transform,0});
+    end);
+    self.itemBg1 = self.transform:Find("Root/Item1/BG/Have/BgRare"):GetComponent(typeof(Image));
+    self.stars1 = {};
+    for i=1, 3 do
+        local star = self.transform:Find("Root/Item1/BG/Have/Stars/Star"..i).gameObject;
+        self.stars1[i] = star;
+    end
+
+    self.haveItem2 = self.transform:Find("Root/Item2/BG/Have").gameObject;
+    self.changeBtn2 = self.transform:Find("Root/Item2/BG/Have/Change"):GetComponent(typeof(Button));
+    self.changeBtn2.onClick:AddListener(function()
+        --更换道具
+		LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OpenEquipSelWindow",{ self:GetEquipTypeByID(self.curEquipID), self.curEquipID, self.curLeft, self.curRight, self.leftItems, 0 });
+    end);
+    self.itemIcon2 = self.transform:Find("Root/Item2/BG/Have/Icon"):GetComponent(typeof(Image));
+    self.itemBtn2 = self.transform:Find("Root/Item2/BG/Have/Icon"):GetComponent(typeof(Button));
+    self.itemBtn2.onClick:AddListener(function()
+        LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",
+        {self.curEquipID,false ,self.curEquipEID,self.itemBtn2.transform,0});
+    end);
+    self.stars2 = {};
+    for i=1, 3 do
+        local star = self.transform:Find("Root/Item2/BG/Have/Stars/Star"..i).gameObject;
+        self.stars2[i] = star;
+    end
+
+    self.haveItem3 = self.transform:Find("Root/Item3/BG/Have").gameObject;
+    self.changeBtn3 = self.transform:Find("Root/Item3/BG/Have/Change"):GetComponent(typeof(Button));
+    self.changeBtn3.onClick:AddListener(function()
+        --更换道具
+		LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OpenEquipSelWindow",{ self:GetEquipTypeByID(self.curEquipID), self.curEquipID, self.curLeft, self.curRight, self.leftItems, 1 });
+    end);
+    self.itemIcon3 = self.transform:Find("Root/Item3/BG/Have/Icon"):GetComponent(typeof(Image));
+    self.itemBtn3 = self.transform:Find("Root/Item3/BG/Have/Icon"):GetComponent(typeof(Button));
+    self.itemBtn3.onClick:AddListener(function()
+        LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",
+        {self.curEquipID,false ,self.curEquipEID,self.itemBtn3.transform,0});
+    end);
+    self.stars3 = {};
+    for i=1, 3 do
+        local star = self.transform:Find("Root/Item3/BG/Have/Stars/Star"..i).gameObject;
+        self.stars3[i] = star;
+    end
+
+    self.levelUpBtn = self.transform:Find("Root/LevelUpBtn"):GetComponent(typeof(Button));
+    self.levelUpBtn.onClick:AddListener(function()
+        --升级
+		if self.curLeft == nil or self.curRight == nil then
+				Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_No_Item"));
+				return;
+		end
+		local partnerEquipUPReq = CS.ProtoMsg.PartnerEquipUPReq();
+		partnerEquipUPReq.ItemID = self.curEquipEID;
+		partnerEquipUPReq.MaterialItemID1 = self.curLeft.EntityID;
+		partnerEquipUPReq.MaterialItemID2 = self.curRight.EntityID;
+			
+		CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, partnerEquipUPReq, false);
+    end);
+
+    self.maxLevelGo1 = self.transform:Find("Root/MaxLevel1").gameObject;
+    self.maxLevelGo2 = self.transform:Find("Root/MaxLevel2").gameObject;
+
+    self.levelStarChange = self.transform:Find("Root/LevelStarChange").gameObject;
+    self.changeStars = {};
+    for i=1, 6 do
+        local starObj = self.transform:Find("Root/LevelStarChange/Star"..i).gameObject;
+        self.changeStars[i] = starObj;
+    end
+
+
+    self.partnerAttr = self.transform:Find("Root/List/PartnerAttr").gameObject;
+    self.playerAttr = self.transform:Find("Root/List/PlayerAttr").gameObject;
+    self.maxpartnerAttr = self.transform:Find("Root/List/MaxPartnerAttr").gameObject;
+    self.maxplayerAttr = self.transform:Find("Root/List/MaxPlayerAttr").gameObject;
+	
+	self.allItems = {};
+	
+	--[[self.skillGo = self.transform:Find("Root/Skill").gameObject;
+	self.skillIcon = self.transform:Find("Root/Skill/Icon"):GetComponent(typeof(Image));
+	self.skillName = self.transform:Find("Root/Skill/Name"):GetComponent(typeof(Text));
+	self.skillNext = self.transform:Find("Root/Skill/Level"):GetComponent(typeof(Text));
+	self.skillDesc = self.transform:Find("Root/Skill/Desc"):GetComponent(typeof(Text));]]--
+end
+
+function LevelUpWindow:GetEidByID(id)
+    local items = BusinessManager.Instance:GetItemsByItemType(4, 0)
+	for i = 0, items.Count - 1 do
+        if items[i].BaseID == id then
+            return items[i].EntityID;
+        end
+	end
+end
+
+function LevelUpWindow:GetEquipTypeByID(id)
+    local items = BusinessManager.Instance:GetItemsByItemType(4, 0);
+    for i = 0, items.Count - 1 do
+        if items[i].BaseID == id then
+            return ConfigDataAccessor.Item[items[i].BaseID].SubType;
+        end
+	end
+    return nil;
+end
+
+function LevelUpWindow:Init(id, eid)
+	self.curEquipID = id;
+	self.curEquipEID = eid;
+	
+    local partnerEquip = ConfigDataAccessor.PartnerEquip;
+    local lv = partnerEquip[id].AdvancedLevel;
+
+    self.maxLevelGo1:SetActive(lv == 3);
+    self.maxLevelGo2:SetActive(lv == 3);
+
+    self.levelUpBtn.gameObject:SetActive(lv < 3);
+    self.levelStarChange:SetActive(lv < 3);
+
+    for _,v in pairs(self.changeStars) do
+        v:SetActive(false);
+    end
+    if lv < 3 then
+        for i = 1, lv do
+            self.changeStars[i]:SetActive(true);
+        end
+
+        for i = 1, lv+1 do
+            self.changeStars[i+3]:SetActive(true);
+        end
+    end
+
+    local itemCfg = ConfigDataAccessor.Item[id];
+    ResourceHelper:LoadIconAsync(self.itemIcon1, "", itemCfg.Icon, false)
+    ResourceHelper:LoadIconByAtlasAsync(
+        self.itemBg1,
+        ResourceHelper.AtlasPathCommonItem,
+        "Bag_Grid_r" .. itemCfg.Quality,
+        false
+    )
+    local eq = ConfigDataAccessor.PartnerEquip[id];
+    for i=1, 3 do
+        self.stars1[i]:SetActive(eq.AdvancedLevel >= i);
+    end
+
+    for _,v in pairs(self.allItems) do
+		GameObject.DestroyImmediate(v);
+	end
+	self.allItems = {};
+
+    local nextID = nil;
+    local partnerEquip = ConfigDataAccessor.PartnerEquip;
+    local groupID = partnerEquip[id].GroupID;
+    if lv < 3 then
+        for _,v in pairs(partnerEquip) do
+            if v.GroupID == groupID and v.AdvancedLevel == lv + 1 then
+                nextID = v.Id;
+                break;
+            end
+        end
+
+        local qualiFications = partnerEquip[id].QualiFications;
+        local qualiFicationsValue = partnerEquip[id].QualiFicationsValue;
+        local nextqualiFicationsValue = partnerEquip[nextID].QualiFicationsValue;
+        for k,v in pairs(qualiFications) do
+            local strattrName;
+            for k2,v2 in pairs(ConfigDataAccessor.Attribute) do
+                if v2.AttrId == v then
+                    strattrName = v2.Name;
+                    break;
+                end
+            end
+            local num = qualiFicationsValue[k];
+            local num2 = nextqualiFicationsValue[k];
+
+            local partnerGo = newObject(self.partnerAttr);
+            local id2=self.partnerAttr.transform:GetSiblingIndex();
+            partnerGo.transform.parent = self.partnerAttr.transform.parent;
+            partnerGo.transform.localScale=Vector3(1,1,1);
+            partnerGo.transform:SetSiblingIndex(id2 + 1);
+            partnerGo:SetActive(true);
+
+            local attrName = partnerGo.transform:Find("name"):GetComponent(typeof(Text));
+            local attrAdd1 = partnerGo.transform:Find("add1"):GetComponent(typeof(Text));
+            local attrAdd2 = partnerGo.transform:Find("add2"):GetComponent(typeof(Text));
+            attrName.text = strattrName;
+            attrAdd1.text = tostring(num);
+            attrAdd2.text = tostring(num2);
+            
+            table.insert(self.allItems, partnerGo);
+        end
+
+        local nature = partnerEquip[id].Nature;
+        local natureValues = partnerEquip[id].Value;
+        local nextnatureValues = partnerEquip[nextID].Value;
+        for k,v in pairs(nature) do
+            local strattrName;
+            for k2,v2 in pairs(ConfigDataAccessor.Attribute) do
+                if v2.AttrId == v then
+                    strattrName = v2.Name;
+                    break;
+                end
+            end
+            local num = natureValues[k];
+            local num2 = nextnatureValues[k];
+
+            local playerGo = newObject(self.playerAttr);
+            local id2=self.playerAttr.transform:GetSiblingIndex();
+            playerGo.transform.parent = self.playerAttr.transform.parent;
+            playerGo.transform.localScale=Vector3(1,1,1);
+            playerGo.transform:SetSiblingIndex(id2 + 1);
+            playerGo:SetActive(true);
+
+            local attrName = playerGo.transform:Find("name"):GetComponent(typeof(Text));
+            local attrAdd1 = playerGo.transform:Find("add1"):GetComponent(typeof(Text));
+            local attrAdd2 = playerGo.transform:Find("add2"):GetComponent(typeof(Text));
+            attrName.text = strattrName;
+            attrAdd1.text = tostring(num);
+            attrAdd2.text = tostring(num2);
+            
+            table.insert(self.allItems, playerGo);
+        end
+    else
+        local qualiFications = partnerEquip[id].QualiFications;
+        local qualiFicationsValue = partnerEquip[id].QualiFicationsValue;
+        for k,v in pairs(qualiFications) do
+            local strattrName;
+            for k2,v2 in pairs(ConfigDataAccessor.Attribute) do
+                if v2.AttrId == v then
+                    strattrName = v2.Name;
+                    break;
+                end
+            end
+            local num = qualiFicationsValue[k];
+
+            local partnerGo = newObject(self.maxpartnerAttr);
+            local id2=self.partnerAttr.transform:GetSiblingIndex();
+            partnerGo.transform.parent = self.partnerAttr.transform.parent;
+            partnerGo.transform.localScale=Vector3(1,1,1);
+            partnerGo.transform:SetSiblingIndex(id2 + 1);
+            partnerGo:SetActive(true);
+
+            local attrName = partnerGo.transform:Find("name"):GetComponent(typeof(Text));
+            local attrAdd1 = partnerGo.transform:Find("add"):GetComponent(typeof(Text));
+            attrName.text = strattrName;
+            attrAdd1.text = tostring(num);
+            
+            table.insert(self.allItems, partnerGo);
+        end
+
+        local nature = partnerEquip[id].Nature;
+        local natureValues = partnerEquip[id].Value;
+        for k,v in pairs(nature) do
+            local strattrName;
+            for k2,v2 in pairs(ConfigDataAccessor.Attribute) do
+                if v2.AttrId == v then
+                    strattrName = v2.Name;
+                    break;
+                end
+            end
+            local num = natureValues[k];
+
+            local playerGo = newObject(self.maxplayerAttr);
+            local id2=self.playerAttr.transform:GetSiblingIndex();
+            playerGo.transform.parent = self.playerAttr.transform.parent;
+            playerGo.transform.localScale=Vector3(1,1,1);
+            playerGo.transform:SetSiblingIndex(id2 + 1);
+            playerGo:SetActive(true);
+
+            local attrName = playerGo.transform:Find("name"):GetComponent(typeof(Text));
+            local attrAdd1 = playerGo.transform:Find("add"):GetComponent(typeof(Text));
+            attrName.text = strattrName;
+            attrAdd1.text = tostring(num);
+            
+            table.insert(self.allItems, playerGo);
+        end
+    end
+
+    
+	
+	--[[if #partnerEquip[id].Effect == 0 then
+		--没有阵营技能
+		self.skillGo:SetActive(false);
+	else
+		self.skillGo:SetActive(true);
+
+		local effectID = partnerEquip[id].Effect[1];
+		local effect = ConfigDataAccessor.EffectList[effectID];
+
+		--skillIcon
+		self.skillName.text = effect.Name;
+		--self.skillActive
+		self.skillDesc.text = effect.Desc;
+		self.skillNext.text = partnerEquip[id].AdvancedLevel;
+	end]]--
+
+    local t = 1;
+    local items = BusinessManager.Instance:GetItemsByItemType(4, 0)
+	for i = 0, items.Count - 1 do
+        if items[i].BaseID == id then
+            local cfg = ConfigDataAccessor.Item[items[i].BaseID]
+            t = cfg.SubType;
+            break;
+        end
+	end
+
+    self.leftItems = {};
+	local selBindItems = {};
+    for i = 0, items.Count - 1 do
+        local cfg = ConfigDataAccessor.Item[items[i].BaseID]
+        --if cfg.SubType == t then
+			
+            if items[i].BaseID == id and items[i].IsBind then
+				local isSel = false;
+				if items[i].EntityID == self.curEquipEID then
+					isSel = true;
+				end
+				for k,v in pairs(selBindItems) do
+					if items[i].EntityID == v.EntityID then
+						isSel = true;
+						break;
+					end
+				end
+				if not isSel then
+					table.insert(selBindItems, items[i]);
+				end		
+                --[[for _,v in pairs(self.leftItems) do
+                    if items[i].BaseID == v then
+                        exsit = true;
+                        break;
+                    end
+                end
+                if not exsit then
+                    table.insert(self.leftItems,items[i].BaseID);
+                end]]--
+            end
+        --end
+	end
+	
+	local unbindNum = 0;
+	local selUnBindItems = {};
+	for i = 0, items.Count - 1 do
+		local cfg = ConfigDataAccessor.Item[items[i].BaseID]
+		--if cfg.SubType == t then
+
+		if items[i].BaseID == id and not items[i].IsBind then
+			local isSel = false;
+			if items[i].EntityID == self.curEquipEID then
+				isSel = true;
+			end
+			for k,v in pairs(selUnBindItems) do
+				if items[i].EntityID == v.EntityID then
+					isSel = true;
+					break;
+				end
+			end
+			if not isSel then
+				table.insert(selUnBindItems, items[i]);
+			end
+			--[[for _,v in pairs(self.leftItems) do
+			if items[i].BaseID == v then
+			exsit = true;
+			break;
+			end
+			end
+			if not exsit then
+			table.insert(self.leftItems,items[i].BaseID);
+			end]]--
+		end
+		--end
+	end
+	
+	self.curLeft = nil;
+	self.curRight = nil;
+	
+	if #selBindItems > 0 then
+		self.curLeft = selBindItems[1];
+		if #selBindItems > 1 then
+			self.curRight = selBindItems[2];
+		elseif #selUnBindItems > 0 then
+			self.curRight = selUnBindItems[1];
+		else
+			self.curRight = nil;
+		end
+	else
+		if #selUnBindItems > 0 then
+			self.curLeft = selUnBindItems[1];
+			if #selUnBindItems > 1 then
+				self.curRight = selUnBindItems[2];
+			else
+				self.curRight = nil;
+			end
+		else
+			self.curLeft = nil;
+			self.curRight = nil;
+		end
+	end
+
+    self:SetItems();
+end
+
+function LevelUpWindow:SetItems()
+    self.haveItem2:SetActive(self.curLeft ~= nil);
+    self.haveItem3:SetActive(self.curRight ~= nil);
+    self.changeBtn2.gameObject:SetActive(self.curLeft ~= nil);
+    self.changeBtn3.gameObject:SetActive(self.curRight ~= nil);
+
+    if self.curLeft ~= nil then
+        local itemCfg = ConfigDataAccessor.Item[self.curLeft.BaseID];
+        ResourceHelper:LoadIconAsync(self.itemIcon2, "", itemCfg.Icon, false)
+        ResourceHelper:LoadIconByAtlasAsync(
+            self.itemBg2,
+            ResourceHelper.AtlasPathCommonItem,
+            "Bag_Grid_r" .. itemCfg.Quality,
+            false
+        )
+        local eq = ConfigDataAccessor.PartnerEquip[self.curLeft.BaseID];
+        for i=1, 3 do
+            self.stars2[i]:SetActive(eq.AdvancedLevel >= i);
+        end
+    end
+
+    if self.curRight ~= nil then
+        local itemCfg = ConfigDataAccessor.Item[self.curRight.BaseID];
+        ResourceHelper:LoadIconAsync(self.itemIcon3, "", itemCfg.Icon, false)
+        ResourceHelper:LoadIconByAtlasAsync(
+            self.itemBg3,
+            ResourceHelper.AtlasPathCommonItem,
+            "Bag_Grid_r" .. itemCfg.Quality,
+            false
+        )
+        local eq = ConfigDataAccessor.PartnerEquip[self.curRight.BaseID];
+        for i=1, 3 do
+            self.stars3[i]:SetActive(eq.AdvancedLevel >= i);
+        end
+    end
+end
+
+function LevelUpWindow:ChangeCurSel(...)
+    local tb = ...;
+    local arg1 = tb[1];
+    local arg2 = tb[2];
+    if arg2 == 0 then
+        self.curLeft = arg1;
+    else
+        self.curRight = arg1;
+    end
+    self:SetItems();
+end
+
+function LevelUpWindow:OnShow()
+end
+
+function LevelUpWindow:Start()
+end
+
+function LevelUpWindow:OnEnable()
+	
+end
+
+function LevelUpWindow:OnDisable()
+
+end
+
+function LevelUpWindow:OnDestroy()
+
+end
+
+function LevelUpWindow:OnOpen(arg)
+	self.IsOpen = true;
+end
+
+function LevelUpWindow:OnClose(arg)
+	self:CloseWindow();
+    self.module.levelUpWindowView = nil;
+end
+
+function LevelUpWindow:CloseWindow()
+	self.IsOpen = false;
+    self.module.levelUpWindowView = nil;
+end
+
+return LevelUpWindow

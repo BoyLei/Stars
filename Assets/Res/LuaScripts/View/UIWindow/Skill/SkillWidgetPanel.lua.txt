@@ -1,0 +1,731 @@
+local TalentPanelNew = require("View/UIWindow/Skill/TalentPanelNew");
+local SkillSwitchItemNew = require("View/UIWindow/SkillSwitch/SkillSwitchItemNew");
+local SkillPosItemNew = require("View/UIWindow/SkillSwitch/SkillPosItemNew");
+
+local SkillWidgetPanel = {}
+SkillWidgetPanel.__index = SkillWidgetPanel
+
+function SkillWidgetPanel:New(obj, module)
+    local self = {};
+    setmetatable(self, SkillWidgetPanel);
+
+    self.gameObject = obj;
+    self.transform = obj.transform;
+
+    self.module = module;
+    self:Init()
+
+    return self;
+end
+
+function SkillWidgetPanel:Show()
+    self.gameObject:SetActive(true);
+
+    self:OnUpdateData();
+end
+
+function SkillWidgetPanel:Close()
+    self.gameObject:SetActive(false);
+end
+
+function SkillWidgetPanel:Refresh()
+
+    self:ResetState();
+
+    -- 刷新 方案名称
+    self:RefreshCaseName();
+
+    -- 刷新 方案选择
+    self:RefreshTeam();
+
+    -- 刷新 所有skillItems 的表现
+    self:RefreshSkillItems();
+
+    self:RefreshJoyStickSkills();
+
+    self:RefreshKeZhuanZhi();
+end
+
+-- 对外暴露的 数据刷新的接口
+function SkillWidgetPanel:OnUpdateData()
+
+    self:UpdateData(self.module.skillList, self.module.skillPosList, self.module.caseID);
+end
+
+function SkillWidgetPanel:UpdateData(skillList, skillPosList, caseID)
+    if skillList == nil or skillPosList == nil then
+        return;
+    end
+
+    self.curCaseID = caseID;
+
+    self.skillList = {}
+    self.skillPosList = {}
+    for i = 0, skillList.Count - 1 do
+        local skillID = skillList[i].SkillDBID; -- 技能编号
+        local skillLevel = skillList[i].SkillLevel; -- 技能等级
+        local talentID = skillList[i].TalentID; -- 天赋编号
+        local skillItem = {}
+        skillItem.SkillDBID = skillID;
+        skillItem.SkillLevel = skillLevel;
+        skillItem.TalentID = talentID;
+        self.skillList[skillID] = skillItem;
+    end
+
+    -- 技能信息，所有技能
+    -- 对技能升序排序
+    table.sort(self.skillList, function(a, b)
+        if a ~= b then
+            return (a < b);
+        end
+        return false;
+    end);
+
+    for i = 0, skillPosList.Count - 1 do
+        local posID = skillPosList[i].PosID; -- 技能位
+        local skillID = skillPosList[i].JobSkillID; -- 技能ID
+        local skillPosItem = {}
+        skillPosItem.PosID = posID;
+        skillPosItem.JobSkillID = skillID;
+        table.insert(self.skillPosList, skillPosItem);
+    end
+
+    self:Refresh();
+end
+
+function SkillWidgetPanel:Init()
+    self.m_SkillIContent = self.transform:Find("SkillIContent");
+
+    self.m_TouchBg = self.m_SkillIContent:Find("TouchBg"):GetComponent(typeof(JButton));
+
+    self.m_TouchBg.OnClick = function()
+        self:ResetSelect(true);
+    end
+
+    self.m_SkillSwitchItem_Gob = self.m_SkillIContent:Find("SkillSwitchItem").gameObject;
+
+    self.m_TopIcon = self.m_SkillIContent:Find("Top/Icon"):GetComponent(type(Image));
+
+    self.m_InputField = self.m_SkillIContent:Find("Top/TitleRoot/InputField"):GetComponent(typeof(InputField));
+
+    self.m_InputField.onEndEdit:AddListener(function()
+        self:OnInputEndEdit();
+    end);
+
+    self.m_JiChuLayout = self.m_SkillIContent:Find("JiChu/Layout");
+    self.m_JobSkillLayout = self.m_SkillIContent:Find("JobSkill/Layout");
+
+    self.m_KeZhuanZhi_Gob = self.m_SkillIContent:Find("KeZhuanZhi").gameObject;
+    self.m_KeZhuanZhi1_Gob = self.m_SkillIContent:Find("KeZhuanZhi/Content1").gameObject;
+
+    self.m_KeZhuanTitle = self.m_SkillIContent:Find("KeZhuanZhi/Content1/Title"):GetComponent(typeof(Text));
+
+    local zhuanZhiBtn = self.m_SkillIContent:Find("KeZhuanZhi/Btn"):GetComponent(typeof(JButton));
+
+    self.m_KeZhuanZhi2_Gob = self.m_SkillIContent:Find("KeZhuanZhi/Content2").gameObject;
+    local goBtn = self.m_KeZhuanZhi2_Gob.transform:Find("Go"):GetComponent(typeof(JButton));
+
+    zhuanZhiBtn.OnClick = function()
+        self:OnClickZhuanZhi();
+    end
+
+    goBtn.OnClick = function()
+        self:OnClickZhuanZhi();
+    end
+
+    local JoySkill = self.transform:Find("JoySkill");
+
+    self.m_SkillPosItem_Gob = JoySkill:Find("SkillPosItem").gameObject;
+
+    self.m_TeamLayout_Gob = JoySkill:Find("Team/Layout").gameObject;
+
+    self.m_JoyStickSkill = JoySkill:Find("JoyStickSkill");
+
+    self:InitSkillItems();
+
+    -- 初始化 tips 相关的 节点. 后续 看情况 要不要 挪出去
+    self:InitTipsNodes();
+end
+
+function SkillWidgetPanel:InitSkillItems()
+
+    self.assistItems = {};
+    self.jobItems = {};
+    self.skillPos = {}
+
+    self.teamSelObj = {}
+
+    self.m_SkillSwitchItem_Gob:SetActive(true);
+    self.m_SkillPosItem_Gob:SetActive(true);
+
+    -- 4个 基础技能
+    for i = 1, 4 do
+        self.assistItems[i] = self:CreateSkillItem(self.m_JiChuLayout);
+    end
+
+    -- 6个 职业技能
+    for i = 1, 6 do
+        self.jobItems[i] = self:CreateSkillItem(self.m_JobSkillLayout);
+    end
+
+    -- 5个 方案选择按钮
+    for i = 1, 5 do
+        self:InitSkillCaseBtn(i);
+    end
+
+    -- 创建 8 个 技能位, 但是 目前 UI 只显示 普通技能 和 大招技能
+    for i = 1, 8 do
+        self:InitSkillPosItem(i);
+    end
+
+    -- 隐藏 几个用来实例化的 LoadPrefab
+    self.m_SkillSwitchItem_Gob:SetActive(false);
+    self.m_SkillPosItem_Gob:SetActive(false);
+
+end
+
+function SkillWidgetPanel:CreateSkillItem(parent)
+
+    local itemNode = GameObject.Instantiate(self.m_SkillSwitchItem_Gob);
+
+    itemNode.transform:SetParent(parent, false);
+
+    local skillItem = SkillSwitchItemNew:New(itemNode, self);
+
+    return skillItem;
+end
+
+function SkillWidgetPanel:OnInputEndEdit()
+
+    local upSkillCaseDataReq = CS.ProtoMsg.UpSkillCaseDataReq();
+    upSkillCaseDataReq.CaseID = self.curCaseID;
+    upSkillCaseDataReq.CaseName = self.m_InputField.text;
+
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+        upSkillCaseDataReq, false);
+
+end
+
+function SkillWidgetPanel:InitSkillCaseBtn(caseId)
+
+    local caseBtn = self.m_TeamLayout_Gob.transform:Find("Team" .. caseId):GetComponent(typeof(Button));
+
+    caseBtn.onClick:AddListener(function()
+        -- 发送服务器切换技能组
+        local switchSkillPosReq = CS.ProtoMsg.SwitchSkillPosReq();
+        switchSkillPosReq.CaseID = caseId;
+        CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+            switchSkillPosReq, false);
+    end);
+
+    local teamSel = caseBtn.transform:Find("sel").gameObject;
+    self.teamSelObj[caseId] = teamSel;
+end
+
+function SkillWidgetPanel:InitSkillPosItem(i)
+
+    local item = newObject(self.m_SkillPosItem_Gob);
+    item:SetActive(true);
+    local parent = self.m_JoyStickSkill:Find(i);
+    item.transform:SetParent(parent.transform);
+    item.transform.localPosition = Vector3.zero;
+
+    -- 1/7/8 号技能为 UI不显示 
+    if i == 1 or i == 7 or i == 8 then
+        parent.gameObject:SetActive(false);
+    end
+
+    item.transform.localScale = Vector3.one;
+    -- 设置坐标 相对 父节点 0,0
+    -- SetUINodePosition(item, Vector2.zero);
+    -- item.transform:GetComponent(typeof(RectTransform)).localPosition = Vector3.zero;
+    local skillItem = SkillPosItemNew:New(item);
+    self.skillPos[i] = skillItem;
+
+end
+
+-- 刷新 方案名字
+function SkillWidgetPanel:RefreshCaseName()
+    local caseName = self.module.caseName;
+    if caseName == nil or caseName == "" then
+        -- self.m_InputField.text = "方案" .. self.curCaseID;
+        self.m_InputField.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_SkillSwitchNew_InputField"),
+            {self.curCaseID});
+        return;
+    end
+
+    self.m_InputField.text = caseName;
+end
+
+-- 刷新方案选择
+function SkillWidgetPanel:RefreshTeam()
+    for _, v in pairs(self.teamSelObj) do
+        v:SetActive(false);
+    end
+
+    self.teamSelObj[self.curCaseID]:SetActive(true);
+
+end
+
+function SkillWidgetPanel:RefreshSkillItems()
+
+    -- 默认 认为 拥有的 转职技能 位 false
+    self.showCanTransferSkill = false;
+
+    local assistSkillIndex = 0;
+    local jobSkillIndex = 0;
+
+    local playerJob = GameManager.Instance:GetPlayerJob();
+
+    if playerJob == 0 then
+        print("[SkillWidgetPanel] RefreshSkillItems playerJob ==0 拿不到对应的职业 id")
+        return;
+    end
+
+    -- 拿到职业对应的 配置
+    local jobCfg = GetJobCfg(playerJob);
+
+    -- 刷新初始职业技能
+    if jobCfg.BornJobSkills ~= nil then
+
+        -- 初始职业技能, 是个人都有, 所以 直接遍历刷新
+        local bornJobs = jobCfg.BornJobSkills;
+
+        -- 初始职业技能 最多4个, UI 刷新的话 根据配置 数据刷新, 如果配置 2个，那么剩余两个就关闭
+        for i = 1, 4, 1 do
+            local jobSkillID = bornJobs[i];
+
+            local skillItem = self.assistItems[i];
+            if jobSkillID ~= nil then
+                skillItem.gameObject:SetActive(true);
+
+                self:RefreshSkillItem(skillItem, jobSkillID, playerJob);
+            else
+                skillItem.gameObject:SetActive(false);
+            end
+        end
+    end
+
+    -- 刷新 是否可转职
+    local hasTransferSkillCfg = false;
+
+    if jobCfg.TransferJob ~= nil and #jobCfg.TransferJob > 0 then
+        hasTransferSkillCfg = true;
+    end
+
+    local hadTransferSkill = false;
+    -- 刷新进阶职业技能
+    if jobCfg.TransferJobSkills ~= nil then
+        -- 进阶职业 技能6个, 但不一定 一开始所有都开放
+        local tansJobSkills = jobCfg.TransferJobSkills;
+
+        for i = 1, 6, 1 do
+            local jobSkillID = tansJobSkills[i];
+            local skillItem = self.jobItems[i];
+
+            if jobSkillID ~= nil then
+                skillItem.gameObject:SetActive(true);
+
+                self:RefreshSkillItem(skillItem, jobSkillID);
+
+                hadTransferSkill = true;
+            else
+                skillItem.gameObject:SetActive(false);
+            end
+        end
+    end
+
+    -- 只有 拥有可转职的配置, 同时身上没有可转职的技能的时候,才显示 可转职的界面
+    self.showCanTransferSkill = hasTransferSkillCfg and not hadTransferSkill;
+
+    -- 刷新 职业显示
+    local translateJobs = GetJobTransferDatas(playerJob);
+    if translateJobs ~= nil then
+
+        local baseJobCfg = GetJobCfg(translateJobs[1]);
+        if baseJobCfg ~= nil then
+
+        end
+
+        local translateJobCfg = GetJobCfg(translateJobs[2]);
+        if translateJobCfg ~= nil then
+            -- self.m_KeZhuanZhiName.text = translateJobCfg.Name;
+        end
+
+    end
+end
+
+-- 刷新 单个 的 技能SkillItem
+function SkillWidgetPanel:RefreshSkillItem(skillItem, jobSkillID)
+    local skillInfo = self.skillList[jobSkillID];
+
+    local open = false;
+    local talentID = 0;
+    local skillLevel = 1;
+
+    for k, v in pairs(self.skillPosList) do
+        if v.JobSkillID == jobSkillID then
+            open = true;
+            break
+        end
+    end
+
+    if skillInfo ~= nil then
+        talentID = skillInfo.TalentID;
+        skillLevel = skillInfo.SkillLevel;
+    else
+        local talentCfgs = GetJobSkillTalents(jobSkillID);
+
+        -- 天赋 ID 采用 默认的天赋ID
+        if talentCfgs ~= nil and #talentCfgs > 0 then
+            talentID = talentCfgs[1].ID;
+        end
+    end
+    skillItem:Refresh(jobSkillID, open, talentID, skillLevel, self.curSelSkillId);
+end
+
+-- 刷新 摇杆按钮上 技能按钮的显示
+function SkillWidgetPanel:RefreshJoyStickSkills()
+
+    for _, v in pairs(self.skillPosList) do
+        local posID = v.PosID; -- 技能位
+        local skillID = v.JobSkillID; -- 技能ID
+        local isLocked = v.Islocked; -- 是否锁定
+        local item = self.skillPos[posID];
+
+        if skillID > 0 then
+
+            local lv = 0;
+            local talentId = 0;
+            for _, n in pairs(self.skillList) do
+                if n.SkillDBID == skillID then
+                    lv = n.SkillLevel;
+                    talentId = n.TalentID;
+                end
+            end
+
+            item.gameObject:SetActive(true);
+            item:Refresh(posID, skillID, talentId, lv, self);
+
+        else
+            item.gameObject:SetActive(false);
+        end
+    end
+end
+
+-- self.clickState 点击按钮后 的状态
+-- 0: 默认;  1: 选中左边技能, 填充 到 右边 技能位; 2: 选中右边技能位, 采用左边 技能替换
+
+-- self.selectSkillItem  左侧选中的 技能按钮
+-- self.selectSkillPosItem 右侧选中的技能槽按钮
+
+function SkillWidgetPanel:RefreshSkillSelect(skillItem)
+
+    -- 常规技能 是否选中
+    for k, v in pairs(self.assistItems) do
+        local isSelect = skillItem ~= nil and v == skillItem;
+        v:SetSel(isSelect);
+    end
+
+    -- 转职节能 是否选中
+    for k, v in pairs(self.jobItems) do
+        local isSelect = skillItem ~= nil and v == skillItem;
+        v:SetSel(isSelect);
+    end
+
+    -- 技能槽 是否高亮
+    for k, v in pairs(self.skillPos) do
+        local isHighLight = skillItem ~= nil and v.skillId ~= skillItem.skillId and not v:IsNormalSkill();
+        v:MarkHighLight(isHighLight);
+    end
+end
+
+function SkillWidgetPanel:RefreshSkillPosSelect(skillPosItem)
+
+    -- 常规技能 是否高亮
+    for k, v in pairs(self.assistItems) do
+        local isHighLight = skillPosItem ~= nil and v.skillId ~= skillPosItem.skillId;
+        v:MarkHighLight(isHighLight);
+    end
+
+    -- 转职节能 是否高亮
+    for k, v in pairs(self.jobItems) do
+        local isHighLight = skillPosItem ~= nil and v.skillId ~= skillPosItem.skillId;
+        v:MarkHighLight(isHighLight);
+    end
+
+    -- 技能槽 是否选中
+    for k, v in pairs(self.skillPos) do
+        local isSelect = skillPosItem ~= nil and v.skillId == skillPosItem.skillId and v.skillType ~= 1 and
+                             not v:IsNormalSkill();
+        v:SetSel(isSelect);
+    end
+end
+
+-- 左边 的 技能skillItem 点击, 需要将选中的按钮 和 右边的按钮高亮
+function SkillWidgetPanel:OnSkillItemClick(skillItem)
+
+    -- 点击了 普工 技能, 普工啥都不用管
+    if skillItem:IsNormalSkill() then
+        return;
+    end
+
+    -- 目前 采用 选中 高亮的展示 方法,不再是 压黑的方式,那么就可以允许 玩家点击左边技能1后 换着选技能2
+    -- 那么 在 玩家的 状态 位 0/1 的时候, 刷新 右侧技能槽按钮的展示即可
+
+    self.selectSkillItem = skillItem;
+
+    -- 如果状态是 2,表明先点的 右边技能位, 再点的 左边技能替换，此时 替换对应的
+    if self.clickState == 2 then
+        self:SwitchSelectSkill();
+        return;
+    end
+
+    self.clickState = 1;
+    self:RefreshSkillSelect(skillItem);
+end
+
+-- 右边 的 技能位skillPos 点击, 需要将选中的按钮 和 左边按钮高亮
+function SkillWidgetPanel:OnSkillPosClick(skillPosItem)
+
+    -- 点击了 普工 技能, 普工啥都不用管
+    if skillPosItem:IsNormalSkill() then
+        return;
+    end
+
+    -- 一开始点的是右边的 技能摇杆按钮, 然后 第二次又点了 另外一个按钮, 张庭凯的意思要切换这两个技能
+    if self.clickState == 2 and self.selectSkillPosItem ~= skillPosItem then
+
+        self:SendSwitchSkillPos(self.selectSkillPosItem.posId, self.selectSkillPosItem.skillId, skillPosItem.posId,
+            skillPosItem.skillId);
+    end
+
+    self.selectSkillPosItem = skillPosItem;
+
+    -- 分析流程 通 上面 点击左侧技能按钮的 注释
+    if self.clickState == 1 then
+        self:SwitchSelectSkill();
+        return;
+    end
+
+    self.clickState = 2;
+    self:RefreshSkillPosSelect(skillPosItem);
+
+end
+
+function SkillWidgetPanel:ResetSelect()
+    self:ResetState();
+
+    self:RefreshSkillSelect(nil);
+    self:RefreshSkillPosSelect(nil);
+
+end
+
+-- 还原一些 状态, 比如装配过程中 选中的一些状态
+function SkillWidgetPanel:ResetState()
+
+    -- 将 点击状态还原为 默认状态
+    self.clickState = 0;
+
+    self.selectSkillItem = nil;
+
+    self.selectSkillPosItem = nil;
+
+end
+
+-- 切换 需要装配的技能
+function SkillWidgetPanel:SwitchSelectSkill()
+    local leftSkillId = self.selectSkillItem.skillId;
+    local rightPosSkillID = self.selectSkillPosItem.skillId;
+
+    local rightPosId = self.selectSkillPosItem.posId;
+
+    -- 首先, 目前 左侧选择 的技能按钮 和 选择的右侧技能槽 按钮不能一样(非高亮 也是可以点的)
+    if leftSkillId == rightPosSkillID then
+        return;
+    end
+
+    local findPosID = nil;
+    -- 如果 装备的是 不同的技能, 就需要 去检查 技能槽中 是否已经填充了这个技能, 如果填充了,就换位置. 
+    for _, v in pairs(self.skillPosList) do
+        local posID = v.PosID; -- 技能位
+        local skillID = v.JobSkillID; -- 技能ID
+
+        -- 如果能在 技能槽中 找到左侧装配的按钮,那就 只是需要将 右侧选中的技能槽 跟 装配技能的技能槽换个位置即可
+        if leftSkillId == skillID then
+            findPosID = posID;
+            break
+        end
+    end
+
+    -- 技能到技能位
+    local switchSkillPosReq = CS.ProtoMsg.SwitchSkillPosReq();
+
+    switchSkillPosReq.CaseID = self.curCaseID;
+
+    -- 如果找到了 对应的槽位,那就将 两个槽位的 skillID 交换
+    if findPosID ~= nil then
+        switchSkillPosReq.List[rightPosId] = leftSkillId;
+        switchSkillPosReq.List[findPosID] = rightPosSkillID;
+    else
+        -- 如果 在右边的 技能槽位中没找到 左边的 技能,那就只需要替换 右边槽位 的技能id 为左边选中的 SkillID
+        switchSkillPosReq.List[rightPosId] = leftSkillId;
+    end
+
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+        switchSkillPosReq, false);
+
+end
+
+-- 切换 pos1 和 pos2 的技能
+function SkillWidgetPanel:SendSwitchSkillPos(pos1, skill1, pos2, skill2)
+    -- 技能到技能位
+    local switchSkillPosReq = CS.ProtoMsg.SwitchSkillPosReq();
+
+    switchSkillPosReq.CaseID = self.curCaseID;
+    switchSkillPosReq.List[pos1] = skill2;
+    switchSkillPosReq.List[pos2] = skill1;
+
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+        switchSkillPosReq, false);
+end
+
+-- 刷新可转职
+function SkillWidgetPanel:RefreshKeZhuanZhi()
+
+    self.m_KeZhuanZhi_Gob:SetActive(self.showCanTransferSkill);
+
+    -- 刷新可转职 描述
+    self.m_KeZhuanTitle.text =
+        StringFormat(LanguageHelp:GetLanguageByKey("SkillNew_33"), {self.module.transferJobLevel});
+
+    local playerLevel = GameManager.Instance:GetPlayerLevel();
+    local isKeZhuanZhi = playerLevel >= self.module.transferJobLevel;
+
+    self.m_KeZhuanZhi1_Gob:SetActive(not isKeZhuanZhi);
+    self.m_KeZhuanZhi2_Gob:SetActive(isKeZhuanZhi);
+end
+
+function SkillWidgetPanel:OnClickZhuanZhi()
+
+    local isOpen = CS.StarProject.Service.SystemOpen.SystemOpenManager.Instance:SystemIsOpen(SystemOpenType.TransferJob);
+
+    if not isOpen then
+        Util.ShowMessage(CS.StarProject.Service.SystemOpen.SystemOpenManager.Instance:GetSystemNoOpenTips(
+            SystemOpenType.TransferJob));
+        return;
+    end
+
+    UIManager.Instance:CloseAllLoadedWindowNWidget()
+
+    -- 跳转到转职界面
+    UIManager.Instance:OpenWindowAsync(UIDef.TransJobWindow, null, null, CS.StarProjectDef.MainPageCommond.HideBoth,
+        false, true);
+end
+
+function SkillWidgetPanel:OnLongPressDown(skillSwitchItem)
+    self:RefreshTips(skillSwitchItem, true);
+end
+
+function SkillWidgetPanel:OnLongPressUp(skillSwitchItem)
+    self:RefreshTips(skillSwitchItem, false);
+end
+
+function SkillWidgetPanel:InitTipsNodes()
+    self.m_tipsRoot = self.transform:Find("Tips");
+    self.m_tipsIcon = self.m_tipsRoot:Find("Top/Item/Icon"):GetComponent(typeof(Image));
+
+    self.m_tipsName = self.m_tipsRoot:Find("Top/Name"):GetComponent(typeof(Text));
+    self.m_tipsLevel = self.m_tipsRoot:Find("Top/LevelNum"):GetComponent(typeof(Text));
+
+    self.m_tagNode1 = self.m_tipsRoot:Find("Top/TagIcon1").gameObject;
+    self.m_tagDesc1 = self.m_tipsRoot:Find("Top/TagIcon1/TagDesc"):GetComponent(typeof(Text));
+    self.m_tagNode2 = self.m_tipsRoot:Find("Top/TagIcon2").gameObject;
+    self.m_tagDesc2 = self.m_tipsRoot:Find("Top/TagIcon2/TagDesc"):GetComponent(typeof(Text));
+
+    self.m_tipsDesc = self.m_tipsRoot:Find("Down/Desc"):GetComponent(typeof(Text));
+
+end
+
+function SkillWidgetPanel:RefreshTips(skillSwitchItem, isShow)
+
+    if not isShow then
+        self.m_tipsRoot.gameObject:SetActive(false);
+        return;
+    end
+
+    self.m_tipsRoot.gameObject:SetActive(true);
+
+    local skillId = skillSwitchItem.skillId;
+    local talentID = skillSwitchItem.talentID;
+    local level = skillSwitchItem.skillLV;
+
+    local skillDescCfg = GetJobSkillLevelDescCfg(talentID, level);
+    local maxLevel = GetJobSkillMaxLevel(skillId);
+
+    if skillDescCfg == nil then
+        return;
+    end
+
+    self.m_tipsName.text = skillDescCfg.SkillName;
+
+    if maxLevel ~= nil then
+        self.m_tipsLevel.text = level .. "/" .. maxLevel;
+    else
+        self.m_tipsLevel.text = level;
+    end
+
+    self.m_tipsDesc.text = skillDescCfg.Decs;
+
+    ResourceHelper:LoadIconAsync(self.m_tipsIcon, ResourceHelper.AtlasPathSkill, skillDescCfg.IconPath, false)
+
+    local talenCfg = GetTalentCfg(talentID);
+    if talenCfg == nil then
+        return;
+    end
+    local talentStr = string.split(talenCfg.TalentLabel, ',')
+
+    self.m_tagNode1:SetActive(false);
+    if talentStr ~= nil and talentStr[1] ~= nil then
+        self.m_tagNode1:SetActive(true);
+        self.m_tagDesc1.text = talentStr[1];
+    end
+
+    self.m_tagNode2:SetActive(false);
+    if talentStr ~= nil and talentStr[2] ~= nil then
+        self.m_tagNode2:SetActive(true);
+        self.m_tagDesc2.text = talentStr[2];
+    end
+
+    self:RefreshTipsPos(skillSwitchItem);
+end
+
+function SkillWidgetPanel:RefreshTipsPos(skillSwitchItem)
+    -- 初始对其位置的 锚点坐标,  后续 所有tips 节点坐标都采用 与锚点的相对坐标
+    local archorsPos = Vector2(-342, 160);
+
+    local worldPos = skillSwitchItem.transform:TransformPoint(Vector3.zero);
+
+    local curPos = self.m_SkillIContent.transform:InverseTransformPoint(worldPos);
+
+    -- 目前 x 轴坐标是 与 icon 的中心点 
+    local x = curPos.x - archorsPos.x;
+
+    local offsetY = curPos.y - archorsPos.y;
+    local y = 0;
+
+    -- 
+    if offsetY <= -260 then
+        y = -170;
+    elseif offsetY <= -200 then
+        y = -90;
+    else
+
+        y = 120;
+    end
+
+    self.m_tipsRoot.localPosition = Vector3(x, y, self.m_tipsRoot.position.z);
+
+end
+
+return SkillWidgetPanel;

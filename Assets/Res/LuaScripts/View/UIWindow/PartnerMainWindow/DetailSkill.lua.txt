@@ -1,0 +1,304 @@
+--[[
+*文件名   :   DetailSkill
+*内  容   :
+*说  明   :
+*创建日期 :   "2024/05/16 10:56:17"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+DetailSkill=class("DetailSkill",UIPanel)
+DetailSkill.m_Fold=nil;
+DetailSkill.m_Skills=nil;
+DetailSkill.m_Name=nil;
+DetailSkill.m_Level=nil;
+DetailSkill.m_SkillDesc=nil;
+DetailSkill.m_Text=nil;
+DetailSkill.m_tag=nil;
+DetailSkill.m_UpBtnText=nil;
+DetailSkill.OnBackCall=nil;
+DetailSkill.SkillList={}
+DetailSkill.Skill1Btn=nil;
+DetailSkill.Skill2Btn=nil;
+DetailSkill.Skill3Btn=nil;
+DetailSkill.Skill4Btn=nil;
+DetailSkill.Selects=nil;
+DetailSkill.CurSelectID=nil;
+DetailSkill.NextBtn=nil;
+DetailSkill.NextConfition=nil;
+
+local FoldFunc=nil;
+local Skill1Func=nil;
+local Skill2Func=nil;
+local Skill3Func=nil;
+local Skill4Func=nil;
+local NextBtnFunc=nil;
+
+function DetailSkill:ctor(go)
+	self.prefab=go;
+	self.m_Fold=self:Find("Title/Fold"):GetComponent(typeof(JButton));
+	self.m_Skills=self:Find("Skills").gameObject;
+	self.m_Name=self:Find("SkillInfo/Name"):GetComponent(typeof(Text));
+	self.m_Level=self:Find("SkillInfo/Level"):GetComponent(typeof(Text));
+	self.m_SkillDesc=self:Find("SkillInfo/SV2/Viewport/Content/SkillDesc"):GetComponent(typeof(Text));
+	self.m_Text=self:Find("SkillInfo/Tag/Text"):GetComponent(typeof(Text));
+	self.m_tag=self:Find("SkillInfo/Tag"):GetComponent(typeof(Image));
+	self.Skill1Btn=self:Find("Skills/Skill1"):GetComponent(typeof(JButton));
+	self.Skill2Btn=self:Find("Skills/Skill2"):GetComponent(typeof(JButton));
+	self.Skill3Btn=self:Find("Skills/Skill3"):GetComponent(typeof(JButton));
+	self.Skill4Btn=self:Find("Skills/Skill4"):GetComponent(typeof(JButton));
+	self.NextBtn=self:Find("SkillInfo/UpBtn"):GetComponent(typeof(JButton));
+	self.m_UpBtnText=self:Find("SkillInfo/UpBtn/Text"):GetComponent(typeof(Text));
+	self.NextConfition=self:Find("SkillInfo/Tips (1)"):GetComponent(typeof(Text));
+	self.SkillList={}
+	table.insert(self.SkillList,{Go=self.Skill1Btn.gameObject})
+	table.insert(self.SkillList,{Go=self.Skill2Btn.gameObject})
+	table.insert(self.SkillList,{Go=self.Skill3Btn.gameObject})
+	table.insert(self.SkillList,{Go=self.Skill4Btn.gameObject})
+
+	self.Selects={}
+	table.insert(self.Selects,self.Skill1Btn.transform:Find("Select").gameObject)
+	table.insert(self.Selects,self.Skill2Btn.transform:Find("Select").gameObject)
+	table.insert(self.Selects,self.Skill3Btn.transform:Find("Select").gameObject)
+	table.insert(self.Selects,self.Skill4Btn.transform:Find("Select").gameObject)
+
+	self.Locks={}
+	table.insert(self.Locks,self.Skill1Btn.transform:Find("Lock").gameObject)
+	table.insert(self.Locks,self.Skill2Btn.transform:Find("Lock").gameObject)
+	table.insert(self.Locks,self.Skill3Btn.transform:Find("Lock").gameObject)
+	table.insert(self.Locks,self.Skill4Btn.transform:Find("Lock").gameObject)
+
+	FoldFunc=function() self:OnClickFold(); end;
+	Skill1Func=function() self:OnClickSkill1(); end
+	Skill2Func=function() self:OnClickSkill2(); end
+	Skill3Func=function() self:OnClickSkill3(); end
+	Skill4Func=function() self:OnClickSkill4(); end
+	NextBtnFunc=function()
+		self:OnNextBtn()
+	end
+	self:Start();
+
+end
+
+function DetailSkill:Start()
+	self.m_Fold.OnClick= FoldFunc;
+	self.Skill1Btn.OnClick= Skill1Func;
+	self.Skill2Btn.OnClick= Skill2Func;
+	self.Skill3Btn.OnClick= Skill3Func;
+	self.Skill4Btn.OnClick= Skill4Func;
+	self.NextBtn.OnClick= NextBtnFunc;
+end
+
+
+function DetailSkill:OnNextBtn()
+
+
+
+	self.SkillList[self.CurSelectID].IsNext=not self.SkillList[self.CurSelectID].IsNext;
+	if self.SkillList[self.CurSelectID].IsNext then
+		self.m_UpBtnText.text=LanguageHelp:GetLanguageByKey("partner_sys_30")
+		if self.SkillList[self.CurSelectID].NextCfg~=nil then
+			self.m_Level.text=StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"),{self.SkillList[self.CurSelectID].NextCfg.Level})
+			self.m_Name.text=self.SkillList[self.CurSelectID].NextCfg.SkillName
+			self.m_SkillDesc.text=self.SkillList[self.CurSelectID].NextCfg.Decs
+			self.NextConfition.text=""
+		end
+	else
+		self.m_UpBtnText.text=LanguageHelp:GetLanguageByKey("partner_sys_29")
+		if self.SkillList[self.CurSelectID].Cfg~=nil then
+			self.m_Level.text=StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"),{self.SkillList[self.CurSelectID].Cfg.Level})
+			self.m_Name.text=self.SkillList[self.CurSelectID].Cfg.SkillName
+			self.m_SkillDesc.text=self.SkillList[self.CurSelectID].Cfg.Decs
+			self.NextConfition.text=StringFormat(LanguageHelp:GetLanguageByKey("partner_sys_26"),{self.SkillList[self.CurSelectID].NextStar})
+		end
+	end
+end
+
+function DetailSkill:OnEnable()
+
+end
+
+function DetailSkill:OnDisable()
+
+end
+
+function DetailSkill:OnDestroy()
+
+end
+
+function DetailSkill:GetParSkillDataCell(parId,starId)
+	for k, v in pairs(ConfigDataAccessor.ParSkill) do
+		if v.Par == parId and v.Star == starId then
+			return v;
+		end
+	end
+	return nil;
+end
+
+function DetailSkill:GetParSkillNextLevelStar(parId,level)
+	for k, v in pairs(ConfigDataAccessor.ParSkill) do
+		if v.Par == parId and v.ParSkillLV == level then
+			return v.Star
+		end
+	end
+
+	return 0
+end
+
+
+function DetailSkill:GetSelfSkillNextLevelStar(parId,level,index)
+
+	local star=6;
+	for k, v in pairs(ConfigDataAccessor.ParSkill) do
+		if v.Par == parId and v.SelfSkillLV[index] == level then
+			if v.Star<star then
+				star= v.Star
+			end
+		end
+	end
+
+	return star
+end
+
+
+function DetailSkill:OnOpen(data,callback)
+
+	self.OnBackCall=callback;
+	local config=ConfigDataAccessor.Partner[data.Index];
+	if config~=nil then
+
+		local parSkillCfg = self:GetParSkillDataCell(data.Index,data.CurStar);
+		if parSkillCfg ~= nil then
+			self.Skills={}
+			local locked=false;
+			local level=parSkillCfg.ParSkillLV;
+			if level<1 then
+				locked=true
+				level=1;
+			end
+			self.SkillList[1].IsNext=false;
+			self.SkillList[1].IsMax=parSkillCfg.ParSkillLV==2
+			self.SkillList[1].Locked=locked
+			self.SkillList[1].NextStar=self:GetParSkillNextLevelStar(data.Index,parSkillCfg.ParSkillLV+1)
+			local array=ConfigDataAccessor.PartnerSkillDesc[parSkillCfg.ParSkill]
+			if array~=nil then
+				local ParSkill=	array[level]
+				if ParSkill~=nil then
+					local go= self.SkillList[1].Go;
+					self.SkillList[1].Cfg=ParSkill;
+					self.SkillList[1].NextCfg=array[level+1];
+					local icon=go.transform:GetComponent(typeof(Image));
+					if icon~=nil and ParSkill.IconPath~="" then
+						self:GetSpriteByAtlas("ui/icons/atlas/IconSkill1",ParSkill.IconPath,function (sp)
+								icon.sprite=sp
+							end);
+						--table.insert(self.Skills,{Name=ParSkill.SkillName,IsPassive=false, Icon=ParSkill.IconPath,Desc=ParSkill.Decs})
+					end
+					self.Locks[1]:SetActive(self.SkillList[1].Locked)
+					--table.insert(self.Skills,{Name=ParSkill.SkillName,IsPassive=false, Icon=ParSkill.IconPath,Desc=ParSkill.Decs})
+				end
+			end
+			local index=2;
+			for i = 1, #parSkillCfg.SelfSkill do
+				local level=parSkillCfg.SelfSkillLV[i]
+				local locked=false;
+				if level<1 then
+					locked=true
+					level=1;
+				end
+				self.SkillList[index].Locked=locked
+				self.SkillList[index].IsNext=false;
+				self.SkillList[index].IsMax=parSkillCfg.SelfSkillLV[i]==2
+				self.SkillList[index].NextStar=self:GetSelfSkillNextLevelStar(data.Index,parSkillCfg.SelfSkillLV[i]+1,i)
+				local array=ConfigDataAccessor.PartnerSkillDesc[parSkillCfg.SelfSkill[i]]
+				if array~=nil then
+					local SelfSkill=array[level]
+					if SelfSkill~=nil then
+						if index<5 then
+							local go= self.SkillList[index].Go;
+							self.SkillList[index].Cfg=SelfSkill;
+							self.SkillList[index].NextCfg=array[level+1];
+							self.Locks[index]:SetActive(self.SkillList[index].Locked)
+							local icon=go.transform:GetComponent(typeof(Image));
+							if icon~=nil and SelfSkill.IconPath~="" then
+								self:GetSpriteByAtlas("ui/icons/atlas/IconSkill1",SelfSkill.IconPath,function (sp)
+										icon.sprite=sp
+									end);
+								--table.insert(self.Skills,{Name=SelfSkill.SkillName,IsPassive=true,Icon=SelfSkill.IconPath,Desc=SelfSkill.Decs})
+								index=index+1;
+							end
+
+						end
+						--table.insert(self.Skills,{Name=SelfSkill.SkillName,IsPassive=true,Icon=SelfSkill.IconPath,Desc=SelfSkill.Decs})
+					end
+				end
+
+			end
+			--self.m_PropScrollView:ContinueScroll(#self.Skills);
+		end
+
+	end
+	self:SetSelect(1)
+end
+
+function DetailSkill:OnClose(arg)
+
+end
+
+function DetailSkill:SetSelect(id)
+
+	for k, v in pairs(self.Selects) do
+		v:SetActive(false)
+	end
+	
+	local last=#self.SkillList
+	--PartnerDetailWidget_27
+	--第一个
+	if id== 1 then
+		self.m_Text.text=LanguageHelp:GetLanguageByKey("PartnerDetailWidget_25")
+		self.m_tag.color=ColorDefine.Instance:GetHtmlColor("#d72b2b")
+	elseif id== last then
+		self.m_Text.text=LanguageHelp:GetLanguageByKey("PartnerDetailWidget_57")
+		self.m_tag.color=ColorDefine.Instance:GetHtmlColor("#493bbd")
+	else
+		self.m_Text.text=LanguageHelp:GetLanguageByKey("PartnerDetailWidget_27")
+		self.m_tag.color=ColorDefine.Instance:GetHtmlColor("#8c88ab")
+	end
+	self.CurSelectID=id
+	self.Selects[id]:SetActive(true)
+	self.m_UpBtnText.text=LanguageHelp:GetLanguageByKey("partner_sys_29")
+	self.m_Name.text=self.SkillList[id].Cfg.SkillName
+
+	self.m_Level.text=StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"),{self.SkillList[id].Cfg.Level})
+	self.m_SkillDesc.text=self.SkillList[id].Cfg.Decs
+	self.NextConfition.gameObject:SetActive(not self.SkillList[id].IsMax)
+	self.NextBtn.gameObject:SetActive(not self.SkillList[id].IsMax)
+
+	if not self.SkillList[id].IsMax then
+		self.NextConfition.text=StringFormat(LanguageHelp:GetLanguageByKey("partner_sys_26"),{self.SkillList[id].NextStar})
+	end
+end
+
+function DetailSkill:OnClickSkill1()
+	self:SetSelect(1)
+end
+
+function DetailSkill:OnClickSkill2()
+	self:SetSelect(2)
+end
+
+function DetailSkill:OnClickSkill3()
+	self:SetSelect(3)
+end
+
+function DetailSkill:OnClickSkill4()
+	self:SetSelect(4)
+end
+
+
+function DetailSkill:OnClickFold()
+	self.OnBackCall();
+end
+
+
+
+return  DetailSkill

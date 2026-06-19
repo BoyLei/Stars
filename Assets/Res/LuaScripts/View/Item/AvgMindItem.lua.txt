@@ -1,0 +1,191 @@
+--[[
+*文件名   :   AvgMindItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/7 16:32:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local AvgMindItem = {}
+
+AvgMindItem.__index = AvgMindItem
+
+function AvgMindItem:New(_go)
+    local self = {}
+    setmetatable(self, AvgMindItem)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.m_rectBg = self.transform:GetComponent(typeof(RectTransform))
+    self.m_TalkBoxContent = self.transform:Find("TalkBoxContent"):GetComponent(typeof(Text))
+    self.m_TalkBoxName = self.transform:Find("Name"):GetComponent(typeof(Text))
+    self.m_TalkBoxHead = self.transform:Find("headBg/head"):GetComponent(typeof(Image))
+
+    self.go_points = self.transform:Find("Points").gameObject
+
+    self.tw_content = nil
+    self.talkConetntNow = nil
+    self.text_speed = 30
+
+    return self --返回自身
+end
+
+function AvgMindItem:InitItem(onFinishedTalk, onFinishedWaitting, onUpdatePos)
+    self.OnFinishedTalk = onFinishedTalk
+    self.OnFinishedWaitting = onFinishedWaitting
+    self.OnUpdatePos = onUpdatePos
+    self:SetUse(false)
+end
+
+function AvgMindItem:SetUse(b)
+    self.IsUsed = b
+    self.gameObject:SetActive(b)
+end
+
+function AvgMindItem:SetItem(info, selectCallBack)
+    self.SelectCallBack = selectCallBack
+
+    self:SetUse(true)
+
+    self.talkConetntNow = info
+    self:RefeshTalkInfo()
+
+    SoundManager.Instance:PlayEventName("UI_Telepathy_Message_01", nil, nil)
+end
+
+function AvgMindItem:RefeshTalkInfo()
+    self.transform:SetAsLastSibling()
+
+    DOVirtual.DelayedCall(
+        0.05,
+        function()
+            self:ResizeTalkBg()
+        end
+    )
+
+    if self.tw_content ~= nil then
+        self.tw_content:Kill()
+    end
+    if self.tw_delay ~= nil then
+        self.tw_delay:Kill()
+    end
+
+    self.m_TalkBoxContent.text = ""
+    self.m_TalkBoxName.text = self.talkConetntNow.Name2
+
+    -- 头像
+    local sid = math.floor(tonumber(self.talkConetntNow.Spine_id))
+    if sid == 1 then
+        local jobDataCell = ConfigDataAccessor.Job[GameManager.Instance:GetPlayerJob()]
+        if jobDataCell ~= nil then
+            local avatarDataCell = ConfigDataAccessor.Avatar[jobDataCell.AvatarID]
+            if avatarDataCell ~= nil then
+                local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID]
+                if headCfg ~= nil then
+                    ResourceHelper:LoadIconByAtlasAsync(self.m_TalkBoxHead, headCfg.HeadAtlasName, headCfg.MinHead, false)
+                end
+            end
+        end
+    else
+        local avatarDataCell = ConfigDataAccessor.Avatar[sid]
+        if avatarDataCell ~= nil then
+            local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID]
+            if headCfg ~= nil then
+                ResourceHelper:LoadIconByAtlasAsync(self.m_TalkBoxHead, headCfg.HeadAtlasName, headCfg.MinHead, false)
+            end
+        end
+    end
+
+    self:ResizeTalkBg()
+
+    --延迟一段时间后调用
+    if self.talkConetntNow.Send_delay > 0 then
+        self.go_points:SetActive(true)
+        --等待时间
+        local waitTime = self.talkConetntNow.Send_delay / 1000
+        self.tw_delay =
+            DOVirtual.DelayedCall(
+            waitTime,
+            function()
+                self.OnFinishedWaitting()
+                self.go_points:SetActive(false)
+                self:ShowContent()
+            end
+        )
+        self.OnUpdatePos()
+    else
+        self.go_points:SetActive(false)
+        self.OnFinishedWaitting()
+        self:ShowContent()
+    end
+end
+
+function AvgMindItem:ShowContent()
+    --[[
+
+
+
+	--显示内容
+	self.tw_content=self.m_TalkBoxContent:DOText(self.talkConetntNow.Dialog_desc2,self.text_speed):SetSpeedBased():SetEase(Ease.Linear):OnComplete(function ()
+		
+		if self.OnFinishedTalk~=nil then
+			self.OnFinishedTalk();
+		end
+		
+	end):OnUpdate(function ()
+		--计算文本框大小
+		self:ResizeTalkBg();
+	end);
+	]]
+    self.m_TalkBoxContent.text = self.talkConetntNow.Dialog_desc2
+    DOVirtual.DelayedCall(
+        0.05,
+        function()
+            if self.SelectCallBack ~= nil then
+                self.OnFinishedTalk()
+                self:ResizeTalkBg()
+                self.SelectCallBack()
+                self.SelectCallBack = nil
+            else
+                self.OnFinishedTalk()
+                self:ResizeTalkBg()
+            end
+        end
+    )
+
+    --[[
+	self.m_TalkBoxContent.text=self.talkConetntNow.Dialog_desc2;
+	self.OnFinishedTalk();
+	self:ResizeTalkBg();
+	]]
+    --播放语音
+    if self.talkConetntNow.Voice_id ~= 0 then
+    --Util.PlayAvgVoice("Weapon_sword__pickup");
+    end
+end
+
+function AvgMindItem:ResizeTalkBg()
+    self.m_rectBg.sizeDelta = Vector2(self.m_rectBg.sizeDelta.x, self.m_TalkBoxContent.preferredHeight + 58)
+    self.OnUpdatePos()
+end
+
+function AvgMindItem:FinishTalkNow()
+    if self.tw_content ~= nil then
+        self.tw_content:Kill()
+    end
+
+    self.m_TalkBoxContent.text = self.talkConetntNow.Dialog_desc2
+
+    if self.SelectCallBack ~= nil then
+        self.OnFinishedTalk()
+        self:ResizeTalkBg()
+        self.SelectCallBack()
+        self.SelectCallBack = nil
+    else
+        self.OnFinishedTalk()
+        self:ResizeTalkBg()
+    end
+end
+
+return AvgMindItem

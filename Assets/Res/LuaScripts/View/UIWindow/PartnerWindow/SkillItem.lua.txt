@@ -1,0 +1,49 @@
+---------------------------------------------------------------------
+-- Star (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2022-12-19 15:34:38
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class SkillItem
+SkillItem = class("SkillItem",UIPanel)
+SkillItem.SkillName=nil;
+SkillItem.Icon=nil;
+SkillItem.Tag1=nil;
+SkillItem.Tag2=nil;
+SkillItem.SkillDesc=nil;
+SkillItem.IsPassive=false
+function SkillItem:ctor(go,parent,atlas)
+	self.prefab=go;
+	self.AtlasPath=atlas;
+	self.Btn=go:GetComponent(typeof(JButton));
+	self.SkillName=self:Find("SkillName"):GetComponent(typeof(Text));
+	self.Icon=self:Find("SkillBg/Icon"):GetComponent(typeof(Image));
+	self.Tag1=self:Find("tag1").gameObject
+	self.Tag2=self:Find("tag2").gameObject
+	self.SkillDesc=self:Find("SkillDesc"):GetComponent(typeof(Text));
+	self.Btn.OnClick=(function() self:OnClickHandler() end);
+end
+
+--点击事件
+function SkillItem:OnClickHandler()
+
+end
+
+--数据更新
+function SkillItem:UpdateContent(data)
+	self.SkillName.text=data.Name
+	self.IsPassive=data.IsPassive
+	self.Tag1:SetActive(not self.IsPassive)
+	self.Tag2:SetActive(self.IsPassive)
+	if data.Icon~=nil and data.Icon~="" then
+		self:GetSpriteByAtlas("ui/icons/atlas/IconSkill1",data.Icon,function (sp)
+				self.Icon.sprite=sp
+		end);
+	end
+	self.SkillDesc.text=data.Desc
+end
+
+return  SkillItem;

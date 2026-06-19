@@ -1,0 +1,798 @@
+--[[
+*文件名   :   FabricatePart
+*内  容   :
+*说  明   :
+*创建日期 :   "2024/01/12 11:06:35"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]] 
+
+FabricatePart = class("FabricatePart", UIPanel)
+local GatherPartItem = require("View/UIWindow/LivingSkillsWindow/GatherPartItem")
+local OutputItem = require("View/UIWindow/LivingSkillsWindow/OutputItem")
+local InputItem = require("View/UIWindow/LivingSkillsWindow/InputItem")
+
+FabricatePart.m_FabricateBtn = nil;
+FabricatePart.m_Tabs = nil;
+FabricatePart.m_JobIcon = nil;
+FabricatePart.m_ScrollView = nil;
+FabricatePart.m_ItemGrid = nil;
+FabricatePart.m_BgRare = nil;
+FabricatePart.m_Output = nil;
+FabricatePart.m_Input = nil;
+FabricatePart.m_Cost = nil;
+FabricatePart.m_JobName = nil;
+FabricatePart.m_JobLv = nil;
+FabricatePart.m_Exp = nil;
+FabricatePart.m_ExpObj = nil;
+FabricatePart.m_Break = nil;
+FabricatePart.m_TaskName = nil;
+FabricatePart.m_TaskGoto = nil;
+FabricatePart.m_Icon = nil;
+FabricatePart.m_Name = nil;
+FabricatePart.m_Level = nil;
+FabricatePart.m_Info = nil;
+FabricatePart.m_Desc = nil;
+FabricatePart.m_OutputItemGrid = nil;
+FabricatePart.m_OutputScrollView = nil;
+FabricatePart.m_InputItemGrid = nil;
+FabricatePart.m_InputScrollView = nil;
+FabricatePart.m_Num = nil;
+FabricatePart.m_left = nil;
+FabricatePart.m_right = nil;
+FabricatePart.m_jian = nil;
+FabricatePart.m_jia = nil;
+FabricatePart.m_Input = nil;
+FabricatePart.m_ExpValue = nil;
+FabricatePart.m_ChanChuText = nil;
+FabricatePart.m_OwnText = nil;
+FabricatePart.m_FabricateText = nil;
+FabricatePart.m_Count = nil;
+FabricatePart.m_CostItem = nil;
+FabricatePart.m_CostBtn = nil;
+FabricatePart.m_CostBgRare = nil;
+FabricatePart.m_CostIcon = nil;
+FabricatePart.m_CostEngery = nil;
+FabricatePart.m_CostEngeryIcon = nil;
+FabricatePart.m_CostNum = nil;
+FabricatePart.DataLists = {}
+FabricatePart.GridItemList = {}
+FabricatePart.GridItemOutPutList = {}
+FabricatePart.OutputDataLists = {}
+FabricatePart.CurrentJob = 1;
+FabricatePart.CurrntSelect = 0;
+FabricatePart.GridItemInPutList = {}
+FabricatePart.InputDataLists = {}
+FabricatePart.BreakTaskID = 0;
+FabricatePart.CreateCnt = 0; -- 制造个数
+FabricatePart.MinCnt = 1;
+FabricatePart.MaxCnt = 1;
+FabricatePart.CreatID = 0;
+FabricatePart.SelectInfo = nil;
+FabricatePart.CollectSpeed = 100;
+FabricatePart.AdditionActiveLV = 0;
+FabricatePart.OnShowTipsAction=nil;
+FabricatePart.m_OutputIntro=nil;
+local FabricateBtnFunc = nil;
+local leftFunc = nil;
+local rightFunc = nil;
+local jianFunc = nil;
+local jiaFunc = nil;
+local TaskGotoFunc = nil;
+local UnLockClick = nil;
+local IntroOnFunc=nil;
+local MetFunc=nil;
+local JobConfig = {
+	[201] = {
+		SpriteName = "Live_icon_12",
+		JobName = LanguageHelp:GetLanguageByKey("Local_Str_JobName_12")
+	},
+	[202] = {
+		SpriteName = "Live_icon_13",
+		JobName = LanguageHelp:GetLanguageByKey("Local_Str_JobName_13")
+	},
+	[203] = {
+		SpriteName = "Live_icon_14",
+		JobName = LanguageHelp:GetLanguageByKey("Local_Str_JobName_14")
+	}
+}
+
+local BaseJob = 200;
+
+function FabricatePart:ctor(go, atlas,action)
+	self.prefab = go;
+	self.AtlasPath = atlas;
+	self.OnShowTipsAction=action;
+	self.m_FabricateBtn = self:Find("FabricateBtn"):GetComponent(typeof(JButton));
+	self.m_FabricateText = self:Find("FabricateBtn/Text"):GetComponent(typeof(Text));
+	self.m_Tabs = self:Find("Tabs"):GetComponent(typeof(StarUITabMenu));
+	self.m_JobIcon = self:Find("JobInfo/JobIcon"):GetComponent(typeof(Image));
+	self.m_ScrollView = self:Find("Scroll View"):GetComponent(typeof(SuperScrollViewController));
+	self.m_ItemGrid = self:Find("ItemGrid").gameObject;
+	self.m_BgRare = self:Find("ItemInfo/BgRare"):GetComponent(typeof(Image));
+	self.m_Output = self:Find("Output").gameObject;
+	self.m_Input = self:Find("Input").gameObject;
+	self.m_CostEngery = self:Find("CostIcon").gameObject;
+	self.m_Cost = self:Find("CostIcon/Cost"):GetComponent(typeof(Text));
+	self.m_CostEngeryIcon = self:Find("CostIcon/Icon").gameObject;
+	self.m_JobName = self:Find("JobInfo/JobName"):GetComponent(typeof(Text));
+	self.m_JobLv = self:Find("JobInfo/JobLv"):GetComponent(typeof(Text));
+	self.m_Exp = self:Find("JobInfo/Exp"):GetComponent(typeof(Slider));
+	self.m_ExpObj=self:Find("JobInfo/Exp").gameObject
+	self.m_ExpValue = self:Find("JobInfo/Exp/ExpValue"):GetComponent(typeof(Text));
+	self.m_Icon = self:Find("ItemInfo/BgRare/Icon"):GetComponent(typeof(Image));
+	self.m_Name = self:Find("ItemInfo/Name"):GetComponent(typeof(Text));
+	self.m_Level = self:Find("ItemInfo/Name/Level"):GetComponent(typeof(Text));
+	self.m_Info = self:Find("ItemInfo/Info"):GetComponent(typeof(Text));
+	self.m_Desc = self:Find("ItemInfo/Desc"):GetComponent(typeof(Text));
+	self.m_OutputItemGrid = self:Find("Output/ItemGrid").gameObject;
+	self.m_OutputScrollView = self:Find("Output/Scroll View"):GetComponent(typeof(SuperScrollViewController));
+	self.m_InputItemGrid = self:Find("Input/ItemGrid").gameObject;
+	self.m_InputScrollView = self:Find("Input/Scroll View"):GetComponent(typeof(SuperScrollViewController));
+	self.m_Count = self:Find("Count").gameObject;
+	self.m_Num = self:Find("Count/Num"):GetComponent(typeof(Text));
+	self.m_left = self:Find("Count/left"):GetComponent(typeof(JButton));
+	self.m_right = self:Find("Count/right"):GetComponent(typeof(JButton));
+	self.m_jian = self:Find("Count/jian"):GetComponent(typeof(JButton));
+	self.m_jia = self:Find("Count/jia"):GetComponent(typeof(JButton));
+	self.m_Input = self:Find("Count/Input"):GetComponent(typeof(InputField));
+	self.m_ChanChuText = self:Find("ItemInfo/chanchu/ChanChuText"):GetComponent(typeof(Text));
+	self.m_OwnText = self:Find("ItemInfo/own/OwnText"):GetComponent(typeof(Text));
+
+	self.m_CostItem = self:Find("CostItem").gameObject;
+	self.m_CostBgRare = self:Find("CostItem/BgRare"):GetComponent(typeof(Image));
+	self.m_CostBtn = self:Find("CostItem/BgRare"):GetComponent(typeof(JButton));
+	self.m_CostIcon = self:Find("CostItem/BgRare/Icon"):GetComponent(typeof(Image));
+	self.m_CostNum = self:Find("CostItem/Count"):GetComponent(typeof(Text));
+	self.m_Break = self:Find("JobInfo/Break").gameObject
+	self.m_TaskName = self:Find("JobInfo/Break/TaskName"):GetComponent(typeof(Text));
+	self.m_TaskGoto = self:Find("JobInfo/Break/Goto"):GetComponent(typeof(JButton));
+	self.m_OutputIntro=self:Find("Output/button"):GetComponent(typeof(JButton));
+	FabricateBtnFunc = function()
+		self:OnClickFabricateBtn();
+	end;
+	leftFunc = function()
+		self:OnClickleft();
+	end;
+	rightFunc = function()
+		self:OnClickright();
+	end;
+	jianFunc = function()
+		self:OnClickjian();
+	end;
+	jiaFunc = function()
+		self:OnClickjia();
+	end;
+	TaskGotoFunc = function()
+		self:OnTaskGoto()
+	end;
+	UnLockClick = function()
+		self:UnLockBtn()
+	end;
+	IntroOnFunc=function()
+		self:OnIntroClick()
+	end
+	
+	MetFunc=function(data)
+		self:OnLifeSkillUnlockFormulationRet(data)
+	end
+	
+	self.CollectSpeed = 100;
+	self.m_ScrollView:NewScroll(self.m_ItemGrid, 0, function(tr, idx)
+			self:OnGridItemRefesh(tr, idx);
+		end);
+
+	self.m_OutputScrollView:NewScroll(self.m_OutputItemGrid, 0, function(tr, idx)
+			self:OnOutPutGridItemRefesh(tr, idx);
+		end);
+
+	self.m_InputScrollView:NewScroll(self.m_InputItemGrid, 0, function(tr, idx)
+			self:OnInPutGridItemRefesh(tr, idx);
+		end);
+
+	self:Start()
+	self.GridItemList = {}
+end
+
+function FabricatePart:Start()
+	self.m_FabricateBtn.OnClick = FabricateBtnFunc;
+	self.m_left.OnClick = leftFunc;
+	self.m_right.OnClick = rightFunc;
+	self.m_jian.OnClick = jianFunc;
+	self.m_jia.OnClick = jiaFunc;
+	self.m_TaskGoto.OnClick = TaskGotoFunc;
+
+	self.m_CostBtn.OnClick = UnLockClick;
+
+	self.m_OutputIntro.OnClick= IntroOnFunc;
+	CS.SGF.Network.MsgRetManager.Instance:OnMessageEnum(MetFunc, CS.MsgIDEnum.LifeSkillUnlockFormulationReqID);
+end
+
+function FabricatePart:OnIntroClick()
+	if self.OnShowTipsAction~=nil then
+		self.OnShowTipsAction("LivingSkillsWindow_Info_1")
+	end
+end
+
+function FabricatePart:UnLockBtn()
+	if self.SelectInfo ~= nil and self.SelectInfo.Config~=nil and self.SelectInfo.Config.UnlockItem>0 then
+		LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",
+			{self.SelectInfo.Config.UnlockItem, false, nil, self.m_CostBgRare.transform, 0});
+	end
+end
+
+function FabricatePart:OnTaskGoto()
+	if self.BreakTaskID > 0 then
+		local taskinfo = TaskHelper.GetTaskConfig(self.BreakTaskID)
+		if taskinfo ~= nil then
+			if taskinfo.TaskFinishInfo.Targets.Count > 0 then
+				local target = taskinfo.TaskFinishInfo.Targets[0].Target;
+				if target ~= nil and target.FindPath ~= nil then
+					TaskHelper.FindPathByTask(target.MapID, target.FindPath,target.TargetID)
+					LuaModuleDispatcher:SendMessage(ModuleDef.LivingSkillsModule, "CloseSkillsWindow", {});
+				end
+			end
+		end
+	end
+end
+
+function FabricatePart:OnLifeSkillUnlockFormulationRet(args)
+	local RetMsgID = args.MsgRet.RetMsgID; -- 对应的消息号(这个可以判断是哪个协议)
+	local RetCode = args.MsgRet.RetCode;
+	self.WaitingServerRet = false;
+	if RetCode == 0 then
+		self:InitItemList();
+		self:SetNeedCount();
+	end
+end
+
+function FabricatePart:OnGridItemRefesh(tr, idx)
+	if self.GridItemList == nil then
+		return;
+	end
+
+	for i = 1, #self.GridItemList do
+		if self.GridItemList[i].transform == tr then
+			self.GridItemList[i]:UpdateContent(self.DataLists[idx + 1], self.CurrntSelect, function(Index)
+					self:OnSelectCallBack(Index)
+				end); -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+			return
+		end
+	end
+
+	local bi = GatherPartItem.new(tr.gameObject, self.AtlasPath);
+	bi.prefab:SetActive(true);
+	bi:UpdateContent(self.DataLists[idx + 1], self.CurrntSelect, function(Index)
+			self:OnSelectCallBack(Index)
+		end); -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+	table.insert(self.GridItemList, bi);
+end
+
+function FabricatePart:OnOutPutGridItemRefesh(tr, idx)
+	if self.GridItemOutPutList == nil then
+		return;
+	end
+	for i = 1, #self.GridItemOutPutList do
+		if self.GridItemOutPutList[i].transform == tr then
+			self.GridItemOutPutList[i]:UpdateContent(self.OutputDataLists[idx + 1]); -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+			return
+		end
+	end
+
+	local bi = OutputItem.new(tr.gameObject, self.AtlasPath);
+	bi.prefab:SetActive(true);
+	bi:UpdateContent(self.OutputDataLists[idx + 1]); -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+	table.insert(self.GridItemOutPutList, bi);
+end
+
+function FabricatePart:OnInPutGridItemRefesh(tr, idx)
+	if self.GridItemInPutList == nil then
+		return;
+	end
+	for i = 1, #self.GridItemInPutList do
+		if self.GridItemInPutList[i].transform == tr then
+			self.GridItemInPutList[i]:UpdateContent(self.InputDataLists[idx + 1]); -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+			return
+		end
+	end
+
+	local bi = InputItem.new(tr.gameObject, self.AtlasPath);
+	bi.prefab:SetActive(true);
+	bi:UpdateContent(self.InputDataLists[idx + 1]); -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+	table.insert(self.GridItemInPutList, bi);
+end
+
+function FabricatePart:OnSelectCallBack(Index)
+	for i = 1, #self.GridItemList do
+		if self.GridItemList[i] ~= nil then
+			if self.GridItemList[i].ID == Index.Config.ID then
+				self.GridItemList[i]:Select(true)
+			else
+				self.GridItemList[i]:Select(false)
+			end
+		end
+	end
+	self.CurrntSelect = Index;
+	self.SelectInfo = Index
+	self.CreatID = Index.Config.ID;
+	local less = false;
+	local cfgs = Index.Config;
+	if cfgs ~= nil then
+		self.CollectSpeed = 100;
+		-- 生效等级
+		if self.AdditionActiveLV > 0 and cfgs.Level <= self.AdditionActiveLV then
+			self.CollectSpeed = cfgs.CollectSpeed;
+		end
+		self.OutputDataLists = {}
+		local config = ConfigDataAccessor.Item[cfgs.BasicOutput]
+		if config ~= nil then
+			self.m_Name.text = GetQualityColor(config.Quality) .. config.Name .. "</color>"
+			local quality = config.Quality;
+			ResourceHelper:LoadIconByAtlasAsync(self.m_BgRare, ResourceHelper.AtlasPathCommonItem,
+				"Bag_Grid_sq" .. quality, false)
+			ResourceHelper:LoadIconAsync(self.m_Icon, "", config.Icon, false)
+			self.m_Desc.text = config.Desc
+		else
+			LogError("找不到配置" .. cfgs.BasicOutput)
+		end
+
+		if cfgs.UnlockItem > 0 then
+			local costCfg = ConfigDataAccessor.Item[cfgs.UnlockItem]
+			if costCfg ~= nil then
+
+				local quality = costCfg.Quality;
+				ResourceHelper:LoadIconByAtlasAsync(self.m_CostBgRare, ResourceHelper.AtlasPathCommonItem,
+					"Bag_Grid_sq" .. quality, false)
+				ResourceHelper:LoadIconAsync(self.m_CostIcon, "", costCfg.Icon, false)
+
+				local ownCnt = BusinessManager.Instance:GetCurrencyNum(cfgs.UnlockItem)
+				if ownCnt < 1 then
+					self.m_CostNum.text = "<color=#ff0000>" .. ownCnt .. "</color>/1"
+
+				else
+					self.m_CostNum.text = ownCnt .. "/1";
+				end
+			else
+				LogError("找不到配置" .. cfgs.UnlockItem)
+			end
+		end
+		
+		self.m_Info.text=cfgs.CreatSource
+		
+		-- self.m_Level.text=cfgs.Level.."级"
+		self.m_Level.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {cfgs.Level});
+
+		-- self.m_ChanChuText.text="单次产出:"..cfgs.BasicOutputNum
+		self.m_ChanChuText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_FabricatePart_ChanChuText"),
+			{cfgs.BasicOutputNum});
+
+		local ownCnt = BusinessManager.Instance:GetCurrencyNum(cfgs.BasicOutput)
+		if ownCnt > 999 then
+			-- self.m_OwnText.text="拥有:999+"
+			self.m_OwnText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_SellCount_OwnCount"), {":999+"});
+
+		else
+			-- self.m_OwnText.text="拥有:"..ownCnt
+			self.m_OwnText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_SellCount_OwnCount"),
+				{":" .. ownCnt});
+		end
+
+		---产出
+		table.insert(self.OutputDataLists, {
+				ItemID = cfgs.RareOutput,
+				ItemNum = cfgs.RareOutputNum
+			})
+
+		self.m_OutputScrollView:ContinueScroll(#self.OutputDataLists);
+
+		-- 输入
+		self.CreateCnt = 0;
+		self.MaxCnt = cfgs.OnceMaxCreateNum;
+		self.InputDataLists = {}
+
+		for i = 1, #cfgs.CostItem do
+			local ownCnt = BusinessManager.Instance:GetCurrencyNum(cfgs.CostItem[i])
+			local t = ownCnt / cfgs.CostItemNum[i]
+			if t < self.MaxCnt then
+				self.MaxCnt = math.floor(t);
+			end
+			if ownCnt < cfgs.CostItemNum[i] then
+				less = true;
+			end
+			table.insert(self.InputDataLists, {
+					ItemID = cfgs.CostItem[i],
+					ItemNum = cfgs.CostItemNum[i]
+				})
+		end
+
+		-- 采集活力值
+		local energy = GameManager.Instance:GetPlayerCollectEnergy();
+		local t = energy / cfgs.EnergyCost
+		if t < self.MaxCnt then
+			self.MaxCnt = math.floor(t);
+		end
+
+		if self.MaxCnt < 1 then
+			self.MinCnt = 0;
+			self.CreateCnt = 0;
+			self.m_right.UnClick = true;
+			self.m_jian.UnClick = true;
+			self.m_left.UnClick = true;
+			self.m_jia.UnClick = true;
+			self.m_Num.text = ""
+		else
+			self.MinCnt = 1;
+			self.m_right.UnClick = false;
+			self.m_jian.UnClick = false;
+			self.m_left.UnClick = false;
+			self.m_jia.UnClick = false;
+			self.m_Num.text = "1"
+			self.CreateCnt = 1;
+		end
+		self.m_InputScrollView:ContinueScroll(#self.InputDataLists);
+	end
+
+	local click = false;
+	if Index.UnLock == 1 then
+		if cfgs ~= nil and cfgs.UnlockItem>0 then
+			local ownCnt = BusinessManager.Instance:GetCurrencyNum(cfgs.UnlockItem)
+			if ownCnt < 1 then
+				click = true;
+			end
+		end
+
+		self.m_FabricateText.text = LanguageHelp:GetLanguageByKey("Local_Str_Unlock")
+		self.m_CostItem:SetActive(true)
+		self.m_Count:SetActive(false)
+		self.m_CostEngery:SetActive(false)
+		self.m_FabricateBtn.UnClick = click;
+		self.m_FabricateBtn.Image.raycastTarget = not click;
+	elseif Index.UnLock == 2 then
+		self.m_FabricateText.text = LanguageHelp:GetLanguageByKey("Local_Str_Make")
+		self.m_CostItem:SetActive(false)
+		self.m_Count:SetActive(true)
+		self.m_CostEngery:SetActive(true)
+		self:SetConditionText(cfgs.EnergyCost, cfgs.Level, less)
+	end
+
+end
+
+function FabricatePart:SetNeedCount()
+	if self.CurrntSelect ~= nil then
+		local cfgs = self.CurrntSelect.Config;
+
+		self.InputDataLists = {}
+
+		for i = 1, #cfgs.CostItem do
+			local ownCnt = BusinessManager.Instance:GetCurrencyNum(cfgs.CostItem[i])
+			local t = ownCnt / cfgs.CostItemNum[i]
+			table.insert(self.InputDataLists, {
+					ItemID = cfgs.CostItem[i],
+					ItemNum = math.floor(tonumber(cfgs.CostItemNum[i]) * self.CreateCnt)
+				})
+		end
+		self.m_InputScrollView:ContinueScroll(#self.InputDataLists);
+	end
+end
+
+function FabricatePart:SetConditionText(EnergyCost, Level, less)
+	-- local text=EnergyCost.."/次"
+	local text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LimitTime"), {EnergyCost});
+
+	local bset = false;
+	local sceneType = GameManager.Instance:GetCurMapType()
+	if sceneType == CS.ProtoMsg.SpaceType.SpaceScene then
+		if less then
+			text = LanguageHelp:GetLanguageByKey("Local_Str_item_insufficient_1");
+			bset = true
+		else
+			local job = BaseJob + self.CurrentJob;
+			local lifeSkillMgr = BusinessManager.Instance.M_LifeSkillUserDataMDMgr
+			if lifeSkillMgr ~= nil then
+				local jobInfo = lifeSkillMgr:GetData(job)
+				if jobInfo ~= nil then
+					if Level <= jobInfo.SkillLevel then
+						local energy = GameManager.Instance:GetPlayerCollectEnergy();
+						if energy < EnergyCost then
+							text = LanguageHelp:GetLanguageByKey("Local_Str_item_insufficient_2");
+							bset = true
+						end
+					else
+						text = LanguageHelp:GetLanguageByKey("Local_Str_item_insufficient_3");
+						bset = true
+					end
+				end
+			end
+		end
+	else
+		text = LanguageHelp:GetLanguageByKey("Local_Str_Tips38")
+		bset = true
+	end
+
+	self.m_CostEngeryIcon:SetActive(not bset)
+	self.m_FabricateBtn.UnClick = bset
+	self.m_FabricateBtn.Image.raycastTarget = not bset;
+	self.m_Cost.text = text
+end
+
+function FabricatePart:OnEnable()
+	--self.m_FabricateBtn.OnClick = FabricateBtnFunc;
+	--self.m_left.OnClick = leftFunc;
+	--self.m_right.OnClick = rightFunc;
+	--self.m_jian.OnClick = jianFunc;
+	--self.m_jia.OnClick = jiaFunc;
+	--self.m_TaskGoto.OnClick = TaskGotoFunc;
+
+	--self.m_CostBtn.OnClick = UnLockClick;
+
+	--self.m_OutputIntro.OnClick= IntroOnFunc;
+	--CS.SGF.Network.MsgRetManager.Instance:OnMessageEnum(MetFunc, CS.MsgIDEnum.LifeSkillUnlockFormulationReqID);
+end
+
+function FabricatePart:OnDisable()
+
+end
+
+function FabricatePart:OnDestroy()
+	self.m_FabricateBtn.OnClick = nil;
+	self.m_left.OnClick = nil;
+	self.m_right.OnClick = nil;
+	self.m_jian.OnClick = nil;
+	self.m_jia.OnClick = nil;
+	self.m_TaskGoto.OnClick = nil;
+
+	self.m_CostBtn.OnClick = nil;
+
+	self.m_OutputIntro.OnClick= nil;
+	CS.SGF.Network.MsgRetManager.Instance:OffMessageEnum(MetFunc, CS.MsgIDEnum.LifeSkillUnlockFormulationReqID);
+end
+
+function FabricatePart:OnTabMenuItemClick(index)
+	if self.CurrentJob == index then
+		return
+	end
+	self.m_Tabs:Check(index);
+	self.CurrentJob = index;
+	self:InitItemList();
+end
+
+function FabricatePart:OnOpen(arg)
+	self.CurrentJob = 1;
+	local selectID = 0;
+	if arg ~= nil then
+		self.CurrentJob = arg.JobID % 200
+		selectID = arg.MineID
+	end
+
+	self.m_Tabs:Init(self.CurrentJob, function(index)
+			self:OnTabMenuItemClick(index);
+		end)
+	self:InitItemList(selectID);
+end
+
+function FabricatePart:GetConfig(job, level)
+	local configs = ConfigDataAccessor.LifeSkillJobList;
+	for k, v in pairs(configs) do
+		if v.SkillID == job and v.Level == level then
+			return v
+		end
+	end
+	return nil
+end
+
+function FabricatePart:IsUnLock(jobInfo, id)
+	if jobInfo ~= nil then
+		if jobInfo.Formulation ~= nil and jobInfo.Formulation.CreateIdMap ~= nil then
+			if jobInfo.Formulation.CreateIdMap:ContainsKey(id) then
+				return jobInfo.Formulation.CreateIdMap[id];
+			end
+		end
+	end
+	return nil;
+end
+
+function FabricatePart:InitItemList(arg)
+	local job = BaseJob + self.CurrentJob;
+	self.DataLists = {}
+	self.CurrntSelect = nil;
+	local jobInfo = BusinessManager.Instance:GetLifeJobSkill(job)
+	local configs = ConfigDataAccessor.LifeSkillJobList;
+
+	local MaxLevel = 0;
+	self.BreakTaskID = 0
+	local CurrentCfg = nil;
+	for k, v in pairs(configs) do
+		if v.SkillID == job and v.Level == jobInfo.SkillLevel then
+			CurrentCfg = v;
+		end
+		if v.SkillID == job and v.Level >= jobInfo.SkillLevel then
+
+			if v.BreakQuest ~= 0 then
+				self.BreakTaskID = v.BreakQuest
+				MaxLevel = v.Level + 1;
+				break
+			end
+		end
+	end
+
+	local cfgs = ConfigDataAccessor.LifeSkillCreateList;
+	for k, v in pairs(cfgs) do
+
+		if v.SkillID == job and v.Level < MaxLevel then
+
+			local ulock = self:IsUnLock(jobInfo, v.ID);
+			local display = 1;
+			local cf = self:GetConfig(job, v.Level);
+			if cf ~= nil then
+				display = cf.DisplayGroup;
+			end
+			local LockType = 1;
+			if ulock then
+				LockType = 2;
+			end
+			table.insert(self.DataLists, {
+					Config = v,
+					UnLock = LockType,
+					DisplayGroup = display,
+					Level = jobInfo.SkillLevel
+				})
+		end
+	end
+
+	-- 生效等级
+	self.AdditionActiveLV = 0;
+	if CurrentCfg ~= nil then
+		self.AdditionActiveLV = CurrentCfg.AdditionActiveLV
+		if jobInfo.SkillExp < CurrentCfg.NeedEX then
+			self.m_ExpObj:SetActive(true)
+			self.m_Break:SetActive(false);
+			self.m_Exp.value = jobInfo.SkillExp / CurrentCfg.NeedEX
+			self.m_ExpValue.text = jobInfo.SkillExp .. "/" .. CurrentCfg.NeedEX
+			-- self.m_JobLv.text=jobInfo.SkillLevel.."级"
+			self.m_JobLv.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {jobInfo.SkillLevel});
+
+		else
+			if self.BreakTaskID > 0 then
+				local taskinfo = TaskHelper.GetTaskConfig(self.BreakTaskID)
+				if taskinfo ~= nil then
+					self.m_TaskName.text = "[" .. taskinfo.Base.TaskName .. "]"
+				end
+			end
+			self.m_Break:SetActive(true);
+			self.m_ExpObj:SetActive(false)
+			-- self.m_JobLv.text=jobInfo.SkillLevel.."级".."(经验已满)"
+			self.m_JobLv.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_FabricatePart_JobLv"),
+				{jobInfo.SkillLevel});
+
+		end
+	end
+
+	self:SortItems();
+	if arg == 0 or arg == nil then
+		self.CurrntSelect = self.DataLists[1];
+	else
+		for i = 1, #self.DataLists do
+			if self.DataLists[i].Config.ID == arg then
+				self.CurrntSelect = self.DataLists[i];
+			end
+		end
+	end
+
+	for k, v in pairs(self.GridItemList) do
+		v:ClearData();
+	end
+	-- GridItemList
+	self.m_ScrollView:ContinueScroll(#self.DataLists);
+	self:OnSelectCallBack(self.CurrntSelect)
+	self.m_JobName.text = JobConfig[job].JobName
+	self:GetSprite(JobConfig[job].SpriteName, function(sp)
+			self.m_JobIcon.sprite = sp
+		end)
+
+end
+
+function FabricatePart:SortItems()
+	if self.DataLists == nil or #self.DataLists == 0 then
+		return
+	end
+	-- 解锁>>区间>> 道具品质>> 等级
+	table.sort(self.DataLists, function(a, b)
+
+			if a.UnLock > b.UnLock then
+				return true
+			elseif a.UnLock == b.UnLock then
+				if a.DisplayGroup > b.DisplayGroup then
+					return true
+				elseif a.DisplayGroup == b.DisplayGroup then
+
+					if a.Level > b.Level then
+						return true
+					elseif a.Level == b.Level then
+						local a_Quality = 0;
+						local b_Quality = 0;
+						local aCfg = ConfigDataAccessor.Item[a.Config.BasicOutput];
+						if aCfg ~= nil then
+							a_Quality = aCfg.Quality;
+						else
+							LogError("读取配置失败 " .. a.Config.BasicOutput)
+						end
+
+						local bCfg = ConfigDataAccessor.Item[b.Config.BasicOutput];
+						if bCfg ~= nil then
+							b_Quality = bCfg.Quality;
+						else
+							LogError("读取配置失败 " .. b.Config.BasicOutput)
+						end
+
+						return a_Quality > b_Quality
+					end
+
+				end
+			end
+		end);
+
+end
+
+function FabricatePart:OnClose(arg)
+
+end
+
+function FabricatePart:OnClickFabricateBtn()
+
+	if self.SelectInfo.UnLock == 1 then
+		LuaModuleDispatcher:SendMessage(ModuleDef.LivingSkillsModule, "UnLockCreate", {self.CreatID});
+	elseif self.SelectInfo.UnLock == 2 then
+		local sceneType = GameManager.Instance:GetCurMapType()
+		if sceneType == CS.ProtoMsg.SpaceType.SpaceScene then
+			if self.CreateCnt > 0 then
+				local cd = SystemConstConfigs.LifeSkill_CreateLoadingTime;
+				cd = math.floor(cd * 100 / self.CollectSpeed)
+				LuaModuleDispatcher:SendMessage(ModuleDef.LivingSkillsModule, "OpenLifeSkillCreatWidget",
+					{self.CreatID, cd, self.CreateCnt});
+			else
+				Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Tips39"))
+			end
+		else
+			Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Tips40"))
+		end
+	end
+
+	-- OpenLifeSkillCreatWidget
+end
+
+function FabricatePart:OnClickleft()
+	if self.CreateCnt ~= self.MinCnt then
+		self.CreateCnt = self.MinCnt
+		self:OnCounttChange();
+	end
+end
+
+function FabricatePart:OnClickright()
+	if self.CreateCnt ~= self.MaxCnt then
+		self.CreateCnt = self.MaxCnt
+		self:OnCounttChange();
+	end
+end
+
+function FabricatePart:OnClickjian()
+	if self.CreateCnt <= self.MinCnt then
+		return
+	end
+	self.CreateCnt = self.CreateCnt - 1;
+	self:OnCounttChange();
+end
+
+function FabricatePart:OnClickjia()
+	if self.CreateCnt >= self.MaxCnt then
+		return
+	end
+	self.CreateCnt = self.CreateCnt + 1;
+	self:OnCounttChange();
+end
+
+function FabricatePart:OnCounttChange()
+	self.m_Num.text = tostring(self.CreateCnt)
+	self:SetNeedCount();
+end
+
+return FabricatePart

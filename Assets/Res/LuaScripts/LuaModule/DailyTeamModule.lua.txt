@@ -1,0 +1,707 @@
+--[[
+*文件名   :   DailyTeamModule
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/06/21 16:18:34"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]] DailyTeamModule = class("DailyTeamModule", BaseLuaModule)
+
+local DailyTeamOpenTipsWidgetPath = "DailyTeam/Prefab/DailyTeamOpenTipsWidget"
+local DailyTeamWindowPath = "DailyTeam/Prefab/DailyTeamWindow"
+local DailyTeamAwardWindowPath = "DailyTeam/Prefab/DailyTeamAwardWindow"
+local DailyTeamReviveWindowPath = "DailyTeam/Prefab/DailyTeamReviveWindow"
+local DailyTeamConfirmWidgetPath = "DailyTeam/Prefab/DailyTeamConfirmWidget"
+local DailyTeamTaskWidgetPath = "DailyTeam/Prefab/DailyTeamTaskWidget"
+local DailyTeamRuleWindowPath = "DailyTeam/Prefab/DailyTeamRuleWindow"
+local UniversalSettlementWindowPath = "Common/Prefab/UniversalSettlementWindow"
+local DailyTeamConfirmWidget = nil
+local TaskRoot = nil
+local CommonChestID = 9999991 -- 宝箱低
+local ExtraChestID = 9999997 --宝箱中 额外宝箱交互物件ID
+
+local IsMainPageLoadedCompleteOpenWidget = false -- 是否主场景加载完成后打开挂件
+
+-- LuaModule 消息模块
+DailyTeamModule.ModuleMessages = {
+	["OnDisable"] = function(...)
+		DailyTeamModule:OnDisable(...)
+	end,
+	["OpenDailyTeamOpenTipsWidget"] = function(...)
+		DailyTeamModule:OpenDailyTeamOpenTipsWidget(...)
+	end,
+	["OnDailyTeamWindow"] = function(...)
+		DailyTeamModule:OnDailyTeamWindow(...)
+	end,
+	["OnCloseDailyTeamTaskWidget"] = function(...)
+		DailyTeamModule:OnDailyTeamTaskWidget(...)
+	end,
+	["OnTeamDailyReviveReq"] = function(...)
+		DailyTeamModule:OnTeamDailyReviveReq(...)
+	end,
+	["OnTeamDailyStartChallengeReq"] = function(...)
+		DailyTeamModule:OnTeamDailyStartChallengeReq(...)
+	end,
+	["OnChangeMap"] = function(...)
+		DailyTeamModule:OnChangeMap(...)
+	end,
+	["OnTDStartChanllengeReq"] = function(...)
+		DailyTeamModule:OnTDStartChanllengeReq(...)
+	end,
+	["OnTDMemberJoinReq"] = function(...)
+		DailyTeamModule:OnTDMemberJoinReq(...)
+	end,
+	["OnTDCaptainStartReq"] = function(...)
+		DailyTeamModule:OnTDCaptainStartReq(...)
+	end,
+	["OnQuitDailyTeam"] = function(...)
+		DailyTeamModule:OnQuitDailyTeam(...)
+	end,
+	["OnCustomEnterEctype"] = function(...)
+		DailyTeamModule:OnCustomEnterEctype(...)
+	end,
+	["OnCustomLevelEctype"] = function(...)
+		DailyTeamModule:OnCustomLevelEctype(...)
+	end,
+	["OnShowDailyTeamRuleWindow"] = function(...)
+		DailyTeamModule:OnShowDailyTeamRuleWindow(...)
+	end
+}
+---进入数据
+DailyTeamModule.EntryData = nil
+DailyTeamModule.TaskWidget = nil
+
+-- LuaModule 创建
+function DailyTeamModule:OnModuleCreate(arg)
+	LuaModuleDispatcher:Register(ModuleDef.DailyTeamModule, self)
+
+	self.TeamDailyGameStartNtf = function(data)
+		self:OnTeamDailyGameStartNtf(data)
+	end
+
+	NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.TDGameStartNtfID, self.TeamDailyGameStartNtf, self)
+
+	self.TeamDailyLevelDataNtf = function(data)
+		self:OnTeamDailyLevelDataNtf(data)
+	end
+	NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.TDLevelDataNtfID, self.TeamDailyLevelDataNtf, self)
+
+	self.TeamDailyGameEndNtf = function(data)
+		self:OnTeamDailyGameEndNtf(data)
+	end
+	NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.TDGameEndNtfID, self.TeamDailyGameEndNtf, self)
+
+	self.TeamDailyReviveRet = function(data)
+		self:OnTeamDailyReviveRet(data)
+	end
+	NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.TDReviveRetID, self.TeamDailyReviveRet, self)
+
+	self.TeamDailyStartChallengeRet = function(data)
+		self:OnTeamDailyStartChallengeRet(data)
+	end
+	NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.TDOpenChallengeRetID, self.TeamDailyStartChallengeRet, self)
+
+	self.TDStartChanllengeRet = function(data)
+		self:OnTDStartChanllengeRet(data)
+	end
+	NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.TDStartChanllengeRetID, self.TDStartChanllengeRet, self)
+
+	self.TDMemberJoinRet = function(data)
+		self:OnTDMemberJoinRet(data)
+	end
+	NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.TDMemberJoinRetID, self.TDMemberJoinRet, self)
+
+	self.TDMemberJoinReqRet = function(data)
+		self:OnTDMemberJoinReqRet(data)
+	end
+	NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.TDMemberJoinReqID, self.TDMemberJoinReqRet, self)
+
+	self.TDCaptainStartRet = function(data)
+		self:OnTDCaptainStartRet(data)
+	end
+	NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.TDCaptainStartRetID, self.TDCaptainStartRet, self)
+
+	self.TDChallangeWindowRet = function(data)
+		self:OnTDChallangeWindowRet(data)
+	end
+	NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.TDChallangeWindowRetID, self.TDChallangeWindowRet, self)
+
+	self.OnClickLocalEntityFun = function(Type, ID, TriggerKey, Key)
+		self:OnClickLocalEntity(Type, ID, TriggerKey, Key)
+	end
+	CS.StarProject.GlobalEvent.onClickLocalEntity:AddListener(self.OnClickLocalEntityFun)
+
+	-- self.dailyTeamItemChangeFunc = function(key, value)
+	-- 	self:OnDailyTeamItemChange(value);
+	-- end
+
+	self.TDMemberJoinNtfChanageActionFun = function(value)
+		self:OnTDMemberJoinNtfChanageAction(value)
+	end
+	BusinessManager.Instance:RegisterTDMemberJoinNtfChanageAction(self.TDMemberJoinNtfChanageActionFun)
+
+	self.OnMainPageLoadedCompleteFun = function(res)
+		self:OnMainPageLoadedCompleteCB(res)
+	end
+
+	CS.StarProject.GlobalEvent.OnMainPageLoadedComplete:AddListener(self.OnMainPageLoadedCompleteFun)
+end
+
+-- LuaModule 消息处理
+function DailyTeamModule:OnModuleMessage(msg, ...)
+	self.ModuleMessages[msg](...)
+end
+
+function DailyTeamModule:OnDisable(...)
+end
+
+-- LuaModule显示
+function DailyTeamModule:OnModuleShow(arg)
+	TaskRoot = arg
+end
+
+-- LuaModule 释放
+function DailyTeamModule:OnModuleRelease()
+	NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.TDGameStartNtfID, self.TeamDailyGameStartNtf, self)
+	NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.TDGameEndNtfID, self.TeamDailyGameEndNtf, self)
+	NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.TDReviveRetID, self.TeamDailyReviveRet, self)
+	NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.TDOpenChallengeRetID, self.TeamDailyStartChallengeRet, self)
+	NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.TDStartChanllengeRetID, self.TDStartChanllengeRet, self)
+	NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.TDMemberJoinReqID, self.TDMemberJoinReqRet, self)
+	NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.TDCaptainStartRetID, self.TDCaptainStartRet, self)
+
+	CS.StarProject.GlobalEvent.onClickLocalEntity:RemoveListener(self.OnClickLocalEntityFun)
+
+	BusinessManager.Instance:UnRegisterTDMemberJoinNtfChanageAction(self.TDMemberJoinNtfChanageActionFun)
+
+	CS.StarProject.GlobalEvent.OnMainPageLoadedComplete:RemoveListener(self.OnMainPageLoadedCompleteFun)
+
+	LuaModuleDispatcher:UnRegister(ModuleDef.DailyTeamModule)
+end
+
+function DailyTeamModule:OnTDMemberJoinNtfChanageAction(value)
+	local data = BusinessManager.Instance:GetTDMemberJoinNtf()
+	self:OnTDMemberJoinNtf(data)
+end
+
+function DailyTeamModule:OpenDailyTeamOpenTipsWidget(...)
+	local tb = ...
+	local PlayID = nil
+	local cb = nil
+	local strButton = nil
+	local CloseCb = nil
+	-- 列表
+	if type(tb) == "table" then
+		-- Lua调用
+		PlayID = tb[1]
+		cb = tb[2]
+		strButton = tb[3]
+		CloseCb = tb[4]
+	else
+		-- C#调用
+		PlayID = tb[0]
+		cb = tb[1]
+		strButton = tb[2]
+		CloseCb = tb[3]
+	end
+	-- UIManager.Instance:OpenWidget(DailyTeamOpenTipsWidgetPath, true, {PlayID=PlayID,Cb=cb,StrButton=strButton,CloseCb=CloseCb}, nil, CS.StarProjectDef.MainPageCommond
+	-- 	.HideNone, true, false);
+	UIManager.Instance:OpenWidgetAsync(
+		DailyTeamOpenTipsWidgetPath,
+		nil,
+		true,
+		{
+			PlayID = PlayID,
+			Cb = cb,
+			StrButton = strButton,
+			CloseCb = CloseCb
+		},
+		nil,
+		CS.StarProjectDef.MainPageCommond.HideNone,
+		true,
+		false
+	)
+end
+
+function DailyTeamModule:OnDailyTeamWindow(...)
+	-- UIManager.Instance:OpenWindow(DailyTeamWindowPath, nil, CS.StarProjectDef.MainPageCommond.HideBoth);
+	UIManager.Instance:OpenWindowAsync(DailyTeamWindowPath, nil, nil, CS.StarProjectDef.MainPageCommond.HideBoth)
+end
+
+function DailyTeamModule:OnDailyTeamTaskWidget(...)
+	UIManager.Instance:CloseWidget(DailyTeamTaskWidgetPath, TaskRoot.transform, false)
+end
+
+function DailyTeamModule:OnTeamDailyReviveReq(...)
+	local battleSocket = NetworkManager.Instance.gameSocket
+	local message = CS.ProtoMsg.TDReviveReq()
+	battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace, message, false)
+end
+
+function DailyTeamModule:OnTeamDailyStartChallengeReq(...)
+	local tb = ...
+	local id = nil
+	-- 列表
+	if type(tb) == "table" then
+		-- Lua调用
+		id = tb[1]
+	else
+		-- C#调用
+		id = tb[0]
+	end
+	local battleSocket = NetworkManager.Instance.gameSocket
+	local message = CS.ProtoMsg.TDOpenChallengeReq()
+	message.ID = id
+	battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace, message, false)
+end
+
+function DailyTeamModule:OnChangeMap(...)
+	local tb = ...
+	local MapID = nil
+	local ServerID = nil
+	local Reason = nil
+	local SpaceID = nil
+	-- 列表
+	if type(tb) == "table" then
+		-- Lua调用
+		MapID = tb[1]
+		ServerID = tb[2]
+		Reason = tb[3]
+		SpaceID = tb[4]
+	else
+		-- C#调用
+		MapID = tb[0]
+		ServerID = tb[1]
+		Reason = tb[2]
+		SpaceID = tb[3]
+	end
+
+	local battleSocket = NetworkManager.Instance.gameSocket
+	local message = CS.ProtoMsg.MapChangeReq()
+	message.MapID = MapID
+	message.ServerID = ServerID
+	message.Reason = Reason
+	message.SpaceID = SpaceID
+	message.SpType = CS.ProtoMsg.SpaceType.SpaceScene
+	battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message, false)
+end
+
+function DailyTeamModule:OnTeamDailyGameStartNtf(data)
+	local msg = data.data
+
+	-- 关闭外围组队日常本组件
+	-- CS.StarProject.GlobalEvent.OnShowDailyTeamItem:Invoke(nil)
+
+	-- 机制ID
+	local AffixID = msg.Mechanism
+	-- UIManager.Instance:OpenWindow(DailyTeamRuleWindowPath, AffixID, CS.StarProjectDef.MainPageCommond.HideBoth);
+	UIManager.Instance:OpenWindowAsync(DailyTeamRuleWindowPath, nil, AffixID, CS.StarProjectDef.MainPageCommond.HideBoth)
+
+	-- 任务
+	if self.TaskWidget ~= nil then
+		-- self.TaskWidget:GetLuaPanel().ScriptTable:Fresh(msg);
+		self.TaskWidget:Fresh(msg)
+	end
+	---self.TaskWidget=UIManager.Instance:OpenWidget(DailyTeamTaskWidgetPath, true, msg, TaskRoot.transform, CS.StarProjectDef.MainPageCommond.HideNone, true, false);
+end
+
+function DailyTeamModule:OnTeamDailyLevelDataNtf(data)
+	local msg = data.data
+	for k, v in pairs(msg.DeadLogs) do
+		if k == GameManager.Instance.mainPlayerId then
+			--复活时间必须大于0 ,服务会把过去时间传递过来
+			local time=math.ceil((v-TimeUtils.ServerNowStampMilli)/1000)
+			if time >0 then				
+				---玩家自己
+				-- UIManager.Instance:OpenWindow(DailyTeamReviveWindowPath, v, CS.StarProjectDef.MainPageCommond.HideBoth);
+				UIManager.Instance:OpenWindowAsync(DailyTeamReviveWindowPath, nil, v, CS.StarProjectDef.MainPageCommond.HideBoth)
+				break
+			end
+		end
+	end
+end
+
+function DailyTeamModule:OnTeamDailyGameEndNtf(data)
+	local msg = data.data
+	self.GameEndData = msg
+	local BossDeadPos = msg.BossDeadPos
+	local IsSuccess = msg.IsSuccess
+	local CommonList = msg.CommonList
+	local ExtraList = msg.ExtraList
+	local hasawrard = CommonList.Count > 0
+	local hasExtra = ExtraList.Count > 0
+	CS.StarProject.GlobalEvent.OnDailyTeamGameEnd:Invoke(IsSuccess > 0)
+	if IsSuccess > 0 and (hasawrard or hasExtra) then
+		self:CreateLocalBox(msg.CommonList, BossDeadPos, CommonChestID)
+		self:CreateLocalBox(msg.ExtraList, BossDeadPos, ExtraChestID)
+		local bossName = ""
+		local entry = BusinessManager.Instance:GetTDEntryOpenNtf()
+		if entry ~= nil then
+			local config = ConfigDataAccessor.Monster[entry.BossID]
+			if config ~= nil then
+				bossName = config.Name
+			end
+		end
+		-- Util.ShowMessage(bossName .. "已被成功讨伐")
+		Util.ShowMessage(StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_232"), {bossName}))
+	else
+		-- UIManager.Instance:OpenWindow(DailyTeamAwardWindowPath,self.GameEndData,CS.StarProjectDef.MainPageCommond.HideBoth);
+		UIAPI.ShowUniversalSettlement(
+			msg.IsSuccess > 0,
+			msg.Second,
+			msg.CommonList,
+			msg.ExtraList,
+			function()
+				self:OnQuitTreasureScene()
+			end,
+			nil
+		)
+	end
+end
+
+function DailyTeamModule:OnQuitTreasureScene()
+	-- 切换地图得时候关闭复活框
+	UIManager.Instance:CloseWindow(DailyTeamReviveWindowPath)
+	GameManager.Instance:BackToWorld()
+	local info = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.ComCount):GetData(11)
+	if info ~= nil then
+		if info.RemainCount > 0 then
+			DelayInvoker.DelayInvoke(
+				self,
+				1,
+				function()
+					UIAPI.ShowMsgBox(
+						71,
+						function(eventName)
+							if eventName == "SURE" then
+								if info.RemainCount > 0 then
+									local config = ConfigDataAccessor.PlayOpenConditions[2]
+									if not (CheckSysOpen(2, true)) then
+										return
+									end
+
+									local mapID = config.MapID
+									local npcID = config.NPCID
+									local mete = GameManager.Instance:IsConditionMete(config.IndexChangeCondition)
+									if mete then
+										mapID = config.MapID2
+										npcID = config.NPCID2
+									end
+									TaskHelper.FindPathByNpc(
+										mapID,
+										npcID,
+										1,
+										function(result)
+											if result then
+												LuaModuleDispatcher:SendMessage(ModuleDef.DailyTeamModule, "OnDailyTeamWindow", {})
+											end
+										end
+									)
+								end
+							end
+						end,
+						info.RemainCount
+					)
+				end
+			)
+		end
+	end
+end
+
+function DailyTeamModule:OnTeamDailyReviveRet(data)
+	local msg = data.data
+	if msg.Ret == CS.ProtoMsg.TDResult.TdrOk then
+		UIManager.Instance:CloseWindow(DailyTeamReviveWindowPath)
+	end
+end
+
+function DailyTeamModule:OnTeamDailyStartChallengeRet(data)
+	local msg = data.data
+	if msg.Ret == CS.ProtoMsg.TDResult.TdrOk then
+		UIManager.Instance:CloseWindow(DailyTeamWindowPath)
+		Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_233"))
+	end
+end
+
+function DailyTeamModule:OnTDStartChanllengeRet(data)
+	local msg = data.data
+	if msg.Ret == CS.ProtoMsg.TDResult.TdrOk then
+		-- 关闭外围组队日常本组件
+		-- CS.StarProject.GlobalEvent.OnShowDailyTeamItem:Invoke(nil)
+	end
+end
+
+function DailyTeamModule:OnTDMemberJoinRet(data)
+	local msg = data.data
+	if msg.Ret == CS.ProtoMsg.TDResult.TdrOk then
+	end
+end
+
+function DailyTeamModule:OnTDMemberJoinReqRet(data)
+	local msg = data.data
+	if msg ~= nil then
+		if msg.IsAgree == false then
+			-- local str = "" .. msg.MemName .. "拒绝进入副本";
+			local str = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_234"), {msg.MemName})
+			Util.ShowMessage(str)
+		end
+	end
+end
+
+-- 有成员同意/加入了
+function DailyTeamModule:OnTDMemberJoinNtf(data)
+	local msg = data
+	if msg == nil then
+		UIManager.Instance:CloseWidget(DailyTeamConfirmWidgetPath)
+		return
+	end
+
+	local teamid = uint64.new(msg.TeamID)
+	local calllist = msg.CallList
+	local playeType = msg.PlayeType
+
+	local module = ModuleManager.Instance:GetModule(ModuleDef.TeamModule)
+	local luatable = module:GetLuaTable()
+	local teamInfo = luatable:GetTeamInfo()
+	local myTeamID = uint64.new(teamInfo.TeamID)
+	if teamInfo ~= nil and myTeamID ~= 0 and teamInfo.UserInfos.Count > 0 then
+		if myTeamID.value == teamid.value then
+			-- 自己关心的队伍
+			-- 刷新
+			if msg.IsCancel then
+				UIManager.Instance:CloseWidget(DailyTeamConfirmWidgetPath)
+			else
+				if calllist == nil or calllist.Count <= 0 then
+					-- 如果列表空了，那就是有队员拒绝了
+					UIManager.Instance:CloseWidget(DailyTeamConfirmWidgetPath)
+					return
+				end
+				if self.dailyTeamConfirmWidget ~= nil and self.dailyTeamConfirmWidget.IsOpen then
+					self.dailyTeamConfirmWidget:RenderAllView(
+						not self.dailyTeamConfirmWidget.IsOpen,
+						{
+							TeamInfo = teamInfo,
+							List = calllist,
+							PlayeType = playeType
+						}
+					)
+				else
+					-- local DailyTeamConfirmWidget = UIManager.Instance:OpenWidget(DailyTeamConfirmWidgetPath, true,
+					-- 	{ TeamInfo = teamInfo, List = calllist, PlayeType = playeType }, nil,
+					-- 	CS.StarProjectDef.MainPageCommond.WidgetHide, true, false);
+					-- if self.dailyTeamConfirmWidget == nil then
+					-- 	self.dailyTeamConfirmWidget = DailyTeamConfirmWidget:GetLuaPanel().ScriptTable
+					-- end
+
+					self.AsyncLoadDailyTeamConfirmWidgetCb = function(ui)
+						if ui ~= nil then
+							if self.dailyTeamConfirmWidget == nil then
+								self.dailyTeamConfirmWidget = ui:GetLuaPanel().ScriptTable
+							end
+						end
+						self.AsyncLoadDailyTeamConfirmWidgetCb = nil
+					end
+					UIManager.Instance:OpenWidgetAsync(
+						DailyTeamConfirmWidgetPath,
+						self.AsyncLoadDailyTeamConfirmWidgetCb,
+						true,
+						{
+							TeamInfo = teamInfo,
+							List = calllist,
+							PlayeType = playeType
+						},
+						nil,
+						CS.StarProjectDef.MainPageCommond.WidgetHide,
+						true,
+						false
+					)
+				end
+			end
+		end
+	end
+end
+
+function DailyTeamModule:OnTDCaptainStartRet(data)
+	UIManager.Instance:CloseWidget(DailyTeamConfirmWidgetPath)
+end
+
+function DailyTeamModule:OnTDChallangeWindowRet(data)
+	local msg = data.data
+	local bossName = ""
+	if msg ~= nil then
+		local config = ConfigDataAccessor.Monster[msg.MonsterIndex]
+		if config ~= nil then
+			bossName = config.Name
+		end
+	end
+	UIAPI.ShowMsgBox(
+		70,
+		function(eventName)
+			if eventName == "SURE" then
+				self:OnTDStartChanllengeReq()
+			end
+		end,
+		bossName
+	)
+end
+
+---队长发起挑战
+function DailyTeamModule:OnTDStartChanllengeReq(...)
+	local battleSocket = NetworkManager.Instance.gameSocket
+	local message = CS.ProtoMsg.TDStartChanllengeReq()
+	battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace, message, false)
+end
+
+function DailyTeamModule:OnTDMemberJoinReq(...)
+	local tb = ...
+	local agree = nil
+	-- 列表
+	if type(tb) == "table" then
+		-- Lua调用
+		agree = tb[1]
+	else
+		-- C#调用
+		agree = tb[0]
+	end
+
+	local name = ""
+	local mainPlayer = GameManager.Instance.M_MainPlayerCtrlBase
+	if mainPlayer ~= nil and mainPlayer.Data ~= nil then
+		name = mainPlayer.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.String, CS.StarProjectDef.AOIAttrDefine.Name)
+	end
+
+	local battleSocket = NetworkManager.Instance.gameSocket
+	local message = CS.ProtoMsg.TDMemberJoinReq()
+	message.IsAgree = agree
+	message.MemName = name
+	battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace, message, false)
+end
+
+function DailyTeamModule:OnTDCaptainStartReq(...)
+	local battleSocket = NetworkManager.Instance.gameSocket
+	local message = CS.ProtoMsg.TDCaptainStartReq()
+	battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace, message, false)
+end
+
+function DailyTeamModule:OnQuitDailyTeam(...)
+	local battleSocket = NetworkManager.Instance.gameSocket
+	local message = CS.ProtoMsg.LeaveInstanceReq()
+	battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace, message, false)
+end
+
+function DailyTeamModule:OnShowDailyTeamRuleWindow(...)
+	local tb = ...
+	local AffixID = nil
+	-- 列表
+	if type(tb) == "table" then
+		-- Lua调用
+		AffixID = tb[1]
+	else
+		-- C#调用
+		AffixID = tb[0]
+	end
+	-- 机制ID
+	-- UIManager.Instance:OpenWindow(DailyTeamRuleWindowPath, AffixID, CS.StarProjectDef.MainPageCommond.HideBoth);
+	UIManager.Instance:OpenWindowAsync(DailyTeamRuleWindowPath, nil, AffixID, CS.StarProjectDef.MainPageCommond.HideBoth)
+end
+
+function DailyTeamModule:OnCustomEnterEctype(...)
+	if TaskRoot ~= nil then
+		self:OpenDailyTeamTaskWidget()
+	else
+		IsMainPageLoadedCompleteOpenWidget = true
+	end
+end
+
+function DailyTeamModule:OnCustomLevelEctype(...)
+	UIManager.Instance:CloseWidget(DailyTeamTaskWidgetPath, TaskRoot.transform, false)
+	UIManager.Instance:CloseWindow(UniversalSettlementWindowPath)
+	UIManager.Instance:CloseWindow(DailyTeamReviveWindowPath)
+	self.GameEndData = nil
+	IsMainPageLoadedCompleteOpenWidget = false
+end
+
+-- 本地实体点击回调
+function DailyTeamModule:OnClickLocalEntity(Type, ID, TriggerKey, Key)
+	if E_LocalEntitySource.DailyTeamEctype == TriggerKey then
+		if Type == E_LocalEntityType.TreasureBox then
+			DelayInvoker.DelayInvoke(
+				self,
+				3,
+				function()
+					UIAPI.ShowUniversalSettlement(
+						self.GameEndData.IsSuccess > 0,
+						self.GameEndData.Second,
+						self.GameEndData.CommonList,
+						self.GameEndData.ExtraList,
+						function()
+							self:OnQuitTreasureScene()
+						end,
+						nil
+					)
+
+					-- UIManager.Instance:OpenWindow(DailyTeamAwardWindowPath,self.GameEndData,CS.StarProjectDef.MainPageCommond.HideBoth);
+				end
+			)
+		end
+	end
+end
+
+-- 创建本地宝箱 [普通宝箱、额外宝箱,位置]
+function DailyTeamModule:CreateLocalBox(Drops, Pos, InteractId)
+	if Drops == nil or Drops.Count == 0 then
+		return
+	end
+	self.BirthPos = Vector3.zero -- 怪物死亡位置
+	self.BirthPos.x = Pos.X
+	self.BirthPos.y = Pos.Y
+	self.BirthPos.z = Pos.Z
+
+	local mapPox = GameManager.Instance:GetMapBossPos()
+	if mapPox ~= Vector3.zero then
+		self.BirthPos = mapPox
+	end
+
+	--改成了固定位置
+	self.BirthPos = Vector3(52.43, 0.06, 38.07)
+	--随机下位置
+	--pos=BusinessManager.Instance:GetRandomPos(pos,2.5);
+
+	local rewardList = self:GetRewards(Drops)
+	CS.StarProject.GlobalEvent.onCreateLocalEntity:Invoke(E_LocalEntityType.TreasureBox, InteractId, E_LocalEntitySource.DailyTeamEctype, self.BirthPos, rewardList, true, -1)
+end
+
+-- 拿取奖励 [开始下标、数量]
+function DailyTeamModule:GetRewards(reward)
+	local drops = LocalDropList()
+	for i = 0, reward.Count - 1 do
+		local dropinfo = reward[i]
+		drops:AddData(dropinfo.Itemid, dropinfo.ItemNum, dropinfo.EntityID)
+	end
+	return drops
+end
+
+-- 主PAGE加载完成回调
+function DailyTeamModule:OnMainPageLoadedCompleteCB(res)
+	if TaskRoot ~= nil and IsMainPageLoadedCompleteOpenWidget == true then
+		self:OpenDailyTeamTaskWidget()
+	end
+	IsMainPageLoadedCompleteOpenWidget = false
+end
+
+function DailyTeamModule:OpenDailyTeamTaskWidget()
+	-- self.TaskWidget = UIManager.Instance:OpenWidget(DailyTeamTaskWidgetPath, true, nil, TaskRoot.transform,
+	-- CS.StarProjectDef.MainPageCommond.HideNone, true, false);
+
+	self.AsyncLoadDailyTeamTaskWidgetCb = function(ui)
+		if ui ~= nil then
+			if self.TaskWidget == nil then
+				self.TaskWidget = ui:GetLuaPanel().ScriptTable
+			end
+		end
+		self.AsyncLoadDailyTeamTaskWidgetCb = nil
+	end
+	UIManager.Instance:OpenWidgetAsync(DailyTeamTaskWidgetPath, self.AsyncLoadDailyTeamTaskWidgetCb, true, nil, TaskRoot.transform, CS.StarProjectDef.MainPageCommond.HideNone, true, false)
+end
+
+return DailyTeamModule

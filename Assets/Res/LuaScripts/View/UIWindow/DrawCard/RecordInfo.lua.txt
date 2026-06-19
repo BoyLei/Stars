@@ -1,0 +1,161 @@
+local RecordInfo = {}
+RecordInfo.__index = RecordInfo
+
+local RecordItem = require("View/UIWindow/DrawCard/RecordItem")
+
+function RecordInfo:New(obj, m)
+    local self = {};
+    setmetatable(self, RecordInfo);
+	self.module = m;
+    self:InitControls(obj)
+
+    return self;
+end
+
+function RecordInfo:InitControls(obj)
+    self.gameObject = obj;
+    self.transform = obj.transform;
+
+    self.recordItem = self.transform:Find("Records/Viewport/Content/Item");
+
+    self.leftBtn = self.transform:Find("Pages/Left"):GetComponent(typeof(Button));
+    self.leftBtn.onClick:AddListener(function()
+        self:OnLeftPage();
+    end);
+    self.rightBtn = self.transform:Find("Pages/Right"):GetComponent(typeof(Button));
+    self.rightBtn.onClick:AddListener(function()
+        self:OnRightPage();
+    end);
+
+    self.numText = self.transform:Find("Pages/Num"):GetComponent(typeof(Text));
+
+    self.recordTypes = self.transform:Find("RecordTypes");
+    self.typeBtn = self.transform:Find("TypeBtn"):GetComponent(typeof(Button));
+    self.typeBtn.onClick:AddListener(function()
+        self.recordTypes.gameObject:SetActive(not self.recordTypes.gameObject.activeSelf);
+    end);
+    self.typeText = self.transform:Find("TypeBtn/Text"):GetComponent(typeof(Text));
+
+    for i = 1, 4 do
+        local selectBtn = self.transform:Find("RecordTypes/Viewport/Content/Item" .. i):GetComponent(typeof(Button));
+        selectBtn.onClick:AddListener(function()
+            self.curPage = 1;
+            self.maxCount = 0;
+            self.curPoolType = i;
+            self:RequestCardList();
+			self.recordTypes.gameObject:SetActive(false);
+        end);
+    end
+
+    self.curPage = 1;
+    self.maxCount = 0;
+    self.curPoolType = 1;
+	self.allItems = {};
+
+    self.nonRecordsGo = self.transform:Find("Records/NonRecords").gameObject;
+end
+
+function RecordInfo:OnLeftPage()
+    self.curPage = self.curPage - 1;
+    if self.curPage < 1 then
+        self.curPage = 1;
+    else
+        self:RequestCardList(self.curPage)
+    end
+end
+
+function RecordInfo:OnRightPage()
+    self.curPage = self.curPage + 1;
+    local totalPage = self:GetMaxPage();
+    if self.curPage > totalPage then
+        self.curPage = totalPage;
+    else
+        self:RequestCardList(self.curPage)
+    end
+end
+
+function RecordInfo:GetMaxPage()
+     local totalPage = math.ceil(self.maxCount / 10);
+     if totalPage == 0 then
+         totalPage = 1;
+     end
+	 return totalPage;
+end
+
+function RecordInfo:InitData(t)
+	self.curPoolType = t;
+end
+
+function RecordInfo:SetRecords(data)
+    -- if data.Count > 0 then
+    --     self.maxCount = data.Count;
+    -- end
+	
+	self.maxCount = data.Count;
+	
+    local totalPage = self:GetMaxPage();
+    
+    self.numText.text = self.curPage .. "/" .. totalPage;
+
+	for k,v in pairs(self.allItems) do
+		GameObject.Destroy(v);
+	end
+	self.allItems = {};
+	
+    for i = 0, data.LotteryCardList.Count - 1 do
+        local itemData = data.LotteryCardList[i];
+
+        local item = newObject(self.recordItem.gameObject);
+        item.transform:SetParent(self.recordItem.parent);
+        item.transform.localPosition = Vector3.zero
+        item.transform.localScale = Vector3.one
+        item:SetActive(true);
+        item.transform:SetAsLastSibling();
+
+        local recordItem = RecordItem:New(item);
+        recordItem:Init(itemData);
+		
+		table.insert(self.allItems, item);
+    end
+
+    if self.curPoolType == 1 then
+        self.typeText.text =LanguageHelp:GetLanguageByKey("Local_Str_resident")
+    elseif self.curPoolType == 2 then
+        self.typeText.text =LanguageHelp:GetLanguageByKey("Local_Str_activity")
+    elseif self.curPoolType == 3 then
+        self.typeText.text =LanguageHelp:GetLanguageByKey("Local_Str_tyro")
+    elseif self.curPoolType == 4 then
+        self.typeText.text =LanguageHelp:GetLanguageByKey("Local_Str_friendship")
+    end
+
+    self.nonRecordsGo:SetActive(#self.allItems == 0);
+end
+
+function RecordInfo:RequestCardList()
+    --[[local lotteryCardListReq = CS.ProtoMsg.LotteryCardListReq();
+    lotteryCardListReq.UserPID = BusinessManager.Instance:GetUserPID();
+    lotteryCardListReq.PoolType = self.curPoolType;
+    local requestPagination = CS.ProtoMsg.RequestPagination();
+    requestPagination.PageNumber = self.curPage;
+    requestPagination.PageSize = 10
+    lotteryCardListReq.Page = requestPagination;
+
+    self:SendClient2ThirdReq("LotteryCardListReq", ExtraData.ToByteString(lotteryCardListReq));]]--
+	
+	
+	self.module:RequestCardList(self.curPage, self.curPoolType);
+end
+
+function RecordInfo:SendClient2ThirdReq(msgName, data)
+    local battleSocket = NetworkManager.Instance.gameSocket;
+    if battleSocket == nil then
+        Log("DrawCardModule:OnClient2ThirdReq() battleSocket=nil err!!!!");
+        return;
+    end
+    local message = CS.ProtoMsg.Client2ThirdReq();
+    message.MsgName = msgName;
+    message.MsgData = data;
+    battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message, false);
+end
+
+return RecordInfo

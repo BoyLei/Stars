@@ -1,0 +1,57 @@
+---------------------------------------------------------------------
+-- Stars (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2022-11-01 17:40:06
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class SellGoodsDetailInfo
+SellGoodsDetailInfo = class("SellGoodsDetailInfo")
+
+--道具ID
+local ItemID=0;
+
+--是否关注
+local IsAttention;
+
+--底价
+local Price;
+
+--在售数量
+local SellNum;
+
+--到期时间
+local Time;
+
+--[[
+状态
+1、在售
+2、已出售
+3、已下架
+4、审核中
+]]
+local State;
+
+function SellGoodsDetailInfo:ctor(id,isAttention,price,sellNum,time,state)
+	self.ItemID=id;
+	self.IsAttention=isAttention;
+	self.Price=price;
+	self.SellNum=sellNum;
+	self.Time=time;
+	self.State=state;
+end
+
+function SellGoodsDetailInfo:GetStateName()
+	if self.State== 2 then
+		return LanguageHelp:GetLanguageByKey("Local_Str_BeSold")
+	elseif  self.State== 3 then
+		return LanguageHelp:GetLanguageByKey("Local_Str_SOLD_OUT")
+	elseif self.State== 4 then
+		return LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_45")
+	else
+		return "";
+	end
+end
+return  SellGoodsDetailInfo;

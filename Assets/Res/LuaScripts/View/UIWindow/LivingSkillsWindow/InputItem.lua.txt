@@ -1,0 +1,65 @@
+--[[
+*文件名   :   InputItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/10/18 19:50:16"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+InputItem=class("InputItem",UIPanel);
+InputItem.m_Selected=nil;
+InputItem.m_BgRare=nil;
+InputItem.m_Icon=nil;
+InputItem.m_Name=nil;
+InputItem.m_Desc=nil;
+InputItem.ItemID=0;
+
+function InputItem:ctor(go, atlas)
+	self.prefab = go;
+	self.AtlasPath = atlas;
+	self.m_BgRare=self:Find("BgRare"):GetComponent(typeof(Image));
+	self.m_Icon=self:Find("Icon"):GetComponent(typeof(Image));
+	self.m_Name=self:Find("Name"):GetComponent(typeof(Text));
+	self.m_Desc=self:Find("Desc"):GetComponent(typeof(Text));
+	self.Btn = self.prefab:GetComponent(typeof(JButton));
+	self.Btn.OnClick = (function() self:OnClickHandler() end);
+end
+
+--点击事件
+function InputItem:OnClickHandler()
+	LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",
+		{ self.ItemID, false, nil, self.m_Icon.transform, 0 });
+
+end
+
+
+
+function InputItem:UpdateContent(arg,Desc)
+	self.ItemID=arg.ItemID;
+	local config=ConfigDataAccessor.Item[self.ItemID]
+	if config~=nil then
+		self.m_Name.text=GetQualityColor(config.Quality).. config.Name.."</color>"
+
+		local quality=config.Quality;
+		ResourceHelper:LoadIconByAtlasAsync(
+			self.m_BgRare,
+			ResourceHelper.AtlasPathCommonItem,
+			"Bag_Grid_sq"..quality,
+			false
+		)
+		ResourceHelper:LoadIconAsync(self.m_Icon, "", config.Icon, false)
+	end
+
+	local num=arg.ItemNum
+	local own=BusinessManager.Instance:GetCurrencyNum(self.ItemID)
+
+	if own<num then
+		self.m_Desc.text="<color=#ff0000>"..own.."</color>/"..num
+	else
+		self.m_Desc.text=own.."/"..num;
+	end
+
+
+end
+
+return  InputItem

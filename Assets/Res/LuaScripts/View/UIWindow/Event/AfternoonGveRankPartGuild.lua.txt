@@ -1,0 +1,121 @@
+--[[
+*文件名   :   AfternoonGveRankPartGuild
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local AfternoonGveRankPartGuild = {}
+
+AfternoonGveRankPartGuild.__index = AfternoonGveRankPartGuild
+
+local AfternoonGveRankPartGuildItem=require("View/Uiwindow/Event/AfternoonGveRankPartGuildItem")
+
+function AfternoonGveRankPartGuild:New(_go) 
+    local self = {};    
+    setmetatable(self, AfternoonGveRankPartGuild); 
+    
+
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+
+    --道具列表
+    self.AfternoonGveRankPartGuildItemList={};
+	--无限列表
+	self.go_AfternoonGveRankPartGuildItem = self.transform:Find("GngGuildRankItem").gameObject;
+
+	self.tr_ItemRoot=self.transform:Find("Scroll View/Mask/List");
+	self.go_AfternoonGveRankPartGuildItem:SetActive(false);
+	self.go_AfternoonGveRankPartGuildItem.transform:SetParent(self.transform);
+	self.AfternoonGveRankPartGuildScorllView=self.transform:Find("Scroll View"):GetComponent(typeof(SuperScrollViewController));
+	self.AfternoonGveRankPartGuildScorllView:NewScroll(self.go_AfternoonGveRankPartGuildItem, 0, function (tr,idx)
+		self:OnAfternoonGveRankPartGuildItemRefesh(tr,idx);
+	end);
+
+
+    self:Show(false);
+
+    return self;    --返回自身
+end
+
+
+
+function AfternoonGveRankPartGuild:OnAfternoonGveRankPartGuildItemRefesh(tr,idx)
+
+	for i=1,#self.AfternoonGveRankPartGuildItemList do
+		if self.AfternoonGveRankPartGuildItemList[i].transform == tr then
+            self.AfternoonGveRankPartGuildItemList[i]:SetItem(self.ItemDataList[idx+1]);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+		end
+
+	end
+
+    local bi = AfternoonGveRankPartGuildItem:New(tr.gameObject);
+
+	bi.gameObject:SetActive(true);
+	bi:SetItem(self.ItemDataList[idx+1]);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+
+    table.insert(self.AfternoonGveRankPartGuildItemList, bi);
+
+end
+
+
+function AfternoonGveRankPartGuild:Show(b,data)
+    self.gameObject:SetActive(b);
+    if b then
+
+
+        self:Refesh(data);
+
+
+    end
+end
+
+
+
+function AfternoonGveRankPartGuild:Refesh(data)
+
+    if self.ItemDataList==nil then
+        self.ItemDataList ={}
+    else
+        for k,_ in pairs(self.ItemDataList) do self.ItemDataList[k] = nil end
+    end
+
+
+    for i=0,data.Count-1 do
+        table.insert( self.ItemDataList, data[i] );
+    end
+
+	for i=data.Count,7 do
+		local d={}
+		d.Rank=-1;
+		table.insert( self.ItemDataList, d);
+	end
+
+	--self:SortItem(self.ItemDataList);
+	self.AfternoonGveRankPartGuildScorllView:ContinueScroll(#self.ItemDataList);
+
+end
+
+
+function AfternoonGveRankPartGuild:SortItem(tbl)
+
+	if #tbl > 1 then
+
+		table.sort(tbl, function(a, b)
+			--升序
+			if a.ScoOneP < b.ScoOneP then
+				return true
+			end
+			return false
+		end)
+
+	end
+
+end
+
+
+return AfternoonGveRankPartGuild;

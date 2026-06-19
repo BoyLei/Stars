@@ -1,0 +1,899 @@
+--[[
+*文件名   :   ItemTipsWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/10/31 15:00:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+ItemTipsWidget = class("ItemTipsWidget", UIPanel)
+ItemTipsWidget.IsOpen = false
+
+local ItemTipsItem = require("View/Item/ItemTipsItem")
+local ItemTipsEquip = require("View/Item/ItemTipsEquip")
+
+local ObjectPool = require("Common/Helper/ObjectPool")
+
+function ItemTipsWidget:Awake()
+    self.transform = self.prefab.transform
+
+    self.rect = self.transform:GetComponent(typeof(RectTransform))
+
+    self.rectItem = self:Find("AnimRoot/Main/Item/Info/Mask/List"):GetComponent(typeof(RectTransform))
+    self.rectEquip = self:Find("AnimRoot/Main/Equip/Info/Mask/List"):GetComponent(typeof(RectTransform))
+
+    --动画相关
+    self.anim = self.transform:GetComponent(typeof(Animator))
+
+    self.go_New = self:Find("AnimRoot/Main/New").gameObject
+    self.go_New:SetActive(false)
+
+    self.go_ItemFuncMenu = self:Find("AnimRoot/ItemFuncMenu").gameObject
+    self.go_ItemFuncMenu:SetActive(false)
+
+    self.tr_ItemFuncGrid = self:Find("AnimRoot/ItemFuncMenu/Grid")
+
+    self.itemTipsItem = ItemTipsItem:New(self:Find("AnimRoot/Main/Item").gameObject, true)
+    self.itemTipsEquip = ItemTipsEquip:New(self:Find("AnimRoot/Main/Equip").gameObject, true)
+
+    self.itemTipsEquipSub = ItemTipsEquip:New(self:Find("AnimRoot/Sub/Equip").gameObject)
+
+    --排序列表
+    local _go = self.transform:Find("AnimRoot/ItemFuncMenu/Grid/BtnSystemJump").gameObject
+    self.jumpItemPool =
+        ObjectPool:New(
+        3,
+        "View/Item/JumpItem",
+        _go,
+        _go.transform.parent,
+        --生成回调
+        function(ritem)
+            ritem:InitItem(
+                --点击回调
+                function(ritem)
+                    self:OnSystemJumpItemClick(ritem)
+                end
+            )
+        end,
+        --回收回调
+        function(ritem)
+            ritem:SetUse(false)
+        end
+    )
+
+    self.onUpdate = function()
+        self:RefeshPos()
+    end
+
+    --点击关闭事件
+    self.btnClick = self:Find("Click").gameObject
+    self.btnClick:GetComponent(typeof(JButton)).OnClick = (function()
+        self.btnClick.gameObject:SetActive(false)
+        self:CloseWidget()
+    end)
+
+    self.module = nil
+end
+
+function ItemTipsWidget:HideAllJump()
+    self.itemTipsItem.jumpItemPool:RecycleAll()
+    self.itemTipsEquip.jumpItemPool:RecycleAll()
+end
+
+function ItemTipsWidget:OnSystemJumpItemClick(ritem)
+    local enumName = ritem.WayString
+
+    --ItemTips专有的
+
+    if enumName == "Sys_Equip_Upgrade" then
+        --不满足条件
+        if not (CheckCanJumpByJumpEnum(enumName)) then
+            return
+        end
+
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        --打开装备升级UI
+        local fromModule = self.module.FromModule
+        local fromArgs = self.module.FromArgs
+
+        local entityID = self.module.EntityID
+        if self.module.cfg.ItemType ~= 2 then
+            --普通道具
+            entityID = 0
+        end
+
+        if fromModule ~= nil then
+            ModuleManager.Instance:SendMessage_Stack_Internal(fromModule, ModuleDef.EquipUpgradeModule, fromArgs, {1, entityID}, "Show")
+        else
+            LuaModuleDispatcher:SendMessage(ModuleDef.EquipUpgradeModule, "OnOpenEquipUpgrade", {1, entityID})
+        end
+    elseif enumName == "Sys_Equip_Refine" then
+        --不满足条件
+        if not (CheckCanJumpByJumpEnum(enumName)) then
+            return
+        end
+
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        --打开装备精炼UI
+        local fromModule = self.module.FromModule
+        local fromArgs = self.module.FromArgs
+
+        local entityID = self.module.EntityID
+        if self.module.cfg.ItemType ~= 2 then
+            --普通道具
+            entityID = 0
+        end
+
+        if fromModule ~= nil then
+            ModuleManager.Instance:SendMessage_Stack_Internal(fromModule, ModuleDef.EquipUpgradeModule, fromArgs, {2, entityID}, "Show")
+        else
+            LuaModuleDispatcher:SendMessage(ModuleDef.EquipUpgradeModule, "OnOpenEquipUpgrade", {2, entityID})
+        end
+    elseif enumName == "Sys_Amulet_Polish" then
+        --不满足条件
+        if not (CheckCanJumpByJumpEnum(enumName)) then
+            return
+        end
+
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+
+        local entityID = self.module.EntityID
+        if self.module.cfg.ItemType ~= 5 then
+            --普通道具
+            entityID = 0
+        end
+
+        --打开纹章铭刻
+        LuaModuleDispatcher:SendMessage(ModuleDef.AmuletModule, "OnOpenAmulet", {3, entityID, nil})
+    elseif enumName == "Sys_Item_Combine" then
+        --不满足条件
+        if not (CheckCanJumpByJumpEnum(enumName)) then
+            return
+        end
+
+        --判断藏宝图
+        if self.module.cfg.ItemType == 21 then
+            UIManager.Instance:CloseAllLoadedWindowNWidget()
+
+            ---藏宝图碎片
+            LuaModuleDispatcher:SendMessage(ModuleDef.TreasureModule, "OnOpenTreasureCrating")
+        else
+            self:CloseWidget()
+
+            --打开道具合成UI
+            local data = {}
+            data.EntityID = self.module.EntityID
+            data.AimBaseID = 0
+            UIManager.Instance:OpenWidget("Common/ItemCombineWidget", false, data, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, false)
+        end
+    elseif enumName == "Sys_Item_Heraldry_Compose" then
+        --不满足条件
+        if not (CheckCanJumpByJumpEnum(enumName)) then
+            return
+        end
+
+        self:CloseWidget()
+        --道具合成星次石合成UI
+        UIManager.Instance:OpenWidget("Amulet/EmblemCombineWidget", false, self.module.BaseID, nil, CS.StarProjectDef.MainPageCommond.HideNone, true, false)
+    elseif enumName == "Sys_Equip" then
+        --不满足条件
+        if not (CheckCanJumpByJumpEnum(enumName)) then
+            return
+        end
+
+        --装备玩家装备，玩家纹章
+        if self.module.cfg.ItemType == 2 then
+            --玩家装备
+            if self.itemTipsEquip.CanEquip then
+                self.module:WearEquip()
+            else
+                --不可以装备提示
+                Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_100"))
+            end
+        elseif self.module.cfg.ItemType == 5 then
+            --玩家纹章
+            if self.itemTipsEquip.CanEquip then
+                self.module:WearAmulet()
+            else
+                --不可以装备提示
+                Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_100"))
+            end
+        end
+    elseif enumName == "Sys_Unequip" then
+        --不满足条件
+        if not (CheckCanJumpByJumpEnum(enumName)) then
+            return
+        end
+
+        --脱下玩家装备，玩家纹章
+        if self.module.cfg.ItemType == 2 then
+            --玩家装备
+            self.module:TakeOffEquip()
+        elseif self.module.cfg.ItemType == 5 then
+            --玩家纹章
+            self.module:TakeOffAmulet()
+        end
+    elseif enumName == "Sys_Item_Discard" then
+        --不满足条件
+        if not (CheckCanJumpByJumpEnum(enumName)) then
+            return
+        end
+
+        --丢弃道具
+        CS.StarProjectDef.UIAPI.ShowMsgBox(
+            2,
+            function(str)
+                if str == "SURE" then
+                    print("ItemTipsWidget:OnBtnDelClick")
+                    self.module:DelItemReq()
+                end
+            end
+        )
+    elseif enumName == "Sys_Item_Open_Chest" then
+        --不满足条件
+        if not (CheckCanJumpByJumpEnum(enumName)) then
+            return
+        end
+
+        --打开宝箱
+        local cfgBox = ConfigDataAccessor.Boxes[self.module.cfg.Id]
+        if cfgBox.FixChoice == 0 then
+            --固定/随机宝箱
+            self.module:UseItem(self.module.Num)
+        else
+            --自选宝箱
+            self:CloseWidget()
+            UIManager.Instance:OpenWidget("Common/ChestSelectWidget", false, self.module.EntityID, nil, CS.StarProjectDef.MainPageCommond.HideBoth, false, true)
+        end
+    elseif enumName == "Sys_Item_Use" then
+        --不满足条件
+        if not (CheckCanJumpByJumpEnum(enumName)) then
+            return
+        end
+
+        --道具使用
+        self.module:UseItem(self.module.Num)
+    elseif enumName == "Play_Treasure" then
+        --不满足条件
+        if not (CheckCanJumpByJumpEnum(enumName)) then
+            return
+        end
+
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        --藏宝图
+
+        --判断
+        if BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.Treasure) then
+            --判断藏宝图
+            if self.module.cfg.ItemType == 20 then
+                LuaModuleDispatcher:SendMessage(ModuleDef.TreasureModule, "OnOpenTreasureMapReq", self.module.EntityID)
+            elseif self.module.cfg.ItemType == 21 then
+                ---藏宝图碎片
+                LuaModuleDispatcher:SendMessage(ModuleDef.TreasureModule, "OnOpenTreasureCrating")
+            end
+        else
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_102"))
+        end
+    else
+        JumpBySystemJumpEnum(enumName, self.module.FromModule, self.module.FromArgs, self.module.BaseID)
+    end
+end
+
+function ItemTipsWidget:BindModule(m)
+    print(".............")
+    self.module = m
+end
+
+function ItemTipsWidget:RefeshTipsByItemMD()
+    self.IsShowSubLeft = false
+    self:ClearAllAnim()
+    self.anim:Play("ItemTipsWidgetAnim_Open")
+
+    self.transform:SetAsLastSibling()
+
+    self.IsNeedCheckItemJump = false
+
+    self.itemTipsEquipSub:Show(false)
+    self.itemTipsItem:Show(false)
+    self.itemTipsEquip:RefeshEquipByData(self.module.ItemMD, self.module.gemTable)
+    self.itemTipsEquip.FromModule = self.module.FromModule
+    self.itemTipsEquip.FromArgs = self.module.FromArgs
+
+    self.go_ItemFuncMenu:SetActive(false)
+    self.module.isUseItemFuncMenu = false
+
+    --刷新面板位置
+    self:RefeshPos()
+end
+
+function ItemTipsWidget:SortItem(tbl)
+    if #tbl > 1 then
+        table.sort(
+            tbl,
+            function(a, b)
+                if a.SortPriority ~= b.SortPriority then
+                    return a.SortPriority < b.SortPriority
+                end
+
+                return false
+            end
+        )
+    end
+end
+
+function ItemTipsWidget:RefeshTips()
+    self.IsShowSubLeft = false
+    self:ClearAllAnim()
+    self.anim:Play("ItemTipsWidgetAnim_Open")
+
+    self.transform:SetAsLastSibling()
+
+    self.go_ItemFuncMenu:SetActive(self.module.isUseItemFuncMenu)
+    --角色装备页面进来的直接不显示
+    if self.module.OpenFrom == 2 then
+        self.go_ItemFuncMenu:SetActive(false)
+    end
+
+    ---------------------------------------------------------------------------------------
+    -----------------------------------------------系统跳转开始-----------------------------
+    ---------------------------------------------------------------------------------------
+
+    if self.module.isUseItemFuncMenu then
+        local SystemJumpList = {}
+
+        --装备相关
+        if self.module.cfg.ItemType == 2 and self.module.SpaceId == 1 then
+            --装备强化
+            if BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.Equip_Common) then
+                local cfg = ConfigDataAccessor.SystemJumpEnum["Sys_Equip_Upgrade"]
+                table.insert(SystemJumpList, cfg)
+            end
+
+            --装备精炼
+            if BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.Equip_Refine) then
+                local cfg = ConfigDataAccessor.SystemJumpEnum["Sys_Equip_Refine"]
+                table.insert(SystemJumpList, cfg)
+            end
+        end
+
+        --道具合成相关
+        if self.module.cfg.ItemType ~= 4 then --暂时频闭伙伴合成
+            local canCompose = ConfigDataAccessor.Compose[self.module.BaseID]
+            if canCompose ~= nil then
+                --道具合成
+                local cfg = ConfigDataAccessor.SystemJumpEnum["Sys_Item_Combine"]
+                table.insert(SystemJumpList, cfg)
+            end
+        end
+
+        --纹章相关
+        if self.module.cfg.ItemType == 5 then
+            --纹章铭刻
+            if BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.Amulet_Common) then
+                local cfg = ConfigDataAccessor.SystemJumpEnum["Sys_Amulet_Polish"]
+                table.insert(SystemJumpList, cfg)
+            end
+        end
+
+        --星次石合成相关
+        if self.module.cfg.ItemType == 6 then
+            --判断是否可以合成
+            local hCfg = ConfigDataAccessor.HeraldryEquip[self.module.BaseID]
+            local nextLv = hCfg.HeraldryLevel + 1
+
+            local IsMaxLv = false
+            --判断是否已经最大等级
+            local hCfgNext = ConfigDataAccessor.GetHeraldryEquip(hCfg.ResonanceSlot, nextLv)
+            if hCfgNext == nil then
+                IsMaxLv = true
+            else
+                --判断是否能升级
+                local maxLv = ConfigDataAccessor.GetHeraldryGrowMaxLv()
+                if hCfg.HeraldryLevel == maxLv then
+                    IsMaxLv = true
+                end
+            end
+
+            if not (IsMaxLv) then
+                --星次石合成
+                local cfg = ConfigDataAccessor.SystemJumpEnum["Sys_Item_Heraldry_Compose"]
+                table.insert(SystemJumpList, cfg)
+            end
+        end
+
+        --是否可以丢弃
+        if self.module.cfg.Discard == 1 then
+            --装备页面点进来的不给丢
+            if self.module.OpenFrom == 0 then
+                --已装备的不给丢弃
+                if self.module.SpaceId ~= 1 and self.module.SpaceId ~= 20 then
+                    --道具丢弃
+                    local cfg = ConfigDataAccessor.SystemJumpEnum["Sys_Item_Discard"]
+                    table.insert(SystemJumpList, cfg)
+                end
+            end
+        end
+
+        --伙伴相关
+        if self.module.cfg.ItemType == 4 then
+            --前往伙伴装备页面
+            local cfg = ConfigDataAccessor.SystemJumpEnum["Sys_Partner_Equip"]
+            table.insert(SystemJumpList, cfg)
+        end
+
+        --是否可以装备
+        if self.module.cfg.ItemType == 5 and self.module.SpaceId == 14 then
+            --角色等级解锁
+            --纹章 装备
+            local sbuType = self.module.cfg.SubType
+            local unlockLv = 0
+            local playerLv = GameManager.Instance:GetPlayerLevel()
+            if sbuType == 1 then
+                unlockLv = SystemConstConfigs.AtkAmulet_Unlock
+            elseif sbuType == 2 then
+                unlockLv = SystemConstConfigs.DefAmulet_Unlock
+            end
+
+            if playerLv >= unlockLv then
+                local cfg = ConfigDataAccessor.SystemJumpEnum["Sys_Equip"]
+                table.insert(SystemJumpList, cfg)
+            end
+
+        --冒险等级解锁
+        --[[
+
+            --纹章 装备
+            local sbuType=self.module.cfg.SubType;
+            local unlockLv=0;
+            local RiskInfo = GameManager.Instance.M_MainPlayerCtrlBase.Data.Attrs:GetProtoValue(CS.StarProjectDef.AOIAttrDefine.RiskInfo)
+            local curRiskLevel = RiskInfo.CurRiskLevel
+            if sbuType==1 then
+                unlockLv=SystemConstConfigs.AtkAmulet_Unlock;
+            elseif sbuType==2 then
+                unlockLv=SystemConstConfigs.DefAmulet_Unlock;
+            end
+
+            if curRiskLevel>=unlockLv then
+                local cfg=ConfigDataAccessor.SystemJumpEnum["Sys_Equip"];
+                table.insert(SystemJumpList,cfg);
+            end
+
+            ]]
+        end
+        if self.module.cfg.ItemType == 2 and self.module.SpaceId ~= 1 and self.module:IsMatchJob() then
+            --装备 装备
+            local cfg = ConfigDataAccessor.SystemJumpEnum["Sys_Equip"]
+            table.insert(SystemJumpList, cfg)
+        end
+
+        --是否可以脱下装备
+        if (self.module.cfg.ItemType == 5 and self.module.SpaceId == 13) or (self.module.cfg.ItemType == 2 and self.module.SpaceId == 1) then
+            local cfg = ConfigDataAccessor.SystemJumpEnum["Sys_Unequip"]
+            table.insert(SystemJumpList, cfg)
+        end
+
+        --宝箱
+        if self.module.cfg.ItemType == 22 and #self.module.cfg.UseJump <= 0 then
+            local cfg = ConfigDataAccessor.SystemJumpEnum["Sys_Item_Open_Chest"]
+            table.insert(SystemJumpList, cfg)
+        end
+
+        --道具使用
+        --if self.module.cfg.ItemType == 3 and #self.module.cfg.UseJump <= 0 then
+        --    local cfg = ConfigDataAccessor.SystemJumpEnum["Sys_Item_Use"]
+        --    table.insert(SystemJumpList, cfg)
+        --end
+
+        --配置表UseJump中的使用
+        for i = 1, #self.module.cfg.UseJump do
+            local idx = self.module.cfg.UseJump[i]
+            local cfg = ConfigDataAccessor.SystemJump[idx]
+            if cfg ~= nil then
+                table.insert(SystemJumpList, cfg)
+            end
+        end
+
+        --跳转排序
+        self:SortItem(SystemJumpList)
+
+        --生成跳转按钮
+        self.jumpItemPool:RecycleAll()
+        for i = 1, #SystemJumpList do
+            local cfg = SystemJumpList[i]
+            local item = self.jumpItemPool:Spawn()
+            item:SetItem(cfg)
+        end
+    end
+    ---------------------------------------------------------------------------------------
+    -----------------------------------------------系统跳转结束-----------------------------
+    ---------------------------------------------------------------------------------------
+
+    self.IsNeedCheckItemJump = false
+
+    local tipsType = self.module.cfg.ItemType
+    --刷新装备
+    if tipsType == 2 then
+        --伙伴装备
+        self.itemTipsItem:Show(false)
+        self.itemTipsEquip:Refesh(self.module.cfg, self.module.EntityID)
+        self.itemTipsEquip.FromModule = self.module.FromModule
+        self.itemTipsEquip.FromArgs = self.module.FromArgs
+
+        --判断是否要出现对比
+        if self.module.EntityID ~= nil and self.module.EntityID ~= 0 then
+            local equipedEquip = BusinessManager.Instance:GetHeroEquipedEquipByEntity(self.module.EntityID)
+            if equipedEquip ~= nil and equipedEquip.EntityID ~= self.module.EntityID then
+                self.IsShowSubLeft = true
+                if not (self.IsInRight) then
+                --self.IsShowSubLeft=true;
+                --self.rect.anchoredPosition =Vector2(self.rect.anchoredPosition.x+440,self.rect.anchoredPosition.y);
+                end
+
+                self.itemTipsEquipSub:Show(true)
+                --local cfg=LocalDataManager.Instance:GetItemDataCell(equipedEquip.BaseID);
+                local cfg = ConfigDataAccessor.Item[equipedEquip.BaseID]
+                self.itemTipsEquipSub:Refesh(cfg, equipedEquip.EntityID)
+
+                self.itemTipsEquip:CheckUp(self.itemTipsEquipSub)
+            else
+                self.itemTipsEquipSub:Show(false)
+            end
+        end
+    elseif tipsType == 4 then
+        --伙伴装备
+        self.itemTipsItem:Show(false)
+
+        local ItemDataT = BusinessManager.Instance:GetItemByItemEntityId(self.module.EntityID)
+        local PartnerBaseID = 0
+        if ItemDataT ~= nil then
+            PartnerBaseID = self:GetPartnerBaseIdByEntityID(ItemDataT.Heroid)
+        end
+        self.itemTipsEquip:Refesh(self.module.cfg, self.module.EntityID, self.module.PartnerEntityLv, PartnerBaseID)
+        self.itemTipsEquip.FromModule = self.module.FromModule
+        self.itemTipsEquip.FromArgs = self.module.FromArgs
+
+        --[[
+        --判断是否要出现对比
+        if self.module.EntityID ~= nil and self.module.EntityID ~= 0 then
+            local partnerEnyityID = 0
+            local equipedHeroid = 0
+            if self.module.PartnerEntityID ~= nil then
+                local ItemData = BusinessManager.Instance:GetItemByItemEntityId(self.module.EntityID)
+                equipedHeroid = ItemData.Heroid
+                partnerEnyityID = self.module.PartnerEntityID
+            end
+
+            local equipedEquip = BusinessManager.Instance:GetPartnerEquipedEquip(partnerEnyityID, self.module.cfg.SubType)
+            if equipedEquip ~= nil and equipedHeroid ~= partnerEnyityID then
+                self.IsShowSubLeft = true
+                if not (self.IsInRight) then
+                --self.IsShowSubLeft=true;
+                --self.rect.anchoredPosition =Vector2(self.rect.anchoredPosition.x+440,self.rect.anchoredPosition.y);
+                end
+
+                self.itemTipsEquipSub:Show(true)
+                --local cfg=LocalDataManager.Instance:GetItemDataCell(equipedEquip.BaseID);
+                local cfg = ConfigDataAccessor.Item[equipedEquip.BaseID]
+                local PartnerBaseID2 = self:GetPartnerBaseIdByEntityID(equipedEquip.Heroid)
+                self.itemTipsEquipSub:Refesh(cfg, equipedEquip.EntityID, self.module.PartnerEntityLv, PartnerBaseID2)
+
+                self.itemTipsEquip:CheckUp(self.itemTipsEquipSub)
+            else
+                self.itemTipsEquipSub:Show(false)
+            end
+        end
+        
+        ]]
+        self.itemTipsEquipSub:Show(false)
+    elseif tipsType == 5 then
+        --刷新Item
+        self.itemTipsItem:Show(false)
+        self.itemTipsEquip:Refesh(self.module.cfg, self.module.EntityID)
+        self.itemTipsEquip.FromModule = self.module.FromModule
+        self.itemTipsEquip.FromArgs = self.module.FromArgs
+
+        --判断是否要出现对比
+        if self.module.EntityID ~= nil and self.module.EntityID ~= 0 then
+            local equipedEquip = BusinessManager.Instance:GetHeroEquipedAmuletByEntity(self.module.EntityID)
+            if equipedEquip ~= nil and equipedEquip.EntityID ~= self.module.EntityID then
+                self.IsShowSubLeft = true
+                if not (self.IsInRight) then
+                --self.IsShowSubLeft=true;
+                --self.rect.anchoredPosition =Vector2(self.rect.anchoredPosition.x+440,self.rect.anchoredPosition.y);
+                end
+
+                self.itemTipsEquipSub:Show(true)
+                --local cfg=LocalDataManager.Instance:GetItemDataCell(equipedEquip.BaseID);
+                local cfg = ConfigDataAccessor.Item[equipedEquip.BaseID]
+                self.itemTipsEquipSub:Refesh(cfg, equipedEquip.EntityID)
+
+                self.itemTipsEquip:CheckUp(self.itemTipsEquipSub)
+            else
+                self.itemTipsEquipSub:Show(false)
+            end
+        end
+    elseif tipsType == 6 then
+        --刷新Item
+        self.itemTipsItem:Show(false)
+        self.itemTipsEquip:Refesh(self.module.cfg, self.module.EntityID)
+        self.itemTipsEquip.FromModule = self.module.FromModule
+        self.itemTipsEquip.FromArgs = self.module.FromArgs
+
+        --判断是否要出现对比
+        self.itemTipsEquipSub:Show(false)
+    else
+        self.IsNeedCheckItemJump = true
+        self.itemTipsEquipSub:Show(false)
+        self.itemTipsEquip:Show(false)
+        self.itemTipsItem:Refesh(self.module.cfg, self.module.EntityID)
+        self.itemTipsItem.FromModule = self.module.FromModule
+        self.itemTipsItem.FromArgs = self.module.FromArgs
+    end
+
+    --如果一个功能按钮都没有那么就不显示菜单
+    local num = self.tr_ItemFuncGrid.childCount
+    local isNoHave = false
+    for i = 0, num - 1 do
+        local _go = self.tr_ItemFuncGrid:GetChild(i).gameObject
+        if _go.activeSelf then
+            isNoHave = true
+            break
+        end
+    end
+    if not (isNoHave) then
+        self.go_ItemFuncMenu:SetActive(false)
+        self.module.isUseItemFuncMenu = false
+    end
+
+    --刷新面板位置
+    self:RefeshPos()
+end
+
+function ItemTipsWidget:GetPartnerBaseIdByEntityID(entityID)
+    if entityID == nil then
+        return 0
+    end
+
+    for _k, _v in pairs(self.module.Partners) do
+        if _v.ID == entityID then
+            return _v.Index
+        end
+    end
+
+    return 0
+end
+
+--刷新面板位置
+function ItemTipsWidget:RefeshPos()
+    self.IsInRight = true
+
+    local aim = self.module.AimTransform
+
+    if aim == nil then
+        return
+    end
+
+    --获取tip宽高
+    local tip_w = self.rect.sizeDelta.x
+    local tip_h = self.rectItem.sizeDelta.y + 250
+    if not (self.itemTipsItem.gameObject.activeSelf) then
+        tip_h = self.rectEquip.sizeDelta.y + 250
+    end
+
+    tip_w = 550
+
+    --获取目标的屏幕坐标
+    local screenPoint = aim.position -- 通过结果可以知道Screen Space - Overlay模式中UI的transform.position代表的是屏幕位置，而不是所谓的世界位置。
+
+    --获取目标宽高
+    local aim_rect = aim:GetComponent(typeof(RectTransform))
+    local aim_w = aim_rect.sizeDelta.x
+    local aim_h = aim_rect.sizeDelta.y
+
+    --UIManager.Instance.M_Canvas
+
+    local uiCvsRect = UIManager.Instance.M_Canvas:GetComponent(typeof(RectTransform))
+
+    --获取屏幕中点
+    --local screenCenter = Vector2(CS.UnityEngine.Screen.width / 2, CS.UnityEngine.Screen.height / 2)
+    local screenCenter = Vector2(uiCvsRect.sizeDelta.x / 2, uiCvsRect.sizeDelta.y / 2)
+
+    --计算tip偏移
+    local offset = Vector2(0, 0)
+    if screenPoint.x <= screenCenter.x and screenPoint.y >= screenCenter.y then
+        --左上
+        offset.x = aim_w / 2
+        offset.y = aim_h / 2
+
+        self.IsInRight = false
+    elseif screenPoint.x <= screenCenter.x and screenPoint.y <= screenCenter.y then
+        --左下
+        offset.x = aim_w / 2
+        offset.y = -aim_h / 2 + tip_h
+
+        self.IsInRight = false
+    elseif screenPoint.x >= screenCenter.x and screenPoint.y >= screenCenter.y then
+        --右上
+        offset.x = -tip_w - aim_w / 2
+        offset.y = aim_h / 2
+    elseif screenPoint.x >= screenCenter.x and screenPoint.y <= screenCenter.y then
+        --右下
+        offset.x = -tip_w - aim_w / 2
+        offset.y = tip_h - aim_h / 2
+    end
+
+    if self.module.isUseItemFuncMenu then
+        offset.x = offset.x - 160
+    end
+
+    if not (self.IsInRight) and self.IsShowSubLeft then
+        offset.x = offset.x + 550
+    end
+
+    local ap = CS.PositionConvert.ScreenPointToLocalPointInRectangle(screenPoint) + offset
+
+    --不能超出屏幕
+
+    if ap.y < -screenCenter.y + tip_h then
+        ap.y = -screenCenter.y + tip_h
+    elseif ap.y > screenCenter.y then
+        ap.y = screenCenter.y
+    end
+
+    self.rect.anchoredPosition = ap
+
+    if (self.module.cfg.ItemType == 2 or self.module.cfg.ItemType == 5) and self.IsShowSubLeft then
+        self.rect.anchoredPosition = Vector2(-248, self.rect.anchoredPosition.y)
+    end
+end
+
+--刷新面板位置
+function ItemTipsWidget:RefeshPos2(uiCam)
+    self.IsInRight = true
+
+    local aim = self.module.AimTransform
+
+    --获取tip宽高
+    local tip_w = self.rect.sizeDelta.x / 2
+    local tip_h = self.rect.sizeDelta.y / 2
+
+    tip_w = 550 / 2
+    tip_h = 909 / 2
+
+    --获取目标的屏幕坐标
+    local screenPoint = CS.PositionConvert.UIPointToScreenPoint(uiCam, aim.position)
+
+    --获取目标宽高
+    local aim_rect = aim:GetComponent(typeof(RectTransform))
+    local aim_w = aim_rect.sizeDelta.x
+    local aim_h = aim_rect.sizeDelta.y
+
+    --获取屏幕中点
+    local screenCenter = Vector2(CS.UnityEngine.Screen.width / 2, CS.UnityEngine.Screen.height / 2)
+
+    --计算tip偏移
+    local offset = Vector2(0, 0)
+    if screenPoint.x <= screenCenter.x and screenPoint.y >= screenCenter.y then
+        --左上
+        offset.x = tip_w + aim_w / 2
+        offset.y = -tip_h + aim_h / 2
+
+        self.IsInRight = false
+    elseif screenPoint.x <= screenCenter.x and screenPoint.y <= screenCenter.y then
+        --左下
+        offset.x = tip_w + aim_w / 2
+        offset.y = tip_h - aim_h / 2
+
+        --没有跳转的道具
+        if #self.module.cfg.Source <= 0 then
+            offset.y = offset.y - 426
+        else
+            self.IsNeedCheckItemJump = false
+        end
+
+        self.IsInRight = false
+    elseif screenPoint.x >= screenCenter.x and screenPoint.y >= screenCenter.y then
+        --右上
+        offset.x = -tip_w - aim_w / 2
+        offset.y = -tip_h + aim_h / 2
+    elseif screenPoint.x >= screenCenter.x and screenPoint.y <= screenCenter.y then
+        --右下
+        offset.x = -tip_w - aim_w / 2
+        offset.y = tip_h - aim_h / 2
+
+        --没有跳转
+        if #self.module.cfg.Source <= 0 then
+            offset.y = offset.y - 426
+        else
+            self.IsNeedCheckItemJump = false
+        end
+    end
+
+    local parentRect = self.rect.transform.parent:GetComponent(typeof(RectTransform))
+
+    if self.module.isUseItemFuncMenu then
+        offset.x = offset.x - 160
+    end
+
+    if not (self.IsInRight) and self.IsShowSubLeft then
+        offset.x = offset.x + 550
+    end
+
+    local ap = CS.PositionConvert.ScreenPointToUILocalPoint(uiCam, parentRect, screenPoint) + offset
+
+    --不能超出屏幕
+    if not (self.IsNeedCheckItemJump) then
+        if ap.y < -70 then
+            ap.y = -70
+        elseif ap.y > 70 then
+            ap.y = 70
+        end
+    end
+
+    self.rect.anchoredPosition = ap
+end
+
+function ItemTipsWidget:Start()
+end
+
+function ItemTipsWidget:OnEnable()
+end
+
+function ItemTipsWidget:OnDisable()
+end
+
+function ItemTipsWidget:OnDestroy()
+end
+
+function ItemTipsWidget:OnOpen(arg)
+    self.IsOpen = true
+
+    MonoHelper.AddUpdateListener(self.onUpdate)
+
+    DOVirtual.DelayedCall(
+        1,
+        function()
+            MonoHelper.RemoveUpdateListener(self.onUpdate)
+        end
+    )
+end
+
+function ItemTipsWidget:OnClose(arg)
+    GameManager.Instance.IsOpenItemTips = false
+    self.IsOpen = false
+end
+
+function ItemTipsWidget:CloseWidget()
+    self.IsOpen = false
+    self.anim:Play("ItemTipsWidgetAnim_Close")
+    self:ClearAllAnim()
+    self.tw_close =
+        DOVirtual.DelayedCall(
+        0.2,
+        function()
+            print("ItemTipsWidget:CloseWidget")
+            UIManager.Instance:CloseWidget("ItemTips/ItemTipsWidget", nil, true)
+
+            --清除装备栏的选中
+            LuaModuleDispatcher:SendMessage(ModuleDef.EquipModule, "OnSelectEquip", {0})
+            MonoHelper.RemoveUpdateListener(self.onUpdate)
+        end
+    )
+
+    GameManager.Instance.IsOpenItemTips = false
+    DOVirtual.DelayedCall(
+        0.5,
+        function()
+            --GameManager.Instance.IsOpenItemTips = false
+        end
+    )
+end
+
+function ItemTipsWidget:ClearAllAnim()
+    if self.tw_close ~= nil then
+        self.tw_close:Kill()
+        self.tw_close = nil
+    end
+end
+
+return ItemTipsWidget

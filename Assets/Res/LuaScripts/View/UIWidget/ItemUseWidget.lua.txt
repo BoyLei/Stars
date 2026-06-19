@@ -1,0 +1,293 @@
+--[[
+*文件名   :   ItemUseWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/09 17:09:51"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+ItemUseWidget=class("ItemUseWidget",UIPanel)
+ItemUseWidget.IsOpen=false;
+
+local ItemGrid=require("View/Item/ItemGrid");
+
+
+function ItemUseWidget:Awake()
+
+end
+
+function ItemUseWidget:BindModule(m)
+	self.module=m;
+end
+
+function ItemUseWidget:InitItems()
+	self.transform =self.prefab.transform;
+	self.gameObject=self.transform.gameObject;
+
+
+	
+
+	local btnCloseInfo=self.transform:Find("Background"):GetComponent(typeof(Button));
+	btnCloseInfo.onClick:AddListener(function()
+		self:OnCloseInfoClick();
+	end);
+
+	self.BtnMinImg=self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnMin"):GetComponent(typeof(Image));
+	local btnMin=self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnMin"):GetComponent(typeof(Button));
+	btnMin.onClick:AddListener(function()
+		self:OnBtnMinClick();
+	end);
+
+	self.BtnMaxImg=self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnMax"):GetComponent(typeof(Image));
+	local btnMax=self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnMax"):GetComponent(typeof(Button));
+	btnMax.onClick:AddListener(function()
+		self:OnBtnMaxClick();
+	end);
+
+	self.BtnAddImg=self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnAdd"):GetComponent(typeof(Image));
+	local btnAdd=self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnAdd"):GetComponent(typeof(Button));
+	btnAdd.onClick:AddListener(function()
+		self:OnBtnAddClick();
+	end);
+
+	self.BtnSubImg=self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnSub"):GetComponent(typeof(Image));
+	local btnSub=self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnSub"):GetComponent(typeof(Button));
+	btnSub.onClick:AddListener(function()
+		self:OnBtnSubClick();
+	end);
+
+
+
+	local btnConfirm=self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnConfirm"):GetComponent(typeof(Button));
+	btnConfirm.onClick:AddListener(function()
+		self:OnBtnConfirmClick();
+	end);
+
+	
+
+	self.Title=self.transform:Find("Cut4Cam90/AssemblyRatio2/Title"):GetComponent(typeof(Text));
+
+	self.ItemType=self.transform:Find("Cut4Cam90/AssemblyRatio2/Type"):GetComponent(typeof(Text));
+	self.UseNum=self.transform:Find("Cut4Cam90/AssemblyRatio2/UseNum"):GetComponent(typeof(Text));
+	self.GetNum=self.transform:Find("Cut4Cam90/AssemblyRatio2/Get/GetNum"):GetComponent(typeof(Text));
+	
+	self.go_Get=self.transform:Find("Cut4Cam90/AssemblyRatio2/Get").gameObject;
+
+	self.GetIcon=self.transform:Find("Cut4Cam90/AssemblyRatio2/Get/Icon"):GetComponent(typeof(Image));
+
+
+	self.slider=self.transform:Find("Cut4Cam90/AssemblyRatio2/Slider"):GetComponent(typeof(Slider));
+	--[[
+	self.slider.onClick:AddListener(function()
+		self:OnSliderValChanged();
+	end);
+	]]
+	self.slider.onValueChanged:AddListener(function()
+		self:OnSliderValChanged();
+	end);
+
+
+	self.UseNumNow=1;
+	self.MaxNum=self.slider.maxValue;
+
+	--生成一个格子
+	self.ItemGrid=ItemGrid:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/ItemRoot/ItemGrid").gameObject);--第一个不填会默认创建一个
+	self.ItemGrid:InitItem(false,function(it) 
+		self:OnItemClick(it);
+	end)--第一个是否显示底板（如果是true，被隐藏的时候会显示底板，否则全部隐藏），第二个是点击回调
+	self.ItemGrid.transform.localPosition=Vector3.zero;
+
+
+
+
+    --点击关闭事件
+	local btnClick=self:Find("Cut4Cam90/AssemblyRatio2/CloseBtn"):GetComponent(typeof(Button));
+	btnClick.onClick:AddListener(function() 
+
+
+		self:OnCloseInfoClick();
+		
+	end);
+
+
+end
+
+
+
+function ItemUseWidget:RefeshItem(item)
+	self.transform:SetAsLastSibling();
+	self.EntityID=item.EntityID;
+	self.Id=item.BaseID;
+	self.MaxNum=item.Num;
+	self.IsBox=item.IsBox;
+
+	self.slider.maxValue=self.MaxNum;
+	self.UseNumNow=1;--至少用一个
+	
+
+	--self.cfg=LocalDataManager.Instance:GetItemDataCell(self.Id);
+	self.cfg=ConfigDataAccessor.Item[self.Id];
+
+	self.Title.text=self.cfg.Name
+	--[[ 
+	local useID=self.cfg:GetUseID();
+	--通过使用表来看看获得啥
+	local itemUseCfg=LocalDataManager.Instance:GetItemUseDataCell(useID)
+	--固定获取的
+	if itemUseCfg:GetEffectType() == ?? then
+
+	else
+
+	end
+	]]
+	--不接获得那一行
+	self.go_Get:SetActive(false);
+
+
+
+
+	self.ItemType.text=self.cfg.Name;
+
+
+
+	--刷新格子信息
+	self.ItemGrid:SetItem(item);
+
+
+	self:RefeshUseNumTex();
+	
+
+end
+
+function ItemUseWidget:RefeshUseNumTex()
+	self.slider.value=self.UseNumNow;
+	self.UseNum.text="<color=#EF991F>"..self.UseNumNow .."</color> / "..self.MaxNum;
+
+	--暂时不接显示的东西
+	if self.go_Get.activeSelf then
+		--拿到获取的东西（通过掉落表）
+		--self.GetNum.text="";
+		--self.GetIcon.sprite=""
+	end
+
+	if self.UseNumNow==1 then
+		self.BtnMinImg.color=Color(0.5,0.5,0.5);
+		self.BtnSubImg.color=Color(0.5,0.5,0.5);
+	else
+		self.BtnMinImg.color=Color(1,1,1);
+		self.BtnSubImg.color=Color(1,1,1);	
+	end
+
+
+	if self.UseNumNow==self.MaxNum then
+		self.BtnMaxImg.color=Color(0.5,0.5,0.5);
+		self.BtnAddImg.color=Color(0.5,0.5,0.5);
+	else
+		self.BtnMaxImg.color=Color(1,1,1);
+		self.BtnAddImg.color=Color(1,1,1);	
+	end
+	
+
+
+end
+
+function ItemUseWidget:OnSliderValChanged()
+
+	if self.slider.value <1 then
+		self.slider.value=1;
+	end
+
+	self.UseNumNow=math.floor(self.slider.value);
+	self:RefeshUseNumTex()
+
+end
+
+function ItemUseWidget:OnBtnMinClick()
+
+	self.UseNumNow=1;
+	self:RefeshUseNumTex();
+end
+
+function ItemUseWidget:OnBtnMaxClick()
+	self.UseNumNow=self.MaxNum;
+	self:RefeshUseNumTex();
+end
+
+function ItemUseWidget:OnBtnAddClick()
+	if self.UseNumNow < self.MaxNum then
+		self.UseNumNow=self.UseNumNow+1;
+		self:RefeshUseNumTex();
+	end
+end
+
+function ItemUseWidget:OnBtnSubClick()
+	if self.UseNumNow > 1 then
+		self.UseNumNow=self.UseNumNow-1;
+		self:RefeshUseNumTex();
+	end
+end
+
+
+function ItemUseWidget:OnBtnConfirmClick()
+
+	--发送使用道具消息
+	self.module:UseItem(self.EntityID,self.cfg.SpaceId,self.UseNumNow,self.IsBox);
+
+	self:OnCloseInfoClick();
+end
+
+
+
+
+function ItemUseWidget:OnItemClick(bitem)
+
+	--设置道具Tips
+	self.module.IsOpenTips=true;
+	self.module:OpenItemTips(bitem.BaseID,bitem.EntityID,self.ItemGrid.transform);
+	--关闭回调
+	
+end
+
+
+
+function ItemUseWidget:Start()
+	print("ItemUseWidget:Start")
+end
+
+function ItemUseWidget:OnEnable()
+	
+end
+
+function ItemUseWidget:OnDisable()
+	
+end
+
+function ItemUseWidget:OnDestroy()
+
+end
+
+function ItemUseWidget:OnOpen(arg)
+	self.IsOpen=true;
+end
+
+function ItemUseWidget:OnClose(arg)
+	self.IsOpen=false;
+end
+
+function ItemUseWidget:OnCloseInfoClick()
+	--关闭道具Tips
+	if self.module.IsOpenTips then
+		self.module.IsOpenTips=false;
+		self.module:CloseItemTips();
+
+
+	else
+
+		UIManager.Instance:CloseWidget("Item/ItemUseWidget",nil,true);
+	end
+end
+
+
+
+
+return  ItemUseWidget

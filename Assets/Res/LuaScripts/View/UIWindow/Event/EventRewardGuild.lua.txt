@@ -1,0 +1,176 @@
+--[[
+*文件名   :   EventRewardGuild
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] local EventRewardGuild = {}
+
+EventRewardGuild.__index = EventRewardGuild
+
+local EventRewardGuildItem = require("View/Uiwindow/Event/EventRewardPersonalItem")
+
+function EventRewardGuild:New(_go)
+    local self = {};
+    setmetatable(self, EventRewardGuild);
+
+    self.gameObject = _go;
+    self.transform = _go.transform;
+
+    self.Title = self.transform:Find("title2/tt1"):GetComponent(typeof(Text));
+
+    -- 道具列表
+    self.EventRewardGuildItemList = {};
+    -- 无限列表
+    self.go_EventRewardGuildItem = self.transform:Find("Scroll View/Mask/List/Item").gameObject;
+
+    self.tr_ItemRoot = self.transform:Find("Scroll View/Mask/List");
+    self.go_EventRewardGuildItem:SetActive(false);
+    self.go_EventRewardGuildItem.transform:SetParent(self.transform);
+    self.EventRewardGuildScorllView = self.transform:Find("Scroll View"):GetComponent(typeof(SuperScrollViewController));
+    self.EventRewardGuildScorllView:NewScroll(self.go_EventRewardGuildItem, 0, function(tr, idx)
+        self:OnEventRewardGuildItemRefesh(tr, idx);
+    end);
+
+    -- 消息接收
+    self.message1 = function(data)
+        self:OnGVEMyGuildDataRet(data)
+    end
+
+    self.gameObject:SetActive(false);
+
+    local maxScore = 0;
+    self.Title.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_EventRewardGuild_Title"), {0, maxScore});
+
+    return self; -- 返回自身
+end
+
+function EventRewardGuild:OnGVEMyGuildDataRet(data)
+
+    print("Boss冒险团排行榜回调");
+
+    local pb = data.data;
+
+    local Users = pb.Users.UserDatas;
+
+    self.totalScore = 0;
+
+    for k, v in pairs(Users) do
+
+        self.totalScore = self.totalScore + v.Bonus;
+
+    end
+
+    self:Refesh(self.PlayMode);
+
+end
+
+function EventRewardGuild:OnEventRewardGuildItemRefesh(tr, idx)
+
+    for i = 1, #self.EventRewardGuildItemList do
+        if self.EventRewardGuildItemList[i].transform == tr then
+            self.EventRewardGuildItemList[i]:SetItem(self.ItemDataList[idx + 1], self.totalScore, true); -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+        end
+
+    end
+
+    local bi = EventRewardGuildItem:New(tr.gameObject);
+
+    bi.gameObject:SetActive(true);
+    bi:SetItem(self.ItemDataList[idx + 1], self.totalScore, true); -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+
+    table.insert(self.EventRewardGuildItemList, bi);
+
+end
+
+function EventRewardGuild:Show(b, playMode)
+    self.gameObject:SetActive(b);
+    if b then
+        CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.GVEMyGuildDataRetID, self.message1, nil);
+
+        self.PlayMode = playMode;
+        self.EffectLv = 0;
+
+        -- 判断活动是否开启了
+
+        local GVEStartI2S = GameManager.Instance.GVEStartI2S;
+        if GVEStartI2S ~= nil and GVEStartI2S.PlayID == self.PlayMode then
+            local gVEBossHurtSortReq = CS.ProtoMsg.GVEMyGuildDataReq();
+            CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace,
+                gVEBossHurtSortReq, false);
+
+            -- 生效等级
+            self.EffectLv = GVEStartI2S.EffectLv;
+
+        else
+            self.totalScore = 0;
+
+            if self.EffectLv == 0 then
+                local openServerDay = 0;
+                if GameManager.Instance.GloInfoSrv ~= nil then
+                    openServerDay = GameManager.Instance.GloInfoSrv.GRisk.OffDay;
+                end
+                self.EffectLv = ConfigDataAccessor.GetGVEEffectLevel(openServerDay);
+            end
+            self:Refesh(self.PlayMode);
+        end
+    else
+        CS.SGF.Network.NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.GVEMyGuildDataRetID, self.message1, nil);
+    end
+end
+
+function EventRewardGuild:Refesh(playMode)
+
+    if self.ItemDataList == nil then
+        self.ItemDataList = {}
+    else
+        for k, _ in pairs(self.ItemDataList) do
+            self.ItemDataList[k] = nil
+        end
+    end
+
+    local cfgs = ConfigDataAccessor.GVEGuildReward;
+
+    local maxScore = 0;
+
+    for k, v in pairs(cfgs) do
+
+        if v.PlayMode == playMode and (self.EffectLv == v.EffectLevel or self.EffectLv == 0) then
+
+            table.insert(self.ItemDataList, v);
+            if v.ScoOneP > maxScore then
+                maxScore = v.ScoOneP;
+            end
+        end
+
+    end
+
+    -- self.Title.text="冒险团当前积分："..self.totalScore.."/"..maxScore;
+    self.Title.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_EventRewardGuild_Title"),
+        {self.totalScore, maxScore});
+
+    self:SortItem(self.ItemDataList);
+
+    self.EventRewardGuildScorllView:ContinueScroll(#self.ItemDataList);
+
+end
+
+function EventRewardGuild:SortItem(tbl)
+
+    if #tbl > 1 then
+
+        table.sort(tbl, function(a, b)
+            -- 升序
+            if a.ScoOneP < b.ScoOneP then
+                return true
+            end
+            return false
+        end)
+
+    end
+
+end
+
+return EventRewardGuild;

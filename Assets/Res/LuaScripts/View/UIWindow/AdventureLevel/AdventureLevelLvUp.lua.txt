@@ -1,0 +1,429 @@
+--[[
+*文件名   :   AdventureLevelLvUp
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local AdventureLevelLvUp = {}
+
+AdventureLevelLvUp.__index = AdventureLevelLvUp
+
+local ItemGrid = require("View/Item/ItemGrid")
+local ObjectPool = require("Common/Helper/ObjectPool")
+
+function AdventureLevelLvUp:New(_go, AdventureLevelWindow)
+    local self = {}
+    setmetatable(self, AdventureLevelLvUp)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+    self.AdventureLevelWindow = AdventureLevelWindow
+
+    self.LvName = self.transform:Find("L/LvBg/Level"):GetComponent(typeof(Text))
+
+    self.Icon = self.transform:Find("L/Icon"):GetComponent(typeof(Image))
+
+    self.Exp = self.transform:Find("R/Exp"):GetComponent(typeof(Text))
+    self.DailyExp = self.transform:Find("R/DailyExp"):GetComponent(typeof(Text))
+
+    self.slider = self.transform:Find("R/Slider"):GetComponent(typeof(Slider))
+
+    
+    self.go_ps1=self.transform:Find("L/LvBg/FX_ui_LvUp01").gameObject;
+    self.go_ps2=self.transform:Find("L/FX_ui_LvUp02").gameObject;
+    
+    --道具
+    self.items = {}
+    for i = 1, 4 do
+        local it = ItemGrid:New(self.transform:Find("R/Have/Items/ItemGrid" .. i).gameObject)
+        it:InitItem(
+            false,
+            function(ritem)
+                self:OnItemClick(ritem)
+            end
+        )
+        table.insert(self.items, it)
+    end
+
+    self.maxLv = ConfigDataAccessor.GetMaxAdvGradeExpLv()
+
+    self.go_left= self.transform:Find("L/BtnLeft_Anim/BtnLeft").gameObject
+    self.transform:Find("L/BtnLeft_Anim/BtnLeft"):GetComponent(typeof(JButton)).OnClick = (function()
+        if self.TempRiskLevel>1 then
+            local ifBreak = true
+            while ifBreak do
+
+                    self.TempRiskLevel = self.TempRiskLevel - 1
+                    --if self.TempRiskLevel < 1 then
+                    --    self.TempRiskLevel = self.maxLv
+                    --end
+
+                    local cfg=ConfigDataAccessor.AdvGradeExp[self.TempRiskLevel];
+                    if cfg==nil then
+                        return;
+                    end
+
+                    ifBreak =cfg.IfBreak
+                
+            end
+            self:RefeshRewards(self.TempRiskLevel)
+
+
+
+        end
+    end)
+
+    self.go_right= self.transform:Find("L/BtnRight_Anim/BtnRight").gameObject
+    self.transform:Find("L/BtnRight_Anim/BtnRight"):GetComponent(typeof(JButton)).OnClick = (function()
+        if self.TempRiskLevel<self.maxLv then
+            local ifBreak = true
+            while ifBreak do
+                
+                    self.TempRiskLevel = self.TempRiskLevel + 1
+                    --if self.TempRiskLevel > self.maxLv then
+                    --    self.TempRiskLevel = 1
+                    --end
+
+                    local cfg=ConfigDataAccessor.AdvGradeExp[self.TempRiskLevel];
+                    if cfg==nil then
+                        return;
+                    end
+
+                    ifBreak =cfg.IfBreak
+                
+            end
+
+            self:RefeshRewards(self.TempRiskLevel)
+        end
+    end)
+
+    self.transform:Find("R/InfoBtn"):GetComponent(typeof(JButton)).OnClick = (function()
+        LuaModuleDispatcher:SendMessage(ModuleDef.FuncTipsModule, "OnOpenTips", {0, self.transform:Find("R/InfoBtn")})
+    end)
+
+    --效果
+    local _go = self.transform:Find("R/Have/EffectList/Viewport/Content/EffectItem").gameObject
+    self.effectItemPool =
+        ObjectPool:New(
+        4,
+        "View.Uiwindow.AdventureLevel.AdventureLevelLvUpItem",
+        _go,
+        _go.transform.parent,
+        function(it)
+            it:InitItem()
+        end,
+        --回收回调
+        function(ritem)
+            ritem:SetUse(false)
+        end,
+        nil
+    )
+
+    self.go_Have = self.transform:Find("R/Have").gameObject
+    self.go_Null = self.transform:Find("R/Null").gameObject
+
+    self.go_redPoint=self.transform:Find("R/Have/RedPoint").gameObject;
+
+    self.BtnConfirm = self.transform:Find("R/Have/BtnConfirm"):GetComponent(typeof(JButton))
+    self.transform:Find("R/Have/BtnConfirm"):GetComponent(typeof(JButton)).OnClick = (function()
+        self:OnLvUpClick()
+    end)
+
+    self.btnColor = self.transform:Find("R/Have/BtnConfirm/bg"):GetComponent(typeof(Image))
+    self.btnTex = self.transform:Find("R/Have/BtnConfirm/tex"):GetComponent(typeof(Text))
+
+    self:Show(false)
+
+    return self --返回自身
+end
+
+function AdventureLevelLvUp:OnLvUpClick()
+    if self.CanLvUp and self.TempRiskLevel == self.CurRiskLevel then
+        --[[
+
+        local riskLevel=self.NextRiskLevel;
+
+        local cfg=ConfigDataAccessor.AdvGradeExp[riskLevel];
+
+        --下一级是觉醒
+        if cfg.IfBreak then
+            
+            local riskLevelUpReq = CS.ProtoMsg.RiskLevelUpReq();
+		    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, riskLevelUpReq, false);
+
+        else
+            UIManager.Instance:OpenWidget("AdventureLevel/AdventureLevelUpgradeWidget", false, riskLevel, nil, CS.StarProjectDef.MainPageCommond.HideNone,true,false);
+        end
+        ]]
+        --播放动画结束后发请求
+
+
+        self.go_ps1:SetActive(false);
+        self.go_ps2:SetActive(false);
+        self.go_ps1:SetActive(true);
+        self.go_ps2:SetActive(true);
+
+        self.BtnConfirm.enabled = false
+        self.AdventureLevelWindow.anim:Play("LvUpLoop")
+
+
+       
+        local cfg = ConfigDataAccessor.AdvGradeExp[ self.NextRiskLevel];
+        if cfg==nil then
+            return;
+        end
+
+        if not(cfg.IfBreak) then
+            local order = cfg.AdvOrder
+            self.LvName.text = cfg.AdvClass.. GetRomaNum(cfg.AdvOrder);
+            ResourceHelper:LoadIconByAtlasAsync(self.Icon, ResourceHelper.AtlasPathAdventure, "adventure_" .. order, false)
+        
+        end
+
+        if self.tw ~= nil then
+            self.tw:Kill()
+        end
+        self.tw =
+            DOVirtual.DelayedCall(
+            0.5,
+            function()
+                self.BtnConfirm.enabled = true
+                local riskLevelUpReq = CS.ProtoMsg.RiskLevelUpReq()
+                CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(
+                    CS.SGF.Network.ServerType.ServerTypeLobby,
+                    riskLevelUpReq,
+                    false
+                )
+            end
+        )
+    else
+        if self.TempRiskLevel == self.CurRiskLevel then
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_259"))
+        else
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_260"))
+        end
+    end
+end
+
+function AdventureLevelLvUp:OnItemClick(ritem)
+    LuaModuleDispatcher:SendMessage(
+        ModuleDef.ItemTipsModule,
+        "OnOpenTips",
+        {ritem.BaseID, false, 0, ritem.transform, 0}
+    )
+end
+
+function AdventureLevelLvUp:Show(b)
+    self.gameObject:SetActive(b)
+    if b then
+        self:Refesh()
+    end
+end
+
+function AdventureLevelLvUp:ChangeImage()
+    
+end
+
+function AdventureLevelLvUp:Refesh()
+    local RiskInfo =
+        GameManager.Instance.M_MainPlayerCtrlBase.Data.Attrs:GetProtoValue(CS.StarProjectDef.AOIAttrDefine.RiskInfo)
+    if RiskInfo ~= nil then
+        local curRiskLevel = RiskInfo.CurRiskLevel
+        local curRiskExp = RiskInfo.CurRiskExp
+        local dayRiskExp = RiskInfo.DayRiskExp
+
+        self.NextRiskLevel = curRiskLevel + 1
+
+        local cfg = ConfigDataAccessor.AdvGradeExp[curRiskLevel]
+        if cfg==nil then
+            return;
+        end
+
+        --开服天数有bug
+        local openServerDay = 30
+        if GameManager.Instance.GloInfoSrv ~= nil then
+            openServerDay = GameManager.Instance.GloInfoSrv.GRisk.OffDay
+        end
+        --这里要判断下数组越界
+        local oTcfg = ConfigDataAccessor.GetOpeningTimeConfig(openServerDay)
+
+        local order = cfg.AdvOrder
+        --ResourceHelper:LoadIconByAtlasAsync(self.Icon2, ResourceHelper.AtlasPathAdventure, "adventure_" .. order, false)
+
+        self.CanLvUp = false
+        --经验裁剪
+        if curRiskExp >= cfg.Exp then
+            self.CanLvUp = true
+            curRiskExp = cfg.Exp
+        end
+
+        self.Exp.text = "<size=30>" .. curRiskExp .. "</size>/" .. cfg.Exp
+
+        --self.DailyExp.text = "冒险经验每日获取上限：<color=#8F3D35>" .. dayRiskExp .. "/" .. oTcfg.AdvGradeExpLimit .. "</color>"
+		self.DailyExp.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_AdventureLevelLvUp_DailyExp"), {dayRiskExp, oTcfg.AdvGradeExpLimit});
+
+        self.slider.value = curRiskExp / cfg.Exp
+
+        self.CurRiskLevel = curRiskLevel
+        self.TempRiskLevel = curRiskLevel
+        self:RefeshRewards(self.CurRiskLevel)
+    end
+end
+
+function AdventureLevelLvUp:RefeshRewards(lv)
+    local cfg = ConfigDataAccessor.AdvGradeExp[lv]
+    local cfgNext = ConfigDataAccessor.AdvGradeExp[lv + 1]
+
+    if cfg==nil then
+        return;
+    end
+    if cfgNext==nil then
+        return;
+    end
+
+    local lastIdx = 0
+    self.effectItemPool:RecycleAll()
+
+    local order = cfg.AdvOrder
+    self.LvName.text = cfg.AdvClass.. GetRomaNum(cfg.AdvOrder);
+    --self.Icon.sprite=AtlasManager.Instance:GetSprite("ui/adventurelevel/atlas/adventure","adventure_"..order);
+    ResourceHelper:LoadIconByAtlasAsync(self.Icon, ResourceHelper.AtlasPathAdventure, "adventure_" .. order, false)
+
+
+    self.go_right:SetActive(self.TempRiskLevel~= (self.maxLv-1))
+    self.go_left:SetActive(self.TempRiskLevel~= 1)
+    
+    if cfgNext == nil then
+        --已经达到最大等级
+        self.go_Have:SetActive(false)
+        self.go_Null:SetActive(true)
+    else
+        self.go_Have:SetActive(true)
+        self.go_Null:SetActive(false)
+
+        --奖励道具
+        for i = 1, #self.items do
+            self.items[i].gameObject:SetActive(false)
+        end
+        for i = 1, #cfg.AwardItem do
+            self.items[i].gameObject:SetActive(true)
+            self.items[i]:SetItemNum(cfg.AwardItem[i], cfg.AwardNum[i])
+
+            self.items[i]:MakeSelected(self.TempRiskLevel < self.CurRiskLevel);
+
+        end
+
+
+
+        --玩家等级上限是否有变化
+        if cfgNext.LevelLimit > cfg.LevelLimit then
+            local effectItem = self.effectItemPool:Spawn()
+            lastIdx = lastIdx + 1
+            --local str = "玩家等级上限提升至:" .. cfgNext.LevelLimit .. "级"
+            local str = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Tips72"), {cfgNext.LevelLimit})
+
+            effectItem:SetItem(str, false)
+        end
+
+        --是否有新的功能开启
+        local FuncID = cfgNext.FuncID
+        if FuncID > 0 then
+            local effectItem = self.effectItemPool:Spawn()
+            lastIdx = lastIdx + 1
+            local systemOpenCfg = ConfigDataAccessor.GuidSysOpen[FuncID]
+            effectItem:SetItem(systemOpenCfg.OpenTitle, false)
+        end
+
+        --奖励属性
+        for i = 1, #cfgNext.AttrID do
+            local isNew = true
+
+            for j = 1, #cfg.AttrID do
+                if cfgNext.AttrID[i] == cfg.AttrID[j] then
+
+                    local valueAdd = cfgNext.AttrValue[i] - cfg.AttrValue[j]
+                    isNew = false
+                    --没有变化的不处理
+                    if valueAdd > 0 then
+                        
+                        local effectItem = self.effectItemPool:Spawn()
+                        lastIdx = lastIdx + 1
+
+                        local config1=  ConfigDataAccessor.GetAttrByID(cfgNext.AttrID[i])
+                        local attrName1 = "";
+                        if config1 ~= nil then
+                            attrName1 = config1.Name;
+                        end
+
+
+                        local str = attrName1 .. " +" .. valueAdd
+                        effectItem:SetItem(str, true)
+                    end
+
+                    break
+                end
+            end
+
+            if isNew and cfgNext.AttrValue[i]>0 then
+                local effectItem = self.effectItemPool:Spawn()
+                lastIdx = lastIdx + 1
+
+                local config1=  ConfigDataAccessor.GetAttrByID(cfgNext.AttrID[i])
+                local attrName1 = "";
+                if config1 ~= nil then
+                    attrName1 = config1.Name;
+                end
+
+                local str = attrName1 .. " +" .. cfgNext.AttrValue[i]
+                effectItem:SetItem(str, true)
+            end
+        end
+
+        --最后一个出现问好
+        for i = 1, lastIdx - 1 do
+            self.effectItemPool.m_ObjPool[i].go_EffBtn:SetActive(false)
+        end
+    end
+
+    if self.TempRiskLevel == self.CurRiskLevel then
+        if not (self.CanLvUp) then
+             ResourceHelper:LoadIconByAtlasAsync(
+                self.btnColor,
+                ResourceHelper.AtlasPathCommonctrl,
+                "Common_Btn_NormalS1",
+                false
+            )
+            self.btnColor.gameObject:SetActive(true);
+            self.btnColor.color = Color(0.85, 0.85, 0.85)
+            self.btnTex.text=LanguageHelp:GetLanguageByKey("Local_Str_levelUp")
+            self.BtnConfirm.enabled=true;
+            self.go_redPoint:SetActive(false);
+        else
+             ResourceHelper:LoadIconByAtlasAsync(
+                self.btnColor,
+                ResourceHelper.AtlasPathCommonctrl,
+                "Common_Btn_NormalS2",
+                false
+            )
+            self.btnColor.gameObject:SetActive(true);
+            self.btnColor.color = Color(1, 1, 1)
+            self.btnTex.text=LanguageHelp:GetLanguageByKey("Local_Str_levelUp")
+            self.BtnConfirm.enabled=true;
+            self.go_redPoint:SetActive(true);
+        end
+    elseif self.TempRiskLevel > self.CurRiskLevel then
+        self.btnColor.gameObject:SetActive(false);
+        self.btnTex.text=LanguageHelp:GetLanguageByKey("Local_Str_Lock")
+        self.BtnConfirm.enabled=false;
+        self.go_redPoint:SetActive(false);
+    else
+        self.btnColor.gameObject:SetActive(false);
+        self.btnTex.text=LanguageHelp:GetLanguageByKey("Local_Str_already_levelUp")
+        self.BtnConfirm.enabled=false;
+        self.go_redPoint:SetActive(false);
+    end
+end
+
+return AdventureLevelLvUp

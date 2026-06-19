@@ -1,0 +1,108 @@
+--[[
+*文件名   :   EquipUpgradeSuccess
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local EquipUpgradeSuccess = {}
+
+EquipUpgradeSuccess.__index = EquipUpgradeSuccess
+
+local EquipUpgradeSlotAttr = require("View/Uiwindow/EquipUpgrade/EquipUpgradeSlotAttr")
+
+function EquipUpgradeSuccess:New(_go, onClose, equipUpgradeSlotUpgrade)
+    local self = {}
+    setmetatable(self, EquipUpgradeSuccess)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.EquipUpgradeSlotUpgrade = equipUpgradeSlotUpgrade
+    self.canClose = false
+    --关闭信息
+    local btnClose = self.transform:Find("BtnClose"):GetComponent(typeof(JButton))
+    btnClose.OnClick = (function()
+        if self.canClose then
+            self.EquipUpgradeSlotUpgrade:PlaySuccessCloseAnim(
+                function()
+                    self:Show(false)
+                    if onClose ~= nil then
+                        onClose()
+                    end
+                end
+            )
+        end
+    end)
+
+    --属性
+    self.attrs = {}
+    for i = 1, 5 do
+        local eai = EquipUpgradeSlotAttr:New(self.transform:Find("AttrPanel/Attr" .. i).gameObject)
+        table.insert(self.attrs, eai)
+    end
+
+    self.equipImage = self.transform:Find("EquipItem/Have/Icon"):GetComponent(typeof(Image))
+    self.equipBg = self.transform:Find("EquipItem/Have/BgRare"):GetComponent(typeof(Image))
+    self.equipAdd = self.transform:Find("EquipItem/Have/Num"):GetComponent(typeof(Text))
+
+    self.tex_from = self.transform:Find("From"):GetComponent(typeof(Text))
+    self.tex_to = self.transform:Find("To"):GetComponent(typeof(Text))
+
+    self:Show(false)
+
+    return self --返回自身
+end
+
+function EquipUpgradeSuccess:Show(b, slot_id, base_id)
+    self.gameObject:SetActive(b)
+    if b then
+        self.canClose = false
+        local equipSlotData = GameManager.Instance:GetEquipSlotData(slot_id)
+        local lv = equipSlotData.UpLv
+
+        local cfg = ConfigDataAccessor.Item[base_id]
+
+        self.equipAdd.text = "+" .. lv
+        local quality = cfg.Quality
+        --self.equipBg.sprite= AtlasManager.Instance:GetSprite("ui/common/atlas/commonitem","Bag_Grid_sq"..quality);
+        ResourceHelper:LoadIconByAtlasAsync(
+            self.equipBg,
+            ResourceHelper.AtlasPathCommonItem,
+            "Bag_Grid_sq" .. quality,
+            false
+        )
+        --LoadIcon(self.equipImage,cfg.Icon);
+        ResourceHelper:LoadIconAsync(self.equipImage, "", cfg.Icon, false)
+
+        self.tex_from.text = "" .. (lv - 1)
+        self.tex_to.text = "" .. lv
+
+        --强化的属性表
+        local playerJob = GameManager.Instance:GetPlayJobBaseID()
+
+        lv = lv - 1
+        local intensifyNext = ConfigDataAccessor.GetEquipSlotIntensify(slot_id, lv + 1, playerJob)
+
+        for i = 1, #self.attrs do
+            self.attrs[i].gameObject:SetActive(false)
+        end
+        for i = 1, #intensifyNext.Property do
+            self.attrs[i].gameObject:SetActive(true)
+
+            local addVal1 = 0
+            local addVal2 = intensifyNext.Value[i]
+            if lv > 0 then
+                local intensify = ConfigDataAccessor.GetEquipSlotIntensify(slot_id, lv, playerJob)
+                addVal1 = intensify.Value[i]
+            end
+
+            self.attrs[i]:RefeshAttrProb(intensifyNext.Property[i], addVal1, addVal2)
+        end
+    else
+        self.canClose = true
+    end
+end
+
+return EquipUpgradeSuccess

@@ -1,0 +1,153 @@
+--[[
+*文件名   :   SellCount
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/10/20 16:13:08"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+SellCount=class("SellCount",UIPanel)
+SellCount.m_Num=nil;
+SellCount.m_left=nil;
+SellCount.m_jian=nil;
+SellCount.m_right=nil;
+SellCount.m_jia=nil;
+SellCount.m_Slider=nil;
+SellCount.m_OwnCount=nil;
+SellCount.Min=0;
+SellCount.Max=0;
+SellCount.Current=0;
+SellCount.CallBack=nil;
+
+local leftFunc=nil;
+local jianFunc=nil;
+local rightFunc=nil;
+local jiaFunc=nil;
+local SliderFunc=nil;
+
+
+function SellCount:ctor(go, atlas)
+	self.prefab = go;
+	self.AtlasPath = atlas;
+	self.m_Num=self:Find("Num"):GetComponent(typeof(Text));
+	self.m_left=self:Find("left"):GetComponent(typeof(JButton));
+	self.m_jian=self:Find("jian"):GetComponent(typeof(JButton));
+	self.m_right=self:Find("right"):GetComponent(typeof(JButton));
+	self.m_jia=self:Find("jia"):GetComponent(typeof(JButton));
+	self.m_Slider=self:Find("Slider"):GetComponent(typeof(Slider));
+	self.m_OwnCount=self:Find("OwnCount"):GetComponent(typeof(Text));
+	leftFunc=function() self:OnClickleft(); end;
+	jianFunc=function() self:OnClickjian(); end;
+	rightFunc=function() self:OnClickright(); end;
+	jiaFunc=function() self:OnClickjia(); end;
+	SliderFunc=function(v) self:OnValueChangeSlider(v); end;
+	self:Start();
+
+end
+
+function SellCount:Start()
+	self.m_left.OnClick= leftFunc;
+	self.m_jian.OnClick= jianFunc;
+	self.m_right.OnClick= rightFunc;
+	self.m_jia.OnClick= jiaFunc;
+	self.m_Slider.onValueChanged:AddListener(SliderFunc);
+end
+
+function SellCount:OnDestroy()
+	self.m_left.OnClick= nil;
+	self.m_jian.OnClick= nil;
+	self.m_right.OnClick= nil;
+	self.m_jia.OnClick= nil;
+	self.m_Slider.onValueChanged:RemoveListener(SliderFunc);
+end
+
+function SellCount:OnVauleChange()
+	if self.Current<=self.Min then
+		self.Current=self.Min
+	end
+
+	if self.Current>=self.Max then
+		self.Current=self.Max
+	end
+
+	self.m_Num.text=math.floor(self.Current);
+	self.m_Slider.value=self.Current
+	if self.CallBack~=nil then
+		self.CallBack(self.Current);
+	end
+end
+
+function SellCount:OnOpen(ItemMD,cb)
+	self.CallBack=cb;
+	self.Min=0;
+	self.Max=ItemMD.Num;
+	--self.Max=BusinessManager.Instance:GetCurrencyNum(ItemMD.BaseID);
+
+	local active=true;
+	if self.Max==1 then
+		active=false;
+		self.Min=0;
+	else
+		self.Min=1;
+	end
+	self.m_Slider.minValue=self.Min
+	self.m_Slider.maxValue=self.Max
+
+	if active then
+		self.m_Slider.value=self.Min
+	else
+		self.m_Slider.value=self.Max
+	end
+
+	self.m_left.gameObject:SetActive(active);
+	self.m_jian.gameObject:SetActive(active);
+	self.m_right.gameObject:SetActive(active);
+	self.m_jia.gameObject:SetActive(active);
+	self.m_Slider.interactable = active;
+	self.Current=tonumber(self.m_Slider.value);
+	--self.m_OwnCount.text="拥有"..self.Max
+	self.m_OwnCount.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_SellCount_OwnCount"), {self.Max});
+
+	self:OnVauleChange();
+end
+
+function SellCount:OnClose(arg)
+
+end
+
+function SellCount:OnClickleft()
+	self.Current=self.Min
+	self.m_Slider.value=self.Current
+	self:OnVauleChange();
+end
+
+function SellCount:OnClickjian()
+	if self.Current> self.Min then
+		self.Current=self.Current-1
+	end
+	self.m_Slider.value=self.Current
+	self:OnVauleChange();
+end
+
+function SellCount:OnClickright()
+	self.Current=self.Max
+	self.m_Slider.value=self.Current
+	self:OnVauleChange();
+end
+
+function SellCount:OnClickjia()
+	if self.Current< self.Max then
+		self.Current=self.Current+1
+	end
+	self.m_Slider.value=self.Current
+	self:OnVauleChange();
+end
+
+function SellCount:OnValueChangeSlider(vaule)
+	self.Current=tonumber(vaule)
+	self:OnVauleChange();
+end
+
+
+
+return  SellCount

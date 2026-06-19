@@ -1,0 +1,123 @@
+--[[
+*文件名   :   GuildSilence
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] local GuildSilence = {}
+
+GuildSilence.__index = GuildSilence
+local SortList = require("View/Item/SortList")
+
+function GuildSilence:New(_go, onSuccessRefesh)
+    local self = {}
+    setmetatable(self, GuildSilence)
+
+    self.OnSuccessRefesh = onSuccessRefesh
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    -- 关闭按钮
+    self.transform:Find("Cut4Cam90/BtnClose"):GetComponent(typeof(JButton)).OnClick = (function()
+        self:Show(false)
+    end)
+
+    self.SlienceTime = {300, 600, 3600} -- 禁言实验
+
+    -- 确认按钮
+    self.transform:Find("Cut4Cam90/BtnComfirm"):GetComponent(typeof(JButton)).OnClick = (function()
+        self:OnSilenceClick()
+    end)
+
+    -- 取消按钮
+    self.transform:Find("Cut4Cam90/BtnCancel"):GetComponent(typeof(JButton)).OnClick = (function()
+        self:Show(false)
+    end)
+
+    -- 禁言下拉框
+    self.SortList = SortList:New(self.transform:Find("Cut4Cam90/SortList").gameObject)
+    -- self.SortList:Init({"禁言5分钟","禁言10分钟","禁言1小时"},function (idx)
+    self.SortList:Init(
+        {
+            LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_207") .. "5" .. LanguageHelp:GetLanguageByKey("Local_Str_Time_minute"),
+            LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_207") .. "10" .. LanguageHelp:GetLanguageByKey("Local_Str_Time_minute"),
+            LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_207") .. "1" .. LanguageHelp:GetLanguageByKey("Local_Str_Time_hour")
+        },
+        function(idx)
+            self:OnSelectSortList(idx)
+        end
+    )
+    self.SortListTex = self.transform:Find("Cut4Cam90/BtnSort/tex"):GetComponent(typeof(Text))
+    self.SortListIdx = 1
+    self.SortListTex.text = self.SortList.SortNames[self.SortListIdx]
+    self.transform:Find("Cut4Cam90/BtnSort"):GetComponent(typeof(JButton)).OnClick = (function()
+        self.SortList:Show(true, self.SortListIdx)
+    end)
+
+    -- 禁言回调
+    self.message1 = function(data)
+        self:OnGuildMyBankChatReqRet(data)
+    end
+
+    self:Show(false)
+
+    return self -- 返回自身
+end
+
+function GuildSilence:OnSelectSortList(idx)
+    self.SortListIdx = idx
+    self.SortListTex.text = self.SortList.SortNames[idx]
+end
+
+-- 禁言回调
+function GuildSilence:OnGuildMyBankChatReqRet(args)
+    local RetMsgID = args.MsgRet.RetMsgID -- 对应的消息号(这个可以判断是哪个协议)
+    local RetCode = args.MsgRet.RetCode -- 错误码，对应弹窗配置表ID，0为成功
+    if RetCode == 0 then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_210"))
+
+        if self.OnSuccessRefesh ~= nil then
+            self.OnSuccessRefesh()
+        end
+
+        self:Show(false)
+    else
+        -- 不需要处理，交给上层去处理
+        -- Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_16"));
+        -- args.IsDialog=true--如果这里写true那么上层就不会出现系统报错提示文字
+        -- 失败后做出的处理，常常是解锁UI
+    end
+end
+
+function GuildSilence:OnSilenceClick()
+    -- 禁言
+    local msg = CS.ProtoMsg.GuildMyBankChatReq()
+    msg.BePIDlist:Add(self.OperDBIDS) -- 被禁言的人的id
+    msg.BanTime = self.SlienceTime[self.SortListIdx] -- 被禁言的时间，秒数
+    SendClient2CenterReq(msg)
+end
+
+function GuildSilence:Show(b, info)
+    self.gameObject:SetActive(b)
+    if b then
+        self.Info = info
+        self.OperDBIDS = info.PID
+
+        self:Refesh()
+    else
+    end
+end
+
+function GuildSilence:OnMessage()
+    CS.SGF.Network.MsgRetManager.Instance:OnMessageEnum(self.message1, CS.MsgIDEnum.GuildMyBankChatReqID)
+end
+
+function GuildSilence:OffMessage()
+    CS.SGF.Network.MsgRetManager.Instance:OffMessageEnum(self.message1, CS.MsgIDEnum.GuildMyBankChatReqID)
+end
+
+function GuildSilence:Refesh()
+end
+
+return GuildSilence

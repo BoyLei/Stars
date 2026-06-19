@@ -1,0 +1,72 @@
+--[[
+*文件名   :   InscriptionPartACenterItem
+*内  容   :   鸣器item
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local InscriptionPartACenterItem = {}
+
+InscriptionPartACenterItem.__index = InscriptionPartACenterItem
+
+function InscriptionPartACenterItem:New(_go, idx, onClick)
+    local self = {}
+    setmetatable(self, InscriptionPartACenterItem)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.skillIcon = self.transform:Find("Have/icon"):GetComponent(typeof(Image))
+
+    self.num = self.transform:Find("Have/Num"):GetComponent(typeof(Text))
+
+    self.go_have = self.transform:Find("Have").gameObject
+    self.go_null = self.transform:Find("Null").gameObject
+
+    self.Idx = idx
+
+    self.OnClick = onClick
+    --点击自己
+    local btnUseClick = self.transform:GetComponent(typeof(JButton))
+    if btnUseClick ~= nil then
+        btnUseClick.OnClick = (function()
+            if self.OnClick ~= nil then
+                self.OnClick(self.Idx)
+            end
+        end)
+    end
+
+    return self --返回自身
+end
+
+function InscriptionPartACenterItem:SetUse(b)
+    self.go_have:SetActive(b)
+    self.go_null:SetActive(not (b))
+end
+
+function InscriptionPartACenterItem:SetItem(data)
+    if data ~= nil then
+        --显示图标
+        local Icon = data.Icon --技能id
+
+        if Icon ~= nil and Icon ~= "" then
+            self:SetUse(true)
+
+            local Points = data.Points
+            if data.IsItem then
+                ResourceHelper:LoadIconAsync(self.skillIcon, "", data.Icon, false)
+            else
+                ResourceHelper:LoadIconAsync(self.skillIcon, ResourceHelper.AtlasPathEtchSkill, data.Icon, false)
+            end
+
+            self.num.text = Points
+        else
+            self:SetUse(false)
+        end
+    else
+        self:SetUse(false)
+    end
+end
+
+return InscriptionPartACenterItem

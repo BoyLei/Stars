@@ -1,0 +1,675 @@
+SignInWindow = class("SignInWindow", UIPanel)
+SignInWindow.TabIndex = 0
+
+local DailyRewardItem = require("View/UIWindow/SignInWindow/DailyRewardItem")
+local AccumulateItem = require("View/UIWindow/SignInWindow/AccumulateItem")
+
+local SevenDayPanel = require("View/UIWindow/SignInWindow/SevenDayPanel")
+local BeginnerTaskPanel = require("View/UIWindow/SignInWindow/BeginnerTaskPanel")
+local GamePlayPreviewPanel = require("View/UIWindow/SignInWindow/GamePlayPreviewPanel")
+local PartnerTaskPanel = require("View/UIWindow/SignInWindow/PartnerTaskPanel")
+
+function SignInWindow:Awake()
+end
+
+function SignInWindow:BindModule(m)
+	SignInWindow.module = m;
+end
+
+function SignInWindow:InitControls()
+	self.transform = self.prefab.transform;
+	self.gameObject = self.transform.gameObject;
+
+	self.leftTimeText = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Right/container/ActivityTime/LeftTime"):GetComponent(typeof(Text));
+	self.daysText = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Right/container/Days/DaysBg/TexDays"):GetComponent(typeof(Text));
+
+    self.signInRedpoint = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Left/Menus/Act2/RedPoint").gameObject;
+	self.sevenDayRedpoint = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Left/Menus/Act1/RedPoint").gameObject;
+    self.previewRedpoint = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Left/Menus/Act3/RedPoint").gameObject;
+    self.partnerTaskRedpoint = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Left/Menus/Act4/RedPoint").gameObject;
+    self.beginnerTaskRedpoint = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Left/Menus/Act6/RedPoint").gameObject;
+	self.dailyItem = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Right/container/SV1/Viewport/Content/Item").gameObject;
+	self.allDailyItems = {};
+    self.openindextb = {}
+	for i=1, 30 do
+		local _go = newObject(self.dailyItem)
+        _go.transform:SetParent(self.dailyItem.transform.parent)
+        _go.transform.localPosition = Vector3.zero
+        _go.transform.localScale = Vector3.one
+		_go:SetActive(false);
+
+        local dailyRewardItem = DailyRewardItem:New(_go);
+        self.allDailyItems[i] = dailyRewardItem;
+	end
+
+	local accmulateItem = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Right/container/SV2/Viewport/Content/Item").gameObject;
+	self.allAccmulateItems = {};
+	for i=1, 5 do
+		local _go = newObject(accmulateItem)
+        _go.transform:SetParent(accmulateItem.transform.parent)
+        _go.transform.localPosition = Vector3.zero
+        _go.transform.localScale = Vector3.one
+		_go:SetActive(false);
+
+        local accumulateItem = AccumulateItem:New(_go);
+        self.allAccmulateItems[i] = accumulateItem;
+
+        if i == 5 then
+            accumulateItem.arrowObj:SetActive(false);
+        end
+	end
+
+    self.sdays = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Right/7Day").gameObject;
+    self.daySign = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Right/container").gameObject;
+    self.m_PreviewRoot = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Right/Preview").gameObject;
+    self.m_PartnerTaskRoot = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Right/PartnerTask").gameObject;
+    self.m_BeginnerTargetRoot = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Right/BeginnerTarget").gameObject;
+    if self:IsShowBeginnerTarget() then
+        self.m_BeginnerTaskPanel = BeginnerTaskPanel:New(self.m_BeginnerTargetRoot);
+    end
+
+    self.m_PreviewRoot:SetActive(false);
+    self.m_PartnerTaskRoot:SetActive(false);
+    self.sdays:SetActive(false);
+    self.daySign:SetActive(false);
+
+    self.sevenDayGoalPanel = SevenDayPanel:New(self.sdays,self);
+    self.m_GamePlayPreviewPanel = GamePlayPreviewPanel:New(self.m_PreviewRoot);
+    self.m_PartnerTaskPanel = PartnerTaskPanel:New(self.m_PartnerTaskRoot);
+    --local issignopen = CS.StarProject.Service.SystemOpen.SystemOpenManager.Instance:SystemIsOpen(SystemOpenType.FunctionPreview);
+
+    --if issignopen then 
+        --self.m_PreviewRoot:SetActive(true)
+    --else
+        --self.m_PreviewRoot:SetActive(false)
+    --end
+
+	self.sevenDayGo = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Left/Menus/Act1").gameObject;
+    self.sevenDayBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Left/Menus/Act1/Bg"):GetComponent(typeof(Button));
+    self.sevenDaySel = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Left/Menus/Act1/Selected").gameObject;
+    
+	self.daySignGo = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Left/Menus/Act2").gameObject;
+    self.daySignBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Left/Menus/Act2/Bg"):GetComponent(typeof(Button));
+    self.daySignSel = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Left/Menus/Act2/Selected").gameObject;
+    
+    self.m_PreviewTab = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Left/Menus/Act3").gameObject;
+    self.m_PreviewBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Left/Menus/Act3/Bg"):GetComponent(typeof(Button));
+    self.m_PreviewSel = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Left/Menus/Act3/Selected").gameObject;
+
+    self.m_PreviewTab = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Left/Menus/Act3").gameObject;
+    self.m_PreviewBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Left/Menus/Act3/Bg"):GetComponent(typeof(Button));
+    self.m_PreviewSel = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Left/Menus/Act3/Selected").gameObject;
+
+    self.m_PartnerTaskTab = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Left/Menus/Act4").gameObject;
+    self.m_PartnerTaskBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Left/Menus/Act4/Bg"):GetComponent(typeof(Button));
+    self.m_PartnerTaskSel = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Left/Menus/Act4/Selected").gameObject;
+
+    self.m_BeginnerTaskTab = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Left/Menus/Act6").gameObject;
+    self.m_BeginnerTaskBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Left/Menus/Act6/Bg"):GetComponent(typeof(Button));
+    self.m_BeginnerTaskSel = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Left/Menus/Act6/Selected").gameObject;
+
+    self.sevenDayBtn.onClick:AddListener(function() 
+        --显示七日任务
+        self.sdays:SetActive(true);
+        self.daySign:SetActive(false);
+		self.m_PreviewRoot:SetActive(false);
+        self.m_PartnerTaskPanel:Show(false);
+        self.m_BeginnerTargetRoot:SetActive(false);
+
+
+        self.sevenDaySel:SetActive(true);
+        self.daySignSel:SetActive(false);
+        self.m_BeginnerTaskSel:SetActive(false)
+        self.m_PreviewSel:SetActive(false)
+        self.m_PartnerTaskSel:SetActive(false)
+
+		self.TabIndex = 1
+		local sevenDayGoalMD = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.SevenDayGoal):GetSevenDayGoalMD();
+		if sevenDayGoalMD ~= nil then
+			self:InitSevenDayGoal(sevenDayGoalMD);
+			return;
+		end
+        
+    end);
+    self.daySignBtn.onClick:AddListener(function() 
+        --显示每日签到
+        self.sdays:SetActive(false);
+        self.daySign:SetActive(true);
+        self.m_PreviewRoot:SetActive(false);
+        self.m_PartnerTaskPanel:Show(false);
+        self.m_BeginnerTargetRoot:SetActive(false);
+
+        self.sevenDaySel:SetActive(false);
+        self.m_BeginnerTaskSel:SetActive(false)
+        self.daySignSel:SetActive(true);
+        self.m_PreviewSel:SetActive(false)
+        self.m_PartnerTaskSel:SetActive(false)
+
+        self.TabIndex = 2
+    end);
+
+    self.m_PreviewBtn.onClick:AddListener(function() 
+        --显示玩法预告
+        self.sdays:SetActive(false);
+        self.daySign:SetActive(false);
+        self.m_PreviewRoot:SetActive(true);
+        self.m_PartnerTaskPanel:Show(false);
+        self.m_BeginnerTargetRoot:SetActive(false);
+
+        self.sevenDaySel:SetActive(false);
+        self.daySignSel:SetActive(false);
+        self.m_BeginnerTaskSel:SetActive(false)
+        self.m_PreviewSel:SetActive(true)
+        self.m_PartnerTaskSel:SetActive(false)
+
+        self.TabIndex = 3
+        self:RenderGamePlayPreview()
+    end);
+
+
+    self.m_PartnerTaskBtn.onClick:AddListener(function() 
+        --显示伙伴目标
+        self.sdays:SetActive(false);
+        self.daySign:SetActive(false);
+        self.m_PreviewRoot:SetActive(false);
+        self.m_BeginnerTargetRoot:SetActive(false);
+
+        self.sevenDaySel:SetActive(false);
+        self.daySignSel:SetActive(false);
+        self.m_PreviewSel:SetActive(false)
+        self.m_BeginnerTaskSel:SetActive(false)
+        self.m_PartnerTaskSel:SetActive(true)
+
+        self.TabIndex = 4
+        self.m_PartnerTaskPanel:Show(true);
+    end);
+
+    self.m_BeginnerTaskBtn.onClick:AddListener(function()
+        self.sdays:SetActive(false);
+        self.daySign:SetActive(false);
+        self.m_PreviewRoot:SetActive(false);
+        self.m_PartnerTaskPanel:Show(false);
+
+        self.sevenDaySel:SetActive(false);
+        self.daySignSel:SetActive(false);
+        self.m_PreviewSel:SetActive(false)
+        self.m_PartnerTaskSel:SetActive(false)
+        self.m_BeginnerTaskSel:SetActive(true)
+
+        self.TabIndex = 6
+        self.m_BeginnerTargetRoot:SetActive(true);
+    end);
+    self.OnRefreshBeginnerTask = function(systemtype)
+        self:InitViewByTabIndex(systemtype)
+    end
+
+    CS.StarProject.GlobalEvent.OnSystemOpen:AddListener(self.OnRefreshBeginnerTask);
+    CS.StarProject.GlobalEvent.OnBeginnerRefresh:AddListener(self.OnRefreshBeginnerTask);
+    self:RefreshBeginnerRedPoint()
+end
+function SignInWindow:RefreshBeginnerRedPoint()
+    local FriendModule = ModuleManager.Instance:GetModule(ModuleDef.BeginnerTargetModule);
+    local BeginnerTargetData
+    if FriendModule then
+        local luatable = FriendModule:GetLuaTable()
+        BeginnerTargetData = luatable:GetChapterData();
+    end
+    if BeginnerTargetData then
+        self.beginnerTaskRedpoint:SetActive(BeginnerTargetData.RedPoint)
+    end
+end
+function SignInWindow:InitViewByTabIndex(systemtype)
+    if systemtype ~= 54 and systemtype ~= 55 and systemtype ~= 58 and  systemtype ~= 67 and systemtype ~= 60 and systemtype ~= 6 and systemtype ~= nil then
+        return
+    end
+    self:RefreshBeginnerRedPoint()
+    -- 如果不满足打开伙伴目标界面则打开签到界面
+    if self.TabIndex == 4 and not self:IsPartnerTabCanShow() then
+        self:CalCurrentOpen()
+    end
+    -- 如果不满足打开玩法预告界面则打开签到界面
+    if self.TabIndex == 3 and not self:IsPreviewTabCanShow() then
+        self:CalCurrentOpen()
+    end
+
+    if self.TabIndex == 6 and not self:IsShowBeginnerTarget() then
+        self:CalCurrentOpen()
+    end
+
+    local issignopen = CS.StarProject.Service.SystemOpen.SystemOpenManager.Instance:SystemIsOpen(SystemOpenType.Activ_SignIn)
+    if self.TabIndex == 2 and not issignopen then
+        self:CalCurrentOpen()
+    end
+
+    local sevenDayGoalMD = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.SevenDayGoal):GetSevenDayGoalMD();
+	if self.TabIndex == 1 and  sevenDayGoalMD == nil or self:CalSeventDayLastTime(sevenDayGoalMD.ActiveDateTime) <= 0 or not sevenDayGoalMD.IsActive then
+        self:CalCurrentOpen()
+    end
+
+    if self.TabIndex == 1 then
+        --显示七日任务
+        self.sdays:SetActive(true);
+        self.daySign:SetActive(false);
+        self.m_PreviewRoot:SetActive(false);
+        self.m_PartnerTaskPanel:Show(false);
+
+        self.sevenDaySel:SetActive(true);
+        self.daySignSel:SetActive(false);
+        self.m_PreviewSel:SetActive(false)
+        self.m_PartnerTaskSel:SetActive(false)
+
+        local sevenDayGoalMD = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.SevenDayGoal):GetSevenDayGoalMD();
+        if sevenDayGoalMD ~= nil then
+            self:InitSevenDayGoal(sevenDayGoalMD);
+        end
+    elseif self.TabIndex == 2 then
+        --显示每日签到
+        self.sdays:SetActive(false);
+        self.daySign:SetActive(true);
+        self.m_PreviewRoot:SetActive(false);
+        self.m_PartnerTaskPanel:Show(false);
+
+        self.sevenDaySel:SetActive(false);
+        self.daySignSel:SetActive(true);
+        self.m_PreviewSel:SetActive(false)
+        self.m_PartnerTaskSel:SetActive(false)
+    elseif self.TabIndex == 3 then
+        --显示玩法预告
+        self.sdays:SetActive(false);
+        self.daySign:SetActive(false);
+        self.m_PreviewRoot:SetActive(true);
+        self.m_PartnerTaskPanel:Show(false);
+
+        self.sevenDaySel:SetActive(false);
+        self.daySignSel:SetActive(false);
+        self.m_PreviewSel:SetActive(true)
+        self.m_PartnerTaskSel:SetActive(false)
+
+        self:RenderGamePlayPreview()
+    elseif self.TabIndex == 4 then
+        --显示伙伴目标
+        self.sdays:SetActive(false);
+        self.daySign:SetActive(false);
+        self.m_PreviewRoot:SetActive(false);
+
+        self.sevenDaySel:SetActive(false);
+        self.daySignSel:SetActive(false);
+        self.m_PreviewSel:SetActive(false)
+        self.m_PartnerTaskSel:SetActive(true)
+
+        self.m_PartnerTaskPanel:Show(true);
+    elseif self.TabIndex == 6 then
+        self.sdays:SetActive(false);
+        self.daySign:SetActive(false);
+        self.m_PreviewRoot:SetActive(false);
+        self.m_PartnerTaskPanel:Show(false);
+
+        self.sevenDaySel:SetActive(false);
+        self.daySignSel:SetActive(false);
+        self.m_PreviewSel:SetActive(false)
+        self.m_PartnerTaskSel:SetActive(false)
+        self.m_BeginnerTaskSel:SetActive(true)
+        self.m_BeginnerTargetRoot:SetActive(true);
+    end
+end
+
+function SignInWindow:CalCurrentOpen()
+    for i = 1,6 do 
+        if self.openindextb[i] == true then 
+            self.TabIndex = i
+			break
+        end
+    end
+end
+
+function SignInWindow:OpenPartnerTaskPanel()
+    
+end
+
+
+-- 填充玩法预告显示
+function SignInWindow:RenderGamePlayPreview(isInit)
+	local isReceivedAll = self.module:IsReceivedAllPreview()
+	if isReceivedAll then
+		self.sdays:SetActive(false);
+		self.daySign:SetActive(true);
+		self.m_PreviewRoot:SetActive(false);
+
+		self.sevenDaySel:SetActive(false);
+		self.daySignSel:SetActive(true);
+		self.m_PreviewSel:SetActive(false)
+
+		self.m_PreviewTab:SetActive(false)
+        self.TabIndex = 2
+		return
+	end
+
+	local rp3 = self.module:GetGamePlayPreviewRedPoint();
+	self.previewRedpoint:SetActive(rp3);
+
+	local previewListData = self.module:GetPreviewListData()
+	self.m_GamePlayPreviewPanel:RenderGamePlayPreviewList(previewListData)
+end
+
+
+function SignInWindow:Init(data)
+    if data == nil then
+        return;
+    end
+
+    -- --签到信息
+    -- data.CheckInData
+
+    -- --领奖信息
+    -- data.RewardData
+
+    -- --连续签到信息
+    -- data.CheckInCount
+
+    -- --本期开始时间
+    -- data.StartTime
+
+    -- --本期期号
+    -- data.SeasonID
+
+    -- --连续签到领奖记录
+    -- data.CountList
+    --self:InitViewByTabIndex()
+    --刷新是否显示伙伴目标页签
+    self:SetPartnerTaskTabActive()
+    self:SetBeginnerTaskTabActive()
+    if Util.IsNull(self.sevenDayGo) then 
+        return
+    end
+	local sevenDayGoalMD = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.SevenDayGoal):GetSevenDayGoalMD();
+	if sevenDayGoalMD == nil or self:CalSeventDayLastTime(sevenDayGoalMD.ActiveDateTime) <= 0 or not sevenDayGoalMD.IsActive then
+        self.sevenDayGo:SetActive(false);
+        self.openindextb[1] = false
+	else
+		self.sevenDayGo:SetActive(true);
+        self.openindextb[1] = true
+	end
+    
+    local issignopen = CS.StarProject.Service.SystemOpen.SystemOpenManager.Instance:SystemIsOpen(SystemOpenType.Activ_SignIn);
+
+    self.openindextb[2] = issignopen
+    if self.openindextb[2]  then 
+        self.daySignGo:SetActive(true)
+    else
+        self.daySignGo:SetActive(false)
+    end
+
+    self:SetPreviewTabActive()
+    self:InitDayRewards(data.SeasonID, data.CheckInData, data.RewardData, data.StartTime);
+    self:InitAccmulateRewards(data.SeasonID, data.CheckInCount, data.CountList);
+
+    self.TimeTickFunc = function()
+        self:SetLeftTime(data.StartTime);
+        if sevenDayGoalMD == nil or self:CalSeventDayLastTime(sevenDayGoalMD.ActiveDateTime) <= 0 or not sevenDayGoalMD.IsActive then
+            if self.sevenDayGo and self.sevenDayGo.activeSelf then
+                self.sevenDayGo:SetActive(false);
+				self:InitViewByTabIndex()
+            end
+        end
+	end
+
+    self:SetLeftTime(data.StartTime);
+    MonoHelper.RemoveSecTimeUpdateListener(self.TimeTickFunc);
+    MonoHelper.AddSecTimeUpdateListener(self.TimeTickFunc);
+
+    self.updatefunc = function()
+        if self.allDailyItems[1] ~= nil and self.allDailyItems[1].transform ~= nil and self.allDailyItems[1].transform.parent ~= self.allDailyItems[2].transform.parent then 
+            if not self.dailyItem.activeSelf then 
+                self.dailyItem:SetActive(true)
+            end
+        else
+            if self.dailyItem.activeSelf then 
+                self.dailyItem:SetActive(false)
+            end
+        end
+    end
+    MonoHelper.RemoveUpdateListener(self.updatefunc);
+    MonoHelper.AddUpdateListener(self.updatefunc);
+    self.updatefunc()
+    self.daysText.text = self:CalSininday(data.RewardData) --data.RewardData --data.CheckInCount;
+
+    local rp = self.module:GetRedPoint();
+    self.signInRedpoint:SetActive(rp == true);
+
+    local rp2 = self.module:GetRedPoint2();
+	self.sevenDayRedpoint:SetActive(rp2 == true);
+
+    local rp3 = self.module:GetGamePlayPreviewRedPoint()
+    self.previewRedpoint:SetActive(rp3)
+
+    if not self.openindextb[self.TabIndex] then 
+        self:CalCurrentOpen()
+    end
+    self:InitViewByTabIndex()
+end
+
+function SignInWindow:InitSevenDayGoal(data)
+    if data == nil then
+        return;
+    end
+
+    self.sevenDayGoalPanel:Init(data);
+
+	local rp2 = self.module:GetRedPoint2();
+	self.sevenDayRedpoint:SetActive(rp2 == true);
+end
+
+function SignInWindow:SetLeftTime(st)
+    if self.module.signInWindowView == nil then
+        return;
+    end
+    local t = math.floor((st + 3600*24*30) - TimeUtils.DateTimeToStampMilli(TimeUtils.GetServerTime())/1000);
+    if t < 0 then
+        t = 0;
+    end
+    if self.leftTimeText == nil then
+        self.leftTimeText = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Right/container/ActivityTime/LeftTime"):GetComponent(typeof(Text));
+    end
+    if self.leftTimeText ~= nil then
+        self.leftTimeText.text = self:FormatShowTime(t);
+    end
+end
+
+function SignInWindow:FormatShowTime(timeInSec)
+    local day=0;
+    local hour=0;
+    local min=0;
+    if (timeInSec / 86400) > 0 then
+        day = math.floor(timeInSec / 86400);
+        --_text = showTime.ToString() + "天";
+    end
+
+    timeInSec = timeInSec - 86400*day;
+    if (timeInSec / 3600) > 0 then
+        hour = math.floor(timeInSec / 3600);
+        --_text = showTime.ToString() + "小时";
+    end
+
+    timeInSec = timeInSec - 3600*hour;
+    
+    if (timeInSec / 60) > 0 then
+        min = math.ceil(timeInSec / 60);
+        --_text = showTime.ToString() + "分钟";
+    end
+
+    --return string.format("%d天%d小时%d分钟", day, hour, min);
+    return StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Time"), {day, hour, min});
+end
+
+function SignInWindow:InitDayRewards(seasonId, checkinData, rewardData, st)
+	local signInData = {};
+    local signSeasonList = ConfigDataAccessor.SignSeasonList;
+    for k,v in pairs(signSeasonList) do
+       -- logError("check in1 seasonid == ",v.SeasonID,"compare == ",seasonId)
+       --当前只配置了1季度
+        if v.SeasonID == 1 then --seasonId then
+            signInData[v.SignNum] = v;
+        end
+    end
+    local allinitcount = 0
+    local initednum = 0
+    local initcb = function ()
+        initednum = initednum + 1
+        if initednum == allinitcount then 
+            for k,v in pairs(self.allDailyItems) do
+                self.allDailyItems[k].gameObject:SetActive(true);
+            end
+        end
+    end
+    for k,v in pairs(signInData) do
+        allinitcount = allinitcount + 1
+     --   self.allDailyItems[k].gameObject:SetActive(true);
+        self.allDailyItems[k]:Init(v, checkinData, rewardData, st,initcb);
+    end
+end
+
+function SignInWindow:InitAccmulateRewards(seasonId, checkInCount, countList)
+	local accmulateData = {};
+    local signAccrueList = ConfigDataAccessor.SignAccrueList;
+    for k,v in pairs(signAccrueList) do
+      --  logError("check in seasonid == ",v.SeasonID,"compare == ",seasonId)
+        if v.SeasonID == 1 then --seasonId then
+            accmulateData[v.ID] = v;
+        end
+    end
+
+    for k,v in pairs(accmulateData) do
+        self.allAccmulateItems[k].gameObject:SetActive(true);
+        self.allAccmulateItems[k]:Init(v, checkInCount, countList);
+    end
+end
+
+-- 伙伴目标
+function SignInWindow:IsPartnerTabCanShow()
+    local isUnlock, strLocked = CheckPlayerGuidanceOpen(10060, "", false, false)
+    if not isUnlock then
+        return false
+    end
+
+    local isReceivedAll = self.module:IsReceivedAllPartnerTarget()
+    return not isReceivedAll
+end
+
+function SignInWindow:SetPartnerTaskTabActive()
+    self.openindextb[4] = self:IsPartnerTabCanShow()
+    self.m_PartnerTaskTab:SetActive(self:IsPartnerTabCanShow())
+end
+
+function SignInWindow:SetBeginnerTaskTabActive()
+    self.openindextb[6] = self:IsShowBeginnerTarget()
+    self.m_BeginnerTaskTab:SetActive(self:IsShowBeginnerTarget())
+end
+function SignInWindow:IsShowBeginnerTarget()
+    if BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.BeginnerTarget) then
+        local FriendModule = ModuleManager.Instance:GetModule(ModuleDef.BeginnerTargetModule);
+        if FriendModule then
+            local luatable = FriendModule:GetLuaTable()
+            local BeginnerTargetData = luatable:GetChapterData();
+            if BeginnerTargetData and BeginnerTargetData.LastTime then
+                if BeginnerTargetData.LastTime == 0 or not BeginnerTargetData.IsEnd then
+                    return true
+                else
+                    local dt = GameManager.Instance:GetServerTimeStamp()/1000 - BeginnerTargetData.LastTime;
+                    local t = math.floor((3600*24) - dt);
+                    if t > 0 then
+                        return true
+                    end
+                end
+            end
+        end
+    end
+    return false
+end
+function SignInWindow:IsPreviewTabCanShow()
+    local isUnlock, strLocked = CheckPlayerGuidanceOpen(10058, "", false, false)
+    if not isUnlock then
+        return false
+    end
+
+    local isReceivedAll = self.module:IsReceivedAllPreview()
+    return not isReceivedAll
+end
+
+-- 玩法预告
+function SignInWindow:SetPreviewTabActive()
+    self.openindextb[3] = self:IsPreviewTabCanShow()
+    self.m_PreviewTab:SetActive(self:IsPreviewTabCanShow())
+end
+
+--计算七日倒计时是否为0
+function SignInWindow:CalSeventDayLastTime(st)
+    local t = math.floor((st + 3600*24*15*1000) - TimeUtils.DateTimeToStampMilli(TimeUtils.GetServerTime()))/1000;
+    return t
+end
+
+function SignInWindow:OnShow()
+end
+
+function SignInWindow:Start()
+
+end
+
+function SignInWindow:SetCheckInData()
+	
+end
+
+function SignInWindow:OnEnable()
+
+end
+
+function SignInWindow:OnDisable()
+
+end
+
+function SignInWindow:OnDestroy()
+
+end
+
+function SignInWindow:OnOpen(arg)
+    -- 默认打开签到
+    if arg == nil or arg.TabIndex == nil then
+        self.TabIndex = 2
+    else
+        self.TabIndex = arg.TabIndex
+    end
+	self.IsOpen = true;
+end
+
+function SignInWindow:OnClose(arg)
+    CS.StarProject.GlobalEvent.OnSystemOpen:RemoveListener(self.OnRefreshBeginnerTask);
+    CS.StarProject.GlobalEvent.OnBeginnerRefresh:RemoveListener(self.OnRefreshBeginnerTask);
+    if self.m_BeginnerTaskPanel then
+        self.m_BeginnerTaskPanel:OnClose()
+    end
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips", {});
+	self:CloseWindow();
+    self.module.signInWindowView=nil;
+    self.m_PartnerTaskPanel:Show(false);
+    MonoHelper.RemoveSecTimeUpdateListener(self.TimeTickFunc);
+    MonoHelper.RemoveUpdateListener(self.updatefunc);
+    if self.sevenDayGoalPanel ~= nil then
+        self.sevenDayGoalPanel:OnClose();
+    end
+end
+
+function SignInWindow:CloseWindow()
+	self.IsOpen = false;
+    self.module.signInWindowView=nil;
+end
+
+function SignInWindow:CalSininday(RewardData)
+    local signindays = 0
+    for i=1, 30 do
+        if (1<<i-1 & RewardData)>0 then 
+            signindays = signindays + 1
+        end
+    end
+    return signindays
+end
+
+return SignInWindow

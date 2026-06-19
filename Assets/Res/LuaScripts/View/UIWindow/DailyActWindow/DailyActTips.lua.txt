@@ -1,0 +1,77 @@
+local DailyActTips = {}
+
+DailyActTips.__index = DailyActTips
+
+function DailyActTips:New(go)
+    local self = {};
+    setmetatable(self, DailyActTips);
+
+    self.transform = go.transform;
+    self.gameObject = go;
+
+    self:InitControls();
+
+    return self;
+end
+
+function DailyActTips:InitControls()
+    self.itemGo = self.transform:Find("Bg/Item").gameObject;
+
+    self.descText = self.transform:Find("Desc"):GetComponent(typeof(Text));
+
+    local closeButton = self.transform:Find("CloseBtn"):GetComponent(typeof(Button));
+    closeButton.onClick:AddListener(function() 
+        self.gameObject:SetActive(false);
+	end);
+
+    self.allItems = {};
+end
+
+function DailyActTips:Show(id, pos)
+    self.gameObject:SetActive(true);
+	self.transform.position = pos + Vector3(0,100,0);
+
+    for _,v in pairs(self.allItems) do
+        GameObject.Destroy(v);
+    end
+    self.allItems = {};
+
+    --self.descText.text = id.."活跃度奖励";
+    self.descText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_DailyActTips_descText"), {id});
+
+    local dailyPlayActivRewardList = ConfigDataAccessor.DailyPlayActivRewardList;
+    local rewards = dailyPlayActivRewardList[id].Reward;
+    local rewardsNum = dailyPlayActivRewardList[id].RewardNum;
+    for k,v in pairs(rewards) do
+        local go = newObject(self.itemGo);
+		go.transform:SetParent(self.itemGo.transform.parent);
+		go.transform.localPosition = Vector3.zero;
+		go.transform.localScale = Vector3.one;
+		go:SetActive(true);
+
+        local numText = go.transform:Find("Num"):GetComponent(typeof(Text));
+        local icon = go.transform:Find("Icon"):GetComponent(typeof(Image));
+        local bgRare = go.transform:GetComponent(typeof(Image));
+
+        numText.text = rewardsNum[k];
+
+        local cfg = ConfigDataAccessor.Item[v];
+    	ResourceHelper:LoadIconAsync(icon, "", cfg.Icon, false)
+
+        ResourceHelper:LoadIconByAtlasAsync(
+            bgRare,
+            ResourceHelper.AtlasPathCommonItem,
+            "Bag_Grid_sq" .. cfg.Quality,
+            false
+        )
+        
+        local btn = go.transform:GetComponent(typeof(Button));
+        btn.onClick:AddListener(function()
+            LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",{ cfg.Id,false ,0,go.transform,0});
+        end);
+
+		table.insert(self.allItems, go);
+    end
+end
+
+return DailyActTips

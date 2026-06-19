@@ -1,0 +1,226 @@
+FightPowerModule = class("FightPowerModule", BaseLuaModule)
+
+local PowerPrefabPath = "Power/Prefabs/Power"
+local PowerTipsWidget = "Power/Prefabs/PowerTipsWidget"
+
+-- LuaModule 消息模块
+FightPowerModule.ModuleMessages = {
+    -- 打开 战力界面
+    ["OnOpen"] = function(...)
+        FightPowerModule:OnOpen(...);
+    end,
+    ["PowerChangeTips"] = function(...)
+        FightPowerModule:PowerChangeTips(...);
+    end
+}
+
+FightPowerModule.curPower = 0;
+FightPowerModule.powerChange = 0;
+
+-- 监听打开出战界面事件
+function FightPowerModule:OnOpen(...)
+
+    local tb = ...
+
+    UIManager.Instance:OpenWindowAsync(PowerPrefabPath, self.OnLoadCb, nil, CS.StarProjectDef.MainPageCommond.HideBoth);
+end
+
+function FightPowerModule:OnLoadCb(ui)
+    if ui ~= nil then
+        if self.view == nil then
+            self.view = ui:GetLuaPanel().ScriptTable;
+            self.view:BindModule(self);
+        end
+        self.view:OnOpen();
+    end
+end
+
+-- LuaModule 创建
+function FightPowerModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.FightPowerModule, self)
+
+    FixMessageManager.Instance:OnMessage(FixUpdateDef.FightMD, function(data)
+        self:OnFightMD(data);
+    end, nil);
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.GetFightRewardRetID, function(data)
+        if self.view ~= nil then
+            self.view:RefreshRewardsIcon();
+        end
+
+        self:RefreshRedPoint();
+
+    end, nil);
+    -- 战力模块数据
+
+    -- 系统开放 数据初始化刷新的时候 也刷新一下相关红点
+    self.onSystemOpenAll = function(idx)
+
+        self:RefreshRedPoint();
+    end
+    CS.StarProject.GlobalEvent.OnRefreshSystemOpen:AddListener(self.onSystemOpenAll);
+
+    self.onSystemOpen = function(type, isOpen)
+
+        if isOpen and type == CS.StarProjectDef.SystemOpenType.Power then
+
+            self:RefreshRedPoint();
+        end
+    end
+
+    CS.StarProject.GlobalEvent.OnSystemOpen:AddListener(self.onSystemOpen);
+
+end
+
+-- 战力的 黑板
+function FightPowerModule:OnFightMD(data)
+
+    local pid = GameManager.Instance.mainPlayerId;
+    local md = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.FightMD):GetMD();
+    -- 战力 FightMD 找不到, 那就不管
+    if md == nil then
+        return;
+    end
+
+    DelayInvoker.DelayInvoke("power-change", 1, function(...)
+        self:RefreshRedPoint();
+    end);
+
+    local IsPartial = true; -- 是否差量
+    if data.AllDatas ~= nil and data.AllDatas.Count > 0 then
+        IsPartial = false;
+    end
+
+    -- 如果是全量, 说明是第一次同步战力数据, 这个时候 客户端不需要 做战力变化的提示
+    if IsPartial == false then
+        -- 记录 当前的 战力
+        self.curPower = md.All;
+        return;
+    end
+
+    -- 如果战力提升, 战力提示
+    local powerChange = md.All - self.curPower;
+
+    -- 发送 战力的变化 powerChange
+    self:OnPowerChange(powerChange);
+
+    -- 战力的变化 在ui层 做延迟，按最后一个算，比如 收到 战力 +30 , -20.
+    -- 那从 -20开始计时 2s内 如果没有战力变化，提示 +10;
+
+    self.curPower = md.All;
+end
+
+function FightPowerModule:PowerChangeTips(...)
+    -- 测试逻辑 可以干掉
+    return;
+    -- local tb = ...;
+    -- local power = tb[0] + 2000;
+    -- -- 如果战力提升, 战力提示
+    -- local powerChange = power - self.curPower;
+
+    -- -- 发送 战力的变化 powerChange
+    -- self:OnPowerChange(powerChange);
+
+    -- -- 战力的变化 在ui层 做延迟，按最后一个算，比如 收到 战力 +30 , -20.
+    -- -- 那从 -20开始计时 2s内 如果没有战力变化，提示 +10;
+
+    -- self.curPower = power;
+end
+
+-- 当战力变化的 时候，处理逻辑
+function FightPowerModule:OnPowerChange(powerChange)
+
+    -- 先更新 战力变化的值
+    self.powerChange = self.powerChange + powerChange;
+
+    self:DelayEmitPowerChange(self.powerChange);
+
+end
+
+-- 延时发送战力变化的 消息
+function FightPowerModule:DelayEmitPowerChange(powerChange)
+
+    -- 当前没有正在播放的动画,那就直接 刷新定时器
+    if not self.onPowerChanging then
+
+        DelayInvoker.CancelInvoke(self);
+        DelayInvoker.DelayInvoke(self, 0.8, function(...)
+            self:EmitPowerChange(self.powerChange);
+            self.powerChange = 0;
+        end);
+
+        return;
+    end
+
+    -- 如果正在播放动画的途中收到了 战力变化, 那只刷新战力变化的值,当 动画播放完成后再去触发这个发送逻辑
+    -- 所以在 动画结束之后， 再次触发 DelayEmitPowerChange 的逻辑即可
+end
+
+function FightPowerModule:EmitPowerChange(powerChange)
+
+    -- 战力变化的最终值小于 0了, 那就啥都不干
+    if powerChange <= 0 then
+
+        return;
+    end
+
+    -- 设置战力动画锁定的 标志
+    self.onPowerChanging = true;
+
+    -- 加个定时器, 时间结束后, 取消这个标志
+    DelayInvoker.DelayInvoke(self, 1.5, function(...)
+        self.onPowerChanging = false;
+
+        self:OnEndPowerChange();
+    end)
+
+    -- 发送 view 层的战力通知.
+    UIManager.Instance:OpenWidgetAsync(PowerTipsWidget, nil, false, powerChange, null,
+        CS.StarProjectDef.MainPageCommond.HideNone, true, false);
+
+end
+
+-- 当战力变化动画结束后, 如果 记录到战力变化 > 0， 那再次触发 DelayEmitPowerChange();
+function FightPowerModule:OnEndPowerChange()
+
+    if self.powerChange > 0 then
+
+        self:DelayEmitPowerChange(self.powerChange)
+    end
+end
+
+-- 拿到服务器的数据
+function FightPowerModule:GetServerPowerData()
+
+    return FightPowerManager.Instance:GetServerPowerAllData();
+
+end
+
+-- 刷新红点
+function FightPowerModule:RefreshRedPoint()
+    local hasRewards = FightPowerManager.Instance:HasSeverRankLevelReward();
+
+    local isOpen = CS.StarProject.Service.SystemOpen.SystemOpenManager.Instance:SystemIsOpen(SystemOpenType.Power);
+    if hasRewards and isOpen then
+        RedPointManager.Instance:RefreshRedPointCount(RedPointType.Power, 1);
+    else
+        RedPointManager.Instance:RefreshRedPointCount(RedPointType.Power, 0);
+    end
+
+end
+-- LuaModule 消息处理
+function FightPowerModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...);
+end
+
+-- LuaModule显示
+function FightPowerModule:OnModuleShow(arg)
+
+end
+
+-- LuaModule 释放
+function FightPowerModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.FightPowerModule);
+end
+
+return FightPowerModule

@@ -1,0 +1,363 @@
+--[[
+*文件名   :   ItemCombineWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/09 17:09:51"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] ItemCombineWidget = class("ItemCombineWidget", UIPanel)
+ItemCombineWidget.IsOpen = false
+
+local ItemGrid = require("View/Item/ItemGrid")
+
+function ItemCombineWidget:Awake()
+    self.transform = self.prefab.transform
+    self.gameObject = self.transform.gameObject
+
+    local btnCloseInfo = self.transform:Find("Background"):GetComponent(typeof(Button))
+    btnCloseInfo.onClick:AddListener(
+        function()
+            self:OnCloseInfoClick()
+        end
+    )
+
+    self.BtnMinImg = self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnMin"):GetComponent(typeof(CanvasGroup))
+    local btnMin = self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnMin"):GetComponent(typeof(Button))
+    btnMin.onClick:AddListener(
+        function()
+            self:OnBtnMinClick()
+        end
+    )
+
+    self.BtnMaxImg = self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnMax"):GetComponent(typeof(CanvasGroup))
+    local btnMax = self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnMax"):GetComponent(typeof(Button))
+    btnMax.onClick:AddListener(
+        function()
+            self:OnBtnMaxClick()
+        end
+    )
+
+    self.BtnAddImg = self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnAdd"):GetComponent(typeof(CanvasGroup))
+    local btnAdd = self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnAdd"):GetComponent(typeof(Button))
+    btnAdd.onClick:AddListener(
+        function()
+            self:OnBtnAddClick()
+        end
+    )
+
+    self.BtnSubImg = self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnSub"):GetComponent(typeof(CanvasGroup))
+    local btnSub = self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnSub"):GetComponent(typeof(Button))
+    btnSub.onClick:AddListener(
+        function()
+            self:OnBtnSubClick()
+        end
+    )
+
+    local btnConfirm = self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnConfirm"):GetComponent(typeof(Button))
+    btnConfirm.onClick:AddListener(
+        function()
+            self:OnBtnConfirmClick()
+        end
+    )
+
+    self.ItemType = self.transform:Find("Cut4Cam90/AssemblyRatio2/Type"):GetComponent(typeof(Text))
+    -- self.UseNum=self.transform:Find("Cut4Cam90/AssemblyRatio2/UseNum"):GetComponent(typeof(Text));
+
+    self.UseNumField = self.transform:Find("Cut4Cam90/AssemblyRatio2/NumInputField"):GetComponent(typeof(InputField))
+    self.UseNumField.onValueChanged:AddListener(
+        function()
+            self:OnValChanged()
+        end
+    )
+
+    --[[
+	self.slider=self.transform:Find("Cut4Cam90/AssemblyRatio2/Slider"):GetComponent(typeof(Slider));
+	self.slider.onValueChanged:AddListener(function()
+		self:OnSliderValChanged();
+	end);
+	]]
+    self.UseNumNow = 1
+    -- self.MaxNum=self.slider.maxValue;
+
+    self.ItemGrid1 = ItemGrid:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/ItemGrid1").gameObject) -- 第一个不填会默认创建一个
+    self.ItemGrid1:InitItem(
+        false,
+        function(it)
+            self:OnItemClick(it)
+        end
+    )
+
+    self.ItemGrid2 = ItemGrid:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/ItemGrid2").gameObject) -- 第一个不填会默认创建一个
+    self.ItemGrid2:InitItem(
+        false,
+        function(it)
+            self:OnItemClick(it)
+        end
+    )
+
+    self.Name1 = self.transform:Find("Cut4Cam90/AssemblyRatio2/name1"):GetComponent(typeof(Text))
+    self.Name2 = self.transform:Find("Cut4Cam90/AssemblyRatio2/name2"):GetComponent(typeof(Text))
+
+    -- 点击关闭事件
+    local btnClick = self:Find("Cut4Cam90/AssemblyRatio2/CloseBtn"):GetComponent(typeof(Button))
+    btnClick.onClick:AddListener(
+        function()
+            self:OnCloseInfoClick()
+        end
+    )
+end
+
+function ItemCombineWidget:RefeshItem()
+    -- 已经拥有的道具
+    local haveNum = 0
+    self.Id = 0
+    if self.AimBaseID > 0 then
+        -- 合成目标道具
+
+        local aimId = self.AimBaseID
+        if self.AimBaseID > 0 then
+            local Dealid = ConfigDataAccessor.Item[self.AimBaseID].Dealid
+            if Dealid > 0 then
+                aimId = Dealid
+            end
+        end
+
+        local aimId2 = self.AimBaseID
+        for k, v in pairs(ConfigDataAccessor.Item) do
+            if v.Dealid == self.AimBaseID then
+                aimId2 = k
+                break
+            end
+        end
+
+        for k, v in pairs(ConfigDataAccessor.Compose) do
+            if v.TargeID == self.AimBaseID or v.TargeID == aimId or v.TargeID == aimId2 then
+                self.Id = v.Id
+                break
+            end
+        end
+
+        if self.Id > 0 then
+            haveNum = BusinessManager.Instance:GetCurrencyNum(self.Id)
+        else
+            return
+        end
+    else
+        -- 当前道具合成目标道具
+        local item = BusinessManager.Instance:GetItemByItemEntityId(self.EntityID)
+        self.Id = item.BaseID
+        haveNum = item.Num
+    end
+
+    self.transform:SetAsLastSibling()
+
+    local combineCfg = ConfigDataAccessor.Compose[self.Id]
+
+    self.MaxNum = math.floor(haveNum / combineCfg.StuffNum)
+
+    self.IsEnough = (self.MaxNum > 0)
+
+    --[[
+	if self.MaxNum>0 then
+		self.slider.maxValue=self.MaxNum;
+	else
+		self.slider.maxValue=1;
+	end
+	]]
+    self.UseNumNow = 1 -- 至少用一个
+
+    local cfg1 = ConfigDataAccessor.Item[self.Id]
+    local cfg2 = ConfigDataAccessor.Item[combineCfg.TargeID]
+
+    -- self.ItemType.text="每<color=#C06666>"..combineCfg.StuffNum.."</color>个"..cfg1.Name.." 可以合成<color=#C06666>1</color>个"..cfg2.Name;
+    self.ItemType.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_ItemType"), {"<color=#C06666>" .. combineCfg.StuffNum .. "</color>", cfg1.Name, cfg2.Name})
+
+    self.Name1.text = cfg1.Name
+    self.Name2.text = cfg2.Name
+
+    self.ItemFromId = self.Id
+    self.ItemFromToId = combineCfg.TargeID
+    self.StuffNum = combineCfg.StuffNum
+
+    self:RefeshUseNumTex()
+end
+
+function ItemCombineWidget:RefeshUseNumTex()
+    -- self.slider.value=self.UseNumNow;
+    -- self.UseNum.text="<color=#EF991F>"..self.UseNumNow .."</color> / "..self.MaxNum;
+
+    self.UseNumField.text = self.UseNumNow
+
+    local showUseNumNow = self.UseNumNow
+    if showUseNumNow == 0 then
+        showUseNumNow = 1
+    end
+
+    -- 刷新格子信息
+    self.ItemGrid1:SetItemNum(self.ItemFromId, showUseNumNow * self.StuffNum, true)
+    self.ItemGrid2:SetItemNum(self.ItemFromToId, showUseNumNow)
+
+    if showUseNumNow == 1 then
+        self.BtnMinImg.alpha = 0.5
+        self.BtnSubImg.alpha = 0.5
+    else
+        self.BtnMinImg.alpha = 1
+        self.BtnSubImg.alpha = 1
+    end
+
+    if showUseNumNow == self.MaxNum then
+        self.BtnMaxImg.alpha = 0.5
+        self.BtnAddImg.alpha = 0.5
+    else
+        self.BtnMaxImg.alpha = 1
+        self.BtnAddImg.alpha = 1
+    end
+end
+
+function ItemCombineWidget:OnValChanged()
+    if self.UseNumField.text == "" then
+        self.UseNumField.text = 0
+    end
+
+    self.UseNumNow = math.floor(self.UseNumField.text)
+
+    if self.UseNumNow > self.MaxNum then
+        self.UseNumNow = self.MaxNum
+        self.UseNumField.text = self.MaxNum
+    end
+
+    self:RefeshUseNumTex()
+end
+
+--[[
+function ItemCombineWidget:OnSliderValChanged()
+
+	if self.slider.value <1 then
+		self.slider.value=1;
+	end
+
+	self.UseNumNow=math.floor(self.slider.value);
+	self:RefeshUseNumTex()
+
+end
+]]
+function ItemCombineWidget:OnBtnMinClick()
+    if self.UseNumNow == 1 then
+        Util.ShowMessageByCode(CRetMsgEnum.Tips_Common_LowerLimit)
+        return
+    end
+    self.UseNumNow = 1
+    self:RefeshUseNumTex()
+end
+
+function ItemCombineWidget:OnBtnMaxClick()
+    if self.UseNumNow == self.MaxNum then
+        Util.ShowMessageByCode(CRetMsgEnum.Tips_Common_UpperLimit)
+        return
+    end
+    self.UseNumNow = self.MaxNum
+    self:RefeshUseNumTex()
+end
+
+function ItemCombineWidget:OnBtnAddClick()
+    if self.UseNumNow < self.MaxNum then
+        self.UseNumNow = self.UseNumNow + 1
+        self:RefeshUseNumTex()
+    else
+        Util.ShowMessageByCode(CRetMsgEnum.Tips_Common_UpperLimit)
+    end
+end
+
+function ItemCombineWidget:OnBtnSubClick()
+    if self.UseNumNow > 1 then
+        self.UseNumNow = self.UseNumNow - 1
+        self:RefeshUseNumTex()
+    else
+        Util.ShowMessageByCode(CRetMsgEnum.Tips_Common_LowerLimit)
+    end
+end
+
+function ItemCombineWidget:OnBtnConfirmClick()
+    -- 发送使用道具消息
+    if self.IsEnough then
+        local synthesizedItemReq = CS.ProtoMsg.SynthesizedItemReq()
+        synthesizedItemReq.CostItemID = self.ItemFromId
+        synthesizedItemReq.CostItemNum = self.UseNumNow * self.StuffNum
+        CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, synthesizedItemReq, false)
+    else
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_No_Item"))
+    end
+
+    -- self:OnCloseInfoClick();
+end
+
+function ItemCombineWidget:OnItemClick(bitem)
+    -- 设置道具Tips
+    -- 设置道具Tips
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", {bitem.BaseID, false, bitem.EntityID, bitem.transform, 0})
+end
+
+function ItemCombineWidget:Start()
+    print("ItemCombineWidget:Start")
+end
+
+function ItemCombineWidget:OnEnable()
+end
+
+function ItemCombineWidget:OnDisable()
+end
+
+function ItemCombineWidget:OnDestroy()
+end
+
+function ItemCombineWidget:OnSynthesizedItemReqRet(args)
+    local RetMsgID = args.MsgRet.RetMsgID -- 对应的消息号(这个可以判断是哪个协议)
+    local RetCode = args.MsgRet.RetCode -- 错误码，对应弹窗配置表ID，0为成功
+    if RetCode == 0 then
+        -- 成功
+        -- Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_95"));
+
+        self:RefeshItem()
+    else
+        -- 不需要处理，交给上层去处理
+        -- Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_16"));
+        -- args.IsDialog=true--如果这里写true那么上层就不会出现系统报错提示文字
+        -- 失败后做出的处理，常常是解锁UI
+    end
+end
+
+function ItemCombineWidget:OnOpen(arg)
+    self.IsOpen = true
+    self.EntityID = arg.EntityID
+    self.AimBaseID = arg.AimBaseID
+    self:RefeshItem()
+
+    CS.SGF.Network.MsgRetManager.Instance:OnMessageEnum(
+        function(data)
+            self:OnSynthesizedItemReqRet(data)
+        end,
+        CS.MsgIDEnum.SynthesizedItemReqID
+    )
+end
+
+function ItemCombineWidget:OnClose(arg)
+    self.IsOpen = false
+end
+
+function ItemCombineWidget:OnCloseInfoClick()
+    if GameManager.Instance.IsOpenItemTips then
+        LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips", {})
+    else
+        self.gameObject:SetActive(false)
+        UIManager.Instance:CloseWidget("Common/ItemCombineWidget", nil, true)
+
+        CS.SGF.Network.MsgRetManager.Instance:OffMessageEnum(
+            function(data)
+                self:OnSynthesizedItemReqRet(data)
+            end,
+            CS.MsgIDEnum.SynthesizedItemReqID
+        )
+    end
+end
+
+return ItemCombineWidget

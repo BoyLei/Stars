@@ -1,0 +1,95 @@
+--[[
+*文件名   :   ItemTransJobSkill
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/08 20:04:35"
+*创建人   :   "quzhenxin"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local ItemTransJobSkill = {}
+ItemTransJobSkill.__index = ItemTransJobSkill
+
+ItemTransJobSkill.Transform = nil
+ItemTransJobSkill.TaskCfg = nil;     -- 转职任务配置
+ItemTransJobSkill.Index = -1;        -- 转职任务配置
+ItemTransJobSkill.IsCheck = false;   -- 是否选中
+ItemTransJobSkill.OnItemClick = nil; -- 点击回调
+
+
+function ItemTransJobSkill:New(_go, onItemClick)
+    local self = {}
+    setmetatable(self, ItemTransJobSkill)
+    self.Transform = _go.transform
+
+    self.SelfJBtn = self.Transform:GetComponent(typeof(JButton))
+    self.JBtnSelfFun = function()
+        self:SetCheckState(true)
+    end
+    self.SelfJBtn.OnClick = self.JBtnSelfFun
+
+    -- 技能背景
+    if self.Transform:Find("Anim/Background/SkillBg")~=nil then
+        self.SkillBg = self.Transform:Find("Anim/Background/SkillBg"):GetComponent(typeof(Image));
+    else
+        self.SkillBg = self.Transform:Find("Background/SkillBg"):GetComponent(typeof(Image));
+    end
+    -- 技能图标
+    if self.Transform:Find("Anim/Background/SkillBg/SkillIcon")~=nil then
+        self.SkillIcon = self.Transform:Find("Anim/Background/SkillBg/SkillIcon"):GetComponent(typeof(Image));
+    else
+        self.SkillIcon = self.Transform:Find("Background/SkillBg/SkillIcon"):GetComponent(typeof(Image));
+    end
+    -- 选中背景
+    if self.Transform:Find("Anim/Checkmark")~=nil then
+        self.Checkmark = self.Transform:Find("Anim/Checkmark").gameObject;
+    else
+        self.Checkmark = self.Transform:Find("Checkmark").gameObject;
+    end
+    self.TaskCfg = nil;
+    self.OnItemClick = onItemClick;
+    self.Index = -1;
+    self.IsCheck = false;
+
+    return self
+end
+
+---comment
+---@param skillId 技能ID
+---@param index 下标
+function ItemTransJobSkill:OnUpdateContent(skillId, index)
+    self.Index = index;
+
+    local talentID = 0;
+    local talentCfgs = GetJobSkillTalents(skillId);
+    -- 天赋 ID 采用 默认的天赋ID
+    if talentCfgs ~= nil and #talentCfgs > 0 then
+        talentID = talentCfgs[1].ID;
+    end
+    if talentID == 0 then
+        return;
+    end
+    local cfg = GetJobSkillLevelDescCfg(talentID, 1);
+    if cfg == nil then
+        return;
+    end
+    self.TaskCfg = cfg;
+    ResourceHelper:LoadIconByAtlasAsync(self.SkillIcon, ResourceHelper.AtlasPathSkill, self.TaskCfg.IconPath, false)
+    self:SetCheckState(false);
+end
+
+---设置选中状态
+---@param isCheck 是否选中
+function ItemTransJobSkill:SetCheckState(isCheck)
+    self.Checkmark:SetActive(isCheck);
+    if self.IsCheck == isCheck then
+        return;
+    end
+    self.IsCheck = isCheck;
+    if self.IsCheck then
+        if self.OnItemClick ~= nil then
+            self.OnItemClick(self.TaskCfg, self.Index)
+        end
+    end
+end
+
+return ItemTransJobSkill

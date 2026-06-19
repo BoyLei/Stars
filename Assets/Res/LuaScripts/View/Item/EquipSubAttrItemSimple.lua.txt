@@ -1,0 +1,61 @@
+--[[
+*文件名   :   EquipSubAttrItemSimple
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/24 15:31:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local EquipSubAttrItemSimple = {}
+
+EquipSubAttrItemSimple.__index = EquipSubAttrItemSimple
+
+function EquipSubAttrItemSimple:New(_go)
+    local self = {}
+    setmetatable(self, EquipSubAttrItemSimple)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.Name = self.transform:Find("name"):GetComponent(typeof(Text))
+    self.Add = self.transform:Find("add"):GetComponent(typeof(Text))
+
+    return self --返回自身
+end
+
+--设置Item
+function EquipSubAttrItemSimple:RefeshAttrProb(data)
+    local add = data.Value
+    local type = data.PropType
+
+    --决定颜色
+    local quality = data.Quality
+
+    local cfgID = data.CfgID
+
+    if type == 4 then
+        --特殊副属性，给技能用的 （ID是技能ID ）
+        local name = ConfigDataAccessor.EquipSub[cfgID].Name
+        local num = ConfigDataAccessor.EquipSub[cfgID].Num[1]
+        self.Name.text = GetQualityColor(quality) .. name .. "</color>"
+        self.Add.text = GetQualityColor(quality) .. num .. "</color>"
+    else
+        local name = ConfigDataAccessor.EquipSub[cfgID].Name
+        self.Name.text = GetQualityColor(quality) .. name .. "</color>"
+        self.Add.text = GetQualityColor(quality) .. add .. "</color>"
+    end
+end
+
+--刷新配置表的属性
+function EquipSubAttrItemSimple:RefeshCfgAttrProb(num)
+    if num > 1 then
+        --self.Name.text=GetQualityColor(1).."神秘属性 (1~"..num.."条)".."</color>";
+        self.Name.text = GetQualityColor(1) .. StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_EquipSubAttrItemSimple_Name2"), {num}) .. "</color>"
+    else
+        --self.Name.text=GetQualityColor(1).."神秘属性 (1条)".."</color>";
+        self.Name.text = GetQualityColor(1) .. LanguageHelp:GetLanguageByKey("Local_Str_EquipSubAttrItemSimple_Name3") .. "</color>"
+    end
+    self.Add.text = ""
+end
+
+return EquipSubAttrItemSimple

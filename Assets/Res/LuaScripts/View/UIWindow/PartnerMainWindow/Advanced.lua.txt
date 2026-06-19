@@ -1,0 +1,312 @@
+--[[
+*文件名   :   Advanced
+*内  容   :
+*说  明   :
+*创建日期 :   "2024/05/30 20:31:14"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+Advanced=class("Advanced",UIPanel)
+Advanced.m_Tips1=nil;
+Advanced.m_UpBtn=nil;
+Advanced.m_Icon=nil;
+Advanced.m_PartnerInfo=nil;
+Advanced.m_Num=nil;
+Advanced.m_Desc=nil;
+Advanced.m_SkillName=nil;
+Advanced.PartnerInfo=nil;
+Advanced.Stars={}
+Advanced.PartnerData=nil;
+Advanced.m_RedPoint=nil;
+Advanced.m_IconBtn=nil;
+local UpBtnFunc=nil;
+local OnFreshHandler=nil;
+local IconBtnFunc=nil;
+local ItemID=0;
+--local OnStarClickFunc=nil;
+
+function Advanced:ctor(go,red)
+	self.prefab=go;
+	self.RedPoint=red;
+	self.RedPoint:SetActive(false)
+	self.m_PartnerInfo=self:Find("Top/PartnerInfo").gameObject;
+	self.m_Tips1=self:Find("Bottom/Content/List/Tips1"):GetComponent(typeof(Text));
+	self.m_UpBtn=self:Find("Bottom/UpBtn"):GetComponent(typeof(JButton));
+	self.m_RedPoint=self:Find("Bottom/UpBtn/RedPoint").gameObject;
+	self.m_Icon=self:Find("Bottom/UpBtn/Icon"):GetComponent(typeof(Image));
+	self.m_IconBtn=self:Find("Bottom/UpBtn/Icon"):GetComponent(typeof(JButton));
+	self.m_Num=self:Find("Bottom/UpBtn/Icon/Num"):GetComponent(typeof(Text));
+	self.m_Desc=self:Find("Bottom/Content/List/Desc"):GetComponent(typeof(Text));
+	self.m_SkillName=self:Find("Bottom/Content/List/Text (2)"):GetComponent(typeof(Text));
+	UpBtnFunc=function() self:OnClickUpBtn(); end;
+	OnFreshHandler=function(result)
+		self:OnFreshHandler(result)
+	end
+	IconBtnFunc=function()
+		self:OnClickIconHnadler()
+	end
+	--OnStarClickFunc=function()
+	--self:OnStarClick();
+	--end
+	self.Stars={}
+
+	local star="Bottom/star/"
+	for i = 1, 6 do
+		self.Stars[i]={
+			no=self:Find(star..i.."/no").gameObject,
+			Sel=self:Find(star..i.."/Sel").gameObject,
+			Sel1=self:Find(star..i.."/Sel1").gameObject,
+			Icon=self:Find(star..i.."/icon").gameObject,
+			Btn=self:Find(star..i):GetComponent(typeof(JButton))
+		}
+	end
+	self.PartnerInfo=StructAccessor.PartnerInfo.new(self.m_PartnerInfo)
+
+end
+
+
+function Advanced:OnClickIconHnadler()
+	LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",
+		{ ItemID, false, nil, self.m_Icon.transform, 0 });
+end
+
+function Advanced:OnFreshHandler(result)
+	self:OnOpen(self.PartnerData)
+end
+
+function Advanced:OnStarClick(id)
+	self:OnSelectStar(id)
+end
+
+function Advanced:OnSelectStar(id)
+	for k, v in pairs(self.Stars) do
+		---self.PartnerData.CurStar
+		if k==id then
+			if k<= self.PartnerData.CurStar then
+				v.Sel:SetActive(true)
+				v.Sel1:SetActive(false)
+			else
+				v.Sel:SetActive(false)
+				v.Sel1:SetActive(true)
+			end
+		else
+			v.Sel:SetActive(false)
+			v.Sel1:SetActive(false)
+		end
+	end
+
+	local config=ConfigDataAccessor.Partner[self.PartnerData.Index];
+	if config==nil then
+		return
+	end
+	local expend= ConfigDataAccessor.StarExpend[config.Quality][id]
+	if expend==nil then
+		return
+	end
+	self.m_Tips1.text=StringFormat(LanguageHelp:GetLanguageByKey("partner_sys_11"),{math.floor(expend.StarUp/100)})
+
+	if id== 1 then
+		local parSkillCfg=self:GetParSkillDataCell(self.PartnerData.Index,id)
+		local index=2;
+		for i = 1, #parSkillCfg.SelfSkill do
+			local level=parSkillCfg.SelfSkillLV[i]
+
+			if level>0then
+
+				local array=ConfigDataAccessor.PartnerSkillDesc[parSkillCfg.SelfSkill[i]]
+				if array~=nil then
+					local SelfSkill=array[level]
+					if SelfSkill~=nil then
+						self.m_SkillName.text=SelfSkill.SkillName
+						self.m_Desc.text=SelfSkill.Decs
+
+						break;
+					end
+				end
+			end
+
+		end
+	else
+		local lastSkillCfg=self:GetParSkillDataCell(self.PartnerData.Index,id-1)
+		local parSkillCfg=self:GetParSkillDataCell(self.PartnerData.Index,id)
+		if lastSkillCfg~=nil and parSkillCfg~=nil then
+
+
+			local Old_skillLevels={}
+
+			for k, v in pairs(lastSkillCfg.SelfSkillLV) do
+				table.insert(Old_skillLevels,v)
+			end
+			table.insert(Old_skillLevels,lastSkillCfg.ParSkillLV)
+			local Now_skillLevels={}
+
+			for k, v in pairs(parSkillCfg.SelfSkillLV) do
+				table.insert(Now_skillLevels,v)
+			end
+			table.insert(Now_skillLevels,parSkillCfg.ParSkillLV)
+
+			local index=0;
+
+			for k, v in pairs(Now_skillLevels) do
+				if v- Old_skillLevels[k] >0 then
+					index=k;
+					break;
+				end
+			end
+
+			local skillID=0;
+			local skillLv=0;
+			if index==4 then
+				skillID=parSkillCfg.ParSkill
+				skillLv=parSkillCfg.ParSkillLV
+			else
+				skillID=parSkillCfg.SelfSkill[index]
+				skillLv=parSkillCfg.SelfSkillLV[index]
+			end
+
+
+			local array=ConfigDataAccessor.PartnerSkillDesc[skillID]
+			if array~=nil then
+				local SelfSkill=array[skillLv]
+				if SelfSkill~=nil then
+					self.m_SkillName.text=SelfSkill.SkillName
+					self.m_Desc.text=SelfSkill.Decs
+				end
+			end
+
+		end
+	end
+
+end
+
+function Advanced:GetParSkillDataCell(parId,starId)
+	for k, v in pairs(ConfigDataAccessor.ParSkill) do
+		if v.Par == parId and v.Star == starId then
+			return v;
+		end
+	end
+	return nil;
+end
+
+function Advanced:CleanStar()
+	for k, v in pairs(self.Stars) do
+		v.no:SetActive(true)
+		v.Sel:SetActive(false)
+		v.Icon:SetActive(false)
+	end
+end
+
+function Advanced:OnEnable()
+	self.m_UpBtn.OnClick= UpBtnFunc;
+	self.m_IconBtn.OnClick =IconBtnFunc
+	CS.StarProject.GlobalEvent.OnPartnerUpStar:AddListener(OnFreshHandler)
+	for k, v in pairs(self.Stars) do
+		v.Btn.OnClick=function()
+			self:OnStarClick(k)
+		end
+	end
+end
+
+function Advanced:OnDisable()
+	self.m_UpBtn.OnClick= nil;
+	self.m_IconBtn.OnClick =nil;
+	CS.StarProject.GlobalEvent.OnPartnerUpStar:RemoveListener(OnFreshHandler)
+	for k, v in pairs(self.Stars) do
+		v.Btn.OnClick=nil;
+	end
+end
+
+function Advanced:OnDestroy()
+
+end
+
+function Advanced:OnOpen(arg)
+	self.PartnerData=arg;
+	self:CleanStar();
+	for k, v in pairs(self.Stars) do
+		if arg.CurStar>=k then
+			v.Icon:SetActive(true)
+		end
+	end
+	local select=arg.CurStar
+	if select==0 then
+		select=1;
+	end
+	self:OnSelectStar(select);
+	self.PartnerInfo:OnOpen(arg,true,false)
+	self.m_UpBtn.gameObject:SetActive(select<=5)
+	local config=ConfigDataAccessor.Partner[arg.Index];
+	if config==nil then
+		return
+	end
+
+	local cfg=ConfigDataAccessor.Item[config.UpStarItem]
+	if cfg ~=nil then
+		ItemID=config.UpStarItem
+		local ownCnt=BusinessManager.Instance:GetCurrencyNum(config.UpStarItem)
+		ResourceHelper:LoadIconAsync(self.m_Icon, "", cfg.Icon, false)
+		
+		local less=ownCnt<1 
+		if less then
+			self.m_Num.text="<color=#FF0000>"..ownCnt.."/1".."</color>"
+		else
+			self.m_Num.text=ownCnt.."/1"
+		end
+		
+		self.m_UpBtn.UnClick=less
+		self.m_UpBtn.ForbidClick=less
+		
+	end
+	
+	self:SetRedPoint(arg)
+
+end
+
+function Advanced:SetRedPoint(data)
+	local config=ConfigDataAccessor.Partner[data.Index];
+	if config==nil then
+		return
+	end
+
+	local cfg=ConfigDataAccessor.Item[config.UpStarItem]
+	if cfg ~=nil then
+		local ownCnt=BusinessManager.Instance:GetCurrencyNum(config.UpStarItem)	
+		self.RedPoint:SetActive(false)
+		self.m_RedPoint:SetActive(false)
+		if data.CurStar<6 then
+			if ownCnt>0 then
+				self.RedPoint:SetActive(true)
+				self.m_RedPoint:SetActive(true)
+			end
+		end
+	end
+end
+
+function Advanced:OnClose(arg)
+
+end
+
+function Advanced:OnClickUpBtn()
+	local config=ConfigDataAccessor.Partner[self.PartnerData.Index];
+	if config==nil then
+		return
+	end
+
+	if self.PartnerData~=nil and self.PartnerData.CurStar>=6 then
+		print("星级已满")
+		return
+	end
+	local itemId = config.UpStarItem;
+	local itemNum = 1;
+	local itemCount = BusinessManager.Instance:GetCurrencyNum(itemId);
+	if itemCount < itemNum then
+		Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_273"));
+		return;
+	end
+
+	LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OnPartnerUpStarReq", config.Id);
+end
+
+
+
+return  Advanced

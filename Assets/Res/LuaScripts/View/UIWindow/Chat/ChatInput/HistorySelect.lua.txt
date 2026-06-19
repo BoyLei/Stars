@@ -1,0 +1,52 @@
+-- 历史记录选择界面
+local HistorySelect = {}
+HistorySelect.__index = HistorySelect
+
+local HistoryItem = require("View/UIWindow/Chat/ChatInput/HistoryItem")
+
+function HistorySelect:New(obj, win)
+    local self = {};
+    setmetatable(self, HistorySelect);
+
+    self.window = win;
+
+    self:InitControls(obj)
+
+    return self;
+end
+
+function HistorySelect:InitControls(obj)
+    self.gameObject = obj;
+    self.transform = obj.transform;
+
+    self.recordGo = self.transform:Find("ScrollView/Viewport/Content/Item").gameObject;
+
+    self.allItems = {}
+end
+
+function HistorySelect:Show(show)
+    self.gameObject:SetActive(show);
+
+    if show then
+        for _,v in pairs(self.allItems) do
+            GameObject.Destroy(v.gameObject);
+        end
+        self.allItems = {}
+
+        local items = RecordManager.items;
+        for i = items.Count-1, 0, -1 do
+            local go = newObject(self.recordGo);
+            go.transform:SetParent(self.recordGo.transform.parent);
+            go.transform.localPosition = Vector3.zero;
+            go.transform.localScale = Vector3.one;
+            go:SetActive(true);
+
+            local historyItem = HistoryItem:New(go, self.window);
+            historyItem:SetItem(items[i]);
+
+            table.insert(self.allItems, historyItem);
+        end
+    end
+end
+
+return HistorySelect

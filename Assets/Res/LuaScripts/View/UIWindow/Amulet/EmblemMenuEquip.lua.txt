@@ -1,0 +1,84 @@
+--[[
+*文件名   :   EmblemMenuEquip
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local EmblemMenuEquip = {}
+
+EmblemMenuEquip.__index = EmblemMenuEquip
+
+local EmblemMenuItem=require("View/Uiwindow/Amulet/EmblemMenuItem")
+
+function EmblemMenuEquip:New(_go,emblemMenu) 
+    local self = {};    
+    setmetatable(self, EmblemMenuEquip); 
+    
+    self.EmblemMenu=emblemMenu;
+
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+	--左侧栏的两个
+	self.itemList={}
+	for i=1,2 do 
+		local _go=self.transform:Find("Items/EmblemMenuItem"..i).gameObject;
+		local emi=EmblemMenuItem:New(_go);
+		emi:InitItem(i,function (ritem)
+			self:OnItemClick(ritem);
+		end);
+		table.insert( self.itemList, emi );
+	end
+
+    self:Show(false);
+
+    return self;    --返回自身
+end
+
+function EmblemMenuEquip:OnItemClick(ritem)
+    self.EmblemMenu:OnEmblemMenuItemClick(ritem);
+
+    for i=1,#self.itemList do 
+		self.itemList[i]:MakeSelected(false);
+	end
+
+    ritem:MakeSelected(true);
+
+end
+
+function EmblemMenuEquip:Show(b)
+    self.gameObject:SetActive(b);
+    if b then
+        self:Refesh();
+
+        --点击一个能用的
+        for i =1,#self.itemList do
+            if self.itemList[i].IsUsed then
+                self:OnItemClick(self.itemList[i]);
+                break;
+            end
+        end
+
+    end
+end
+
+function EmblemMenuEquip:Refesh()
+
+	for i =1,#self.itemList do
+        local itemData=BusinessManager.Instance:GetHeroEquipedAmulet(i);
+        self.itemList[i]:SetItem(itemData);
+    end
+
+    if self.EmblemMenu.selectedIdx>0 then
+        self.itemList[self.EmblemMenu.selectedIdx]:MakeSelected(true);
+    end
+
+end
+
+
+
+
+return EmblemMenuEquip;

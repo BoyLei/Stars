@@ -1,0 +1,343 @@
+local SelectorWords = {}
+SelectorWords.__index = SelectorWords
+
+local EquipRecastSelectedBoxItem=require("View/Uiwindow/EquipUpgrade/EquipRecastSelectedBoxItem")
+
+function SelectorWords:New(_go,equipRecastSort)
+	local self = {};
+	setmetatable(self, SelectorWords);
+
+
+	self.transform =_go.transform;
+	self.gameObject=_go;
+
+	self.EquipRecastSort=equipRecastSort;
+
+	self.filterAllTypes = {};
+
+	--品质多选
+	self.qualityGo = self.transform:Find("Root/Image/Quality").gameObject;
+	self.filterAllTypes[6] = self.qualityGo;
+
+	self.go_SelectedQuality={};
+	self.selectedQuality={}
+	for i = 1, 5 do
+		self.selectedQuality[i] = 0;
+		table.insert( self.go_SelectedQuality, self.transform:Find("Root/Image/Quality/QualityPart/Image/QualityCheckItem"..i.."/selected").gameObject);
+		self.go_SelectedQuality[i]:SetActive(false);
+		self.transform:Find("Root/Image/Quality/QualityPart/Image/QualityCheckItem"..i):GetComponent(typeof(JButton)).OnClick=(function()
+				self:OnQualityClick(i);
+			end);
+	end
+
+	--词条多选
+	self.wordsNumGo = self.transform:Find("Root/Image/WordsNum").gameObject;
+	self.filterAllTypes[7] = self.wordsNumGo;
+
+	self.go_WordsNum={};
+	self.selectedWordsNum={}
+	for i=1, 7 do
+		self.selectedWordsNum[i] = 0;
+		table.insert( self.go_WordsNum, self.transform:Find("Root/Image/WordsNum/WordsNum/Image/QualityCheckItem"..i.."/selected").gameObject);
+		self.go_WordsNum[i]:SetActive(false);
+		self.transform:Find("Root/Image/WordsNum/WordsNum/Image/QualityCheckItem"..i):GetComponent(typeof(JButton)).OnClick=(function()
+				self:OnWordsNumClick(i);
+			end);
+	end
+
+	--道具列表
+	self.wordsGo = self.transform:Find("Root/Image/Words").gameObject;
+	self.filterAllTypes[8] = self.wordsGo;
+
+	self.EquipRecastItemList={};
+	--无限列表
+	self.go_EquipRecastItem = self.transform:Find("Root/Image/Words/Scroll View/Mask/List/GuildEventLogItem").gameObject;
+	self.tr_ItemRoot=self.transform:Find("Root/Image/Words/Scroll View/Mask/List/");
+	self.go_EquipRecastItem:SetActive(false);
+	self.go_EquipRecastItem.transform:SetParent(self.transform);
+	self.EquipedAmuletScorllView=self.transform:Find("Root/Image/Words/Scroll View"):GetComponent(typeof(SuperScrollViewController));
+	self.EquipedAmuletScorllView:NewScroll(self.go_EquipRecastItem, 0, function (tr,idx)
+			if self.curWordsType == 101 then
+				self:OnEquipRecastItemRefesh(tr,idx);
+			elseif self.curWordsType == 201 then
+				self:OnAmuletRecastItemRefesh(tr,idx);
+			end
+			
+		end);
+
+
+	--点击关闭
+	local btnClose=self.transform:Find("BtnClose"):GetComponent(typeof(JButton));
+	btnClose.OnClick=(function()
+			self:OnBtnResetClick();
+			self:Show(false);
+		end);
+
+
+	--点击重置
+	local btnReset=self.transform:Find("BtnClean"):GetComponent(typeof(JButton));
+	btnReset.OnClick=(function()
+			self:OnBtnResetClick();
+		end);
+
+
+	--点击确认
+	local btnConfirm=self.transform:Find("BtnConfirm"):GetComponent(typeof(JButton));
+	btnConfirm.OnClick=(function()
+			self:OnBtnConfirmClick();
+		end);
+
+	self:Show(false);
+
+	self.selectedSubAttr = {};
+
+
+	self.wordsData = {};--品质，数量，词条
+
+	return self;    --返回自身
+end
+
+
+function SelectorWords:OnBtnResetClick()
+
+	for k,v in pairs(self.selectedQuality) do
+		self.selectedQuality[k] = 0;
+		self.go_SelectedQuality[k]:SetActive(false);
+	end
+
+	for k,v in pairs(self.selectedWordsNum) do
+		self.selectedWordsNum[k] = 0;
+		self.go_WordsNum[k]:SetActive(false);
+	end
+
+	self.selectedSubAttr = {};
+	self:RefeshItems();
+end
+
+function SelectorWords:OnBtnConfirmClick()
+	self:Show(false);
+
+	self.wordsData.quality = self.selectedQuality;
+	self.wordsData.wordsNum = self.selectedWordsNum;
+	self.wordsData.words = self.selectedSubAttr;
+end
+
+function SelectorWords:Show(b,t)
+	self.gameObject:SetActive(b);
+
+	if b then
+		if t ~= nil then
+			self:SetType(t);
+		end
+
+		self:Refesh();
+	end
+end
+
+function SelectorWords:OnQualityClick(index)
+	if self.selectedQuality[index] == 1 then
+		self.selectedQuality[index]=1-self.selectedQuality[index];
+		self.go_SelectedQuality[index]:SetActive(false);
+	else
+		for i=1, #self.selectedQuality do
+			self.selectedQuality[i] = 0;
+			self.go_SelectedQuality[i]:SetActive(false);
+		end
+		self.selectedQuality[index] = 1;
+		self.go_SelectedQuality[index]:SetActive(true);
+	end
+end
+
+function SelectorWords:OnWordsNumClick(index)
+	if self.selectedWordsNum[index] == 1 then
+		self.selectedWordsNum[index]=1-self.selectedWordsNum[index];
+		self.go_WordsNum[index]:SetActive(false);
+	else
+		for i=1, #self.selectedWordsNum do
+			self.selectedWordsNum[i] = 0;
+			self.go_WordsNum[i]:SetActive(false);
+		end
+		self.selectedWordsNum[index] = 1;
+		self.go_WordsNum[index]:SetActive(true);
+	end
+end
+
+function SelectorWords:Refesh()
+	self:RefeshItems();
+end
+
+
+--刷新装备列表
+function SelectorWords:RefeshItems(t)
+	self:ClearItemData();
+
+	local cfgs = nil;
+	if self.curWordsType == 101 then
+		cfgs=ConfigDataAccessor.EquipSub;		--遍历所有装备子节点
+	elseif self.curWordsType == 201 then
+		cfgs=ConfigDataAccessor.AmuletEquipEffectList;		--遍历所有装备子节点
+	else
+		return;
+	end
+
+
+	for k,v in pairs(cfgs) do
+		local data={};
+
+		local id = nil;
+		if self.curWordsType == 101 then
+			id = v.Id;
+		elseif self.curWordsType ==201 then
+			id = v.WarSkillId;
+		end
+		data.CfgID=id;
+		data.IsSelected=false;
+		for i=1,#self.selectedSubAttr do
+			if self.selectedSubAttr[i]==id then
+				data.IsSelected=true;
+				break;
+			end
+		end
+
+		table.insert( self.ItemDataList,data );
+	end
+
+	self:SortItem(self.ItemDataList);
+	self.EquipedAmuletScorllView:ContinueScroll(#self.ItemDataList);
+end
+
+
+function SelectorWords:CleanAllSelected()
+	--无限列表
+	for i=1,#self.EquipRecastItemList do
+		self.EquipRecastItemList[i]:MakeSelected(false);
+	end
+end
+
+function SelectorWords:OnEquipRecastItemRefesh(tr,idx)
+	for i=1,#self.EquipRecastItemList do
+		if self.EquipRecastItemList[i].transform == tr then
+			self.EquipRecastItemList[i]:SetItem(self.ItemDataList[idx+1]);
+			return
+		end
+	end
+
+	local bi = EquipRecastSelectedBoxItem:New(tr.gameObject);
+	bi:InitItem(function (ritem)
+			self:OnItemClick(ritem);
+		end)
+	bi.gameObject:SetActive(true);
+	bi:SetItem(self.ItemDataList[idx+1]);
+
+	table.insert(self.EquipRecastItemList, bi);
+end
+
+function SelectorWords:OnAmuletRecastItemRefesh(tr,idx)
+	for i=1,#self.EquipRecastItemList do
+		if self.EquipRecastItemList[i].transform == tr then
+			self.EquipRecastItemList[i]:SetAmuletItem(self.ItemDataList[idx+1]);
+			return
+		end
+	end
+
+	local bi = EquipRecastSelectedBoxItem:New(tr.gameObject);
+	bi:InitItem(function (ritem)
+			self:OnItemClick(ritem);
+		end)
+	bi.gameObject:SetActive(true);
+	bi:SetAmuletItem(self.ItemDataList[idx+1]);
+
+	table.insert(self.EquipRecastItemList, bi);
+end
+
+function SelectorWords:OnItemClick(bitem)
+	bitem.IsSelected = not(bitem.IsSelected);
+	bitem:MakeSelected(bitem.IsSelected);
+
+	if bitem.IsSelected then	--记录选中
+		table.insert(self.selectedSubAttr, bitem.Data.CfgID);
+	else
+		for i, v in ipairs(self.selectedSubAttr) do
+			if v == bitem.Data.CfgID then
+				table.remove(self.selectedSubAttr, i)
+				break
+			end
+		end
+	end
+end
+
+function SelectorWords:ClearItemData()
+
+	if self.ItemDataList==nil then
+		self.ItemDataList ={}
+	else
+		for k,_ in pairs(self.ItemDataList) do self.ItemDataList[k] = nil end
+	end
+end
+
+
+function SelectorWords:SortItem(tbl)
+
+	do return; end
+
+	if #tbl > 1 then
+		table.sort(tbl, function(a, b)
+				if a.Data.Heroid > b.Data.Heroid then
+					-- 按是否装备降序
+					return true
+				elseif a.Data.Heroid == b.Data.Heroid then
+					-- 如果是否装备相等，按Quality升序
+					return a.Quality > b.Quality
+				end
+				return false
+			end)
+
+	end
+
+end
+
+function SelectorWords:SetType(t)
+	if t == nil then
+		return;
+	end
+
+	for k, v in pairs(self.filterAllTypes) do
+		v:SetActive(false);
+	end
+
+	for _, v in pairs(t) do
+		local itemfilter = ConfigDataAccessor.Itemfilter[v];
+		local pt = itemfilter.FilterType;
+		self.filterAllTypes[pt]:SetActive(true);
+		local op = itemfilter.OperaOption;
+		if pt == 6 then
+			self:SetQuality(op);
+		elseif pt == 7 then
+			self:SetWordsNum(op);
+		elseif pt == 8 then
+			self.curWordsType = op[1];
+		end
+	end
+end
+
+function SelectorWords:SetQuality(t)
+	for i = 1, #self.go_SelectedQuality do
+		self.go_SelectedQuality[i].transform.parent.gameObject:SetActive(false);
+	end
+
+	for k,v in pairs(t) do
+		self.go_SelectedQuality[v].transform.parent.gameObject:SetActive(true);
+	end
+end
+
+function SelectorWords:SetWordsNum(t)
+	for i = 1, #self.go_WordsNum do
+		self.go_WordsNum[i].transform.parent.gameObject:SetActive(false);
+	end
+
+	for k,v in pairs(t) do
+		self.go_WordsNum[v].transform.parent.gameObject:SetActive(true);
+	end
+end
+
+return  SelectorWords

@@ -1,0 +1,34 @@
+local TargetItem = {}
+
+TargetItem.__index = TargetItem
+
+function TargetItem:New(go, data, cb)
+    local self = {};
+    setmetatable(self, TargetItem);
+
+    self.transform = go.transform;
+    self.gameObject = go;
+
+    self.targetName = self.transform:Find("TargetName"):GetComponent(typeof(Text));
+    self.lvnum = self.transform:Find("LevelNum"):GetComponent(typeof(Text));
+    self.time = self.transform:Find("Time"):GetComponent(typeof(Text));
+
+    self.targetBtn = self.transform:GetComponent(typeof(Button));
+    self.targetBtn.onClick:AddListener(function()
+        cb(data);
+    end);
+
+    self:Init(data);
+
+    return self;
+end
+
+function TargetItem:Init(data)
+    self.targetName.text = data.PlayName;
+    --self.lvnum.text = "等级"..data.Level.."\n人数"..data.NumLowerLimit.."~"..data.NumTopLimit;
+    self.lvnum.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_lvnum"), {data.Level, data.NumLowerLimit, data.NumTopLimit});
+
+    self.time.text = data.TimeDec;
+end
+
+return TargetItem

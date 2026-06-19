@@ -1,0 +1,139 @@
+--[[
+*文件名   :   CurrencyItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/24 11:17:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local CurrencyItem = {}
+
+CurrencyItem.__index = CurrencyItem
+
+function CurrencyItem:New(_go)
+    local self = {}
+    setmetatable(self, CurrencyItem)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.Num = self.transform:Find("num"):GetComponent(typeof(Text))
+
+    self.Icon = self.transform:Find("Icon"):GetComponent(typeof(Image))
+
+    self.go_Add = self.transform:Find("add").gameObject
+
+    --点击事件
+    self.btnClick = self.transform:GetComponent(typeof(JButton))
+    self.btnClick.OnClick = (function()
+        LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", {self.BaseID, false, 0, self.Icon.transform, 0})
+    end)
+
+    local iconBtn = self.go_Add.transform:GetComponent(typeof(JButton))
+    iconBtn.OnClick = (function()
+        if self.go_Add.activeSelf then
+            if self.OnItemClick ~= nil then
+                self.OnItemClick(self)
+            end
+        end
+    end)
+
+    self:SetUse(false)
+
+    return self --返回自身
+end
+
+--初始化Item
+function CurrencyItem:InitItem(OnItemClick)
+    self.OnItemClick = OnItemClick
+    self:SetUse(false)
+end
+
+function CurrencyItem:SetUse(b)
+    self.IsUsed = b
+
+    self.gameObject:SetActive(b)
+end
+
+--设置Item
+function CurrencyItem:SetItem(baseID)
+    self.BaseID = baseID
+
+    self:RefeshItem()
+end
+
+function CurrencyItem:RefeshItem()
+    if self.BaseID == 0 then
+        self:SetUse(false)
+    else
+        self:SetUse(true)
+
+        local cfg = ConfigDataAccessor.Item[self.BaseID]
+
+        --道具图标
+        --LoadIcon(self.Icon,cfg.Icon);
+        ResourceHelper:LoadIconAsync(self.Icon, "", cfg.Icon, false)
+
+        --货币
+        if self.BaseID <= 4 or self.BaseID == 116 then
+            self.Num.text = "" .. BusinessManager.Instance:GetCurrencyNum(self.BaseID)
+        elseif self.BaseID == 112 then
+            --技能点
+            self.Num.text = "" .. GameManager.Instance:GetSkillPoint()
+        elseif self.BaseID == 113 then
+            --星灵碎晶（天赋点）
+            local HeroMD = GameManager.Instance.HeroMD
+            self.Num.text = "" .. HeroMD.TalentPoint
+        else
+            --道具数量
+            local it = BusinessManager.Instance:GetItemByItemBaseId(self.BaseID)
+            if it ~= nil then
+                self.Num.text = BusinessManager.Instance:GetItemByItemBaseId(self.BaseID).Num
+            else
+                self.Num.text = "0"
+            end
+        end
+
+        --付费钻
+        --判断是商店是否开启
+
+        if self.BaseID == 3 then
+            if BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.FirstTopUp) then
+                self.go_Add:SetActive(true)
+            else
+                self.go_Add:SetActive(false)
+            end
+
+            --判断是否开启支付
+            if not (GameManager.Instance:IsUnLockPayFunction()) then
+                self.go_Add:SetActive(false)
+            end
+        elseif self.BaseID == 2 then
+            --金币
+            --给金币增加+跳转，跳转页为银行的钻石购买金币页；
+            if BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.Shop_Common) then
+                self.go_Add:SetActive(true)
+            else
+                self.go_Add:SetActive(false)
+            end
+        elseif self.BaseID == 1 then
+            --else
+            --   self.go_Add:SetActive(false)
+            --end
+            --绑钻兑换银币
+            --if BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.Shop_Common) then
+            self.go_Add:SetActive(true)
+        elseif self.BaseID == 4 then
+            --else
+            --    self.go_Add:SetActive(false)
+            --end
+            --付费钻换绑钻
+            --if BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.Shop_Common) then
+            self.go_Add:SetActive(true)
+        else
+            self.go_Add:SetActive(false)
+        end
+    end
+end
+
+return CurrencyItem

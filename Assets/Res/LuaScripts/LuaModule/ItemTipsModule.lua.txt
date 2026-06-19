@@ -1,0 +1,828 @@
+--[[
+*文件名   :   ItemTipsModule
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/10/31 14:54:39"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] ItemTipsModule = class("ItemTipsModule", BaseLuaModule)
+
+local ItemTipsWidgetPath = "ItemTips/ItemTipsWidget"
+
+-- LuaModule 消息模块
+ItemTipsModule.ModuleMessages = {
+    -- 打开道具Tips
+    -- ModuleManager.Instance.SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", new object[] { 1 }); //只要传一个对话ID
+    ["OnOpenTips"] = function(...)
+        ItemTipsModule:OnOpenTips(...)
+    end,
+    -- 打开道具Tips
+    -- ModuleManager.Instance.SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", new object[] { 1 }); //只要传一个对话ID
+    ["OnOpenTipsWithItemMDList"] = function(...)
+        ItemTipsModule:OnOpenTipsItemMDList(...)
+    end,
+    -- 打开道具Tips
+    -- ModuleManager.Instance.SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", new object[] { 1 }); //只要传一个对话ID
+    ["OnOpenTipsWithItemMD"] = function(...)
+        ItemTipsModule:OnOpenTipsItemMD(...)
+    end,
+    -- 关闭道具Tips
+    -- ModuleManager.Instance.SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips", new object[] {  });
+    ["OnCloseTips"] = function(...)
+        ItemTipsModule:OnCloseTips(...)
+    end,
+    -- 设置道具数量
+    -- ModuleManager.Instance.SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", new object[] { 1 }); //只要传一个对话ID
+    ["OnSetUseNum"] = function(...)
+        ItemTipsModule:OnSetUseNum(...)
+    end,
+    ["OnOpenByDrawCard"] = function(...)
+        ItemTipsModule:OnOpenByDrawCard(...)
+    end,
+    -- 设置跳转信息
+    ["OnSetJumpInfo"] = function(...)
+        ItemTipsModule:OnSetJumpInfo(...)
+    end,
+    -- 隐藏跳转信息
+    ["OnHideJumpInfo"] = function(...)
+        ItemTipsModule:OnHideJumpInfo(...)
+    end
+}
+
+-- 隐藏跳转信息
+function ItemTipsModule:OnHideJumpInfo(...)
+    local tb = ...
+
+    if self.tipsWidgetView ~= nil then
+        self.tipsWidgetView:HideAllJump()
+    end
+end
+
+-- 设置跳转信息
+function ItemTipsModule:OnSetJumpInfo(...)
+    local tb = ...
+
+    -- 传入道具ID
+    if type(tb) == "table" then
+        -- Lua调用
+        self.FromModule = tb[1]
+        self.FromArgs = tb[2]
+    else
+        -- C#调用
+        self.FromModule = tb[0]
+        self.FromArgs = tb[1]
+    end
+end
+
+function ItemTipsModule:CleanJumpInfo()
+    -- self.FromModule=nil;
+    -- self.FromArgs=nil;
+end
+
+-- 监听打开Tips事件
+function ItemTipsModule:OnOpenTips(...)
+    local tb = ...
+
+    self.FromModule = nil
+    self.FromArgs = nil
+
+    local tipsWidgetCs = UIManager.Instance:OpenWidget(ItemTipsWidgetPath, false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, true)
+    if self.tipsWidgetView == nil then
+        self.tipsWidgetView = tipsWidgetCs:GetLuaPanel().ScriptTable
+        self.tipsWidgetView:BindModule(self)
+        self.evtOnCloseTips = LuaModuleDispatcher:Event(ModuleDef.ItemTipsModule, "OnCloseTipsEvt")
+    end
+
+    self.IsNew = false
+    self.OpenFrom = 0 -- 0为背包[以及其他页面]打开，1为背包装备打开，2为角色装备打开
+
+    -- 传入道具ID
+    if type(tb) == "table" then
+        -- Lua调用
+        self.BaseID = tb[1]
+        self.isUseItemFuncMenu = tb[2]
+        self.EntityID = tb[3]
+
+        self.AimTransform = tb[4]
+        self.OpenFrom = tb[5]
+
+        self.PartnerBaseID = tb[6]
+        self.PartnerEntityID = tb[7]
+        self.PartnerEntityLv = tb[8]
+        self.TipsType = tb[9]
+
+        if #tb >= 10 then
+            self.FromModule = tb[10]
+        end
+        if #tb >= 11 then
+            self.FromArgs = tb[11]
+        end
+    else
+        -- C#调用
+        self.BaseID = tb[0]
+        self.isUseItemFuncMenu = tb[1]
+        self.EntityID = tb[2]
+
+        self.AimTransform = tb[3]
+        self.OpenFrom = tb[4]
+
+        self.PartnerBaseID = tb[5]
+        self.PartnerEntityID = tb[6]
+        self.PartnerEntityLv = tb[7]
+
+        self.TipsType = tb[8]
+
+        if tb.Length > 9 then
+            self.FromModule = tb[9]
+        end
+        if tb.Length > 10 then
+            self.FromArgs = tb[10]
+        end
+    end
+    self.SpaceId = 0
+    if self.EntityID ~= nil and self.EntityID ~= 0 then
+        local val = uint64.new(self.EntityID)
+        local itemData = BusinessManager.Instance:GetItemByItemEntityId(val.value)
+
+        -- local itemData = BusinessManager.Instance:GetItemByItemEntityId(self.EntityID)
+
+        if itemData ~= nil then
+            self.SpaceId = itemData.SpaceId
+            self.IsNew = itemData.IsNew
+            self.Num = itemData.Num
+        end
+    end
+
+    -- 获取道具配置
+    self.cfg = ConfigDataAccessor.Item[self.BaseID]
+    -- self.cfg=LocalDataManager.Instance:GetItemDataCell(self.BaseID);
+
+    -- 刷新UI
+    self.tipsWidgetView:RefeshTips()
+
+    self:CleanJumpInfo()
+
+    GameManager.Instance.IsOpenItemTips = true
+
+    CS.StarProject.GlobalEvent.OnEquipClickEvent:Invoke(true)
+end
+
+function ItemTipsModule:OnOpenByDrawCard(...)
+    local tb = ...
+
+    if self.tipsWidgetView ~= nil then
+        self.tipsWidgetView.transform.gameObject:SetActive(true)
+    end
+
+    self.IsNew = false
+    self.OpenFrom = 0 -- 0为背包[以及其他页面]打开，1为背包装备打开，2为角色装备打开
+
+    -- 传入道具ID
+    if type(tb) == "table" then
+        -- Lua调用
+        self.BaseID = tb[1]
+        self.isUseItemFuncMenu = tb[2]
+        self.EntityID = tb[3]
+
+        self.AimTransform = tb[4]
+        self.OpenFrom = tb[5]
+
+        self.PartnerBaseID = tb[6]
+        self.PartnerEntityID = tb[7]
+        self.PartnerEntityLv = tb[8]
+        self.TipsType = tb[9]
+    else
+        -- C#调用
+        self.BaseID = tb[0]
+        self.isUseItemFuncMenu = tb[1]
+        self.EntityID = tb[2]
+
+        self.AimTransform = tb[3]
+        self.OpenFrom = tb[4]
+
+        self.PartnerBaseID = tb[5]
+        self.PartnerEntityID = tb[6]
+        self.PartnerEntityLv = tb[7]
+
+        self.TipsType = tb[8]
+    end
+    self.SpaceId = 0
+    if self.EntityID ~= nil and self.EntityID ~= 0 then
+        local val = uint64.new(self.EntityID)
+        local itemData = BusinessManager.Instance:GetItemByItemEntityId(val.value)
+
+        -- local itemData = BusinessManager.Instance:GetItemByItemEntityId(self.EntityID)
+
+        if itemData ~= nil then
+            self.SpaceId = itemData.SpaceId
+            self.IsNew = itemData.IsNew
+            self.Num = itemData.Num
+        end
+    end
+
+    -- 获取道具配置
+    self.cfg = ConfigDataAccessor.Item[self.BaseID]
+    -- self.cfg=LocalDataManager.Instance:GetItemDataCell(self.BaseID);
+
+    -- 刷新UI
+    self.tipsWidgetView:RefeshTips()
+
+    self.tipsWidgetView.btnClick.gameObject:SetActive(true)
+
+    GameManager.Instance.IsOpenItemTips = true
+end
+
+function ItemTipsModule:OnOpenTipsItemMDList(...)
+    local tb = ...
+
+    local tipsWidgetCs = UIManager.Instance:OpenWidget(ItemTipsWidgetPath, false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, true)
+    if self.tipsWidgetView == nil then
+        self.tipsWidgetView = tipsWidgetCs:GetLuaPanel().ScriptTable
+        self.tipsWidgetView:BindModule(self)
+        self.evtOnCloseTips = LuaModuleDispatcher:Event(ModuleDef.ItemTipsModule, "OnCloseTipsEvt")
+    end
+
+    self.gemTable = nil
+    local ItemMDs = nil
+    -- 传入道具ID
+    if type(tb) == "table" then
+        -- Lua调用
+        ItemMDs = tb[1]
+        self.AimTransform = tb[2]
+
+        if #ItemMDs > 0 then
+            self.ItemMD = ItemMDs[1]
+            if #ItemMDs > 1 then
+                self.gemTable = {}
+                for i = 2, #ItemMDs do
+                    self.gemTable[ItemMDs[i].EntityID] = ItemMDs[i]
+                end
+            end
+        end
+    else
+        -- C#调用
+        ItemMDs = tb[0]
+        self.AimTransform = tb[1]
+
+        if ItemMDs.Count > 0 then
+            self.ItemMD = ItemMDs[0]
+            if ItemMDs.Count > 1 then
+                self.gemTable = {}
+                for i = 1, ItemMDs.Count - 1 do
+                    self.gemTable[ItemMDs[i].EntityID] = ItemMDs[i]
+                end
+            end
+        end
+    end
+
+    -- 获取道具配置
+    self.cfg = ConfigDataAccessor.Item[self.ItemMD.BaseID]
+
+    -- 刷新UI
+    self.tipsWidgetView:RefeshTipsByItemMD()
+
+    GameManager.Instance.IsOpenItemTips = true
+end
+
+-- 监听打开Tips事件用ItemMD
+function ItemTipsModule:OnOpenTipsItemMD(...)
+    local tb = ...
+
+    local tipsWidgetCs = UIManager.Instance:OpenWidget(ItemTipsWidgetPath, false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, true)
+    if self.tipsWidgetView == nil then
+        self.tipsWidgetView = tipsWidgetCs:GetLuaPanel().ScriptTable
+        self.tipsWidgetView:BindModule(self)
+        self.evtOnCloseTips = LuaModuleDispatcher:Event(ModuleDef.ItemTipsModule, "OnCloseTipsEvt")
+    end
+
+    -- 传入道具ID
+    if type(tb) == "table" then
+        -- Lua调用
+        self.ItemMD = tb[1]
+        self.AimTransform = tb[2]
+        if #tb >= 3 then
+            self.gemTable = tb[3]
+        end
+    else
+        -- C#调用
+        self.ItemMD = tb[0]
+        self.AimTransform = tb[1]
+        if tb.Length >= 3 then
+            self.gemTable = tb[2]
+        end
+    end
+
+    -- 获取道具配置
+    self.cfg = ConfigDataAccessor.Item[self.ItemMD.BaseID]
+
+    -- 刷新UI
+    self.tipsWidgetView:RefeshTipsByItemMD()
+
+    GameManager.Instance.IsOpenItemTips = true
+end
+
+function ItemTipsModule:OnSetUseNum(...)
+    local tb = ...
+
+    -- 传入道具ID
+    if type(tb) == "table" then
+        -- Lua调用
+        self.Num = tb[1]
+    else
+        -- C#调用
+        self.Num = tb[0]
+    end
+end
+
+-- 监听关闭Tips事件
+function ItemTipsModule:OnCloseTips(...)
+    self:CleanJumpInfo()
+
+    if self.tipsWidgetView ~= nil and self.tipsWidgetView.IsOpen then
+        self.tipsWidgetView:CloseWidget()
+        self:OnFinishItemTipsWidget()
+
+        CS.StarProject.GlobalEvent.OnTipsCloseEvent:Invoke(true)
+    end
+end
+
+-- 关闭背包回调
+function ItemTipsModule:OnCloseTipsEvt(arg)
+    self.evtOnCloseTips:Invoke()
+end
+
+-- 使用道具
+function ItemTipsModule:UseItem(num)
+    -- BusinessManager.Instance:SendUseItem(self.EntityID,self.cfg.SpaceId,1)
+
+    --[[
+	local itemUseReq = CS.ProtoMsg.ItemUseReq();
+	itemUseReq.ItemEntityID = self.EntityID;
+	itemUseReq.ItemSpaceId = self.cfg:GetSpaceId();
+	itemUseReq.Count = num;
+	CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, itemUseReq, false);
+	]]
+    -- CD 中不给用
+    local cd = BusinessManager.Instance:GetItemByItemEntityId(self.EntityID).CD
+    local leftTime = cd - CS.SGF.Time.TimeUtils.ServerNowStampMilli
+    if leftTime > 0 then
+        -- Util.ShowMessage("CD 中")
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_237"))
+        return
+    end
+
+    -- 判断血药蓝是否能使用
+    if not (self:CanUseHPMedicine()) and self.cfg.ItemType == 3 and self.cfg.SubType == 4 then
+        Util.ShowMessageByCode(CRetMsgEnum.Tips_drug_hp)
+        return
+    end
+    if not (self:CanUseMPMedicne()) and self.cfg.ItemType == 3 and self.cfg.SubType == 5 then
+        Util.ShowMessageByCode(CRetMsgEnum.Tips_drug_mp)
+        return
+    end
+    if not (self:CanUseBattleMedicine()) and self.cfg.ItemType == 3 and self.cfg.SubType == 3 then
+        Util.ShowMessageByCode(CRetMsgEnum.Tips_drug_02)
+        return
+    end
+
+    local canMultUse = self.cfg.CanUse
+
+    if self.cfg.ItemType == 22 then
+        -- 批量使用宝箱
+        local info = {}
+        info.EntityID = self.EntityID
+        info.Num = num
+        info.BaseID = self.BaseID
+        info.IsBox = true
+        LuaModuleDispatcher:SendMessage(ModuleDef.ItemUseModule, "OnOpenItemUse", {info})
+    else
+        -- 批量使用
+        if canMultUse then
+            local info = {}
+            info.EntityID = self.EntityID
+            info.Num = num
+            info.BaseID = self.BaseID
+            info.IsBox = false
+            LuaModuleDispatcher:SendMessage(ModuleDef.ItemUseModule, "OnOpenItemUse", {info})
+        else
+            -- 直接使用
+
+            local itemUseReq = CS.ProtoMsg.ItemUseReq()
+            itemUseReq.ItemEntityID = self.EntityID
+            itemUseReq.ItemSpaceId = self.SpaceId
+            itemUseReq.Count = 1
+            CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, itemUseReq, false)
+        end
+    end
+
+    -- 关闭UI
+    self:OnCloseTips()
+end
+
+-- 是否能使用血量药品
+function ItemTipsModule:CanUseHPMedicine()
+    local M_EntityBase = GameManager.Instance.M_MainPlayerCtrlBase
+    local totalHP = ConfigDataAccessor.SystemList[49].Value
+    local curHP = M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Long, CS.StarProjectDef.AOIAttrDefine.StorageHP)
+    return totalHP > curHP
+end
+
+-- 是否能使用法力药品
+function ItemTipsModule:CanUseMPMedicne()
+    local M_EntityBase = GameManager.Instance.M_MainPlayerCtrlBase
+    local totalMP = ConfigDataAccessor.SystemList[50].Value
+    local curMP = M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Long, CS.StarProjectDef.AOIAttrDefine.StorageMP)
+    return totalMP > curMP
+end
+
+-- 是否能使用战斗药品
+function ItemTipsModule:CanUseBattleMedicine()
+    local M_EntityBase = GameManager.Instance.M_MainPlayerCtrlBase
+    local hp = M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Long, CS.StarProjectDef.AOIAttrDefine.curHp)
+    local sum = M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Long, CS.StarProjectDef.AOIAttrDefine.TruthHp)
+    return hp < sum
+end
+
+-- 丢弃物品申请
+function ItemTipsModule:DelItemReq()
+    local delItemReq = CS.ProtoMsg.DelItemReq()
+    delItemReq.ItemEntityID = self.EntityID
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, delItemReq, false)
+
+    -- 关闭UI
+    self:OnCloseTips()
+end
+
+-- 丢弃物品回调
+function ItemTipsModule:OnDelItemRet(data)
+    print("丢弃物品回调")
+
+    DOVirtual.DelayedCall(
+        0.05,
+        function()
+            LuaModuleDispatcher:SendMessage(ModuleDef.MedicineModule, "OnBagChanged", {})
+
+            LuaModuleDispatcher:SendMessage(ModuleDef.AmuletModule, "OnRefeshAmulet", {}) -- 丢弃纹章回调
+            -- Util.ShowMessage(302);
+        end
+    )
+end
+
+-- 穿装备请求
+function ItemTipsModule:WearEquip()
+    local wearEquipReq = CS.ProtoMsg.WearEquipReq()
+    wearEquipReq.ItemEntityID = self.EntityID
+    -- wearEquipReq.ItemSpaceId = self.SpaceId;
+    -- wearEquipReq.HeroID = GameManager.Instance.mainPlayerId;
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, wearEquipReq, false)
+
+    -- 关闭UI
+    self:OnCloseTips()
+end
+
+-- 穿装备回调 因为没有内容，所以可以使用简单回复
+function ItemTipsModule:OnWearEquipReqRet(args)
+    local RetMsgID = args.MsgRet.RetMsgID -- 对应的消息号(这个可以判断是哪个协议)
+    CheckAllEquipsRedPoint()
+    local RetCode = args.MsgRet.RetCode
+    if RetCode == 0 then
+        -- 成功
+        LuaModuleDispatcher:SendMessage(ModuleDef.EquipModule, "OnRefeshEquip", {})
+    else
+        -- 不需要处理，交给上层去处理
+        -- args.IsDialog=true
+        -- 失败
+        LuaModuleDispatcher:SendMessage(ModuleDef.EquipModule, "OnRefeshEquip", {})
+    end
+end
+
+-- 穿装备回调（弃用)
+function ItemTipsModule:OnWearEquipRet(data)
+    print("穿装备回调")
+    CheckAllEquipsRedPoint()
+    LuaModuleDispatcher:SendMessage(ModuleDef.EquipModule, "OnRefeshEquip", {})
+    -- Util.ShowMessage(302);
+end
+
+-- 脱装备请求
+function ItemTipsModule:TakeOffEquip()
+    local takeOffEquipReq = CS.ProtoMsg.TakeOffEquipReq()
+    takeOffEquipReq.ItemEntityID = self.EntityID
+    -- takeOffEquipReq.ItemSpaceId = self.SpaceId;
+    -- takeOffEquipReq.HeroID = GameManager.Instance.mainPlayerId;
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, takeOffEquipReq, false)
+
+    -- 关闭UI
+    self:OnCloseTips()
+
+    CheckAllEquipsRedPoint()
+end
+
+-- 脱装备回调 因为没有内容，所以可以使用简单回复
+function ItemTipsModule:OnTakeOffEquipReqRet(args)
+    local RetMsgID = args.MsgRet.RetMsgID -- 对应的消息号(这个可以判断是哪个协议)
+
+    local RetCode = args.MsgRet.RetCode
+    if RetCode == 0 then
+        -- 成功
+        LuaModuleDispatcher:SendMessage(ModuleDef.EquipModule, "OnRefeshEquip", {})
+    else
+        -- 不需要处理，交给上层去处理
+        -- args.IsDialog=true
+        -- 失败
+        LuaModuleDispatcher:SendMessage(ModuleDef.EquipModule, "OnRefeshEquip", {})
+    end
+end
+
+-- 脱装备回调（弃用)
+function ItemTipsModule:OnTakeOffEquipRet(data)
+    print("脱装备回调")
+
+    local pb = data.data
+    local errID = pb.ErrID -- 1成功 14失败
+    if errID ~= nil and errID > 0 then
+        Util.ShowMessage(errID)
+    end
+
+    LuaModuleDispatcher:SendMessage(ModuleDef.EquipModule, "OnRefeshEquip", {})
+    -- Util.ShowMessage(302);
+end
+
+-- 穿伙伴装备请求
+function ItemTipsModule:WearParEquip()
+    local wearEquipReq = CS.ProtoMsg.WearParEquipReq()
+    wearEquipReq.ItemEntityID = self.EntityID
+    wearEquipReq.PartnerID = self.PartnerEntityID
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, wearEquipReq, false)
+
+    -- 关闭UI
+    self:OnCloseTips()
+end
+
+-- 脱伙伴装备请求
+function ItemTipsModule:TakeOffParEquip()
+    local takeOffEquipReq = CS.ProtoMsg.TakeOffParEquipReq()
+    takeOffEquipReq.ItemEntityID = self.EntityID
+    takeOffEquipReq.PartnerID = self.PartnerEntityID
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, takeOffEquipReq, false)
+
+    -- 关闭UI
+    self:OnCloseTips()
+end
+
+-- 穿纹章请求
+function ItemTipsModule:WearAmulet()
+    local wearAmuletReq = CS.ProtoMsg.WearAmuletReq()
+    wearAmuletReq.AmuletID = self.EntityID
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, wearAmuletReq, false)
+
+    -- 关闭UI
+    self:OnCloseTips()
+end
+
+-- 穿纹章回调
+function ItemTipsModule:OnWearAmuletRet(data)
+    print("穿纹章回调")
+
+    LuaModuleDispatcher:SendMessage(ModuleDef.AmuletModule, "OnRefeshAmulet", {})
+
+    -- 关闭UI
+    self:OnCloseTips()
+
+    Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_20"))
+end
+
+-- 脱纹章请求
+function ItemTipsModule:TakeOffAmulet()
+    local takeOffAmuletReq = CS.ProtoMsg.TakeOffAmuletReq()
+    takeOffAmuletReq.AmuletID = self.EntityID
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, takeOffAmuletReq, false)
+
+    -- 关闭UI
+    self:OnCloseTips()
+end
+
+-- 脱纹章回调
+function ItemTipsModule:OnTakeOffAmuletRet(data)
+    print("脱纹章回调")
+
+    LuaModuleDispatcher:SendMessage(ModuleDef.AmuletModule, "OnRefeshAmulet", {})
+    Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_21"))
+end
+
+-- LuaModule 创建
+function ItemTipsModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.ItemTipsModule, self)
+    self.Partners = {}
+    -- 新的伙伴全量差量同步
+    FixMessageManager.Instance:OnMessage(
+        FixUpdateDef.Partner,
+        function(data)
+            -- self:OnPartnerRefesh(data)
+        end,
+        nil
+    )
+
+    -- 监听道具使用失败
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.ItemUseSrvID,
+        function(data)
+            self:OnItemUseFail(data)
+        end,
+        nil
+    )
+
+    -- 监听脱装备
+    CS.SGF.Network.MsgRetManager.Instance:OnMessageEnum(
+        function(data)
+            self:OnWearEquipReqRet(data)
+        end,
+        CS.MsgIDEnum.WearEquipReqID
+    )
+
+    -- 监听穿装备（弃用）
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.WearEquipRetID,
+        function(data)
+            self:OnWearEquipRet(data)
+        end,
+        nil
+    )
+
+    -- 监听脱装备
+    CS.SGF.Network.MsgRetManager.Instance:OnMessageEnum(
+        function(data)
+            self:OnTakeOffEquipReqRet(data)
+        end,
+        CS.MsgIDEnum.TakeOffEquipReqID
+    )
+
+    -- 监听脱装备（弃用）
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.TakeOffEquipRetID,
+        function(data)
+            self:OnTakeOffEquipRet(data)
+        end,
+        nil
+    )
+
+    -- 监听丢物品
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.DelItemRetID,
+        function(data)
+            self:OnDelItemRet(data)
+        end,
+        nil
+    )
+
+    -- 监听穿纹章
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.WearAmuletRetID,
+        function(data)
+            self:OnWearAmuletRet(data)
+        end,
+        nil
+    )
+
+    -- 监听脱纹章
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.TakeOffAmuletRetID,
+        function(data)
+            self:OnTakeOffAmuletRet(data)
+        end,
+        nil
+    )
+
+    -- 监听伙伴
+    NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.AllPartnerListID,
+        function(data)
+            self:OnAllPartnerList(data)
+        end,
+        nil
+    )
+
+    -- 伙伴脏数据
+    NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.NoticePartnerListID,
+        function(data)
+            self:OnNoticePartnerList(data)
+        end,
+        nil
+    )
+end
+
+-- 伙伴新的差量同步
+function ItemTipsModule:OnPartnerRefesh(data)
+    if data == nil then
+        return
+    end
+    -- 修改的
+    for i = 0, data.Changes.Count - 1 do
+        local item = data.Changes[i]
+        local index = self:GetPartnerIndex(item)
+        if index == -1 then
+            ---新增
+            table.insert(self.Partners, item)
+        else
+            self.Partners[index] = item
+        end
+        ---数据刷新[这个要问一下]
+        CS.StarProject.GlobalEvent.OnPartnerFresh:Invoke(item.Index)
+    end
+    -- 删
+    for i = 0, data.Delets.Count - 1 do
+        local item = data.Delets[i]
+        local index = self:GetPartnerIndex(item)
+        if index ~= -1 then
+            table.remove(self.Partners, index)
+        end
+    end
+end
+
+-- 接收全量伙伴列表
+function ItemTipsModule:OnAllPartnerList(data)
+    if data == nil then
+        return
+    end
+
+    -- 获取伙伴数据
+    self.Partners = {}
+
+    local allPartnerList = data.data
+    local partners = allPartnerList.Pars
+    -- 伙伴数据
+    for i = 0, partners.Count - 1 do
+        local partner = partners[i]
+        table.insert(self.Partners, partner)
+    end
+end
+
+-- 伙伴脏数据
+function ItemTipsModule:OnNoticePartnerList(data)
+    if data == nil or data.data == nil then
+        return
+    end
+
+    local dirtyPartnerList = data.data.Pars
+    for i = 0, dirtyPartnerList.Count - 1 do
+        local dirtyPartner = dirtyPartnerList[i]
+        local index = self:GetPartnerIndex(dirtyPartner)
+        if index == -1 then
+            ---新增
+            table.insert(self.Partners, dirtyPartner)
+        else
+            self.Partners[index] = dirtyPartner
+        end
+    end
+end
+
+function ItemTipsModule:GetPartnerIndex(dirtyPartner)
+    if self.Partners == nil or self.Partners == {} then
+        return 0
+    end
+
+    for _k, _v in pairs(self.Partners) do
+        if _v.Index == dirtyPartner.Index then
+            return _k
+        end
+    end
+    return -1
+end
+
+function ItemTipsModule:OnItemUseFail()
+    print("道具使用失败")
+end
+
+function ItemTipsModule:OnFinishItemTipsWidget()
+    print("OnFinishItemTipsWidget")
+end
+
+function ItemTipsModule:IsMatchJob()
+    local JobType = ConfigDataAccessor.Equip[self.BaseID].JobBaseType
+    local playerJob = GameManager.Instance:GetPlayJobBaseID()
+
+    local isMarchPlayerJob = false
+
+    if JobType == 0 or JobType == playerJob then
+        isMarchPlayerJob = true
+    end
+
+    return isMarchPlayerJob
+end
+
+-- LuaModule 消息处理
+function ItemTipsModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...)
+end
+
+-- LuaModule显示
+function ItemTipsModule:OnModuleShow(arg)
+end
+
+-- LuaModule 释放
+function ItemTipsModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.ItemTipsModule)
+end
+
+return ItemTipsModule

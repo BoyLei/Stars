@@ -1,0 +1,91 @@
+--[[
+*文件名   :   PersonalTowerFailWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/08/18 16:18:02"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+---@class PersonalTowerFailWindow
+PersonalTowerFailWindow=class("PersonalTowerFailWindow",UIPanel)
+PersonalTowerFailWindow.m_NoAward=nil;
+PersonalTowerFailWindow.m_NormalItemPreviewGo=nil;
+PersonalTowerFailWindow.m_Extra=nil;
+PersonalTowerFailWindow.m_QuitBtn=nil;
+PersonalTowerFailWindow.m_QuitTime=nil;
+PersonalTowerFailWindow.m_NormalItemPreview=nil;
+PersonalTowerFailWindow.m_Win=nil;
+PersonalTowerFailWindow.m_Fail=nil;
+
+PersonalTowerFailWindow.Second=0;
+PersonalTowerFailWindow.QuitCallBack=nil;
+
+local QuitBtnFunc=nil
+
+
+function PersonalTowerFailWindow:Awake()
+    self.m_QuitBtn=self:Find("Cut4Cam90/AssemblyRatio2/Center/FailPanel/JBtnSure"):GetComponent(typeof(JButton));
+    self.m_QuitTime=self:Find("Cut4Cam90/AssemblyRatio2/Center/FailPanel/Countdown"):GetComponent(typeof(Text));
+    self.m_TxtTitle=self:Find("Cut4Cam90/AssemblyRatio2/Center/bg/MapName"):GetComponent(typeof(Text));
+
+    QuitBtnFunc=function()
+        self:OnClickQuitBtn();
+    end;
+    self.OnSecTimeUpdate=function()
+        self:OnSecTimeUpdateHandler()
+    end
+end
+
+function PersonalTowerFailWindow:Start()
+    self.m_QuitBtn.OnClick= QuitBtnFunc;
+end
+
+function PersonalTowerFailWindow:OnEnable()
+
+end
+
+function PersonalTowerFailWindow:OnDisable()
+
+end
+function PersonalTowerFailWindow:OnSecTimeUpdateHandler()
+    self:ShowTime();
+end
+
+function PersonalTowerFailWindow:ShowTime()
+    self.Second=self.Second-1;
+    if self.Second<=0 then
+        self:OnClickQuitBtn();
+    else
+        --self.m_QuitTime.text=self.Second.."秒后离开场景"
+        self.m_QuitTime.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_QuitTime"), {self.Second});
+
+    end
+end
+
+function PersonalTowerFailWindow:OnDestroy()
+
+end
+
+function PersonalTowerFailWindow:OnOpen(arg)
+    local data=arg;
+    self.CurFloor=data.CurFloor
+    --self.m_TxtTitle.text = string.format("空想之环 ：第%d层",self.CurFloor)
+    self.m_TxtTitle.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_PersonalTowerFailWindow_title"), {self.CurFloor});
+
+    self.Second = 20
+    self:ShowTime();
+    if self.Second~=nil and self.Second >0 then
+        MonoHelper.AddSecTimeUpdateListener(self.OnSecTimeUpdate);
+    end
+end
+
+function PersonalTowerFailWindow:OnClose(arg)
+    MonoHelper.RemoveSecTimeUpdateListener(self.OnSecTimeUpdate);
+end
+
+function PersonalTowerFailWindow:OnClickQuitBtn()
+    self.Close()
+    GameManager.Instance:BackToWorld();
+end
+
+return  PersonalTowerFailWindow

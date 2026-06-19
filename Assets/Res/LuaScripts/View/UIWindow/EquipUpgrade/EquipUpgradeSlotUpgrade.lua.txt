@@ -1,0 +1,593 @@
+--[[
+*文件名   :   EquipUpgradeSlotUpgrade
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/02/03 13:09:51"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local EquipUpgradeSlotUpgrade = {}
+EquipUpgradeSlotUpgrade.__index = EquipUpgradeSlotUpgrade
+
+local ObjectPool = require("Common/Helper/ObjectPool")
+local ItemGrid = require("View/Item/ItemGrid")
+local EquipUpgradeSlotAttr = require("View/Uiwindow/EquipUpgrade/EquipUpgradeSlotAttr")
+
+local EquipUpgradeSimpleSuccess = require("View/Uiwindow/EquipUpgrade/EquipUpgradeSimpleSuccess")
+local EquipUpgradeSimpleFail = require("View/Uiwindow/EquipUpgrade/EquipUpgradeSimpleFail")
+
+local EquipUpgradeResonate = require("View/Uiwindow/EquipUpgrade/EquipUpgradeResonate")
+local EquipUpgradeResonateLvUp = require("View/Uiwindow/EquipUpgrade/EquipUpgradeResonateLvUp")
+
+function EquipUpgradeSlotUpgrade:New(_go, equipUpgradeWindow)
+    local self = {}
+    setmetatable(self, EquipUpgradeSlotUpgrade)
+
+    self.transform = _go.transform
+    self.gameObject = _go
+
+    self.EquipUpgradeWindow = equipUpgradeWindow
+
+    --跳转到背包
+    local BtnGoToEquip = self.transform:Find("None/BtnGoToEquip"):GetComponent(typeof(JButton))
+    BtnGoToEquip.OnClick = (function()
+        self.EquipUpgradeWindow.currencyBar:OffListener()
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+
+        --跳转
+        local formArgs = {0, 0}
+        local toArgs = {}
+        ModuleManager.Instance:SendMessage_Stack_Internal(ModuleDef.EquipUpgradeModule, ModuleDef.BagModule, formArgs, toArgs, "Show")
+    end)
+
+    --道具图标相关
+
+    self.go_one = self.transform:Find("Info/one").gameObject
+    self.go_two = self.transform:Find("Info/two").gameObject
+
+    self.equipAddOther1 = self.transform:Find("Info/two/Lv1/Level"):GetComponent(typeof(Text))
+
+    self.equipAddOther2 = self.transform:Find("Info/two/Lv2/Level"):GetComponent(typeof(Text))
+
+    self.equipAddOther3 = self.transform:Find("Info/one/Lv3/Level"):GetComponent(typeof(Text))
+
+    --战力
+    self.score = self.transform:Find("Info/score"):GetComponent(typeof(Text))
+
+    --点击强化
+    self.btnUpgrade = self.transform:Find("Upgrade/BtnConfirm"):GetComponent(typeof(JButton))
+    self.btnUpgrade.OnClick = (function()
+        self:OnBtnConfirmClick()
+    end)
+    self.btnUpgrade_img = self.transform:Find("Upgrade/BtnConfirm/bg"):GetComponent(typeof(Image))
+    self.btnUpgrade_RedPoint = self.transform:Find("Upgrade/BtnConfirm/redPoint").gameObject
+
+    --中间当前装备
+    self.Name = self.transform:Find("EquipCenter/Name"):GetComponent(typeof(Text))
+    self.Limit = self.transform:Find("Info/maxlv"):GetComponent(typeof(Text))
+    self.equipImage = self.transform:Find("EquipCenter/EquipItem/Have/Icon"):GetComponent(typeof(Image))
+    self.equipBg = self.transform:Find("EquipCenter/EquipItem/Have/BgRare"):GetComponent(typeof(Image))
+    self.equipAdd = self.transform:Find("EquipCenter/EquipItem/Have/Num"):GetComponent(typeof(Text))
+
+    --共鸣
+    self.ResonatePsGo = self.transform:Find("ResonateInfo/fire").gameObject
+    self.ResonateDesc = self.transform:Find("ResonateInfo/tex"):GetComponent(typeof(Text))
+    self.ResonateIcon = self.transform:Find("ResonateInfo/Btn/bg"):GetComponent(typeof(Image))
+    local btnResonate = self.transform:Find("ResonateInfo/Btn"):GetComponent(typeof(JButton))
+    btnResonate.OnClick = (function()
+        self:OnResonateClick()
+    end)
+
+    --右边中间的属性信息
+
+    --强化词条,强化前的
+    --属性
+    self.attrs = {}
+    for i = 1, 5 do
+        local eai = EquipUpgradeSlotAttr:New(self.transform:Find("Info/Info1/Attr" .. i).gameObject)
+        table.insert(self.attrs, eai)
+    end
+
+    --成功率
+    self.SuccessRate = self.transform:Find("SuccessRate/tex"):GetComponent(typeof(Text))
+
+    --消耗显示
+    --金币
+    self.useCoinSp = self.transform:Find("Upgrade/Money/Icon"):GetComponent(typeof(Image))
+    self.useCoinNum = self.transform:Find("Upgrade/Money/Num"):GetComponent(typeof(Text))
+
+    --道具
+    self.items = {}
+    for i = 1, 5 do
+        local it = ItemGrid:New(self.transform:Find("Info/Items/ItemGrid" .. i).gameObject)
+        it:InitItem(
+            false,
+            function(ritem)
+                self:OnItemClick(ritem)
+            end
+        )
+        table.insert(self.items, it)
+    end
+
+    self.tex_Max = self.transform:Find("Max/Text/tex"):GetComponent(typeof(Text))
+
+    self.go_Upgrade = self.transform:Find("Upgrade").gameObject
+    self.go_EquipCenter = self.transform:Find("EquipCenter").gameObject
+    self.go_Info = self.transform:Find("Info").gameObject
+    self.go_None = self.transform:Find("None").gameObject
+    self.go_Max = self.transform:Find("Max").gameObject
+    self.go_ItemRoot = self.transform:Find("Info/Items").gameObject
+
+    --三个面板
+    --[[
+		self.equipUpgradeSuccess=EquipUpgradeSuccess:New(self.transform:Find("Success").gameObject,function ()
+
+			self:RefeshEquipUpgrade();
+		end,self);
+		self.equipUpgradeFail=EquipUpgradeFail:New(self.transform:Find("Fail").gameObject,function ()
+			self:RefeshEquipUpgrade();
+		end,self);
+	]]
+    self.equipUpgradeSuccess =
+        EquipUpgradeSimpleSuccess:New(
+        self.transform:Find("SimpleSuccess").gameObject,
+        function()
+            self:RefeshEquipUpgrade()
+        end
+    )
+    self.equipUpgradeFail =
+        EquipUpgradeSimpleFail:New(
+        self.transform:Find("SimpleFail").gameObject,
+        function()
+            self:RefeshEquipUpgrade()
+        end
+    )
+
+    self.equipUpgradeResonate = EquipUpgradeResonate:New(self.transform:Find("ResonatePanel").gameObject, self)
+
+    self.equipUpgradeResonateLvUp = EquipUpgradeResonateLvUp:New(self.transform:Find("ResonateLvUp").gameObject, self)
+
+    self.SlotResonateOldLv = -1
+
+    return self --返回自身
+end
+
+function EquipUpgradeSlotUpgrade:ShowSuccessPs()
+    for i = 1, #self.attrs do
+        self.attrs[i]:ShowPs()
+    end
+end
+
+function EquipUpgradeSlotUpgrade:OnItemClick(ritem)
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", {ritem.BaseID, false, 0, ritem.transform, 0, nil, nil, nil, nil, ModuleDef.EquipUpgradeModule, {1, 0}})
+    --LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnSetJumpInfo",{ ModuleDef.EquipUpgradeModule,{1,0}});
+end
+
+function EquipUpgradeSlotUpgrade:PlayResonateCloseAnim()
+    self.EquipUpgradeWindow.anim:Play("ResonateAnim_Close")
+end
+
+function EquipUpgradeSlotUpgrade:Show(b)
+    self.gameObject:SetActive(b)
+end
+
+function EquipUpgradeSlotUpgrade:OnResonateClick()
+    self.EquipUpgradeWindow.anim:Play("ResonateAnim_Open")
+
+    self.equipUpgradeResonate:Show(true)
+end
+
+--刷新信息
+function EquipUpgradeSlotUpgrade:RefeshEquipUpgrade(module)
+    --self.btnUpgrade.enabled=true;
+
+    if module ~= nil then
+        self.module = module
+    end
+
+    self.EntityID = self.module.EntityID
+    self.BaseID = self.module.BaseID
+
+    self.SuccessRate.text = ""
+
+    --之后要去从服务器下发数据读取
+    self.SlotID = self.module.SlotID --装备槽ID
+
+    local equipSlotData = GameManager.Instance:GetEquipSlotData(self.SlotID)
+
+    local iconPath = ""
+    self.SlotResonateLv = 0
+    local minLv = GameManager.Instance:GetEquipSlotResonateLv() --共鸣等级（的最低等级）
+    local maxResonateLv = ConfigDataAccessor.GetMaxEquipSlotResonanceLv(GameManager.Instance:GetPlayJobBaseID())
+    for i = 1, maxResonateLv do
+        local esr = ConfigDataAccessor.GetEquipSlotResonance(i, GameManager.Instance:GetPlayJobBaseID())
+        if esr ~= nil then
+            if minLv >= esr.Level then
+                self.SlotResonateLv = i
+                --self.SlotResonateLvMax = esr.Level
+                iconPath = esr.Icon
+            end
+        end
+    end
+    self.SlotResonateLvMax = minLv
+
+    if equipSlotData == nil then
+        self.UpLv = 0
+        self.UpFailVal = 0
+    else
+        self.UpLv = equipSlotData.UpLv --强化等级
+        self.UpFailVal = equipSlotData.UpFailVal --强化失败补偿【万分比】
+    end
+
+    --配置表最大等级
+    self.SlotCfgMaxLv = ConfigDataAccessor.GetMaxEquipSlotLv()
+
+    --当前最大平均等级
+    if self.SlotResonateLv > 0 then
+        --self.SlotResonateLvMax=ConfigDataAccessor.EquipSlotUpLimit[self.SlotResonateLv].Max;
+    else
+        --self.SlotResonateLvMax = 0
+    end
+
+    --判断是否升级
+    if self.SlotResonateOldLv >= 0 then
+        if self.SlotResonateOldLv ~= self.SlotResonateLv then
+            self.equipUpgradeResonateLvUp:Show(true)
+        end
+    end
+    self.SlotResonateOldLv = self.SlotResonateLv
+
+    self.SlotMaxLv = ConfigDataAccessor.EquipSlotUpLimit[1].Max
+    self.NextCondition = 0
+    self.NextConditionDesc = ""
+
+    for i = 2, #ConfigDataAccessor.EquipSlotUpLimit do
+        local equipSlotUpLimit = ConfigDataAccessor.EquipSlotUpLimit[i]
+
+        if equipSlotUpLimit.Condition > 0 then
+            --[[
+            --冒险等级
+            local RiskInfo = GameManager.Instance.M_MainPlayerCtrlBase.Data.Attrs:GetProtoValue(CS.StarProjectDef.AOIAttrDefine.RiskInfo)
+            if RiskInfo ~= nil then
+                local curRiskLevel = RiskInfo.CurRiskLevel
+                if equipSlotUpLimit.Condition > curRiskLevel then
+                    --不满足
+                    self.NextCondition = equipSlotUpLimit.Condition
+                    local advcfg = ConfigDataAccessor.AdvGradeExp[self.NextCondition]
+                    if advcfg ~= nil then
+                        self.NextConditionDesc = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_SecretAreaWindow_NotEnterTips2"), {advcfg.AdvClass .. GetRomaNum(advcfg.AdvOrder)})
+                    end
+                    break
+                end
+            end
+            ]]
+            --玩家等级
+            local playerLv = GameManager.Instance:GetPlayerLevel()
+            if equipSlotUpLimit.Condition > playerLv then
+                --不满足
+                self.NextCondition = equipSlotUpLimit.Condition
+                self.NextConditionDesc = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Tips64"), {self.NextCondition})
+
+                break
+            end
+        end
+        if equipSlotUpLimit.ConditionNum > self.SlotResonateLvMax then
+            --不满足
+            self.NextCondition = equipSlotUpLimit.ConditionNum
+            self.NextConditionDesc = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_SecretAreaWindow_NotEnterTips3"), {equipSlotUpLimit.ConditionNum})
+
+            break
+        end
+        self.SlotMaxLv = equipSlotUpLimit.Max
+    end
+
+    --[[
+
+	for i=1,#ConfigDataAccessor.EquipSlotUpLimit do
+		local equipSlotUpLimit=ConfigDataAccessor.EquipSlotUpLimit[i];
+		if GameManager.Instance:IsConditionMete(equipSlotUpLimit.Condition) then
+			if equipSlotUpLimit.Max > self.SlotMaxLv then
+				self.SlotMaxLv=equipSlotUpLimit.Max;
+
+				local nextEquipSlotUpLimit=ConfigDataAccessor.EquipSlotUpLimit[i+1];
+				if nextEquipSlotUpLimit==nil then
+					self.NextCondition=0;
+				else
+					self.NextCondition=nextEquipSlotUpLimit.Condition;
+
+					if self.NextCondition>0 then
+						local advcfg = ConfigDataAccessor.AdvGradeExp[self.NextCondition]	
+						self.NextConditionDesc = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_SecretAreaWindow_NotEnterTips2"), {advcfg.AdvClass..GetRomaNum(dvcfg.AdvOrder)});
+					else
+						self.NextCondition=nextEquipSlotUpLimit.ConditionNum;
+						if self.NextCondition>0 then
+							local advcfg = ConfigDataAccessor.AdvGradeExp[self.NextCondition]	
+							self.NextConditionDesc = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_SecretAreaWindow_NotEnterTips2"), {advcfg.AdvClass..GetRomaNum(dvcfg.AdvOrder)});							
+						end
+					end
+
+
+					
+
+						local cfgs=ConfigDataAccessor.GetCMconditionByGroupID(self.NextCondition);
+						if #cfgs>0 then
+							if cfgs[1].Args1~=nil and cfgs[1].Args1~="" then
+								local alv=tonumber(cfgs[1].Args1);
+								local advcfg = ConfigDataAccessor.AdvGradeExp[alv]	
+								--self.NextConditionDesc="冒险等级 " ..advcfg.AdvClass..GetRomaNum(advcfg.AdvOrder) .. " 解锁";
+								self.NextConditionDesc = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_SecretAreaWindow_NotEnterTips2"), {advcfg.AdvClass..GetRomaNum(advcfg.AdvOrder)});
+
+							end
+						end
+
+						--self.NextConditionDesc=nextEquipSlotUpLimit.Condition_desc;
+
+					
+
+				end
+
+			end
+		end
+	end
+
+	]]
+    --共鸣
+    --self.ResonateDesc.text="共鸣:"..self.SlotResonateLv;
+    self.ResonateDesc.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_ResonateDesc"), {self.SlotResonateLv})
+    --加载图标图片
+    if iconPath ~= "" then
+        ResourceHelper:LoadIconAsync(
+            self.ResonateIcon,
+            "",
+            iconPath,
+            false,
+            function()
+            end
+        )
+    end
+
+    local isShowPs = true
+    --等级不够
+    if self.SlotResonateLv == 0 then
+        isShowPs = false
+    end
+    --装备没装满
+    for i = 1, 8 do
+        local data = BusinessManager.Instance:GetHeroEquipedEquip(i)
+        if data == nil then
+            isShowPs = false
+            break
+        end
+    end
+
+    self.ResonatePsGo:SetActive(isShowPs)
+
+    --显示装备栏
+    self.module.equipUpgradeWindowView.equipUpgradeEquipMenu:SelectEquipByIdx(self.SlotID)
+
+    --空装备
+    if self.EntityID == nil then
+        self.go_EquipCenter:SetActive(false)
+        self.go_None:SetActive(true)
+        self.go_Info:SetActive(false)
+        self.go_Max:SetActive(false)
+        self.go_Upgrade:SetActive(false)
+
+        --中间置为空
+        self.Name.text = GetEquipSubTypeName(self.SlotID)
+        self.equipAdd.text = ""
+
+        local quality = 1
+        --self.equipBg.sprite= AtlasManager.Instance:GetSprite("ui/common/atlas/commonitem","Bag_Grid_sq"..quality);
+        ResourceHelper:LoadIconByAtlasAsync(self.equipBg, ResourceHelper.AtlasPathCommonItem, "Bag_Grid_sq" .. quality, false)
+        self.equipImage.gameObject:SetActive(false)
+
+        return
+    else
+        self.go_EquipCenter:SetActive(true)
+        self.go_None:SetActive(false)
+        self.go_Info:SetActive(true)
+    end
+
+    local itemMD = BusinessManager.Instance:GetItemByItemEntityId(self.EntityID)
+    --计算战力
+    --装备战力
+    local equipPower = FightPowerManager.Instance:GetShowEquipPower(itemMD)
+    --全部槽位战力，共鸣战力
+    local allPower, slotPower, slotResonancePower = FightPowerManager.Instance:GetEquipSlotsPower()
+    --单个槽位战力
+    local singleSlotPower = FightPowerManager.Instance:GetEquipSlotsPowerBySlotID(self.SlotID)
+
+    --self.score.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips_Condition27_Power") .. (equipPower + singleSlotPower)
+    self.score.text = "" .. (equipPower + singleSlotPower)
+
+    local isNeedCalculate = true
+
+    if self.SlotCfgMaxLv == self.UpLv then
+        --已经不需要强化了
+        isNeedCalculate = false
+        self.go_Max:SetActive(true)
+        self.go_Upgrade:SetActive(false)
+        self.go_ItemRoot:SetActive(false)
+    else
+        self.go_Max:SetActive(false)
+        self.go_Upgrade:SetActive(true)
+        self.go_ItemRoot:SetActive(true)
+    end
+
+    self.IsMoneyEnough = true
+    self.IsMoneyEnoughStr = LanguageHelp:GetLanguageByKey("Local_Str_No_Item")
+
+    --等级上限
+    --self.Limit.text="强化等级上限："..self.UpLv.."/"..self.SlotMaxLv;
+    self.Limit.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_EquipUpgradeSlotUpgrade_Limit"), {self.UpLv, self.SlotMaxLv})
+
+    if isNeedCalculate then
+        --强化需要的资源
+        local expend = ConfigDataAccessor.GetEquipSlotUpExpend(self.SlotID, self.UpLv + 1)
+
+        --成功率
+        local rateBase = expend.Base / 100
+        local rateAdd = self.UpFailVal / 100
+        if rateAdd > 0 then
+            --self.SuccessRate.text="成功率"..rateBase.."% <color=#6CEA75>+"..rateAdd.."%</color>";
+            self.SuccessRate.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_EquipUpgradeSlotUpgrade_SuccessRate"), {rateBase, "% <color=#6CEA75>+" .. rateAdd .. "%</color>"})
+        else
+            --self.SuccessRate.text="成功率"..rateBase.."%";
+            self.SuccessRate.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_EquipUpgradeSlotUpgrade_SuccessRate2"), {rateBase})
+        end
+
+        --道具消耗（货币）暂时不用，但是先不删
+        local cfgM = ConfigDataAccessor.Item[expend.Money[1]]
+        --LoadIcon(self.useCoinSp,cfgM.Icon);
+        ResourceHelper:LoadIconAsync(self.useCoinSp, "", cfgM.Icon, false)
+
+        local haveMoneyNum = BusinessManager.Instance:GetCurrencyNum(expend.Money[1])
+        if haveMoneyNum >= expend.Money[2] then
+            --self.useCoinNum.text=""..haveMoneyNum.."/"..expend.Money[2];
+            self.useCoinNum.text = expend.Money[2]
+        else
+            self.IsMoneyEnough = false
+            --self.IsMoneyEnoughStr=cfgM.Name.."不足";
+            self.IsMoneyEnoughStr = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_ShopItem_buyErrorMsg"), {cfgM.Name})
+
+            --self.useCoinNum.text="<color=#ff0000>"..haveMoneyNum.."</color>/"..expend.Money[2];
+            self.useCoinNum.text = "<color=#ff0000>" .. expend.Money[2] .. "</color>"
+        end
+
+        --消耗道具
+        for i = 1, #self.items do
+            self.items[i].gameObject:SetActive(false)
+        end
+        for i = 1, #expend.Item_id do
+            self.items[i].gameObject:SetActive(true)
+            local isItemEnough = self.items[i]:SetItemNum(expend.Item_id[i], expend.Item_num[i], true)
+            if not (isItemEnough) then
+                self.IsMoneyEnough = false
+            end
+        end
+        --货币
+        self.items[#expend.Item_id + 1].gameObject:SetActive(true)
+        self.items[#expend.Item_id + 1]:SetItemNum(expend.Money[1], expend.Money[2], true, true)
+
+        --强化的属性表
+        local playerJob = GameManager.Instance:GetPlayJobBaseID()
+
+        local intensifyNext = ConfigDataAccessor.GetEquipSlotIntensify(self.SlotID, self.UpLv + 1, playerJob)
+
+        for i = 1, #self.attrs do
+            self.attrs[i].gameObject:SetActive(false)
+        end
+        for i = 1, #intensifyNext.Property do
+            self.attrs[i].gameObject:SetActive(true)
+
+            local addVal1 = 0
+            local addVal2 = intensifyNext.Value[i]
+            if self.UpLv > 0 then
+                local intensify = ConfigDataAccessor.GetEquipSlotIntensify(self.SlotID, self.UpLv, playerJob)
+                addVal1 = intensify.Value[i]
+            end
+
+            self.attrs[i]:RefeshAttrProb(intensifyNext.Property[i], addVal1, addVal2, false)
+        end
+    else
+        --显示强化到最高的UI
+
+        local playerJob = GameManager.Instance:GetPlayJobBaseID()
+
+        local intensify = ConfigDataAccessor.GetEquipSlotIntensify(self.SlotID, self.UpLv, playerJob)
+
+        for i = 1, #self.attrs do
+            self.attrs[i].gameObject:SetActive(false)
+        end
+        for i = 1, #intensify.Property do
+            self.attrs[i].gameObject:SetActive(true)
+
+            local addVal1 = intensify.Value[i]
+            self.attrs[i]:RefeshAttrProb(intensify.Property[i], addVal1, 0, true)
+        end
+    end
+
+    if self.IsMoneyEnough then
+        self.btnUpgrade.enabled = true
+        self.btnUpgrade_img.color = Color(1, 1, 1)
+        self.btnUpgrade_RedPoint:SetActive(true)
+    else
+        self.btnUpgrade.enabled = false
+        self.btnUpgrade_img.color = Color(0.7, 0.7, 0.7)
+        self.btnUpgrade_RedPoint:SetActive(false)
+    end
+
+    --刷新中间
+    local cfg = ConfigDataAccessor.Item[self.BaseID]
+
+    self.Name.text = cfg.Name
+    if self.UpLv == 0 then
+        self.equipAdd.text = ""
+    else
+        self.equipAdd.text = "+" .. self.UpLv
+    end
+
+    local quality = cfg.Quality
+    --self.equipBg.sprite= AtlasManager.Instance:GetSprite("ui/common/atlas/commonitem","Bag_Grid_sq"..quality);
+    ResourceHelper:LoadIconByAtlasAsync(self.equipBg, ResourceHelper.AtlasPathCommonItem, "Bag_Grid_sq" .. quality, false)
+    self.equipImage.gameObject:SetActive(true)
+    --LoadIcon(self.equipImage,cfg.Icon);
+    ResourceHelper:LoadIconAsync(self.equipImage, "", cfg.Icon, false)
+
+    if self.UpLv == 0 then
+        --self.equipAddOther1.text="0级";
+        self.equipAddOther1.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {0})
+
+        --self.equipAddOther2.text="1级";
+        self.equipAddOther2.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {1})
+
+        self.go_one:SetActive(false)
+        self.go_two:SetActive(true)
+    else
+        --self.equipAddOther1.text=""..self.UpLv.."级";
+        self.equipAddOther1.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {self.UpLv})
+
+        if isNeedCalculate then
+            --self.equipAddOther2.text=""..(self.UpLv+1).."级";
+            self.equipAddOther2.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {self.UpLv + 1})
+
+            self.go_one:SetActive(false)
+            self.go_two:SetActive(true)
+        else
+            --self.equipAddOther3.text=""..self.UpLv.."级";
+            self.equipAddOther3.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {self.UpLv})
+
+            self.go_one:SetActive(true)
+            self.go_two:SetActive(false)
+        end
+    end
+
+    --已经达到了当前最大等级【被冒险等级卡住】
+    if self.SlotMaxLv == self.UpLv then
+        if self.NextCondition > 0 then
+            --下一级的解锁条件
+            self.SuccessRate.text = self.NextConditionDesc
+            self.go_Max:SetActive(true)
+            self.go_Upgrade:SetActive(false)
+        --self.tex_Max.text="不可强化"
+        end
+    end
+end
+
+function EquipUpgradeSlotUpgrade:OnBtnConfirmClick()
+    if self.SlotMaxLv == self.UpLv then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Tips21"))
+        return
+    end
+    if not (self.IsMoneyEnough) then
+        Util.ShowMessage(self.IsMoneyEnoughStr)
+        return
+    end
+
+    --self.btnUpgrade.enabled=false;
+    --发送强化请求
+    self.module:EquipSlotUpgradeReq()
+end
+
+return EquipUpgradeSlotUpgrade

@@ -1,0 +1,380 @@
+--[[
+*文件名   :   BattlePassBuyLvWidget
+*内  容   :   现金购买
+*说  明   :
+*创建日期 :   "2022/12/06 10:33:06"
+*创建人   :   "quzhenxin"
+*版权所有 :   游卡网络科技技术有限公司
+]] BattlePassBuyLvWidget = class("BattlePassBuyLvWidget", UIPanel)
+
+local ItemGrid = require("View/Item/ItemGrid")
+local ObjectPool = require("Common/Helper/ObjectPool")
+
+function BattlePassBuyLvWidget:Awake()
+    self.transform = self.prefab.transform;
+    self.gameObject = self.transform.gameObject;
+
+    local btnCloseInfo = self.transform:Find("Background"):GetComponent(typeof(Button));
+    btnCloseInfo.onClick:AddListener(function()
+        self:OnPlayBack();
+    end);
+
+    self.transform:Find("Cut4Cam90/AssemblyRatio2/CloseBtn"):GetComponent(typeof(JButton)).OnClick = (function()
+        self:OnPlayBack();
+    end);
+
+    local btnClose = self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnCancel"):GetComponent(typeof(Button));
+    btnClose.onClick:AddListener(function()
+        self:OnPlayBack();
+    end);
+
+    local btnMin = self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnMin"):GetComponent(typeof(Button));
+    btnMin.onClick:AddListener(function()
+        self:OnBtnMinClick();
+    end);
+
+    local btnMax = self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnMax"):GetComponent(typeof(Button));
+    btnMax.onClick:AddListener(function()
+        self:OnBtnMaxClick();
+    end);
+
+    local btnAdd = self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnAdd"):GetComponent(typeof(Button));
+    btnAdd.onClick:AddListener(function()
+        self:OnBtnAddClick();
+    end);
+
+    local btnSub = self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnSub"):GetComponent(typeof(Button));
+    btnSub.onClick:AddListener(function()
+        self:OnBtnSubClick();
+    end);
+
+    local btnConfirm = self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnConfirm"):GetComponent(typeof(Button));
+    btnConfirm.onClick:AddListener(function()
+        self:OnBtnConfirmClick();
+    end);
+
+    self.Desc = self.transform:Find("Cut4Cam90/AssemblyRatio2/Desc"):GetComponent(typeof(Text));
+
+    self.BuyNum = self.transform:Find("Cut4Cam90/AssemblyRatio2/BuyNum/Placeholder"):GetComponent(typeof(Text));
+
+    self.UseAllNum = self.transform:Find("Cut4Cam90/AssemblyRatio2/UseAll/UseNum"):GetComponent(typeof(Text));
+    self.UseAllIcon = self.transform:Find("Cut4Cam90/AssemblyRatio2/UseAll/Icon"):GetComponent(typeof(Image));
+
+    self.BuyNumNow = 1;
+    self.MaxNum = 0;
+
+    self.slider = self.transform:Find("Cut4Cam90/AssemblyRatio2/Slider"):GetComponent(typeof(Slider));
+    self.slider.onValueChanged:AddListener(function()
+        self:OnSliderValChanged();
+    end);
+
+    self.go_BagItem = self.transform:Find("Cut4Cam90/AssemblyRatio2/ItemGrid").gameObject;
+    self.go_BagItem:SetActive(false);
+
+    -- 无限列表1（背包中的道具）
+    self.BagItemList = {};
+    self.rect_grid = self.transform:Find("Cut4Cam90/AssemblyRatio2/Items/Scroll View/Mask/List"):GetComponent(typeof(
+        RectTransform));
+    self.tr_ItemRoot = self.transform:Find("Cut4Cam90/AssemblyRatio2/Items/Scroll View/Mask/List");
+    self.BagScorllView = self.transform:Find("Cut4Cam90/AssemblyRatio2/Items/Scroll View"):GetComponent(typeof(
+        SuperScrollViewController));
+    self.BagScorllView:NewScroll(self.go_BagItem, 0, function(tr, idx)
+        self:OnBagItemRefesh(tr, idx);
+    end);
+
+end
+
+function BattlePassBuyLvWidget:OnBagItemRefesh(tr, idx)
+
+    for i = 1, #self.BagItemList do
+        if self.BagItemList[i].transform == tr then
+            self.BagItemList[i]:SetItem(self.ItemDataList[idx + 1]); -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+        end
+
+    end
+
+    -- tr.gameObject:SetActive(true);
+    local bi = ItemGrid:New(tr.gameObject, self.tr_ItemRoot);
+    bi:InitItem(true, function(ritem)
+        self:OnItemClick(ritem);
+    end)
+    bi.gameObject:SetActive(true);
+    bi:SetItem(self.ItemDataList[idx + 1]); -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+
+    table.insert(self.BagItemList, bi);
+
+end
+
+function BattlePassBuyLvWidget:OnItemClick(ritem)
+    -- 设置道具Tips
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", {ritem.BaseID, false, 0, ritem.transform, 0})
+end
+
+function BattlePassBuyLvWidget:OnSliderValChanged()
+
+    if self.slider.value < 1 then
+        self.slider.value = 1;
+    end
+
+    self.BuyNumNow = math.floor(self.slider.value);
+    self:RefeshBuyNumTex()
+
+end
+
+function BattlePassBuyLvWidget:RefeshBuyNumTex()
+    self.slider.value = self.BuyNumNow;
+
+    self.BuyNum.text = "" .. self.BuyNumNow .. "/" .. self.MaxNum;
+
+    local haveNum = BusinessManager.Instance:GetCurrencyNum(self.PriceId);
+
+    local needNum = self.PerPrice * self.BuyNumNow;
+    if self.MaxNum == 0 or haveNum < needNum then
+        self.IsEnough = false;
+        self.UseAllNum.text = "<color=#ff0000>" .. needNum .. "</color>";
+    else
+        self.IsEnough = true;
+        self.UseAllNum.text = "" .. needNum;
+    end
+
+    if self.BattlePassInfo ~= nil then
+
+        -- 刷新获得的道具
+
+        if self.ItemDataList == nil then
+            self.ItemDataList = {}
+        else
+            for k, _ in pairs(self.ItemDataList) do
+                self.ItemDataList[k] = nil
+            end
+        end
+
+        local temp = {};
+        for i = self.LvNow + 1, self.LvNow + self.BuyNumNow do
+
+            local cfg = ConfigDataAccessor.GetBPGrade(self.AwardGroup, i);
+
+            if cfg ~= nil then
+
+                if temp[cfg.FreeAward] == nil then
+                    temp[cfg.FreeAward] = cfg.FreeAwardNum;
+                else
+                    temp[cfg.FreeAward] = temp[cfg.FreeAward] + cfg.FreeAwardNum;
+                end
+
+                if not (self.IsLockAdvance) then
+                    for j = 1, #cfg.PayAward do
+
+                        if temp[cfg.PayAward[j]] == nil then
+                            temp[cfg.PayAward[j]] = cfg.PayAwardNum[j];
+                        else
+                            temp[cfg.PayAward[j]] = temp[cfg.PayAward[j]] + cfg.PayAwardNum[j];
+                        end
+                    end
+                end
+            end
+        end
+
+        for k, v in pairs(temp) do
+            local data = {};
+            data.BaseID = k;
+            data.Num = v;
+            table.insert(self.ItemDataList, data);
+        end
+
+        -- 追加到12个空格子
+        for i = #self.ItemDataList + 1, 12 do
+            local it = {};
+            it.BaseID = 0;
+            table.insert(self.ItemDataList, it);
+        end
+
+        self.BagScorllView:ContinueScroll(#self.ItemDataList, false);
+
+        -- self.Desc.text="购买后升至<color=#C06666>"..self.LvNow+self.BuyNumNow.."</color>级，可获得以下奖励";
+        self.Desc.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Desc"),
+            {"<color=#C06666>" .. self.LvNow + self.BuyNumNow .. "</color>"});
+
+    end
+
+end
+
+function BattlePassBuyLvWidget:OnBtnMinClick()
+
+    if self.MaxNum == 0 then
+        return;
+    end
+
+    self.BuyNumNow = 1;
+    self:RefeshBuyNumTex();
+end
+
+function BattlePassBuyLvWidget:OnBtnMaxClick()
+
+    if self.MaxNum == 0 then
+        return;
+    end
+
+    self.BuyNumNow = self.MaxNum;
+    self:RefeshBuyNumTex();
+end
+
+function BattlePassBuyLvWidget:OnBtnAddClick()
+    if self.MaxNum == 0 then
+        return;
+    end
+
+    if self.BuyNumNow < self.MaxNum then
+        self.BuyNumNow = self.BuyNumNow + 1;
+        self:RefeshBuyNumTex();
+    end
+end
+
+function BattlePassBuyLvWidget:OnBtnSubClick()
+
+    if self.MaxNum == 0 then
+        return;
+    end
+
+    if self.BuyNumNow > 1 then
+        self.BuyNumNow = self.BuyNumNow - 1;
+        self:RefeshBuyNumTex();
+    end
+end
+
+function BattlePassBuyLvWidget:OnBtnConfirmClick()
+
+    if not (self.self.IsEnough) then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_81"));
+        return;
+    end
+
+    -- 发送领取消息
+    local battlePassBuyLevelReq = CS.ProtoMsg.BattlePassBuyLevelReq();
+    battlePassBuyLevelReq.BuyLevelNum = self.BuyNumNow;
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+        battlePassBuyLevelReq, false);
+
+end
+
+function BattlePassBuyLvWidget:Refesh()
+
+    self.transform:SetAsLastSibling();
+
+    self.MaxNum = 0;
+
+    self.BattlePassInfo = GameManager.Instance.BattlePassInfo;
+
+    -- 上面的信息
+    if self.BattlePassInfo ~= nil then
+
+        local SeasonId = self.BattlePassInfo.SeasonId;
+        local seasonCfg = ConfigDataAccessor.BPSeason[SeasonId];
+
+        local awardGroup = seasonCfg.AwardGroup;
+        self.AwardGroup = awardGroup;
+        self.MaxLv = ConfigDataAccessor.GetBPGradeMaxLv(awardGroup); -- 最大等级
+        self.LvNow = self.BattlePassInfo.BPLevel;
+        self.GotFullAwardLv = self.BattlePassInfo.GotFullAwardLv; -- 在这个等级以及它之前的全部是已经领取完的
+        self.IsLockAdvance = self.BattlePassInfo.BPType == CS.ProtoMsg.BPTypeEnum.FreePass;
+
+        self.MaxNum = self.MaxLv - self.LvNow;
+    end
+
+    self.BuyNumNow = 1;
+
+    local costId = ConfigDataAccessor.SystemList[186]
+
+    self.PriceId = 1;
+    self.PerPrice = 50;
+
+    local config = ConfigDataAccessor.Cost[costId.Value];
+    if config ~= nil then
+        local count = #config.ItemCost
+        for i = 1, count do
+            self.PriceId = config.ItemCost[i];
+            self.PerPrice = config.ItemNum[i];
+        end
+    end
+
+    local priceCfg = ConfigDataAccessor.Item[self.PriceId];
+    ResourceHelper:LoadIconAsync(self.UseAllIcon, "", priceCfg.Icon, false)
+
+    self.slider.maxValue = self.MaxNum;
+
+    self:RefeshBuyNumTex();
+
+end
+
+function BattlePassBuyLvWidget:OnBattlePassBuyLevelReqRet(args)
+
+    local RetMsgID = args.MsgRet.RetMsgID; -- 对应的消息号(这个可以判断是哪个协议)
+
+    local RetCode = args.MsgRet.RetCode;
+    if RetCode == 0 then
+
+        -- 成功
+        DOVirtual.DelayedCall(0.3, function()
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_31"));
+            -- self:Refesh();
+            self:OnPlayBack();
+        end);
+
+    else
+
+        -- 不需要处理，交给上层去处理
+        -- args.IsDialog=true
+        -- Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_83"));
+
+    end
+end
+
+function BattlePassBuyLvWidget:Start()
+
+end
+
+function BattlePassBuyLvWidget:OnEnable()
+
+end
+
+function BattlePassBuyLvWidget:OnDisable()
+
+end
+
+function BattlePassBuyLvWidget:OnDestroy()
+
+end
+
+function BattlePassBuyLvWidget:RefeshData()
+
+end
+
+function BattlePassBuyLvWidget:OnOpen(arg)
+
+    -- 购买等级回调
+    CS.SGF.Network.MsgRetManager.Instance:OnMessageEnum(function(data)
+        self:OnBattlePassBuyLevelReqRet(data)
+    end, CS.MsgIDEnum.BattlePassBuyLevelReqID);
+
+    self:Refesh()
+
+end
+
+function BattlePassBuyLvWidget:OnClose(arg)
+
+end
+
+function BattlePassBuyLvWidget:OnPlayBack()
+
+    -- 购买等级回调
+    CS.SGF.Network.MsgRetManager.Instance:OffMessageEnum(function(data)
+        self:OnBattlePassBuyLevelReqRet(data)
+    end, CS.MsgIDEnum.BattlePassBuyLevelReqID);
+
+    self.gameObject:SetActive(false);
+    UIManager.Instance:CloseWidget("Shop/BattlePassBuyLvWidget", nil, false);
+
+end
+
+return BattlePassBuyLvWidget

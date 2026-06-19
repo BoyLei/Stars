@@ -1,0 +1,158 @@
+--[[
+*文件名   :   GuideImage
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/11/23 09:47:59"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+GuideImage=class("GuideImage",UIPanel)
+GuideImage.m_Image=nil;
+GuideImage.m_Close=nil;
+GuideImage.m_Left=nil;
+GuideImage.m_Right=nil;
+GuideImage.m_Text=nil;
+GuideImage.m_Title=nil;
+GuideImage.m_Slider=nil;
+GuideImage.m_points=nil;
+GuideImage.m_Toggles={}
+GuideImage.m_Checkmarks={}
+GuideImage.Infos={}
+GuideImage.MaxLimt=0;
+GuideImage.CurrentIndex=0;
+GuideImage.CallBack=nil;
+GuideImage.GuideID=0;
+GuideImage.EventName=nil;
+GuideImage.Mask=nil;
+local CloseFunc=nil;
+local LeftFunc=nil;
+local RightFunc=nil;
+
+
+function GuideImage:ctor(go)
+	self.prefab=go;
+	self.m_Image=self:Find("Image"):GetComponent(typeof(Image));
+	self.m_Close=self:Find("Image/Close"):GetComponent(typeof(JButton));
+	self.m_Left=self:Find("Image/Left"):GetComponent(typeof(JButton));
+	self.m_Right=self:Find("Image/Right"):GetComponent(typeof(JButton));
+	self.m_Text=self:Find("Image/Text"):GetComponent(typeof(Text));
+	self.m_Title=self:Find("Image/Title/Title"):GetComponent(typeof(Text));
+	self.m_Slider=self:Find("Image/Image/Slider"):GetComponent(typeof(Image));
+	self.Mask=self:Find("Mask"):GetComponent(typeof(Image));
+	self.m_points=self:Find("Image/points").gameObject;
+	self.m_Toggles={}
+	self.m_Checkmarks={}
+
+	for i = 1, 10 do
+		local togggle=self:Find("Image/points/Toggle"..i).gameObject
+		togggle:SetActive(false)
+		table.insert(self.m_Toggles,togggle)
+		local mask=self:Find("Image/points/Toggle"..i.."/Checkmark").gameObject
+		mask:SetActive(false)
+		table.insert(self.m_Checkmarks,mask)
+	end
+
+	CloseFunc=function() self:OnClickClose(); end;
+	LeftFunc=function() self:OnClickLeft(); end;
+	RightFunc=function() self:OnClickRight(); end;
+
+	self.m_Close.OnClick= CloseFunc;
+	self.m_Left.OnClick= LeftFunc;
+	self.m_Right.OnClick= RightFunc;
+
+end
+
+function GuideImage:OnOpen(arg)
+
+	local GroupID=arg.GroupID;
+
+	self.CallBack=arg.Cb;
+	self.GuideID=arg.GuideID;
+	--local mask=arg.Mask;
+	--if mask then
+		--self.Mask.color=Color(0,0,0,0);
+	--else
+		--local a=SystemConstConfigs.Guidance_ForceGuideMaskAlpha2*0.01
+		--self.Mask.color=Color(0,0,0,a);
+	--end
+	local a=SystemConstConfigs.Guidance_ForceGuideMaskAlpha2*0.01
+	self.Mask.color=Color(0,0,0,a);
+	
+	self.MaxLimt=0;
+	self.CurrentIndex=0;
+	self.m_Slider.fillAmount=0
+	self.Infos={}
+	local list=ConfigDataAccessor.CommonInfo;
+	for i = 1, #list do
+		if list[i].GroupID== GroupID then
+			table.insert(self.Infos,list[i])
+			self.MaxLimt=self.MaxLimt+1
+		end
+	end
+	self:OnIndexChange();
+	for i = 1, #self.m_Toggles do
+		self.m_Toggles[i]:SetActive(i<=self.MaxLimt)
+	end
+	self.prefab:SetActive(true)
+end
+
+function GuideImage:OnIndexChange()
+	if self.CurrentIndex<=0 then
+		self.CurrentIndex=0
+	end
+
+	if self.CurrentIndex>=self.MaxLimt-1 then
+		self.CurrentIndex=self.MaxLimt-1
+	end
+
+	self.m_Left.gameObject:SetActive(self.CurrentIndex>0)
+	self.m_Right.gameObject:SetActive(self.CurrentIndex<self.MaxLimt-1)
+	self.m_Close.gameObject:SetActive(self.CurrentIndex==(self.MaxLimt-1))
+	self.m_Slider.fillAmount=self.CurrentIndex/(self.MaxLimt-1)
+	for i = 1, #self.m_Checkmarks do
+		self.m_Checkmarks[i]:SetActive(i==(self.CurrentIndex+1))
+	end
+
+	local cfg=self.Infos[self.CurrentIndex+1]
+	if cfg~=nil then
+		self.m_Title.text=cfg.Title
+		self.m_Text.text=cfg.Desc
+		self.EventName=cfg.FireEventName
+		if cfg.Image~=nil and cfg.Image~="" then
+			ResourceManager.Instance:LoadSpriteAsync(
+				cfg.Image,
+				function(sp)
+					if sp ~= nil then
+						if self.m_Image ~= nil and self.m_Image.gameObject ~= nil then
+							self.m_Image.sprite = sp
+							self.m_Image:SetNativeSize()
+						end
+					end
+				end)
+		end
+	end
+
+end
+
+
+function GuideImage:OnClickClose()
+	self.prefab:SetActive(false)
+	if self.CallBack~=nil then
+		CS.StarProject.GlobalEvent.OnReciveEvent:Invoke(CS.E_EventDefine.GuideImage, self.EventName);
+		self.CallBack("",self.GuideID)
+	end
+end
+
+function GuideImage:OnClickLeft()
+	self.CurrentIndex=self.CurrentIndex-1
+	self:OnIndexChange();
+end
+
+function GuideImage:OnClickRight()
+	self.CurrentIndex=self.CurrentIndex+1
+	self:OnIndexChange();
+end
+
+
+
+return  GuideImage

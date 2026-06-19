@@ -1,0 +1,122 @@
+--[[
+*文件名   :   DonateSumbitItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/09 11:09:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local DonateSumbitItem = {}
+
+DonateSumbitItem.__index = DonateSumbitItem
+
+function DonateSumbitItem:New(_go) 
+    local self = {};    
+    setmetatable(self, DonateSumbitItem); 
+    
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+    self.Name=self.transform:Find("Name"):GetComponent(typeof(Text));
+
+    self.Num=self.transform:Find("item/Have/Num"):GetComponent(typeof(Text));
+
+    self.Bg=self.transform:Find("item/Have/BgRare"):GetComponent(typeof(Image));
+
+    self.Icon=self.transform:Find("item/Have/Icon"):GetComponent(typeof(Image));
+
+
+    self.go_Selected=self.transform:Find("Get").gameObject;
+    self.go_Selected:SetActive(false);
+
+
+
+    self.IsUsed=false;
+
+    --点击事件
+	local btnClick=self.transform:GetComponent(typeof(JButton));
+	btnClick.OnClick=(function() 
+
+        if self.IsUsed then
+            self.OnClick(self); 
+        end
+
+	end);
+
+
+    --点击事件
+	local btnClick2=self.transform:Find("infoBtn"):GetComponent(typeof(JButton));
+	btnClick2.OnClick=(function() 
+        LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",{ self.BaseID, false, self.EntityID, btnClick2.transform, 0});
+	end);
+
+
+
+
+    return self;    --返回自身
+end
+
+
+
+
+--初始化Item
+function DonateSumbitItem:InitItem(OnClick)
+
+    self.OnClick=OnClick;
+
+    self:SetUse(false);
+end
+
+
+
+function DonateSumbitItem:SetUse(b)
+    self.IsUsed=b;
+    self.gameObject:SetActive(b);
+end
+
+
+--设置Item
+function DonateSumbitItem:SetItem(data)
+    
+
+
+    self.Data=data;
+
+    self.IsSelected=data.isSelected;
+    self.EntityID=data.entityID;
+
+
+
+    self.BaseID=BusinessManager.Instance:GetItemByItemEntityId(self.EntityID).BaseID;
+    local itcfg = ConfigDataAccessor.Item[self.BaseID];
+
+    self.Name.text=itcfg.Name;
+    self.Num.text=1;
+
+    local quality=itcfg.Quality; 
+    if quality==99 then
+        quality=1;
+    end
+    ResourceHelper:LoadIconByAtlasAsync(self.Bg, ResourceHelper.AtlasPathCommonItem, "Bag_Grid_sq".. quality, false);
+
+    --ICON
+    ResourceHelper:LoadIconAsync(self.Icon, "", itcfg.Icon, false);
+
+    self:SetUse(true);
+    self:MakeSelected(self.IsSelected);
+
+
+
+
+end
+
+--是否被选中
+function DonateSumbitItem:MakeSelected(b)
+    self.IsSelected=b;
+    self.Data.isSelected=b;
+    self.go_Selected:SetActive(b)
+end
+
+
+return DonateSumbitItem;

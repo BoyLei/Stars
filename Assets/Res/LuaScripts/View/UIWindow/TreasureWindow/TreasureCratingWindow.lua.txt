@@ -1,0 +1,150 @@
+--[[
+*文件名   :   TreasureCratingWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/08/17 17:42:04"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+TreasureCratingWindow=class("TreasureCratingWindow",UIPanel)
+local TreasureItem=require('View/UIWindow/TreasureWindow/TreasureItem')
+local TreasureSolt=require('View/UIWindow/TreasureWindow/TreasureSolt')
+
+TreasureCratingWindow.m_ExitBtn=nil;
+TreasureCratingWindow.m_CratingBtn=nil;
+TreasureCratingWindow.m_ToggleBtn=nil;
+TreasureCratingWindow.m_Togglesle=nil;
+TreasureCratingWindow.m_Icon=nil;
+
+TreasureCratingWindow.m_Slots={}
+TreasureCratingWindow.m_TreasureItems={}
+TreasureCratingWindow.isToggle=false;
+local Items={100011,100012,100013,100014,100015}
+
+local ExitBtnFunc=nil;
+local CratingBtnFunc=nil;
+local ToggleBtnFunc=nil;
+local OnCratingFunc=nil;
+local OnClickIconFunc=nil;
+
+function TreasureCratingWindow:Awake()
+	self.m_ExitBtn=self:Find("Cut4Cam90/AssemblyRatio2/ExitBtn"):GetComponent(typeof(JButton));
+	self.m_CratingBtn=self:Find("Cut4Cam90/AssemblyRatio2/Root/CratingBtn"):GetComponent(typeof(JButton));
+	self.m_ToggleBtn=self:Find("Cut4Cam90/AssemblyRatio2/Root/ToggleBtn"):GetComponent(typeof(JButton));
+	self.m_Togglesle=self:Find("Cut4Cam90/AssemblyRatio2/Root/ToggleBtn/sle").gameObject;
+	self.m_Icon=self:Find("Cut4Cam90/AssemblyRatio2/Root/fazhen/icon"):GetComponent(typeof(JButton));
+	for i = 1, 5 do
+		local go=self:Find("Cut4Cam90/AssemblyRatio2/Root/list/"..i).gameObject;
+		table.insert(self.m_TreasureItems,TreasureItem.new(go,self.AtlasPath))
+
+		local caowei=self:Find("Cut4Cam90/AssemblyRatio2/Root/caowei/caowei"..i).gameObject;
+		table.insert(self.m_Slots,TreasureSolt.new(caowei,self.AtlasPath))
+	end
+
+	ExitBtnFunc=function() self:OnClickExitBtn(); end;
+	CratingBtnFunc=function() self:OnClickCratingBtn(); end;
+	ToggleBtnFunc=function() self:OnClickToggleBtn(); end;
+	OnCratingFunc=function(num)
+		self:OnCrating(num);
+	end;
+	OnClickIconFunc=function()
+		self:OnClickIcon();
+	end
+end
+
+function TreasureCratingWindow:OnClickIcon()
+	LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",{ 100002,false ,nil,self.m_Icon.transform,0});
+end
+
+function TreasureCratingWindow:OnCrating(num)
+	self:Fresh();
+end
+
+function TreasureCratingWindow:Start()
+	self.m_ExitBtn.OnClick= ExitBtnFunc;
+	self.m_CratingBtn.OnClick= CratingBtnFunc;
+	self.m_ToggleBtn.OnClick= ToggleBtnFunc;
+	self.m_Icon.OnClick= OnClickIconFunc;
+end
+
+function TreasureCratingWindow:OnEnable()
+	CS.StarProject.GlobalEvent.OnCraftingTreasure:AddListener(OnCratingFunc);
+end
+
+function TreasureCratingWindow:OnDisable()
+	CS.StarProject.GlobalEvent.OnCraftingTreasure:RemoveListener(OnCratingFunc);
+end
+
+function TreasureCratingWindow:OnDestroy()
+
+end
+
+function  TreasureCratingWindow:Fresh()
+	for i = 1, #Items do
+		if(self.m_TreasureItems[i]~=nil) then
+
+			self.m_TreasureItems[i]:UpdateContent(Items[i])
+		end
+
+		if (self.m_Slots[i]~=nil) then
+			self.m_Slots[i]:UpdateContent(Items[i])
+		end
+	end
+	local color=Color(1,1,1,1);
+	for i = 1, #self.m_TreasureItems do
+		if not self.m_TreasureItems[i].IsActive then
+			color=Color(1,1,1,0.5019608);
+			break;
+		end
+	end
+
+	self.m_Icon.Image.color=color;
+end
+
+function TreasureCratingWindow:OnOpen(arg)
+	self:Fresh();
+	self.m_Togglesle:SetActive(self.isToggle);
+end
+
+function TreasureCratingWindow:OnClose(arg)
+
+end
+
+function TreasureCratingWindow:OnClickExitBtn()
+	self.Close();
+end
+
+function TreasureCratingWindow:OnClickCratingBtn()
+	local isAllActive=true
+	for i = 1, #self.m_TreasureItems do
+		if not self.m_TreasureItems[i].IsActive then
+			isAllActive=false;
+			break;
+		end
+	end
+	
+	if not isAllActive then
+		Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_276"))
+		return
+	end
+	
+	local itemName=""
+	local config=ConfigDataAccessor.Item[100002]
+	if config~=nil then
+		itemName=config.Name
+	end
+	UIAPI.ShowMsgBox(29,function (eventName)
+			if eventName == "SURE" then
+				LuaModuleDispatcher:SendMessage(ModuleDef.TreasureModule,"OnCratingTreasureMapReq",self.isToggle)
+			end
+		end,itemName)
+end
+
+function TreasureCratingWindow:OnClickToggleBtn()
+	self.isToggle=not self.isToggle;
+	self.m_Togglesle:SetActive(self.isToggle);
+end
+
+
+
+return  TreasureCratingWindow

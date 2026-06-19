@@ -1,0 +1,191 @@
+-- 药品条目
+local MedicineItem = {}
+MedicineItem.__index = MedicineItem
+
+function MedicineItem:New(obj)
+    local self = {}
+    setmetatable(self, MedicineItem)
+
+    self:InitControls(obj)
+
+    return self
+end
+
+function MedicineItem:InitControls(obj)
+    self.gameObject = obj
+    self.transform = obj.transform
+
+    self.medicineIcon = self.transform:Find("Image/Image"):GetComponent(typeof(Image))
+    self.numText = self.transform:Find("Image/Text"):GetComponent(typeof(Text))
+    self.rareImg = self.transform:Find("Image/Rare"):GetComponent(typeof(Image))
+    self.nameTxt = self.transform:Find("NameText"):GetComponent(typeof(Text))
+    self.descTxt = self.transform:Find("DescText"):GetComponent(typeof(Text))
+    self.removeBtn = self.transform:Find("RemoveBtn"):GetComponent(typeof(Button))
+    self.useBtn = self.transform:Find("UseBtn"):GetComponent(typeof(Button))
+    self.addedObj = self.transform:Find("added/Image").gameObject
+
+    -- 删除药品
+    --self.removeBtn.onClick:AddListener(function()
+    --if self.medType ~= 3 then
+    --return;
+    --end
+
+    --local f = false;
+    --for k, v in pairs(self.drugs) do
+    --if v == self.data.EntityID then
+    --table.remove(self.drugs, k);
+    --f = true;
+    --break
+    --end
+    --end
+
+    --if f then
+    --self.addedObj:SetActive(false);
+    ----self.removeBtn.gameObject:SetActive(false);
+    --local updateStorageDrugs = CS.ProtoMsg.UpdateStorageDrugsReq();
+    --updateStorageDrugs.Info = CS.ProtoMsg.StorageDrugsMd();
+    --updateStorageDrugs.Info.Eitemid:Clear();
+    --for _, v in pairs(self.drugs) do
+    --updateStorageDrugs.Info.Eitemid:Add(v);
+    --end
+
+    --CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+    --updateStorageDrugs, false);
+    --end
+    --end);
+    -- 添加战斗药品
+    self.useBtn.onClick:AddListener(
+        function()
+            if not self.addedObj.activeSelf then
+                -- 删除当前item
+                -- if self.cb ~= nil then
+                -- self.cb();
+                -- end
+                --if self.medType ~= 3 then
+                    --return
+                --end
+
+                -- if #self.drugs >= 5 then
+                --     print("战斗药品格子已经满了")
+                --     return
+                -- end
+
+                -- -- 修改存储状态的回血药物ID
+                -- local updateStorageDrugs = CS.ProtoMsg.UpdateStorageDrugsReq()
+                -- updateStorageDrugs.Info = CS.ProtoMsg.StorageDrugsMd()
+                -- table.insert(self.drugs, self.data.EntityID)
+
+                -- updateStorageDrugs.Info.Eitemid:Clear()
+                -- for _, v in pairs(self.drugs) do
+                --     updateStorageDrugs.Info.Eitemid:Add(v)
+                -- end
+
+                -- CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(
+                --     CS.SGF.Network.ServerType.ServerTypeLobby,
+                --     updateStorageDrugs,
+                --     false
+                -- )
+				if self.medType >3 then 
+	                local itemUseReq = CS.ProtoMsg.ItemUseReq();
+	                itemUseReq.ItemEntityID = self.data.EntityID;
+	                itemUseReq.ItemSpaceId = self.data.SpaceId;
+	                itemUseReq.Count = self.data.Num;
+	                CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+	                    itemUseReq, false);
+				else
+					 -- 修改存储状态的回血药物ID
+					 local updateStorageDrugs = CS.ProtoMsg.UpdateStorageDrugsReq()
+					 updateStorageDrugs.Info = CS.ProtoMsg.StorageDrugsMd()
+					 table.insert(self.drugs, self.data.EntityID)
+
+					 updateStorageDrugs.Info.Eitemid:Clear()
+					 for _, v in pairs(self.drugs) do
+					     updateStorageDrugs.Info.Eitemid:Add(v)
+					 end
+
+					 CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(
+					     CS.SGF.Network.ServerType.ServerTypeLobby,
+					     updateStorageDrugs,
+					     false
+					 )
+				end
+                -- 当前药品可以删除
+                --self.removeBtn.gameObject:SetActive(true);
+            --    self.addedObj:SetActive(true)
+            else
+                if self.medType ~= 3 then
+                    return
+                end
+
+                local f = false
+                for k, v in pairs(self.drugs) do
+                    if v == self.data.EntityID then
+                        table.remove(self.drugs, k)
+                        f = true
+                        break
+                    end
+                end
+
+                if f then
+                    self.addedObj:SetActive(false)
+                    --self.removeBtn.gameObject:SetActive(false);
+                    local updateStorageDrugs = CS.ProtoMsg.UpdateStorageDrugsReq()
+                    updateStorageDrugs.Info = CS.ProtoMsg.StorageDrugsMd()
+                    updateStorageDrugs.Info.Eitemid:Clear()
+                    for _, v in pairs(self.drugs) do
+                        updateStorageDrugs.Info.Eitemid:Add(v)
+                    end
+
+                    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(
+                        CS.SGF.Network.ServerType.ServerTypeLobby,
+                        updateStorageDrugs,
+                        false
+                    )
+                end
+            end
+        end
+    )
+end
+
+function MedicineItem:Refresh(data, t, cb, rem, drugs)
+    self.cb = cb
+    self.data = data
+    self.medType = t
+
+    self.drugs = drugs
+    --if t == 3 then
+    --self.drugs = {};
+    --local ids = drugs.Eitemid;
+    --for i = 0, ids.Count - 1 do
+    --table.insert(self.drugs, ids[i]);
+    --end
+    --end
+
+    local itemData = ConfigDataAccessor.Item[data.BaseID]
+
+    --self:LoadIcon(self.medicineIcon, itemData.Icon);
+    ResourceHelper:LoadIconAsync(self.medicineIcon, "", itemData.Icon, false)
+
+    self.numText.text = data.Num
+
+    local cfg=ConfigDataAccessor.Item[data.BaseID];
+    self.nameTxt.text = GetQualityColor(cfg.Quality)..itemData.Name.."</color>";
+
+    self.descTxt.text = itemData.Desc
+    --self.rareImg.sprite= AtlasManager.Instance:GetSprite("ui/common/atlas/commonitem","Bag_Grid_sq"..itemData.Quality);
+    ResourceHelper:LoadIconByAtlasAsync(
+        self.rareImg,
+        ResourceHelper.AtlasPathCommonItem,
+        "Bag_Grid_sq" .. itemData.Quality,
+        false
+    )
+    self.addedObj.transform.parent.gameObject:SetActive(t == 3)
+    self.addedObj:SetActive(t == 3 and rem)
+    --self.removeBtn.gameObject:SetActive(t == 3 and rem);
+end
+
+function MedicineItem:Show(b)
+    self.gameObject:SetActive(b)
+end
+
+return MedicineItem

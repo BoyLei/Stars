@@ -1,0 +1,224 @@
+---------------------------------------------------------------------
+-- Stars (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-08-03 11:40:26
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class FriendWindow
+
+FriendWindow = class("FriendWindow", UIPanel)
+
+local SelectBtn = require("View/Item/SelectBtn");
+local FirendPanel = require("View/UIWindow/Friend/FirendPanel");
+local AddfriendsPanel = require("View/UIWindow/Friend/AddfriendsPanel");
+local BlackListPanel = require("View/UIWindow/Friend/BlackListPanel");
+
+local FirendPanelSp = nil;
+local AddfriendsPanelSp = nil;
+local BlackListPanelSp = nil;
+
+
+function FriendWindow:Awake()
+	self:Init();
+end
+
+function FriendWindow:Init()
+	self.transform = self.prefab.transform;
+	self.gameObject = self.transform.gameObject;
+
+	local FrameTransForm = self.transform:Find("Cut4Cam90/AssemblyRatio2/bg").transform;
+	-- 关闭按钮
+	local JBtnClose = FrameTransForm:Find("CloseBtn"):GetComponent(typeof(JButton));
+	self.CloseBtnFun = function()
+		self.Close();
+	end
+	JBtnClose.OnClick = self.CloseBtnFun;
+
+	self:InitTabJbtn();
+	self:InitContent();
+	--------------------------- 初始化一次性的数据
+
+	--------------------------- 初始化一次性的数据
+end
+
+function FriendWindow:BindModule(module)
+	self.module = module;
+	--self:InitContent();
+end
+
+function FriendWindow:InitTabJbtn()
+	self.AttrMenuJBtns = {};
+
+	self.TabBtnClickFun = function(idx)
+		self:OnAttrMenuJBtnClick(idx, false);
+	end
+
+	local FrameTransForm = self.transform:Find("Cut4Cam90/AssemblyRatio2/bg").transform;
+	-- 页签[系统]
+	local btn1 = SelectBtn:New(FrameTransForm:Find("MenuBg/MenuContent/TabJBtnFriend").gameObject);
+	btn1:InitItem(0, self.TabBtnClickFun);
+	table.insert(self.AttrMenuJBtns, btn1);
+	-- 页签[当前]
+	local btn6 = SelectBtn:New(FrameTransForm:Find("MenuBg/MenuContent/TabJBtnAdd").gameObject);
+	btn6:InitItem(1, self.TabBtnClickFun);
+	table.insert(self.AttrMenuJBtns, btn6);
+	-- 页签[世界]
+	local btn1 = SelectBtn:New(FrameTransForm:Find("MenuBg/MenuContent/TabJBtnBlackList").gameObject);
+	btn1:InitItem(2, self.TabBtnClickFun);
+	table.insert(self.AttrMenuJBtns, btn1);
+end
+
+function FriendWindow:InitContent()
+	self.PanelList = {};
+
+	local FrameTransForm = self.transform:Find("Cut4Cam90/AssemblyRatio2/bg").transform;
+	-- 内容[好友]
+	FirendPanelSp = FirendPanel:New(FrameTransForm:Find("PanelRoot/FirendPanel"), 0);
+	table.insert(self.PanelList, FirendPanelSp);
+	FirendPanelSp:BindParent(self);
+	
+	-- 内容[添加]
+	AddfriendsPanelSp = AddfriendsPanel:New(FrameTransForm:Find("PanelRoot/AddfriendsPanel"), 1);
+	table.insert(self.PanelList, AddfriendsPanelSp);
+	AddfriendsPanelSp:BindParent(self);
+	-- 内容[黑名单]
+	BlackListPanelSp = BlackListPanel:New(FrameTransForm:Find("PanelRoot/BlackListPanel"), 2);
+	table.insert(self.PanelList, BlackListPanelSp);
+	BlackListPanelSp:BindParent(self);
+end
+
+function FriendWindow:Start()
+end
+
+function FriendWindow:OnEnable()
+end
+
+function FriendWindow:OnDisable()
+end
+
+function FriendWindow:OnDestroy()
+end
+
+function FriendWindow:OnOpen(arg)
+	self.IsOpen = true;
+	SoundManager.Instance:PlayEventName("UI_Windows_Mid_01", self.gameObject, self.gameObject);
+end
+
+function FriendWindow:OnClose(arg)
+	self:CloseWindow();
+	self.module.FriendWindow = nil;
+end
+
+----------------------------------------------------- 业务逻辑↓↓↓↓ ------------------------------------------
+
+-- 初始化界面信息
+function FriendWindow:InitData()
+	-- 默认选中基础属性
+	self:OnAttrMenuJBtnClick(0, true);
+end
+
+function FriendWindow:SyncInput(ip)
+	if self.PanelList ~= nil and #self.PanelList > 0 then
+		self.PanelList[1]:SyncInput(ip);
+	end
+end
+
+function FriendWindow:SendDataByChatInput(ip)
+	if self.PanelList ~= nil and #self.PanelList > 0 then
+		self.PanelList[1]:SendDataByChatInput(ip);
+	end
+end
+
+function FriendWindow:OnSyncMsgData(data)
+	if self.PanelList ~= nil and #self.PanelList > 0 then
+		self.PanelList[1]:SyncMsgData(data);
+	end
+end
+
+-- 判断与该玩家PID的关系
+------ 判断是否好友关系和在不在双方黑名单中
+-------- 0没有任何关系 1只有好友关系 2在我的黑名单中
+function FriendWindow:GetFriendRelation(pid)
+	if self.module == nil then
+		return 0;
+	end
+	local res = self.module:GetFriendRelation(pid);
+	return res;
+end
+
+-- 获取缓存列表有无pid
+function FriendWindow:GetIsHasCacheApplyFinishPIDListByPID(pid)
+	if self.module == nil then
+		return false;
+	end
+	local res = self.module:GetIsHasCacheApplyFinishPIDListByPID(pid);
+	return res;
+end
+
+-- 发起聊天
+function FriendWindow:InitiateChat(pid)
+	--todo 切换到最近聊天，加入缓存，显示消息列表
+	self.curSelPid = pid;
+	self:SavePids(pid);
+	-- 直接打开最近聊天界面
+	self:OnAttrMenuJBtnClick(0, true);
+end
+
+function FriendWindow:SavePids(pid)
+	self.module:SetRecentlyPid(pid, false, true);
+end
+
+-- 刷新黑名单列表
+function FriendWindow:RefreshBlackList(list)
+	if BlackListPanelSp == nil then
+		return;
+	end
+	BlackListPanelSp:RefreshBlackList(list);
+end
+
+----------------------------------------------------- 无限列表 【STAR】 ------------------------------------------
+
+----------------------------------------------------- 无限列表 【END】 ------------------------------------------
+
+
+----------------------------------------------------- 初始化一次性数据 【STAR】 ------------------------------------------
+
+----------------------------------------------------- 初始化一次性数据 【END】 ------------------------------------------
+
+
+----------------------------------------------------- 按钮点击事件 【STAR】 ------------------------------------------
+
+-- 页签点击
+function FriendWindow:OnAttrMenuJBtnClick(idx, forceRecent)
+	self.CurrentTabIdx = idx;
+	for i = 1, #self.AttrMenuJBtns do
+		local child = self.AttrMenuJBtns[i];
+		local child2 = self.PanelList[i];
+		if child ~= nil and child2 ~= nil then
+			local isShow = child2.Idx == self.CurrentTabIdx;
+			child:MakeSelected(isShow);
+			child2:MakeSelected(isShow);
+			if isShow then
+				self.CurrentContent = child2;
+				-- 只有好友列表才会主动刷新
+				if forceRecent then
+					child2:OnAttrMenuJBtnClick(0);
+				end
+			end
+		end
+	end
+end
+
+----------------------------------------------------- 按钮点击事件 【END】 ------------------------------------------
+
+-- 关闭界面
+function FriendWindow:CloseWindow()
+	self.IsOpen = false;
+	self.module.selectPlayerId = 0;
+	self.module.FriendWindow = nil;
+end
+
+return FriendWindow;

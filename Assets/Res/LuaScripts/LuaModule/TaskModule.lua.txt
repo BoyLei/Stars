@@ -1,0 +1,542 @@
+--[[
+*文件名   :   TaskModule
+*内  容   :
+*说  明   :	  任务模块
+*创建日期 :   "2022/10/26 17:31:28"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]] TaskModule = class("TaskModule", BaseLuaModule)
+local TaskWidgetPath = "TaskWindow/Prefab/HudTaskWidget"
+local PlotWidgetPath = "Avg/PlotWidget"
+local PlotImageWindowPath = "TaskWindow/Prefab/PlotImageWindow"
+local TaskWindowPath = "TaskWindow/Prefab/TaskWindow"
+local BlockWidgetPath = "TaskWindow/Prefab/BlockWidget"
+local EctypeTargetWidgetPath = "TaskWindow/Prefab/EctypeTargetWidget"
+
+local TaskRoot;
+local TaskWidget;
+local TaskNotify;
+-- LuaModule 消息模块
+TaskModule.ModuleMessages = {
+    ["OnDisable"] = function(...)
+        TaskModule:OnDisable(...);
+    end,
+
+    ["AcceptTaskReq"] = function(...)
+        TaskModule:AcceptTaskReq(...)
+    end,
+
+    ["DropTaskReq"] = function(...)
+        TaskModule:DropTaskReq(...)
+    end,
+
+    ["SubmitTaskReq"] = function(...)
+        TaskModule:SubmitTaskReq(...)
+    end,
+
+    ["GetTaskRewardReq"] = function(...)
+        TaskModule:GetTaskRewardReq(...)
+    end,
+
+    ["PlayBlackMovie"] = function(...)
+        TaskModule:PlayBlackMovie(...)
+    end,
+
+    ["PlayPlot"] = function(...)
+        TaskModule:PlayPlot(...)
+    end,
+
+    ["PlayImage"] = function(...)
+        TaskModule:PlayImage(...)
+    end,
+
+    ["FreshTask"] = function(...)
+        TaskModule:FreshTask(...)
+    end,
+
+    ["UpdateTaskData"] = function(...)
+        TaskModule:UpdateTaskData(...)
+    end,
+
+    ["UpdateTeamData"] = function(...)
+        TaskModule:UpdateTeamData(...)
+    end,
+    ["OnSwitch"] = function(...)
+        TaskModule:OnSwitch(...)
+    end,
+    ["OnStartGve"] = function(...)
+        TaskModule:OnStartGve(...)
+    end,
+    ["OnEndGve"] = function(...)
+        TaskModule:OnEndGve(...)
+    end,
+    -- [通缉任务] 通知界面
+    ["InformWantedWindow"] = function(...)
+        TaskModule:InformWantedWindow(...)
+    end,
+
+    -- 通知队友被踢刷新组队挂件
+    ["InformTeammateRefreshWidget"] = function(...)
+        TaskModule:InformTeammateRefreshWidget(...)
+    end
+}
+
+function TaskModule:OnStartGve(...)
+    if self.TaskWidget ~= nil then
+        self.TaskWidget:StartGve()
+    end
+end
+
+function TaskModule:OnEndGve(...)
+    if self.TaskWidget ~= nil then
+        self.TaskWidget:EndGve()
+    end
+end
+function TaskModule:FreshTask(...)
+    if self.TaskWidget ~= nil then
+        -- self.TaskWidget:UpdataAll()
+    end
+end
+
+function TaskModule:UpdateTaskData(...)
+    local tb = ...
+    local data = nil
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        data = tb[1]
+    else
+        -- C#调用
+        data = tb[0]
+    end
+
+    if self.TaskWidget ~= nil then
+        self.TaskWidget:FreshTask();
+    end
+end
+
+function TaskModule:PlayPlot(...)
+    local tb = ...
+    local id = nil
+    local EffectID = nil
+	local EnQueque=true
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        id = tb[1]
+        EffectID = tb[2]
+		EnQueque=tb[3]
+    else
+        -- C#调用
+        id = tb[0]
+        EffectID = tb[1]
+		EnQueque=tb[2]
+    end
+    local config = ConfigDataAccessor.Plot[id]
+    if config ~= nil then
+        -- UIManager.Instance:OpenWindow(ChapterWindowPath, { config, EffectID },
+        -- 	CS.StarProjectDef.MainPageCommond.HideBoth);
+
+        if config.Type == 1 then
+
+			if EnQueque then
+            		UIManager.Instance:OpenWidgetAsync(PlotWidgetPath, nil, false, {id, EffectID}, nil,
+                	CS.StarProjectDef.MainPageCommond.HideNone, false, true);
+			else
+					UIManager.Instance:OpenQueueWidget(PlotWidgetPath, nil, false, {id, EffectID}, nil,
+					CS.StarProjectDef.MainPageCommond.HideNone, false, true);
+			end
+			
+        elseif config.Type == 2 or config.Type == 3 then
+            LuaModuleDispatcher:SendMessage(ModuleDef.SecretAreaModule, "OpenEctypeWarningWidget",
+            {config.Type, config.Title});
+        end
+
+    end
+end
+
+function TaskModule:PlayImage(...)
+    local tb = ...
+    local id = nil
+    local EffectID = nil
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        id = tb[1]
+        EffectID = tb[2]
+    else
+        -- C#调用
+        id = tb[0]
+        EffectID = tb[1]
+    end
+    local config = ConfigDataAccessor.Image[id]
+    if config ~= nil then
+        -- UIManager.Instance:OpenWindow(PlotImageWindowPath, { config, EffectID },
+        -- 	CS.StarProjectDef.MainPageCommond.HideBoth);
+
+        UIManager.Instance:OpenWindowAsync(PlotImageWindowPath, nil, {config, EffectID},
+            CS.StarProjectDef.MainPageCommond.HideBoth);
+    end
+end
+
+function TaskModule:PlayBlackMovie(...)
+    local tb = ...
+    local id = nil
+    local EffectID = nil
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        id = tb[1]
+        EffectID = tb[2]
+    else
+        -- C#调用
+        id = tb[0]
+        EffectID = tb[1]
+    end
+    local config = ConfigDataAccessor.BlackMovie[id]
+    if config ~= nil then
+        -- UIManager.Instance:OpenWidget(BlockWidgetPath, false, { config, EffectID }, nil,
+        -- 	CS.StarProjectDef.MainPageCommond.HideBoth, false, true);
+        UIManager.Instance:OpenWidgetAsync(BlockWidgetPath, nil, false, {config, EffectID}, nil,
+            CS.StarProjectDef.MainPageCommond.HideBoth, false, true);
+    end
+end
+
+function TaskModule:AcceptTaskReq(...)
+    local tb = ...
+    local taskID = nil
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        taskID = tb[1]
+    else
+        -- C#调用
+        taskID = tb[0]
+    end
+
+    local message = CS.ProtoMsg.AcceptTaskReq();
+    local battleSocket = NetworkManager.Instance.gameSocket;
+    message.ID = taskID;
+    battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message, false);
+end
+
+function TaskModule:DropTaskReq(...)
+    local tb = ...
+    local taskID = nil
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        taskID = tb[1]
+    else
+        -- C#调用
+        taskID = tb[0]
+    end
+
+    local message = CS.ProtoMsg.DropTaskReq();
+    local battleSocket = NetworkManager.Instance.gameSocket;
+    message.ID = taskID;
+    battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message, false);
+end
+
+function TaskModule:SubmitTaskReq(...)
+    local tb = ...
+    local taskID = nil
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        taskID = tb[1]
+    else
+        -- C#调用
+        taskID = tb[0]
+    end
+
+    local message = CS.ProtoMsg.SubmitTaskReq();
+    local battleSocket = NetworkManager.Instance.gameSocket;
+    message.ID = taskID;
+    battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message, false);
+end
+
+function TaskModule:GetTaskRewardReq(...)
+    local tb = ...
+    local taskID = nil
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        taskID = tb[1]
+    else
+        -- C#调用
+        taskID = tb[0]
+    end
+
+    local message = CS.ProtoMsg.GetTaskRewardReq();
+    local battleSocket = NetworkManager.Instance.gameSocket;
+    message.ID = taskID;
+    battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message, false);
+end
+
+--
+function TaskModule:OnTestModuleMessage(...)
+
+end
+
+-- LuaModule 创建
+function TaskModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.TaskModule, self)
+
+    TaskHelper.Init();
+
+    ---接收任务服务器回调
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.AcceptTaskAckID, function(data)
+        self:OnAcceptTaskAck(data)
+    end, nil);
+
+    ---放弃任务服务器回调
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.DropTaskAckID, function(data)
+        self:OnDropTaskAck(data)
+    end, nil);
+
+    ---提交任务服务器回调
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.SubmitTaskAckID, function(data)
+        self:OnSubmitTaskAck(data)
+    end, nil);
+
+    ---领取任务奖励服务器回调
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.GetTaskRewardAckID, function(data)
+        self:OnGetTaskRewardAck(data)
+    end, nil);
+
+    ----------------------测试数据
+    -- local tasks=nil;
+    -- if tasks==nil then
+    -- tasks={}
+    -- table.insert(tasks,{TaskID=101,State=2, Propgress={Count=2,{Condition=1,CurProgress=3},{Condition=5,CurProgress=4}},OverdueTime=1667392084000 })
+    -- table.insert(tasks,{TaskID=102,State=2, Propgress={Count=1,{Condition=2,CurProgress=4}},OverdueTime=1667392084000 })
+    -- table.insert(tasks,{TaskID=103,State=2, Propgress={Count=1,{Condition=3,CurProgress=4}},OverdueTime=1667478484000 })
+    -- table.insert(tasks,{TaskID=104,State=2, Propgress={Count=1,{Condition=6,CurProgress=4}},OverdueTime=1667478484000 })
+    -- table.insert(tasks,{TaskID=105,State=2, Propgress={Count=1,{Condition=8,CurProgress=4}},OverdueTime=0 })
+
+    -- end
+
+    -- for k, v in pairs(tasks) do
+    -- self:CreateTask(v);
+    -- end
+    ------------------------
+
+    -- 集成了部分team逻辑
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.GetTargetTeamInfoRetID, function(data)
+        self:OnGetTargetTeamInfoRet(data)
+    end, nil);
+end
+
+-- team部分代码start
+function TaskModule:OnGetTargetTeamInfoRet(data)
+    if data == nil or data.data == nil then
+        print("OnGetTargetTeamInfoRet data is nil...");
+        return;
+    end
+
+    local tInfo = data.data.TInfo;
+
+    -- teamwidget显示界面
+    self.TaskWidget:SetTeamWidget(tInfo);
+
+    LuaModuleDispatcher:SendMessage(ModuleDef.TeamModule, "OnSyncTeamData", data.data.TInfo);
+end
+
+function TaskModule:UpdateTeamData(...)
+    local tb = ...
+    local data = nil;
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        data = tb[1]
+    else
+        -- C#调用
+        data = tb[0]
+    end
+    -- 刷新队伍数据
+    if self.TaskWidget ~= nil then
+        if data == nil then
+            self.TaskWidget:RefreshTeamWidget(nil);
+        else
+            self.TaskWidget:RefreshTeamWidget(data);
+        end
+    end
+end
+
+function TaskModule:OnSwitch(...)
+    local tb = ...
+    local index = 1;
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        index = tb[1]
+    else
+        -- C#调用
+        index = tb[0]
+    end
+    self.TaskWidget:OnSwitch(index);
+end
+
+-- end
+
+-- LuaModule 消息处理
+function TaskModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...);
+end
+
+function TaskModule:OnDisable(...)
+
+end
+
+function TaskModule:OnAcceptTaskAck(data)
+    local AcceptTaskAck = data.data
+
+    if AcceptTaskAck.Ret == CS.ProtoMsg.AcceptTaskAck.Types.ResultType.Ok then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_35"));
+    else
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_36"));
+    end
+end
+
+--[[
+*****@放弃任务
+--]]
+function TaskModule:OnDropTaskAck(data)
+    local DropTaskAck = data.data
+
+    if DropTaskAck.Ret == CS.ProtoMsg.DropTaskAck.ResultType.Ok then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_37"));
+    else
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_38"));
+    end
+end
+
+function TaskModule:OnSubmitTaskAck(data)
+    local SubmitTaskAck = data.data
+
+    if SubmitTaskAck.Ret == CS.ProtoMsg.SubmitTaskAck.Types.ResultType.Ok then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_39"));
+    else
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_40"));
+    end
+end
+
+function TaskModule:OnGetTaskRewardAck(data)
+    local GetTaskRewardAck = data.data
+
+    if GetTaskRewardAck.Ret == CS.ProtoMsg.GetTaskRewardAck.ResultType.Ok then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_41"));
+    else
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_42"));
+    end
+end
+
+function TaskModule:OnCallBack(index)
+    if index == 1 then
+        -- UIManager.Instance:OpenWindow(TaskWindowPath, TaskHelper.GetAllWindow(true),
+        -- 	CS.StarProjectDef.MainPageCommond.HideBoth)
+        UIManager.Instance:OpenWindowAsync(TaskWindowPath, nil, TaskHelper.GetAllWindow(true),
+            CS.StarProjectDef.MainPageCommond.HideBoth)
+    end
+end
+
+function TaskModule:InformTeammateRefreshWidget(...)
+    local tb = ...
+    local data = nil;
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        data = tb[1]
+    else
+        -- C#调用
+        data = tb[0]
+    end
+    if self.TaskWidget ~= nil then
+        self.TaskWidget:SetTeamWidget(data);
+    end
+end
+
+----------------- 通缉任务item ⬇⬇⬇⬇⬇⬇⬇⬇⬇⬇⬇
+
+-- 通知[通缉任务]更新数据
+function TaskModule:InformWantedWindow(...)
+    if self.TaskWidget ~= nil then
+        local tb = ...
+        local informState = -1
+        -- 列表
+        if type(tb) == "table" then
+            -- Lua调用
+            informState = tb[1]
+        else
+            -- C#调用
+            informState = tb[0]
+        end
+        self.TaskWidget:InformWantedTask(informState)
+    end
+end
+
+----------------- 通缉任务item ⬆⬆⬆⬆⬆⬆⬆⬆⬆⬆⬆
+
+-- LuaModule显示
+function TaskModule:OnModuleShow(arg)
+    TaskRoot = arg;
+    local dt = TaskHelper.GetAllTask();
+    Log("TaskModule:OnModuleShow", dt.Count);
+    -- self.TaskWidget = UIManager.Instance:OpenWidget(TaskWidgetPath, false, { dt, function(index)
+    -- 	self:OnCallBack(index)
+    -- end }, TaskRoot.transform, CS.StarProjectDef.MainPageCommond.HideNone, true)
+
+    self.AsyncLoadTaskWidgetCb = function(ui)
+        if ui ~= nil then
+            if self.TaskWidget == nil then
+                self.TaskWidget = ui:GetLuaPanel().ScriptTable;
+                self.TaskWidget:BindModule(self)
+            end
+        end
+        self.AsyncLoadTaskWidgetCb = nil;
+    end
+    UIManager.Instance:OpenWidgetAsync(TaskWidgetPath, self.AsyncLoadTaskWidgetCb, false, {dt, function(index)
+        self:OnCallBack(index)
+    end}, TaskRoot.transform, CS.StarProjectDef.MainPageCommond.HideNone, true)
+
+    -- TaskNoticeWidget
+    -- self.TaskNotify = UIManager.Instance:OpenWidget(TaskNofiyPath, false, nil, nil,
+    --	CS.StarProjectDef.MainPageCommond.HideNone, true)
+
+    -- UIManager.Instance:OpenWidget(EctypeTargetWidgetPath, false, nil, TaskRoot.transform,
+    -- 	CS.StarProjectDef.MainPageCommond.HideNone, true);
+    UIManager.Instance:OpenWidgetAsync(EctypeTargetWidgetPath, nil, false, nil, TaskRoot.transform,
+        CS.StarProjectDef.MainPageCommond.HideNone, true);
+
+end
+
+-- LuaModule 释放
+function TaskModule:OnModuleRelease()
+    Log("TaskModule OnModuleCreate 创建");
+    if CS.SGF.Network.NetworkManager.Instance == nil then
+        return;
+    end
+    ---接收任务服务器回调
+    CS.SGF.Network.NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.AcceptTaskAckID, function(data)
+        self:OnAcceptTaskAck(data)
+    end, nil);
+
+    ---放弃任务服务器回调
+    CS.SGF.Network.NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.DropTaskAckID, function(data)
+        self:OnDropTaskAck(data)
+    end, nil);
+
+    ---提交任务服务器回调
+    CS.SGF.Network.NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.SubmitTaskAckID, function(data)
+        self:OnSubmitTaskAck(data)
+    end, nil);
+
+    ---领取任务奖励服务器回调
+    CS.SGF.Network.NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.GetTaskRewardAckID, function(data)
+        self:OnGetTaskRewardAck(data)
+    end, nil);
+    LuaModuleDispatcher:UnRegister(ModuleDef.TaskModule)
+end
+
+return TaskModule

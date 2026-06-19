@@ -1,0 +1,49 @@
+InviteWindow = class("InviteWindow", UIPanel)
+InviteWindow.IsOpen = false;
+
+function InviteWindow:Awake()
+
+end
+
+function InviteWindow:BindModule(m)
+    self.module = m;
+end
+
+function InviteWindow:InitControls()
+    self.transform = self.prefab.transform;
+    self.gameObject = self.transform.gameObject;
+
+end
+
+function InviteWindow:Show()
+end
+
+function InviteWindow:Start()
+    print("InviteWindow:Start")
+end
+
+function InviteWindow:OnEnable()
+
+end
+
+function InviteWindow:OnDisable()
+
+end
+
+function InviteWindow:OnDestroy()
+
+end
+
+function InviteWindow:OnOpen(arg)
+    self.IsOpen = true;
+end
+
+function InviteWindow:OnClose(arg)
+    self:CloseWindow();
+end
+
+function InviteWindow:CloseWindow()
+    self.IsOpen = false;
+end
+
+return InviteWindow

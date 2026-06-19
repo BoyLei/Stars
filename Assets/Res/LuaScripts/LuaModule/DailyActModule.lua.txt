@@ -1,0 +1,150 @@
+DailyActModule = class("DailyActModule", BaseLuaModule)
+
+--LuaModule 消息模块
+DailyActModule.ModuleMessages = {
+    --打开
+    ["OpenDailyActWindow"] = function(...)
+        DailyActModule:OnOpenDailyActWindow(...)
+    end,
+    ["OpenDailyActTips"] = function(...)
+        DailyActModule:OnOpenDailyActTips(...)
+    end
+    -- ["OnCloseDailyActWindow"]=function(...)
+    -- 	DailyActModule:OnCloseDailyActWindow(...);
+    -- end
+}
+
+function DailyActModule:OnOpenDailyActWindow(...)
+    local tb = ...
+
+    --local dailyActWindowCs =UIManager.Instance:OpenWindow("DailyAct/Prefab/DailyActWindow");
+    --if self.dailyActWindowView == nil then
+    --self.dailyActWindowView=dailyActWindowCs:GetLuaPanel().ScriptTable;
+    --self.dailyActWindowView:BindModule(self);
+    --self.dailyActWindowView:InitControls();
+    --end
+
+    self.AsyncLoadDailyActWindowCb = function(ui)
+        if ui ~= nil then
+            if self.dailyActWindowView == nil then
+                self.dailyActWindowView = ui:GetLuaPanel().ScriptTable
+                self.dailyActWindowView:BindModule(self)
+                self.dailyActWindowView:InitControls()
+            end
+            self.dailyActWindowView:Init()
+        end
+        self.AsyncLoadDailyActWindowCb = nil
+    end
+    UIManager.Instance:OpenWindowAsync("DailyAct/Prefab/DailyActWindow", self.AsyncLoadDailyActWindowCb)
+end
+
+function DailyActModule:OnOpenDailyActTips(...)
+    if self.dailyActWindowView ~= nil then
+        self.dailyActWindowView:ShowTips(...)
+    end
+end
+
+--LuaModule 创建
+function DailyActModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.DailyActModule, self)
+
+    FixMessageManager.Instance:OnMessage(
+        FixUpdateDef.DailyActivity,
+        function(data)
+            self:OnDailyActivityInfos(data)
+        end,
+        nil
+    )
+end
+
+-- function DailyActModule:OnCloseDailyActWindow(...)
+-- 	UIManager.Instance:CloseWindow("DailyAct/Prefab/DailyActWindow");
+-- end
+
+function DailyActModule:OnDailyActivityInfos(data)
+    local dailyActMD = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.DailyActivity):GetDailyActivityMD()
+    if dailyActMD == nil then
+        return
+    end
+    if self.dailyActWindowView ~= nil and self.dailyActWindowView.IsOpen then
+        self.dailyActWindowView:Init(dailyActMD)
+    end
+
+    LuaModuleDispatcher:SendMessage(ModuleDef.GamePlayChoiceModule, "OnUpdateDailyActivity", {})
+
+    self.dailyActData = dailyActMD
+
+    RedPointManager.Instance:TriggerConditionTypeBoolValue(RedPointConditionType.DailyAct, self:IsRewardGetable())
+end
+
+--LuaModule 消息处理
+function DailyActModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...)
+end
+
+--LuaModule显示
+function DailyActModule:OnModuleShow(arg)
+end
+
+--LuaModule 释放
+function DailyActModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.DailyActModule)
+end
+
+function DailyActModule:IsRewardGetable()
+    if not BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.DailyPlayActiv) then
+        return false
+    end
+
+    local data = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.DailyActivity):GetDailyActivityMD()
+    if data == nil then
+        return false
+    end
+
+    local dailyPlayActivRewardList = ConfigDataAccessor.DailyPlayActivRewardList
+    local keys = {}
+    for k, v in pairs(dailyPlayActivRewardList) do
+        table.insert(keys, k)
+    end
+    table.sort(keys)
+
+    local tb = {}
+    local index = 1
+    for _, v in pairs(keys) do
+        if data.ActiveValue >= v then
+            local f = false
+            local cl = data.CountList.CountList
+            for i = 0, cl.Count - 1 do
+                if cl[i] == v then
+                    f = true
+                end
+            end
+            if not f then
+                table.insert(tb, index)
+            end
+        end
+        index = index + 1
+    end
+
+    for i = 1, 4 do
+        if data.ActiveValue >= keys[i] then
+            local find = false
+            for _, v in pairs(tb) do
+                if v == i then
+                    find = true
+                    break
+                end
+            end
+            if find then
+                return true
+            end
+        end
+    end
+
+    if data.ActiveValue == keys[#keys] then
+        return data.CountList.CountList.Count < 5
+    end
+    return false
+end
+
+return DailyActModule

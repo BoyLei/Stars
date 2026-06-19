@@ -1,0 +1,259 @@
+---@class PartnerEquipTips
+local PartnerEquipTips = {}
+PartnerEquipTips.__index = PartnerEquipTips
+
+function PartnerEquipTips:ctor(go)
+    local self = {}
+    setmetatable(self, PartnerEquipTips)
+
+    self:InitControls(go)
+
+    return self
+end
+
+function PartnerEquipTips:InitControls(go)
+	self.gameObject = go;
+    self.transform = go.transform;
+
+    self.levelUpBtn = self.transform:Find("Root/Grid/BtnAdvance"):GetComponent(typeof(JButton));
+    self.levelUpBtn.OnClick=(function()
+        LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OpenLevelUpWindow",{ self.curEquipID,self.curEquipEntityID });
+	end);
+	
+	self.equipBtn = self.transform:Find("Root/Grid/BtnEquip"):GetComponent(typeof(JButton));
+	self.equipBtn.OnClick=(function()
+        local wearEquipReq = CS.ProtoMsg.WearParEquipReq()
+        wearEquipReq.ItemEntityID = self.curEquipEntityID
+        wearEquipReq.PartnerID = self.curPartnerEntityID
+        CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, wearEquipReq, false)
+	end);
+
+    self.unEquipBtn = self.transform:Find("Root/Grid/BtnUnEquip"):GetComponent(typeof(JButton));
+    self.unEquipBtn.OnClick=(function()
+        local takeOffEquipReq = CS.ProtoMsg.TakeOffParEquipReq()
+        takeOffEquipReq.ItemEntityID = self.curEquipEntityID
+        takeOffEquipReq.PartnerID = self.curPartnerEntityID
+        CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, takeOffEquipReq, false)
+	end);
+
+    local mainTrans = self.transform:Find("Root/Main/Equip");
+	self.equipName = mainTrans:Find("Name"):GetComponent(typeof(Text));
+    self.equipedGo = mainTrans:Find("Equiped").gameObject;
+    self.typeText = mainTrans:Find("Type/tt"):GetComponent(typeof(Text));
+    self.levelLimitText = mainTrans:Find("LevelLimit/tt"):GetComponent(typeof(Text));
+    self.bindStatus = mainTrans:Find("NotBind/tt"):GetComponent(typeof(Text));
+
+    --属性显示
+    self.partnerAttr = mainTrans:Find("Info/Mask/List/PartnerAttr").gameObject;
+    self.playerAttr = mainTrans:Find("Info/Mask/List/PlayerAttr").gameObject;
+
+    --阵营特技
+	self.skillGo = mainTrans:Find("Info/Mask/List/Faction").gameObject;
+    self.skillIcon = mainTrans:Find("Info/Mask/List/Faction/Icon"):GetComponent(typeof(Image));
+    self.skillName = mainTrans:Find("Info/Mask/List/Faction/Name"):GetComponent(typeof(Text));
+    self.skillActive = mainTrans:Find("Info/Mask/List/Faction/Active").gameObject;
+    self.skillDesc = mainTrans:Find("Info/Mask/List/Faction/Desc"):GetComponent(typeof(Text));
+
+    --装备进阶
+    self.equipItems = {};
+    for i=1, 3 do
+        local itemGrid = mainTrans:Find("Info/Mask/List/LevelUp/ItemGrid"..i);
+        local bgRare = itemGrid:Find("BgRare"):GetComponent(typeof(Image));
+        local icon = itemGrid:Find("Icon"):GetComponent(typeof(Image));
+        local num = itemGrid:Find("Num"):GetComponent(typeof(Text));
+        local current = itemGrid:Find("Current").gameObject;
+		self.equipItems[i] = {};
+        self.equipItems[i].bgRare = bgRare;
+        self.equipItems[i].icon = icon;
+        self.equipItems[i].num = num;
+        self.equipItems[i].current = current;
+    end
+
+    self.allStars = {};
+    for i=1, 3 do
+        local go = mainTrans:Find("ItemGrid/Have/Stars/Star"..i).gameObject;
+        self.allStars[i] = go;
+    end
+
+    self.numText = mainTrans:Find("ItemGrid/Have/Num"):GetComponent(typeof(Text));
+    self.equipIcon = mainTrans:Find("ItemGrid/Have/Icon"):GetComponent(typeof(Image));
+    self.bgRareIcon = mainTrans:Find("ItemGrid/Have/BgRare"):GetComponent(typeof(Image));
+	
+	self.allItems = {};
+end
+
+function PartnerEquipTips:Init(equipID, equipedId)
+	--for i=1, 3 do
+		--local equipedEquip = BusinessManager.Instance:GetPartnerEquipedEquip(data.Index, i);
+	--end
+	
+    local partnerEquip = ConfigDataAccessor.PartnerEquip;
+    local qualiFications = partnerEquip[equipID].QualiFications;
+    local qualiFicationsValue = partnerEquip[equipID].QualiFicationsValue;
+    
+	for _,v in pairs(self.allItems) do
+		GameObject.DestroyImmediate(v);
+	end
+	self.allItems = {};
+	
+	for k,v in pairs(qualiFications) do
+        local strattrName;
+        for k2,v2 in pairs(ConfigDataAccessor.Attribute) do
+            if v2.AttrId == v then
+				strattrName = v2.Name;
+                break;
+            end
+        end
+        local num = qualiFicationsValue[k];
+
+        local partnerGo = newObject(self.partnerAttr);
+		local id=self.partnerAttr.transform:GetSiblingIndex();
+        partnerGo.transform.parent = self.partnerAttr.transform.parent;
+        partnerGo.transform.localScale=Vector3(1,1,1);
+		partnerGo.transform:SetSiblingIndex(id + 1);
+        partnerGo:SetActive(true);
+
+        local attrName = partnerGo.transform:Find("name"):GetComponent(typeof(Text));
+        local attrAdd = partnerGo.transform:Find("add"):GetComponent(typeof(Text));
+        attrName.text = strattrName;
+        attrAdd.text = tostring(num);
+		
+		table.insert(self.allItems, partnerGo);
+    end
+
+    local nature = partnerEquip[equipID].Nature;
+    local natureValues = partnerEquip[equipID].Value;
+    for k,v in pairs(nature) do
+        local strattrName;
+        for k2,v2 in pairs(ConfigDataAccessor.Attribute) do
+            if v2.AttrId == v then
+				strattrName = v2.Name;
+                break;
+            end
+        end
+        local num = natureValues[k];
+
+        local playerGo = newObject(self.playerAttr);
+		local id=self.playerAttr.transform:GetSiblingIndex();
+        playerGo.transform.parent = self.playerAttr.transform.parent;
+        playerGo.transform.localScale=Vector3(1,1,1);
+		playerGo.transform:SetSiblingIndex(id + 1);
+        playerGo:SetActive(true);
+
+        local attrName = playerGo.transform:Find("name"):GetComponent(typeof(Text));
+        local attrAdd = playerGo.transform:Find("add"):GetComponent(typeof(Text));
+        attrName.text = strattrName;
+        attrAdd.text = tostring(num);
+		
+		table.insert(self.allItems, playerGo);
+    end
+
+    if #partnerEquip[equipID].Effect == 0 then
+        --没有阵营技能
+		self.skillGo:SetActive(false);
+    else
+		self.skillGo:SetActive(true);
+		
+        local effectID = partnerEquip[equipID].Effect[1];
+        local effect = ConfigDataAccessor.EffectList[effectID];
+
+        --skillIcon
+        self.skillName.text = effect.Name;
+        --self.skillActive
+        self.skillDesc.text = effect.Desc;
+    end
+	
+	self.unEquipBtn.gameObject:SetActive(equipedId == equipID);
+	self.equipBtn.gameObject:SetActive(equipedId ~= equipID);
+	
+	self.equipName.text = "LV."..ConfigDataAccessor.PartnerEquip[equipID].EquipLevel.." "..ConfigDataAccessor.Item[equipID].Name;
+
+    self.equipName.color=GetQualityColorRGB(ConfigDataAccessor.Item[equipID].Quality);
+	
+    
+    local lv = ConfigDataAccessor.PartnerEquip[equipID].Level
+    --self.levelLimitText.text = lv.."级可穿戴";
+    self.levelLimitText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit"), {lv});
+
+	self.equipedGo:SetActive(equipedId == equipID);
+
+    local cfg = ConfigDataAccessor.Item[equipID];
+    self.typeText.text= ConfigDataAccessor.ItemType[GetSubItemID(tonumber(cfg.ItemType),tonumber(cfg.SubType) )].Name;
+
+    local isBind = false;
+    local itemNum = 0;
+    local items = BusinessManager.Instance:GetItemsByItemType(4, 0)
+    for i = 0, items.Count - 1 do
+        if items[i].EntityID == self.curEquipEntityID then
+            isBind = items[i].IsBind;
+            itemNum = items[i].Num;
+            break;
+        end
+	end
+    if isBind then
+        self.bindStatus.text = LanguageHelp:GetLanguageByKey("Local_Str_binding");
+    else
+        self.bindStatus.text = LanguageHelp:GetLanguageByKey("Local_Str_unbinding");
+    end
+
+    local st = ConfigDataAccessor.PartnerEquip[equipID].AdvancedLevel;
+    for i=1, 3 do
+        self.allStars[i]:SetActive(st >= i);
+    end
+
+    self.numText.text = "1";
+
+    local cfg = ConfigDataAccessor.Item[equipID];
+	ResourceHelper:LoadIconAsync(self.equipIcon, "", cfg.Icon, false)
+
+    ResourceHelper:LoadIconByAtlasAsync(
+        self.bgRareIcon,
+        ResourceHelper.AtlasPathCommonItem,
+        "Bag_Grid_sq" .. cfg.Quality,
+        false
+    )
+
+    local gpID = ConfigDataAccessor.PartnerEquip[equipID].GroupID;
+    for i=1, 3 do
+        local itemid = nil;
+        for k,v in pairs(ConfigDataAccessor.PartnerEquip) do
+            if v.GroupID == gpID and v.AdvancedLevel == i then
+                itemid = v.Id;
+                break;
+            end
+        end
+
+        local cfg2 = ConfigDataAccessor.Item[itemid];
+        --self.equipItems[i].bgRare = bgRare;
+        ResourceHelper:LoadIconByAtlasAsync(
+            self.equipItems[i].bgRare,
+            ResourceHelper.AtlasPathCommonItem,
+            "Bag_Grid_sq" .. cfg2.Quality,
+            false
+        )
+
+        ResourceHelper:LoadIconAsync(self.equipItems[i].icon, "", cfg2.Icon, false)
+        self.equipItems[i].num.text = "x3";
+
+        self.equipItems[i].current:SetActive(equipID == itemid);
+    end
+end
+
+function PartnerEquipTips:OnTakeOff()
+	self.unEquipBtn.gameObject:SetActive(false);
+	self.equipBtn.gameObject:SetActive(true);
+end
+
+function PartnerEquipTips:Show(equipID,equipedId,equipEntityID,partnerEntityID)
+    self.gameObject:SetActive(true);
+	self.curEquipID = equipID;
+	self.curEquipEntityID = equipEntityID;
+	self.curPartnerEntityID = partnerEntityID;
+    self:Init(equipID, equipedId);
+end
+
+function PartnerEquipTips:Hide()
+    self.gameObject:SetActive(false);
+end
+
+return PartnerEquipTips;

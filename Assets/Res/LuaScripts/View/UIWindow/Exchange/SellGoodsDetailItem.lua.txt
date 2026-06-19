@@ -1,0 +1,158 @@
+---------------------------------------------------------------------
+-- src (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-10-31 14:23:40
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class SellGoodsDetailItem
+--[[
+*文件名   :   SellGoodsDetailItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/10/18 19:50:16"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+SellGoodsDetailItem=class("SellGoodsDetailItem",UIPanel)
+SellGoodsDetailItem.m_Selected=nil;
+SellGoodsDetailItem.m_BgRare=nil;
+SellGoodsDetailItem.m_Icon=nil;
+SellGoodsDetailItem.m_Attention=nil;
+SellGoodsDetailItem.m_Name=nil;
+SellGoodsDetailItem.m_State=nil;
+SellGoodsDetailItem.m_Num=nil;
+SellGoodsDetailItem.m_Price=nil;
+SellGoodsDetailItem.m_time=nil;
+
+SellGoodsDetailItem.m_Btn=nil;
+SellGoodsDetailItem.OnSelectCallBack=nil;
+SellGoodsDetailItem.ItemID=0;
+local SelectionFunc=nil;
+SellGoodsDetailItem.Data=nil;
+SellGoodsDetailItem.GoodsID=0;
+SellGoodsDetailItem.Index=0;
+
+function SellGoodsDetailItem:ctor(go, atlas)
+	self.prefab = go;
+	self.AtlasPath = atlas;	
+	self.m_Selected=self:Find("Has/Selected").gameObject;
+	self.m_BgRare=self:Find("Has/BgRare"):GetComponent(typeof(Image));
+	self.m_Icon=self:Find("Has/BgRare/Icon"):GetComponent(typeof(Image));
+	self.m_Attention=self:Find("Has/Attention"):GetComponent(typeof(Image));
+	self.m_Name=self:Find("Has/Name"):GetComponent(typeof(Text));
+	self.m_State=self:Find("Has/State"):GetComponent(typeof(Text));
+	self.m_Num=self:Find("Has/Info/Num"):GetComponent(typeof(Text));
+	self.m_Price=self:Find("Has/Info/Price"):GetComponent(typeof(Text));
+	self.m_time=self:Find("Has/Time/time"):GetComponent(typeof(Text));
+
+	self.m_Btn=self.prefab:GetComponent(typeof(JButton));
+	SelectionFunc=function() self:OnClickSelectBtn(); end;
+	self.m_Btn.OnClick= SelectionFunc;
+end
+
+function SellGoodsDetailItem:ClearData()
+	self.OnSelectCallBack=nil;
+	self.ItemID=0;
+	self.Data=nil;
+	self.GoodsID=0;
+end
+
+function SellGoodsDetailItem:OnClickSelectBtn()
+	if self.OnSelectCallBack~=nil then
+		self.OnSelectCallBack(self.Data,self.Index);
+		self:Select(true)
+	end
+end
+
+function SellGoodsDetailItem:Select(select)
+	self.m_Selected:SetActive(select)
+end
+
+function SellGoodsDetailItem:UpdateContent(arg,index,cb)
+	self.Data=arg.data;
+	self.OnSelectCallBack=cb;
+	self.ItemID=self.Data.ItemID;
+	self.GoodsID=self.Data.GoodsID;
+	self:Select(false);
+	self.Index=arg.Index
+	if arg.Index==index then
+		self:OnClickSelectBtn()
+	end
+
+	local config=ConfigDataAccessor.Item[self.Data.ItemID]
+	if config~=nil then
+		self.m_Name.text=config.Name
+		local quality=config.Quality;
+		ResourceHelper:LoadIconByAtlasAsync(
+			self.m_BgRare,
+			ResourceHelper.AtlasPathCommonItem,
+			"Bag_Grid_sq"..quality,
+			false
+		)
+		ResourceHelper:LoadIconAsync(self.m_Icon, "", config.Icon, false)
+	end
+
+	---是否关注
+	self.m_Attention.gameObject:SetActive(self:IsAttention(self.Data.ItemID))
+
+	self.m_Price.text=self.Data.TotalPrice;
+	self.m_Num.text=self.Data.ItemNum
+	self.m_State.text=self:GetStateName(self.Data.Status)
+	local serverNow=TimeUtils.GetServerTimeNow()/1000
+	local time=self.Data.Etime-serverNow
+	local time_s=self.Data.Stime-serverNow
+	self.m_State.text=self:GetStateName(self.Data.Status,time)
+	if time_s>0 then
+		self.m_time.text= LanguageHelp:GetLanguageByKey("Local_Str_Publish")..SecondToFormat(time_s)
+	else
+		if time>0 then
+			self.m_time.text= SecondToFormat(time)
+		else
+			--self.m_time.text="0秒"
+			self.m_time.text="0" .. LanguageHelp:GetLanguageByKey("Local_Str_Time_second")
+
+		end
+	end
+
+	--local time=self.Data.Etime-(TimeUtils.GetServerTimeNow()/1000)
+	----self.m_time.text=TimeToFullString2(TimeUtils.Stamp2DataTime(self.Data.Stime) )
+	--if time>0 then
+		--self.m_time.text= SecondToFormat(time)
+	--else
+		--self.m_time.text="0" .. LanguageHelp:GetLanguageByKey("Local_Str_Time_second")
+	--end
+	--self.m_Has:SetActive(true);
+end
+
+function SellGoodsDetailItem:GetStateName(state)
+	--0：没有设置 1：正常售卖 2：已出售 3：已下架
+	if state ==2 then
+		return LanguageHelp:GetLanguageByKey("Local_Str_BeSold")
+	elseif state ==3 then
+		return LanguageHelp:GetLanguageByKey("Local_Str_SOLD_OUT")
+	end
+	return ""
+
+end
+
+function SellGoodsDetailItem:IsAttention(itemID)
+
+	local playerinfo= BusinessManager.Instance.M_BankPlayerMD;
+	local items={}
+	if playerinfo~=nil then
+		if playerinfo.FollowItem~=nil  and playerinfo.FollowItem.ItemIDList~=nil and playerinfo.FollowItem.ItemIDList.Count>0 then
+
+			for i = 1, playerinfo.FollowItem.ItemIDList.Count do
+				if itemID==playerinfo.FollowItem.ItemIDList[i-1] then
+					return true;
+				end
+			end
+		end
+	end
+	return false;
+end
+
+return  SellGoodsDetailItem

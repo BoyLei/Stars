@@ -1,0 +1,76 @@
+--[[
+*文件名   :   BattlePassRewardItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/25 18:01:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local BattlePassRewardItem = {}
+
+BattlePassRewardItem.__index = BattlePassRewardItem
+
+local ItemGrid=require("View/Item/ItemGrid");
+
+
+function BattlePassRewardItem:New(_go) 
+    local self = {};    
+    setmetatable(self, BattlePassRewardItem); 
+    
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+
+    self.Name=self.transform:Find("Name"):GetComponent(typeof(Text));
+   
+    self.ItemGrid=ItemGrid:New(self.transform:Find("ItemGrid").gameObject);--第一个不填会默认创建一个
+	self.ItemGrid:InitItem(false,function(it) 
+		self:OnItemClick(it);
+	end)
+
+    
+    self.IsUsed=false;
+    self.gameObject:SetActive(false);
+
+    return self;    --返回自身
+end
+
+function BattlePassRewardItem:SetUse(b)
+    self.IsUsed=b;
+    self.gameObject:SetActive(b);
+end
+
+function BattlePassRewardItem:InitItem()
+
+    self:SetUse(false);
+end
+
+
+function BattlePassRewardItem:OnItemClick(ritem)
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", {ritem.BaseID, false, 0, ritem.transform, 0})
+end
+
+function BattlePassRewardItem:SetItem(item)
+    self:SetUse(true);
+
+
+    --商品id
+    local itemID=item.ItemID;
+
+    --底板
+    local itemCfg = ConfigDataAccessor.Item[itemID];
+    self.Name.text=itemCfg.Name;
+    
+
+    local it={};
+    it.BaseID=itemID;
+    it.Num=item.ItemNum;
+    self.ItemGrid:SetItem(it);
+
+end
+
+
+
+
+return BattlePassRewardItem;

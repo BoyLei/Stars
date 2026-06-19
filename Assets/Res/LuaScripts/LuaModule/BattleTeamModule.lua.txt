@@ -1,0 +1,1470 @@
+--[[
+*文件名   :   BattleTeamModule
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/29 14:19:00"
+*创建人   :   "gopal"
+*版权所有 :   游卡网络科技技术有限公司
+]] BattleTeamModule = class("BattleTeamModule", BaseLuaModule)
+
+local PartnerWindowPath = "Partner/Prefab/PartnerWindow"
+
+local PartnerStarRiseWidgetPath = "Partner/Prefab/PartnerStarRiseWidget"
+local PartnerAblutionWidgetPath = "Partner/Prefab/PartnerAblutionWidget"
+local AssistsWidgetPath = "Partner/Prefab/AssistsWidget"
+local PartnerAssistWidgetPath = "Partner/Prefab/PartnerAssistWidget"
+local PartnerDetailWidgetPath = "Partner/Prefab/PartnerDetailWidget"
+local PartnerEquipWidgetPath = "Partner/Prefab/PartnerEquipWidget"
+local PartnersWidgetPath = "Partner/Prefab/PartnersWidget"
+local BattleTeamWidgetPath = "Partner/Prefab/BattleTeamWidget"
+
+local CertificationToppedWidgetPath = "Partner/Prefab/CertificationToppedWidget"
+local PartnerTeamAttributeWidgetPath = "Partner/Prefab/PartnerTeamAttributeWidget"
+
+local LevelUpWindowPath = "Partner/Prefab/LevelUpWindow"
+local EquipSelWindowPath = "Partner/Prefab/EquipSelWindow"
+local LevelUpSucWindowPath = "Partner/Prefab/LevelUpSucWindow"
+local PartnerEquipWindowPath = "Partner/Prefab/NewPartner/PartnerEquipWindow"
+local PartnerEquipComposePath = "Partner/Prefab/NewPartner/PartnerEquipComposeWindow"
+
+BattleTeamModule.PartnerRoot = nil
+BattleTeamModule.PartnerWindow = nil
+BattleTeamModule.Partners = {}
+-- LuaModule 消息模块
+BattleTeamModule.ModuleMessages = {
+    -- 打开伙伴出战
+    -- LuaModuleDispatcher:SendMessage(ModuleDef.BagModule, "OnOpenBattleTeam", {});
+    ["OnPartnerWindowInit"] = function(...)
+        BattleTeamModule:OnPartnerWindowInit(...)
+    end,
+    -- 显示左侧菜单
+    ["OnOpenWindowMenu"] = function(...)
+        BattleTeamModule:OnOpenWindowMenu(...)
+    end,
+    -- 隐藏左侧菜单
+    ["OnCloseWindowMenu"] = function(...)
+        BattleTeamModule:OnCloseWindowMenu(...)
+    end,
+    -- 出战界面
+    ["OnOpenBattleTeam"] = function(...)
+        BattleTeamModule:OnOpenBattleTeam(...)
+    end,
+    ---出战界面-伙伴列表
+    ["OnSelectBattlePartner"] = function(...)
+        BattleTeamModule:OnSelectBattlePartner(...)
+    end,
+    -- 伙伴详情
+    ["OpenDetailWidget"] = function(...)
+        BattleTeamModule:OnOpenDetailWidget(...)
+    end,
+    -- 伙伴详情
+    ["OnForceTab"] = function(...)
+        BattleTeamModule:OnForceTab(...)
+    end,
+    ---打开助战界面
+    ["OnOpenAssistWidget"] = function(...)
+        BattleTeamModule:OnOpenAssistWidget(...)
+    end,
+    ---打开助战列表
+    ["OnOpenAssistList"] = function(...)
+        BattleTeamModule:OnOpenAssistList(...)
+    end,
+    -- 打开属性
+    ["OnOpenPartnerTeamAttributeWidget"] = function(...)
+        BattleTeamModule:OnOpenPartnerTeamAttributeWidget(...)
+    end,
+    ["OnClosePartnerTeamAttributeWidget"] = function(...)
+        BattleTeamModule:OnClosePartnerTeamAttributeWidget(...)
+    end,
+    ["OnCloseCertificationToppedWidget"] = function(...)
+        BattleTeamModule:OnCloseCertificationToppedWidget(...)
+    end,
+    ["OnOpenCertificationToppedWidget"] = function(...)
+        BattleTeamModule:OnOpenCertificationToppedWidget(...)
+    end,
+    ---伙伴洗礼
+    ["OnPartnerAblutionWidget"] = function(...)
+        BattleTeamModule:OnPartnerAblutionWidget(...)
+    end,
+    -------------消息请求
+    ---伙伴助战
+    ["OnPartnerAssistReq"] = function(...)
+        BattleTeamModule:OnPartnerAssistReq(...)
+    end,
+    ---下阵
+    ["PartnerFallReq"] = function(...)
+        BattleTeamModule:OnPartnerFallReq(...)
+    end,
+    ---出战回调
+    ["PartnerBattleReq"] = function(...)
+        BattleTeamModule:OnPartnerBattleReq(...)
+    end,
+    -- 伙伴升级
+    ["OnPartnerUpgradeReq"] = function(...)
+        BattleTeamModule:OnPartnerUpgradeReq(...)
+    end,
+    ---伙伴洗礼请求
+    ["OnPartnerChristenReq"] = function(...)
+        BattleTeamModule:OnPartnerChristenReq(...)
+    end,
+    ---确认保留洗礼数据
+    ["OnPartnerChristenSaveReq"] = function(...)
+        BattleTeamModule:OnPartnerChristenSaveReq(...)
+    end,
+    ["OnPartnerLimitBreakReq"] = function(...)
+        BattleTeamModule:OnPartnerLimitBreakReq(...)
+    end,
+    ---升星界面【觉醒】
+    ["OpenStarRiseWidget"] = function(...)
+        BattleTeamModule:OnOpenStarRiseWidget(...)
+    end,
+    ["OnPartnerUpStarReq"] = function(...)
+        BattleTeamModule:OnPartnerUpStarReq(...)
+    end,
+    -- 伙伴装备详情
+    ["OpenEquipWidget"] = function(...)
+        BattleTeamModule:OnOpenEquipWidget(...)
+    end,
+    ["ItemUseJump"] = function(...)
+        BattleTeamModule:OnItemUseJump(...)
+    end,
+    -- 伙伴进阶界面
+    ["OpenLevelUpWindow"] = function(...)
+        BattleTeamModule:OnOpenLevelUpWindow(...)
+    end,
+    ["OpenEquipSelWindow"] = function(...)
+        BattleTeamModule:OnOpenEquipSelWindow(...)
+    end,
+    ["ChangeCurSel"] = function(...)
+        BattleTeamModule:OnChangeCurSel(...)
+    end,
+    ["OpenPartnerMainWindow"] = function(...)
+        BattleTeamModule:OpenPartnerMainWindow(...)
+    end,
+    ["OnPartnerUpgradeNewReq"] = function(...)
+        BattleTeamModule:OnPartnerUpgradeNewReq(...)
+    end,
+    ["OnPartnerEquipWindow"] = function(...)
+        BattleTeamModule:OnPartnerEquipWindow(...)
+    end,
+    ["OnOpenPartnerEquipCompose"] = function(...)
+        BattleTeamModule:OnOpenPartnerEquipCompose(...)
+    end
+}
+
+function BattleTeamModule:OnOpenPartnerEquipCompose(...)
+    local EntityID = 0
+    local ConfigID = 0
+    local Idx = 0
+    local ID = 0
+    local item = 0
+    local callBack = nil
+
+    local tb = ...
+    -- 传入道具ID
+    if type(tb) == "table" then
+        -- Lua调用
+        EntityID = tb[1]
+        ConfigID = tb[2]
+        Idx = tb[3]
+        ID = tb[4]
+        item = tb[5]
+        callBack = tb[6]
+    else
+        -- C#调用
+        EntityID = tb[0]
+        ConfigID = tb[1]
+        Idx = tb[2]
+        ID = tb[3]
+        item = tb[4]
+        callBack = tb[5]
+    end
+
+    UIManager.Instance:OpenWindowAsync(
+        PartnerEquipComposePath,
+        nil,
+        {
+            EntityID = EntityID,
+            ConfigID = ConfigID,
+            Idx = Idx,
+            ID = ID,
+            ItemMD = item,
+            CallBack = callBack
+        },
+        CS.StarProjectDef.MainPageCommond.HideBoth
+    )
+end
+
+function BattleTeamModule:OnPartnerEquipWindow(...)
+    local EntityID = 0
+    local ConfigID = 0
+    local Idx = 0
+    local ID = 0
+    local item = 0
+    local callBack = nil
+    local tb = ...
+    -- 传入道具ID
+    if type(tb) == "table" then
+        -- Lua调用
+        EntityID = tb[1]
+        ConfigID = tb[2]
+        Idx = tb[3]
+        ID = tb[4]
+        item = tb[5]
+        callBack = tb[6]
+    else
+        -- C#调用
+        EntityID = tb[0]
+        ConfigID = tb[1]
+        Idx = tb[2]
+        ID = tb[3]
+        item = tb[4]
+        callBack = tb[5]
+    end
+
+    UIManager.Instance:OpenWindowAsync(
+        PartnerEquipWindowPath,
+        nil,
+        {
+            EntityID = EntityID,
+            ConfigID = ConfigID,
+            Idx = Idx,
+            ID = ID,
+            ItemMD = item,
+            CallBack = callBack
+        },
+        CS.StarProjectDef.MainPageCommond.HideBoth
+    )
+end
+
+function BattleTeamModule:OnItemUseJump(...)
+    local jumpType = 0
+    local baseID = 0
+    local tb = ...
+    -- 传入道具ID
+    if type(tb) == "table" then
+        -- Lua调用
+        jumpType = tb[1]
+        if #tb > 1 then
+            baseID = tb[2]
+        end
+    else
+        -- C#调用
+        jumpType = tb[0]
+        if tb.Length > 1 then
+            baseID = tb[1]
+        end
+    end
+    -- 打开页面
+    -- local partnerWindowCs =  UIManager.Instance:OpenWindow(PartnerWindowPath, nil, CS.StarProjectDef.MainPageCommond.HideBoth);
+    -- if partnerWindowCs~= nil then
+    -- 	local partnerWindowView = partnerWindowCs:GetLuaPanel().ScriptTable;
+    -- 	if partnerWindowView~= nil then
+    -- 		partnerWindowView:ItemUseJump(jumpType);
+    -- 	end
+    -- end
+
+    self.AsyncLoadPartnerWindowCb = function(ui)
+        if ui ~= nil then
+            local partnerWindowView = ui:GetLuaPanel().ScriptTable
+            if partnerWindowView ~= nil then
+                partnerWindowView:ItemUseJump(jumpType, baseID)
+            end
+        end
+        self.AsyncLoadPartnerWindowCb = nil
+    end
+    UIManager.Instance:OpenWindowAsync("Partner/Prefab/NewPartner/PartnerMainWindow", self.AsyncLoadPartnerWindowCb, nil, CS.StarProjectDef.MainPageCommond.HideBoth)
+end
+
+function BattleTeamModule:OnPartnerAblutionWidget(...)
+    if self.Partners == nil or #self.Partners < 1 then
+        return
+    end
+
+    local tb = ...
+    local index = nil -- 伙伴数据
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        index = tb[1]
+    else
+        -- C#调用
+        index = tb[0]
+    end
+    self:CloseLastWidget()
+    local info =
+        self:AddWidget(
+        PartnerAblutionWidgetPath,
+        false,
+        {
+            index = index,
+            partners = self.Partners
+        },
+        self.PartnerRoot
+    )
+    UIManager.Instance:OpenWidgetAsync(info)
+end
+
+function BattleTeamModule:OnOpenCertificationToppedWidget(...)
+    local tb = ...
+    local data = nil
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        data = tb[1]
+    else
+        -- C#调用
+        data = tb[0]
+    end
+
+    local select = data
+    for k, v in pairs(self.Partners) do
+        if v.Index == data.Index then
+            select = v
+        end
+    end
+
+    -- UIManager.Instance:OpenWidget(CertificationToppedWidgetPath,false,select,self.PartnerRoot);
+    UIManager.Instance:OpenWidgetAsync(CertificationToppedWidgetPath, nil, false, select, self.PartnerRoot)
+end
+
+function BattleTeamModule:OnCloseCertificationToppedWidget(...)
+    UIManager.Instance:CloseWidget(CertificationToppedWidgetPath, self.PartnerRoot)
+end
+
+function BattleTeamModule:OnClosePartnerTeamAttributeWidget(...)
+    UIManager.Instance:CloseWidget(PartnerTeamAttributeWidgetPath, self.PartnerRoot)
+end
+
+function BattleTeamModule:OnOpenPartnerTeamAttributeWidget(...)
+    -- UIManager.Instance:OpenWidget(PartnerTeamAttributeWidgetPath,false,self.Partners,self.PartnerRoot);
+    UIManager.Instance:OpenWidgetAsync(PartnerTeamAttributeWidgetPath, nil, false, self.Partners, self.PartnerRoot)
+end
+
+function BattleTeamModule:GetPartnerByIndex(Index)
+    for k, v in pairs(self.Partners) do
+        if v.Index == Index then
+            return v
+        end
+    end
+    return nil
+end
+function BattleTeamModule:OnOpenAssistList(...)
+    if self.Partners == nil or #self.Partners < 1 then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_5"))
+        return
+    end
+    local tb = ...
+    local id = 0 ---选中的ID
+    local seat = 0 ---被选的槽位
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        id = tb[1]
+        seat = tb[2]
+    else
+        -- C#调用
+        id = tb[0]
+        seat = tb[1]
+    end
+    local datas = {}
+    local IsEmpty = false
+    local playerJob = GameManager.Instance:GetPlayerJob()
+    local slotInfo = ConfigDataAccessor.PartnerAssistSlot[playerJob][seat]
+    local slotpartner = nil
+    local select = id
+    if slotInfo ~= nil then
+        for k, v in pairs(self.Partners) do
+            local data = {
+                SumAtr = 0,
+                Select = 0,
+                data = v
+            }
+            data.SumAtr = 0
+            data.Select = 0
+            if id ~= 0 and id == v.Index then
+                data.Select = 1
+                select = v.Index
+                slotpartner = v
+            end
+            for i = 1, #slotInfo.Qualifications do
+                data.SumAtr = data.SumAtr + v.AMD.Aptitudes[slotInfo.Qualifications[i]].BaseValue
+            end
+            table.insert(datas, data)
+        end
+    end
+
+    if id == 0 then
+        IsEmpty = true
+        datas[1].Select = 1
+        select = datas[1].data.Index
+    end
+
+    table.sort(
+        datas,
+        function(d1, d2)
+            if d1.Select ~= d2.Select then
+                return d1.Select > d2.Select
+            end
+
+            if d1.SumAtr ~= d2.SumAtr then
+                return d1.SumAtr > d2.SumAtr
+            end
+
+            return false
+        end
+    )
+
+    self:CloseLastWidget()
+    local info =
+        self:AddWidget(
+        AssistsWidgetPath,
+        false,
+        {
+            datas = datas,
+            seat = seat,
+            IsEmpty = IsEmpty,
+            sid = select,
+            Slotpartner = slotpartner
+        },
+        self.PartnerRoot
+    )
+    UIManager.Instance:OpenWidgetAsync(info)
+end
+
+function BattleTeamModule:OnPartnerAssistReq(...)
+    local tb = ...
+    local index = 0
+    local seat = 0
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        index = tb[1]
+        seat = tb[2]
+    else
+        -- C#调用
+        index = tb[0]
+        seat = tb[1]
+    end
+    -- local rpt=tb[2]
+    local msg = CS.ProtoMsg.PartnerAssistReq()
+    msg.ID = index
+    msg.Seat = seat
+    -- msg.ReplaceSeat=rpt
+    local gameSocket = NetworkManager.Instance.gameSocket
+    gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, msg, false, 0, false)
+end
+
+function BattleTeamModule:OnOpenAssistWidget(...)
+    local assites = {}
+    for i = 1, 6 do
+        assites[i - 1] = {
+            Pos = i - 1,
+            data = nil
+        }
+    end
+
+    if self.Partners ~= nil then
+        for k, v in pairs(self.Partners) do
+            if v.State == CS.ProtoMsg.PartnerState.Assist and v.CurSeat ~= -1 and assites[v.CurSeat] ~= nil then
+                assites[v.CurSeat].data = v
+            end
+        end
+    end
+
+    self:CloseLastWidget()
+    local info =
+        self:AddWidget(
+        PartnerAssistWidgetPath,
+        false,
+        function()
+            return self:FreshAssistList()
+        end,
+        self.PartnerRoot
+    )
+    UIManager.Instance:OpenWidgetAsync(info)
+end
+
+function BattleTeamModule:FreshAssistList()
+    local assites = {}
+    for i = 1, 6 do
+        assites[i - 1] = {
+            Pos = i - 1,
+            data = nil
+        }
+    end
+
+    if self.Partners ~= nil then
+        for k, v in pairs(self.Partners) do
+            if v.State == CS.ProtoMsg.PartnerState.Assist and v.CurSeat ~= -1 and assites[v.CurSeat] ~= nil then
+                assites[v.CurSeat].data = v
+            end
+        end
+    end
+
+    return assites
+end
+
+function BattleTeamModule:OnForceTab(...)
+    local tb = ...
+    local index = 0
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        index = tb[1]
+    else
+        -- C#调用
+        index = tb[0]
+    end
+    if self.PartnerWindow ~= nil then
+        self.PartnerWindow:ForceTab(index)
+    end
+end
+
+function BattleTeamModule:OnPartnerLimitBreakReq(...)
+    local tb = ...
+    local ConfigID = 0 -- 伙伴ID，配置表ID
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        ConfigID = tb[1]
+    else
+        -- C#调用
+        ConfigID = tb[0]
+    end
+    local msg = CS.ProtoMsg.PartnerLimitBreakReq()
+    msg.Index = ConfigID
+    local gameSocket = NetworkManager.Instance.gameSocket
+    gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, msg, false, 0, false)
+end
+
+function BattleTeamModule:OnPartnerChristenSaveReq(...)
+    local tb = ...
+    local ConfigID = 0 -- 伙伴ID，配置表ID
+    local save = 0 -- 伙伴ID，配置表ID
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        ConfigID = tb[1]
+        save = tb[2]
+    else
+        -- C#调用
+        ConfigID = tb[0]
+        save = tb[1]
+    end
+    local msg = CS.ProtoMsg.PartnerChristenSaveReq()
+    msg.Index = ConfigID
+    msg.IsSave = save
+    local gameSocket = NetworkManager.Instance.gameSocket
+    gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, msg, false, 0, false)
+end
+
+function BattleTeamModule:OnPartnerChristenReq(...)
+    local tb = ...
+    local ConfigID = 0 -- 伙伴ID，配置表ID
+    if type(tb) == "table" then
+        -- Lua调用
+        ConfigID = tb[1]
+    else
+        -- C#调用
+        ConfigID = tb[0]
+    end
+    local msg = CS.ProtoMsg.PartnerChristenReq()
+    msg.Index = ConfigID
+    local gameSocket = NetworkManager.Instance.gameSocket
+    gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, msg, false, 0, false)
+end
+
+function BattleTeamModule:OnPartnerUpgradeReq(...)
+    local tb = ...
+    local ConfigID = 0 -- 伙伴ID，配置表ID
+    local Level = 0 -- 伙伴升级等级
+
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        ConfigID = tb[1]
+        Level = tb[2]
+    else
+        -- C#调用
+        ConfigID = tb[0]
+        Level = tb[1]
+    end
+
+    local msg = CS.ProtoMsg.PartnerUpgradeReq()
+    msg.Index = ConfigID
+    msg.AddLv = Level
+    local gameSocket = NetworkManager.Instance.gameSocket
+    gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, msg, false, 0, false)
+end
+
+function BattleTeamModule:OnPartnerUpgradeNewReq(...)
+    local tb = ...
+    local ConfigID = 0 -- 伙伴ID，配置表ID
+    local items = nil -- 伙伴升级等级
+
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        ConfigID = tb[1]
+        items = tb[2]
+    else
+        -- C#调用
+        ConfigID = tb[0]
+        items = tb[1]
+    end
+
+    local msg = CS.ProtoMsg.PartnerUpgradeNewReq()
+
+    msg.Index = ConfigID
+    msg.Items = CS.ProtoMsg.BaseData()
+    msg.Items.Data:Clear()
+    for k, v in pairs(items) do
+        msg.Items.Data:Add(k, v.Cnt)
+    end
+
+    local gameSocket = NetworkManager.Instance.gameSocket
+    gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, msg, false, 0, false)
+end
+
+function BattleTeamModule:GetAllPartners()
+    return self.Partners
+end
+
+function BattleTeamModule:OnOpenDetailWidget(...)
+    if self.Partners == nil or GetTableLen(self.Partners) < 1 then
+        return
+    end
+    local tb = ...
+
+    local index = 0 -- 伙伴ID，配置表ID
+    local subTag = 0
+    -- 传入道具ID
+    if type(tb) == "table" then
+        -- Lua调用
+        index = tb[1]
+        subTag = tb[2]
+    else
+        -- C#调用
+        index = tb[0]
+        subTag = tb[1]
+    end
+
+    if index == 0 then
+        index = self.Partners[1].Index
+    end
+
+    if index == 0 then
+        return
+    end
+    self:CloseLastWidget()
+    self.AsyncLoadPartnerDetailWidgetCb = function(ui)
+        if ui ~= nil then
+            if self.partnerDetailWidget == nil then
+                self.partnerDetailWidget = ui:GetLuaPanel().ScriptTable
+            end
+        end
+        self.AsyncLoadPartnerDetailWidgetCb = nil
+    end
+    local info =
+        self:AddWidget(
+        PartnerDetailWidgetPath,
+        false,
+        {
+            Partners = self.Partners,
+            SelectIndex = index,
+            Module = self,
+            SubTag = subTag
+        },
+        self.PartnerRoot,
+        CS.StarProjectDef.MainPageCommond.HideNone,
+        false,
+        false,
+        self.AsyncLoadPartnerDetailWidgetCb
+    )
+    -- local partnerDetailWidgetCS = UIManager.Instance:OpenWidget(info)
+    -- self.partnerDetailWidget = partnerDetailWidgetCS:GetLuaPanel().ScriptTable
+    UIManager.Instance:OpenWidgetAsync(info)
+end
+
+-- 打开伙伴装备界面
+function BattleTeamModule:OnOpenEquipWidget(...)
+    if self.Partners == nil or GetTableLen(self.Partners) < 1 then
+        return
+    end
+    local tb = ...
+    local index = 0 -- 伙伴ID，配置表ID
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        index = tb[1]
+    else
+        -- C#调用
+        index = tb[0]
+    end
+    if index == 0 then
+        index = self.Partners[1].Index
+    end
+
+    if index == 0 then
+        return
+    end
+    self:CloseLastWidget()
+    local info =
+        self:AddWidget(
+        PartnerEquipWidgetPath,
+        false,
+        {
+            Partners = self.Partners,
+            SelectIndex = index
+        },
+        self.PartnerRoot
+    )
+    UIManager.Instance:OpenWidgetAsync(info)
+end
+
+-- 上阵
+function BattleTeamModule:OnPartnerBattleReq(...)
+    local tb = ...
+    local index = 0 -- 伙伴ID，配置表ID
+    local seat = 0 -- 位置
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        index = tb[1]
+        seat = tb[2]
+    else
+        -- C#调用
+        index = tb[0]
+        seat = tb[1]
+    end
+
+    local msg = CS.ProtoMsg.PartnerBattleReq()
+    msg.ID = index
+    msg.Seat = seat
+    -- msg.ReplaceSeat = -1
+    local gameSocket = NetworkManager.Instance.gameSocket
+    gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, msg, false, 0, false)
+end
+
+---下阵
+function BattleTeamModule:OnPartnerFallReq(...)
+    local tb = ...
+    local index = 0
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        index = tb[1]
+    else
+        -- C#调用
+        index = tb[0]
+    end
+
+    local msg = CS.ProtoMsg.PartnerFallReq()
+    msg.ID = index
+
+    local gameSocket = NetworkManager.Instance.gameSocket
+    gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, msg, false, 0, false)
+end
+
+function BattleTeamModule:OnPartnerWindowInit(...)
+    local tb = ...
+    local root = 0
+    local w = 0
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        root = tb[1]
+        w = tb[2]
+    else
+        -- C#调用
+        root = tb[0]
+        w = tb[1]
+    end
+    self.PartnerRoot = root
+    self.PartnerWindow = w
+end
+
+function BattleTeamModule:OnSelectBattlePartner(...)
+    if self.Partners == nil or GetTableLen(self.Partners) < 1 then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_5"))
+        return
+    end
+    local tb = ...
+    local index = 0
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        index = tb[1]
+    else
+        -- C#调用
+        index = tb[0]
+    end
+    local select = 0
+    local isEmpty = true
+
+    -- 根据伙伴 槽位和出战状态筛选
+    if self.Partners ~= nil then
+        for k, v in pairs(self.Partners) do
+            if v.State == CS.ProtoMsg.PartnerState.InBattle or v.State == CS.ProtoMsg.PartnerState.Concretization then
+                if v.CurSeat == index then
+                    isEmpty = false
+                    select = v.Index
+                end
+            end
+        end
+    end
+
+    self:CloseLastWidget()
+    -- if select==0 then
+    -- for k, v in pairs(self.Partners) do
+    -- print(k)
+    -- select=v.Index;
+    -- break;
+    -- end
+    -- end
+    local info =
+        self:AddWidget(
+        PartnersWidgetPath,
+        false,
+        {
+            Partners = self.Partners,
+            SelectIndex = select,
+            IsEmpty = isEmpty,
+            Index = index
+        },
+        self.PartnerRoot
+    )
+    UIManager.Instance:OpenWidgetAsync(info)
+end
+function BattleTeamModule:OnOpenWindowMenu(...)
+    self.PartnerWindow:OnShowMenu()
+end
+
+function BattleTeamModule:GetOldTabIndex()
+    return self.PartnerWindow:GetOldTabIndex()
+end
+function BattleTeamModule:OnCloseWindowMenu(...)
+    self.PartnerWindow:OnHideMenu()
+end
+-- 监听打开出战界面事件
+function BattleTeamModule:OnOpenBattleTeam(...)
+    self:CloseLastWidget()
+    self.AsyncLoadBattleTeamWidgetCb = function(ui)
+        if ui ~= nil then
+            if self.battleTeamWidgetView == nil then
+                self.battleTeamWidgetView = ui:GetLuaPanel().ScriptTable
+            end
+        end
+        self.AsyncLoadBattleTeamWidgetCb = nil
+    end
+    local info = self:AddWidget(BattleTeamWidgetPath, false, self.Partners, self.PartnerRoot, CS.StarProjectDef.MainPageCommond.HideNone, false, false, self.AsyncLoadBattleTeamWidgetCb)
+    UIManager.Instance:OpenWidgetAsync(info)
+end
+
+function BattleTeamModule:AddWidget(...)
+    local info = CS.SGF.UI.Framework.WidgetInfo()
+    local tb = {...}
+
+    info.name = tb[1]
+
+    local _SetAsFirstSibling = false
+    if tb[2] ~= nil then
+        _SetAsFirstSibling = tb[2]
+    end
+    info.SetAsFirstSibling = _SetAsFirstSibling
+
+    info.arg = tb[3]
+
+    info.parent = tb[4]
+
+    local _mainPageCommond = CS.StarProjectDef.MainPageCommond.HideNone
+    if tb[5] ~= nil then
+        _mainPageCommond = tb[5]
+    end
+    info._mainPageCommond = _mainPageCommond
+
+    local _isInHudWhiteList = false
+    if tb[6] ~= nil then
+        _isInHudWhiteList = tb[6]
+    end
+    info.isInHudWhiteList = _isInHudWhiteList
+
+    local _isTopWidget = false
+    if tb[7] ~= nil then
+        _isTopWidget = tb[7]
+    end
+    info.isTopWidget = _isTopWidget
+
+    local _cb = nil
+    if tb[8] ~= nil then
+        _cb = tb[8]
+    end
+    info.cb = _cb
+
+    self.PartnerWindow.WindowScript:AddWidget(info.name, info)
+    return info
+end
+
+function BattleTeamModule:CloseLastWidget()
+    local lastName = self.PartnerWindow:CurrentWidgetName()
+    if lastName ~= nil and lastName ~= "" then
+        UIManager.Instance:CloseWidget(lastName, self.PartnerRoot, false)
+    end
+end
+
+-- LuaModule 创建
+function BattleTeamModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.BattleTeamModule, self)
+
+    self.Partners = {}
+    FixMessageManager.Instance:OnMessage(
+        FixUpdateDef.Partner,
+        function(data)
+            -- self:OnPartnerRefesh(data)
+        end,
+        nil
+    )
+
+    NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.AllPartnerListID,
+        function(data)
+            self:OnAllPartnerList(data)
+        end,
+        nil
+    )
+
+    NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.PartnerBattleRetID,
+        function(data)
+            self:OnPartnerBattleRet(data)
+        end,
+        nil
+    )
+
+    NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.PartnerFallRetID,
+        function(data)
+            self:OnPartnerFallRet(data)
+        end,
+        nil
+    )
+
+    NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.NoticePartnerListID,
+        function(data)
+            self:OnNoticePartnerList(data)
+        end,
+        nil
+    )
+
+    NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.PartnerUpgradeRetID,
+        function(data)
+            self:OnPartnerUpgradeRet(data)
+        end,
+        nil
+    )
+
+    NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.PartnerAssistRetID,
+        function(data)
+            self:OnPartnerAssistRet(data)
+        end,
+        nil
+    )
+
+    NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.PartnerChristenRetID,
+        function(data)
+            self:OnPartnerChristenRet(data)
+        end,
+        nil
+    )
+
+    NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.PartnerChristenSaveRetID,
+        function(data)
+            self:OnPartnerChristenSaveRet(data)
+        end,
+        nil
+    )
+
+    NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.PartnerUpStarRetID,
+        function(data)
+            self:OnPartnerUpStarRet(data)
+        end,
+        nil
+    )
+
+    NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.PartnerLimitBreakRetID,
+        function(data)
+            self:OnPartnerLimitBreakRet(data)
+        end,
+        nil
+    )
+
+    self.PartnerEquipUPRetEvent = LuaModuleDispatcher:Event(ModuleDef.BattleTeamModule, "PartnerEquipUPRetEvent")
+    NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.PartnerEquipUPRetID,
+        function(data)
+            self:OnPartnerEquipUPRet(data)
+        end,
+        nil
+    )
+
+    self.PartnerUpgradeNewRetEvent = LuaModuleDispatcher:Event(ModuleDef.BattleTeamModule, "PartnerUpgradeNewRetEvent")
+    NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.PartnerUpgradeNewRetID,
+        function(data)
+            self:OnPartnerUpgradeNewRet(data)
+        end,
+        nil
+    )
+
+    self.WearParEquipRetEvent = LuaModuleDispatcher:Event(ModuleDef.BattleTeamModule, "WearParEquipRetEvent")
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.WearParEquipRetID,
+        function(data)
+            self:OnWearParEquipRet(data)
+        end,
+        nil
+    )
+
+    self.TakeOffParEquipRetEvent = LuaModuleDispatcher:Event(ModuleDef.BattleTeamModule, "TakeOffParEquipRetEvent")
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.TakeOffParEquipRetID,
+        function(data)
+            self:OnTakeOffParEquipRet(data)
+        end,
+        nil
+    )
+
+    CS.SGF.Network.MsgRetManager.Instance:OnMessageEnum(
+        function(data)
+            self:ErrorHandler(data)
+        end,
+        CS.MsgIDEnum.PartnerBattleReqID,
+        CS.MsgIDEnum.PartnerAssistReqID,
+        CS.MsgIDEnum.PartnerFallReqID,
+        CS.MsgIDEnum.PartnerLimitBreakReqID,
+        CS.MsgIDEnum.PartnerUpStarReqID
+    )
+end
+
+function BattleTeamModule:ErrorHandler(data)
+    local RetMsgID = data.MsgRet.RetMsgID -- 对应的消息号(这个可以判断是哪个协议)
+
+    local RetCode = data.MsgRet.RetCode
+    if RetCode ~= 0 then
+        if RetMsgID == CS.MsgIDEnum.PartnerBattleReqID then
+            CS.StarProject.GlobalEvent.OnPartnerBattleRet:Invoke(false)
+        elseif RetMsgID == CS.MsgIDEnum.PartnerAssistReqID then
+            CS.StarProject.GlobalEvent.OnPartnerAssistRet:Invoke(false)
+        elseif RetMsgID == CS.MsgIDEnum.PartnerFallReqID then
+            CS.StarProject.GlobalEvent.OnPartnerFallRet:Invoke(false)
+        elseif RetMsgID == CS.MsgIDEnum.PartnerLimitBreakReqID then
+            CS.StarProject.GlobalEvent.OnPartnerTopped:Invoke(false)
+        elseif RetMsgID == CS.MsgIDEnum.PartnerUpStarReqID then
+            CS.StarProject.GlobalEvent.OnPartnerUpStar:Invoke(false)
+        end
+    end
+end
+
+-- LuaModule 消息处理
+function BattleTeamModule:OnModuleMessage(msg, ...)
+    return self.ModuleMessages[msg](...)
+end
+
+-- 伙伴新的差量同步
+function BattleTeamModule:OnPartnerRefesh(data)
+    if data == nil then
+        return
+    end
+    -- 修改的
+    for i = 0, data.Changes.Count - 1 do
+        local item = data.Changes[i]
+        local index = self:GetPartnerIndex(item)
+        if index == -1 then
+            ---新增
+            table.insert(self.Partners, item)
+        else
+            self.Partners[index] = item
+        end
+        ---数据刷新[这个要问一下]
+        CS.StarProject.GlobalEvent.OnPartnerFresh:Invoke(item.Index)
+    end
+    -- 删
+    for i = 0, data.Delets.Count - 1 do
+        local item = data.Delets[i]
+        local index = self:GetPartnerIndex(item)
+        if index ~= -1 then
+            table.remove(self.Partners, index)
+        end
+    end
+end
+
+-- 接收全量伙伴列表
+function BattleTeamModule:OnAllPartnerList(data)
+    if data == nil then
+        return
+    end
+
+    -- 获取伙伴数据
+    self.Partners = {}
+
+    local allPartnerList = data.data
+    local partners = allPartnerList.Pars
+    -- 伙伴数据
+    for i = 0, partners.Count - 1 do
+        local partner = partners[i]
+        table.insert(self.Partners, partner)
+    end
+end
+
+-- 替换|出战返回
+function BattleTeamModule:OnPartnerBattleRet(data)
+    if data == nil then
+        return
+    end
+
+    -- if data.ReplaceSeat ~= -1 then
+    ---- 替换
+    -- else
+    ---- 上阵
+    -- end
+    if data.data.Ret == CS.ProtoMsg.PartnerOperate.OpOk then
+        CS.StarProject.GlobalEvent.OnPartnerBattleRet:Invoke(true)
+    end
+
+    if self.battleTeamWidgetView ~= nil and self.battleTeamWidgetView.IsOpen then
+        self.battleTeamWidgetView:OnReplacePartner(self.Partners, data.data)
+    end
+end
+
+-- 伙伴出战列表助战列表 下阵 s回复
+function BattleTeamModule:OnPartnerFallRet(data)
+    if data.data.Ret == CS.ProtoMsg.PartnerOperate.OpOk then
+        CS.StarProject.GlobalEvent.OnPartnerFallRet:Invoke(true)
+    end
+end
+
+function BattleTeamModule:GetPartnerIndex(dirtyPartner)
+    if self.Partners == nil or self.Partners == {} then
+        return 0
+    end
+
+    for _k, _v in pairs(self.Partners) do
+        if _v.Index == dirtyPartner.Index then
+            return _k
+        end
+    end
+    return -1
+end
+function BattleTeamModule:GetPartner(index)
+    if self.Partners == nil then
+        return nil
+    end
+
+    for _k, _v in pairs(self.Partners) do
+        if _v.Index == index then
+            return _v
+        end
+    end
+    return nil
+end
+
+-- 伙伴脏数据
+function BattleTeamModule:OnNoticePartnerList(data)
+    if data == nil or data.data == nil then
+        return
+    end
+
+    local dirtyPartnerList = data.data.Pars
+    for i = 0, dirtyPartnerList.Count - 1 do
+        local dirtyPartner = dirtyPartnerList[i]
+        local index = self:GetPartnerIndex(dirtyPartner)
+		local config=ConfigDataAccessor.Partner[dirtyPartner.Index]
+		if config~=nil and config.TemporaryPar==0 then
+			
+	        if index == -1 then
+	            ---新增
+	            table.insert(self.Partners, dirtyPartner)
+	            LocalCache.GetPartnerRedPointData:AddPartner(dirtyPartner.Index)
+	        else
+	            self.Partners[index] = dirtyPartner
+	        end
+	        ---数据刷新
+	        CS.StarProject.GlobalEvent.OnPartnerFresh:Invoke(dirtyPartner.Index)
+		end
+    end
+end
+
+function BattleTeamModule:OnPartnerUpgradeRet(data)
+    local UpgradeRet = data.data
+    if UpgradeRet.Ret == CS.ProtoMsg.PartnerOperate.OpOk then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_7"))
+        CS.StarProject.GlobalEvent.OnPartnerUpLevel:Invoke(UpgradeRet.Index, UpgradeRet.AddLv)
+    end
+end
+
+function BattleTeamModule:OnPartnerAssistRet(data)
+    local PartnerAssistRet = data.data
+
+    -- //伙伴ID，配置表ID
+    -- required int32 ID = 1;
+    -- //助战者下标
+    -- required int32 Seat = 2;
+    -- //如果是替换，对应的ID
+    -- required int32 ReplaceID = 3;
+    -- //如果是替换，对应的下标
+    -- required int32 ReplaceSeat = 4;
+    -- //返回值
+    -- required PartnerOperate Ret = 5;
+
+    if PartnerAssistRet.Ret == CS.ProtoMsg.PartnerOperate.OpOk then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_8"))
+        CS.StarProject.GlobalEvent.OnPartnerUpgrade:Invoke(PartnerAssistRet.ID) -- PartnerAssistRet.Index
+        CS.StarProject.GlobalEvent.OnPartnerAssistRet:Invoke(true)
+    end
+end
+
+function BattleTeamModule:OnPartnerChristenRet(data)
+    local PartnerChristenRet = data.data
+
+    if PartnerChristenRet.Ret == CS.ProtoMsg.PartnerOperate.OpOk then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_9"))
+        CS.StarProject.GlobalEvent.OnPartnerUpgrade:Invoke(PartnerChristenRet.Index)
+    end
+end
+
+function BattleTeamModule:OnPartnerChristenSaveRet(data)
+    local PartnerChristenSaveRet = data.data
+    local IsSave = data.IsSave
+    if PartnerChristenSaveRet.Ret == CS.ProtoMsg.PartnerOperate.OpOk then
+        CS.StarProject.GlobalEvent.OnPartnerUpgrade:Invoke(PartnerChristenSaveRet.Index)
+        if IsSave then
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_10"))
+        end
+    else
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_11"))
+    end
+end
+
+function BattleTeamModule:OnPartnerLimitBreakRet(data)
+    local PartnerLimitBreakRet = data.data
+
+    if PartnerLimitBreakRet.Ret == CS.ProtoMsg.PartnerOperate.OpOk then
+        CS.StarProject.GlobalEvent.OnPartnerTopped:Invoke(true)
+    end
+end
+
+------------------- 升星界面逻辑 【start】 -----------------------------
+
+-- 打开升星界面
+function BattleTeamModule:OnOpenStarRiseWidget(...)
+    if self.Partners == nil or GetTableLen(self.Partners) < 1 then
+        return
+    end
+    local tb = ...
+    local index = 0 -- 伙伴ID，配置表ID
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        index = tb[1]
+    else
+        -- C#调用
+        index = tb[0]
+    end
+    if index == 0 then
+        index = self.Partners[1].Index
+    end
+
+    if index == 0 then
+        return
+    end
+    self:CloseLastWidget()
+    local info =
+        self:AddWidget(
+        PartnerStarRiseWidgetPath,
+        false,
+        {
+            Partners = self.Partners,
+            SelectIndex = index
+        },
+        self.PartnerRoot
+    )
+    UIManager.Instance:OpenWidgetAsync(info)
+end
+-- 升星请求
+function BattleTeamModule:OnPartnerUpStarReq(...)
+    local tb = ...
+    local index = 0
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        index = tb[1]
+    else
+        -- C#调用
+        index = tb[0]
+    end
+    local msg = CS.ProtoMsg.PartnerUpStarReq()
+    msg.Index = index
+    local gameSocket = NetworkManager.Instance.gameSocket
+    gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, msg, false, 0, false)
+end
+-- 升星回调
+function BattleTeamModule:OnPartnerUpStarRet(data)
+    local PartnerUpStarRet = data.data
+
+    if PartnerUpStarRet.Ret == CS.ProtoMsg.PartnerOperate.OpOk then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_12"))
+        CS.StarProject.GlobalEvent.OnPartnerUpStar:Invoke(true)
+    end
+end
+
+-- 打开升阶窗口
+function BattleTeamModule:OnOpenLevelUpWindow(...)
+    local tb = ...
+    local id = tb[1]
+    local eid = tb[2]
+
+    -- local levelUpWindowCS =  UIManager.Instance:OpenWindow(LevelUpWindowPath, nil, CS.StarProjectDef.MainPageCommond.HideNone);
+    -- if self.levelUpWindowView == nil then
+    -- 	self.levelUpWindowView=levelUpWindowCS:GetLuaPanel().ScriptTable;
+    -- 	self.levelUpWindowView:BindModule(self);
+    -- 	self.levelUpWindowView:InitControls();
+    -- end
+
+    -- self.levelUpWindowView:Init(id,eid);
+
+    self.AsyncLoadLevelUpWindowCb = function(ui)
+        if ui ~= nil then
+            if self.levelUpWindowView == nil then
+                self.levelUpWindowView = ui:GetLuaPanel().ScriptTable
+                self.levelUpWindowView:BindModule(self)
+                self.levelUpWindowView:InitControls()
+            end
+
+            self.levelUpWindowView:Init(id, eid)
+        end
+        self.AsyncLoadLevelUpWindowCb = nil
+    end
+    UIManager.Instance:OpenWindowAsync(LevelUpWindowPath, self.AsyncLoadLevelUpWindowCb, nil, CS.StarProjectDef.MainPageCommond.HideNone)
+end
+
+-- 打开选择道具窗口
+function BattleTeamModule:OnOpenEquipSelWindow(...)
+    local tb = ...
+    local tp = tb[1]
+    local arg1 = tb[2]
+    local arg2 = tb[3]
+    local arg3 = tb[4]
+    local arg4 = tb[5]
+    local arg5 = tb[6]
+
+    -- local equipSelWindowCS =  UIManager.Instance:OpenWindow(EquipSelWindowPath, nil, CS.StarProjectDef.MainPageCommond.HideNone);
+    -- if self.equipSelWindowView == nil then
+    -- 	self.equipSelWindowView=equipSelWindowCS:GetLuaPanel().ScriptTable;
+    -- 	self.equipSelWindowView:BindModule(self);
+    -- 	self.equipSelWindowView:InitControls();
+    -- end
+    -- self.equipSelWindowView:Init(tp, arg1, arg2, arg3, arg4, arg5);
+
+    self.AsyncLoadEquipSelWindowCb = function(ui)
+        if ui ~= nil then
+            if self.equipSelWindowView == nil then
+                self.equipSelWindowView = ui:GetLuaPanel().ScriptTable
+                self.equipSelWindowView:BindModule(self)
+                self.equipSelWindowView:InitControls()
+            end
+            self.equipSelWindowView:Init(tp, arg1, arg2, arg3, arg4, arg5)
+        end
+        self.AsyncLoadEquipSelWindowCb = nil
+    end
+    UIManager.Instance:OpenWindowAsync(EquipSelWindowPath, self.AsyncLoadEquipSelWindowCb, nil, CS.StarProjectDef.MainPageCommond.HideNone)
+end
+
+function BattleTeamModule:OnChangeCurSel(...)
+    if self.levelUpWindowView ~= nil then
+        self.levelUpWindowView:ChangeCurSel(...)
+    end
+end
+
+function BattleTeamModule:OpenPartnerMainWindow(...)
+    UIManager.Instance:OpenWindowAsync("Partner/Prefab/PartnerWindow", nil, nil, CS.StarProjectDef.MainPageCommond.HideNone)
+end
+
+------------------- 升星界面逻辑 【end】 -----------------------------
+
+function BattleTeamModule:OnPartnerEquipUPRet(data)
+    if self.partnerDetailWidget ~= nil then
+        self.partnerDetailWidget:RefreshEquips(false)
+    end
+
+    if self.PartnerEquipUPRetEvent ~= nil then
+        self.PartnerEquipUPRetEvent:Invoke(data.data)
+    end
+
+    -- local levelUpSucWindowCS =  UIManager.Instance:OpenWindow(LevelUpSucWindowPath, nil, CS.StarProjectDef.MainPageCommond.HideNone);
+    -- if self.levelUpSucWindowView == nil then
+    -- 	self.levelUpSucWindowView=levelUpSucWindowCS:GetLuaPanel().ScriptTable;
+    -- 	self.levelUpSucWindowView:BindModule(self);
+    -- 	self.levelUpSucWindowView:InitControls();
+    -- end
+    -- self.levelUpSucWindowView:Init(data.data.ItemID);
+
+    self.AsyncLoadLevelUpSucWindowCb = function(ui)
+        if ui ~= nil then
+            if self.levelUpSucWindowView == nil then
+                self.levelUpSucWindowView = ui:GetLuaPanel().ScriptTable
+                self.levelUpSucWindowView:BindModule(self)
+                self.levelUpSucWindowView:InitControls()
+            end
+            self.levelUpSucWindowView:Init(data.data.ItemID)
+        end
+        self.AsyncLoadLevelUpSucWindowCb = nil
+    end
+    UIManager.Instance:OpenWindowAsync(LevelUpSucWindowPath, self.AsyncLoadLevelUpSucWindowCb, nil, CS.StarProjectDef.MainPageCommond.HideNone)
+end
+
+function BattleTeamModule:OnPartnerUpgradeNewRet(data)
+    print("升级回复" .. data.data.Index)
+    if self.PartnerUpgradeNewRetEvent ~= nil then
+        self.PartnerUpgradeNewRetEvent:Invoke(data.data)
+    end
+end
+
+function BattleTeamModule:OnWearParEquipRet(data)
+    if self.WearParEquipRetEvent ~= nil then
+        self.WearParEquipRetEvent:Invoke(data.data)
+    end
+
+    if self.partnerDetailWidget ~= nil then
+        self.partnerDetailWidget:RefreshEquips(false)
+    end
+end
+
+function BattleTeamModule:OnTakeOffParEquipRet(data)
+    if self.TakeOffParEquipRetEvent ~= nil then
+        self.TakeOffParEquipRetEvent:Invoke(data.data)
+    end
+
+    if self.partnerDetailWidget ~= nil then
+        -- self.partnerDetailWidget:RefreshEquips(true);
+        self.partnerDetailWidget:OnTakeOff()
+    end
+end
+
+-- LuaModule显示
+function BattleTeamModule:OnModuleShow(arg)
+end
+
+-- LuaModule 释放
+function BattleTeamModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.BattleTeamModule)
+end
+
+return BattleTeamModule

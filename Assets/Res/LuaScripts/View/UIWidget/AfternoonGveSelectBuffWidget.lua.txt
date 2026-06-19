@@ -1,0 +1,123 @@
+--[[
+*文件名   :   AfternoonGveSelectBuffWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/12/06 10:33:06"
+*创建人   :   "quzhenxin"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+AfternoonGveSelectBuffWidget=class("AfternoonGveSelectBuffWidget",UIPanel)
+
+local GngEffectBigItem= require("View/Item/GngEffectBigItem")
+
+
+function AfternoonGveSelectBuffWidget:Awake()
+	self.transform=self.prefab.transform;
+	self.gameObject=self.transform.gameObject;
+
+    
+
+	self.SelectBuff=-1;
+
+	--效果
+	self.effects={}
+	for i=1,3 do
+		local eff=GngEffectBigItem:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/C/Grid/GngEffectItem"..i).gameObject,function (it)
+			--效果点击事件
+			for i=1,#self.effects do
+				self.effects[i]:MakeSelected(false);
+			end
+			it:MakeSelected(true);
+			self.SelectBuff=it.BuffID;
+			self.go_BtnConfirm:SetActive(true);
+		end);
+		table.insert( self.effects, eff)
+	end
+
+
+
+	self.go_BtnConfirm=self.transform:Find("Cut4Cam90/AssemblyRatio2/C/AnimRoot/BtnConfirm").gameObject;
+	self.go_BtnConfirm:GetComponent(typeof(JButton)).OnClick=(function()
+
+		if self.SelectBuff>-1 then
+
+			--提交请求
+			self:OnPlayBack();
+			local GNGChooseBuffReq = CS.ProtoMsg.GNGChooseBuffReq();
+			GNGChooseBuffReq.BuffID=self.SelectBuff;
+			CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, GNGChooseBuffReq, false);
+
+		else
+			Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_253"));
+		end
+
+	end);
+
+
+end
+
+function AfternoonGveSelectBuffWidget:Start()
+
+end
+
+function AfternoonGveSelectBuffWidget:OnEnable()
+	
+end
+
+function AfternoonGveSelectBuffWidget:OnDisable()
+	
+end
+
+function AfternoonGveSelectBuffWidget:OnDestroy()
+
+end
+
+
+function AfternoonGveSelectBuffWidget:RefeshData()
+
+	
+end
+
+function AfternoonGveSelectBuffWidget:OnOpen(arg)
+
+	self.SelectBuff=-1;
+	self.go_BtnConfirm:SetActive(false);
+
+	for i=1,#self.effects do
+		self.effects[i].gameObject:SetActive(false);
+		self.effects[i]:MakeSelected(false);
+	end
+
+
+	local M_MainPlayerCtrlBase=GameManager.Instance.M_MainPlayerCtrlBase;
+	if M_MainPlayerCtrlBase~=nil and M_MainPlayerCtrlBase.Data~=nil and M_MainPlayerCtrlBase.Data.Attrs~=nil then
+		local GNGUserData =	M_MainPlayerCtrlBase.Data.Attrs:GetProtoValue(CS.StarProjectDef.AOIAttrDefine.GNGData);
+		if GNGUserData ~= nil then
+
+			local WaitBuffList = GNGUserData.WaitBuffList;
+			--待选的buff
+			for i=0,WaitBuffList.Count-1 do
+				self.effects[i+1].gameObject:SetActive(true);
+				self.effects[i+1]:SetItem(WaitBuffList[i]);
+			end
+
+		end
+	end
+
+end
+
+
+function AfternoonGveSelectBuffWidget:OnClose(arg)
+
+end
+
+function AfternoonGveSelectBuffWidget:OnPlayBack()
+
+	self.gameObject:SetActive(false);
+	UIManager.Instance:CloseWidget("Event/AfternoonGveSelectBuffWidget",nil,false);
+
+end
+
+
+
+return  AfternoonGveSelectBuffWidget

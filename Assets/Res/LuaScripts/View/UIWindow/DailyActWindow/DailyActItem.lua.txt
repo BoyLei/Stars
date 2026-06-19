@@ -1,0 +1,71 @@
+local DailyActItem = {}
+
+DailyActItem.__index = DailyActItem
+
+function DailyActItem:New(go)
+    local self = {};
+    setmetatable(self, DailyActItem);
+
+    self.transform = go.transform;
+    self.gameObject = go;
+
+    self:InitControls();
+
+    return self;
+end
+
+function DailyActItem:InitControls()
+    self.goButton = self.transform:Find("Forward/GoBtn"):GetComponent(typeof(Button));
+    self.goButton.onClick:AddListener(function() 
+        --去做任务
+        --使用JumpID
+        -- JumpByJumpID(25,function (JumpID)
+        --     -- local formArgs={3,2,self.TaskCycle};
+        --     -- local toArgs={};
+        --     -- ModuleManager.Instance:SendMessage_Stack_Internal(ModuleDef.CommercializationModule,ModuleDef.EventModule,formArgs,toArgs,"Show");
+        -- end);
+
+        local JumpID = ConfigDataAccessor.DailyPlayActivTaskList[self.cfgData.TaskEvent].SystemJump;
+        local cfg=ConfigDataAccessor.SystemJump[JumpID];
+        if cfg~=nil then
+            JumpBySystemJumpEnum(cfg.WayString);
+            --UIManager.Instance:CloseWindow("DailyAct/Prefab/DailyActWindow");
+        end
+	end);
+    self.finishGo = self.transform:Find("Forward/Finished").gameObject;
+    self.fullGo = self.transform:Find("Forward/Full").gameObject;
+
+    self.scoreText = self.transform:Find("Progress/Image/Score"):GetComponent(typeof(Text));
+    self.totalText = self.transform:Find("Progress/Image/Total"):GetComponent(typeof(Text));
+
+    self.descText = self.transform:Find("Desc"):GetComponent(typeof(Text));
+
+
+    self.percentImag = self.transform:Find("Progress/Image/Percent"):GetComponent(typeof(Image));
+    self.percentImag.fillAmount = 1;
+end
+
+function DailyActItem:InitData(cli,srv,isFull)
+    self.cfgData = cli;
+    self.scoreText.text = srv.EventProgress*cli.OnceGetActiv
+    self.totalText.text = cli.MaxCompProgress*cli.OnceGetActiv
+	
+	local str = Util.StringFormatter(cli.ShowText, srv.EventProgress.."/"..cli.MaxCompProgress);
+    self.descText.text = str;
+
+    self.percentImag.fillAmount = srv.EventProgress / cli.MaxCompProgress;
+
+    local isFinish = srv.EventProgress == cli.MaxCompProgress;
+    self.goButton.gameObject:SetActive(not isFinish and not isFull);
+    self.finishGo:SetActive(isFinish);
+    self.fullGo:SetActive(isFull and not isFinish);
+
+
+    local JumpID = ConfigDataAccessor.DailyPlayActivTaskList[self.cfgData.TaskEvent].SystemJump;
+    local cfg=ConfigDataAccessor.SystemJump[JumpID];
+    if JumpID==nil or JumpID==0 then
+        self.goButton.gameObject:SetActive(false);
+    end
+end
+
+return DailyActItem

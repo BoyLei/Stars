@@ -1,0 +1,166 @@
+;--[[
+*文件名   :   SkillOpenWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/10/31 15:00:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] SkillOpenWidget = class("SkillOpenWidget", UIPanel)
+
+SkillOpenWidget.SkillData = {}
+
+function SkillOpenWidget:Awake()
+    self.gameObject = self.prefab;
+    self.transform = self.prefab.transform;
+    self.onCloseDestroy(true)
+
+    self.TagGroupArr = {}
+    self.m_SkillIconImage = self.transform:Find("Cut4Cam90/AssemblyRatio2/AnimRoot/TouchNode/UINode/IconSkill/SkillIconImage"):GetComponent(typeof(Image))
+    self.m_SkillNameText = self.transform:Find("Cut4Cam90/AssemblyRatio2/AnimRoot/TouchNode/UINode/SkillNameText"):GetComponent(typeof(Text))
+    self.m_SkillDescText = self.transform:Find("Cut4Cam90/AssemblyRatio2/AnimRoot/TouchNode/UINode/SkillDescText"):GetComponent(typeof(Text))
+    self.m_CheckSkillBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/AnimRoot/TouchNode/UINode/CheckSkillBtn"):GetComponent(typeof(JButton))
+    self.m_FlyRoot = self.transform:Find("Cut4Cam90/AssemblyRatio2/AnimRoot/TouchNode/UINode/FlyRoot").transform
+    self.m_FlyAnimNode = self.transform:Find("Cut4Cam90/AssemblyRatio2/AnimRoot/TouchNode/UINode/FlyRoot/FlyAnimNode").gameObject
+    self.titletext = self.transform:Find("Cut4Cam90/AssemblyRatio2/AnimRoot/TouchNode/UINode/IconBg/Title"):GetComponent(TText)
+    for i=1,2 do
+        local data = {}
+        local tagRoot = self.transform:Find("Cut4Cam90/AssemblyRatio2/AnimRoot/TouchNode/UINode/TagLab"..i).gameObject
+        local tagText = tagRoot.transform:Find("TagTxt"):GetComponent(typeof(Text))
+        data.TagRoot = tagRoot
+        data.TagText = tagText
+        self.TagGroupArr[i] = data
+    end
+
+    self.m_CheckSkillBtn.OnClick = function()
+        self:OnClickCheckSkillBtn();
+    end
+end
+
+function SkillOpenWidget:OnClickCheckSkillBtn()
+    LuaModuleDispatcher:SendMessage(ModuleDef.SkillWindowModule, "OnOpenSkill", {selSkill = self.selSkill});
+    self:Close()
+end
+
+function SkillOpenWidget:RenderAllView(data)
+    self.selSkill = nil
+    if data.TalentType ~= 0 and data.TalentType ~= nil then 
+        self:InitTalentShow(data)
+        return
+    end
+    self.titletext.text = LanguageHelp:GetLanguageByKey("Str_SkillUnlockTitle")
+    self.SkillData = data
+    ResourceHelper:LoadIconByAtlasAsync(self.m_SkillIconImage, "UI/Icons/Atlas/IconSkill", self.SkillData.SkillIcon, true)
+    self.m_SkillNameText.text = self.SkillData.SkillName
+    self.m_SkillDescText.text = self.SkillData.SkillDesc
+    for i=1, #self.TagGroupArr do
+        local haveTag = self.SkillData.TalentLabel ~= nil and self.SkillData.TalentLabel[i] ~= nil
+        self.TagGroupArr[i].TagRoot:SetActive(haveTag)
+        if haveTag then
+            self.TagGroupArr[i].TagText.text = self.SkillData.TalentLabel[i]
+        end
+    end
+
+    self.m_CheckSkillBtn.gameObject:SetActive(not self.SkillData.IsMainPageSkill)
+
+    local targetTransform = self.Module:GetFlyTargetTransform(self.SkillData)
+    if targetTransform ~= nil then
+        local go = GameObject.Instantiate(self.m_FlyAnimNode, self.m_FlyRoot)
+        local tail = go.transform:Find("Tail").gameObject
+        local bao = go.transform:Find("Bao").gameObject
+        go:SetActive(true)
+        tail:SetActive(true)
+        bao:SetActive(false)
+
+        go.transform:DOMove(targetTransform.position, 0.4, false):OnComplete(function()
+            tail:SetActive(false)
+            bao:SetActive(true)
+            DOVirtual.DelayedCall(0.2, function()
+                if go ~= nil and not Util.IsNull(go) then
+                    GameObject.Destroy(go)
+                end
+            end)
+        end)
+    end
+end
+
+function SkillOpenWidget:InitTalentShow(data)
+
+    self.titletext.text = LanguageHelp:GetLanguageByKey("Str_TalentUnlockTitle")
+    local skillId = data.BattleActive[1]  --data.BelongSkill
+	local skillConfig = ConfigDataAccessor.SkillDescList[skillId*100 + 1]
+	if skillConfig == nil then
+        logError("invalid skillid == "..skillId)
+		return
+	end
+
+    ResourceHelper:LoadIconByAtlasAsync(self.m_SkillIconImage, "UI/Icons/Atlas/IconSkill", skillConfig.IconPath, true)
+    self.m_SkillNameText.text = skillConfig.SkillName..".".. LanguageHelp:GetLanguageByKey("SkillNew_31")..(data.TalentType+1) --self.SkillData.SkillName
+    self.m_SkillDescText.text = data.TalentDesc --self.SkillData.SkillDesc
+    for i=1, #self.TagGroupArr do
+        local haveTag = data.TalentLabel ~= nil and i == 1 --and skillConfig.TalentLabel[i] ~= nil
+        self.TagGroupArr[i].TagRoot:SetActive(haveTag)
+        if haveTag then
+            self.TagGroupArr[i].TagText.text = data.TalentLabel
+        end
+    end
+
+    self.selSkill = data.BelongSkill
+    self.m_CheckSkillBtn.gameObject:SetActive(true)
+
+    -- local targetTransform = self.Module:GetFlyTargetTransform(self.SkillData)
+    -- if targetTransform ~= nil then
+    --     local go = GameObject.Instantiate(self.m_FlyAnimNode, self.m_FlyRoot)
+    --     local tail = go.transform:Find("Tail").gameObject
+    --     local bao = go.transform:Find("Bao").gameObject
+    --     go:SetActive(true)
+    --     tail:SetActive(true)
+    --     bao:SetActive(false)
+
+    --     go.transform:DOMove(targetTransform.position, 0.4, false):OnComplete(function()
+    --         tail:SetActive(false)
+    --         bao:SetActive(true)
+    --         DOVirtual.DelayedCall(0.2, function()
+    --             if go ~= nil and not Util.IsNull(go) then
+    --                 GameObject.Destroy(go)
+    --             end
+    --         end)
+    --     end)
+    -- end
+end
+
+function SkillOpenWidget:BindModule(m)
+    self.Module = m;
+end
+
+function SkillOpenWidget:Start()
+
+end
+
+function SkillOpenWidget:OnEnable()
+
+end
+
+function SkillOpenWidget:OnDisable()
+
+end
+
+function SkillOpenWidget:OnDestroy()
+    if self.Module ~= nil then
+        self.Module:OnSkillOpenWidgetDestroy()
+    end
+end
+
+function SkillOpenWidget:OnOpen(arg)
+    -- self.SkillData = arg
+    self.timer = DOVirtual.DelayedCall(5, function ()
+        self:Close()
+    end)
+end
+
+function SkillOpenWidget:OnClose(arg)
+    if self.timer ~= nil then
+        self.timer:Kill()
+    end
+end
+
+return SkillOpenWidget

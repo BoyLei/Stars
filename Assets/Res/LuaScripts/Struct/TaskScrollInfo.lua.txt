@@ -1,0 +1,39 @@
+---------------------------------------------------------------------
+-- Stars (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2022-10-31 17:50:09
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class TaskScrollInfo
+TaskScrollInfo =class("TaskScrollInfo")
+local ScrollType=0;  --0 无效数据  1 任务类型名称  2 章节名称  3 具体任务名称
+local TaskTypeName=nil;
+local TaskCharpterName=nil;
+local TaskName=nil;
+local TaskInfo=nil;
+local select=false;
+function TaskScrollInfo:ctor(type,taskTypeName,taskCharpterName,taskName,taskinfo)
+	self.ScrollType=type;
+	self.TaskTypeName=taskTypeName;
+	self.TaskCharpterName=taskCharpterName;
+	self.TaskName=taskName;
+	self.TaskInfo=taskinfo;
+	self.select=false;
+end
+
+function TaskScrollInfo:GetHeight()
+	if self.ScrollType==1 then
+		return 70
+	elseif self.ScrollType==2 then
+		return 70
+	elseif self.ScrollType==3 then
+		return 105
+	else
+		return 100
+	end
+end
+
+return TaskScrollInfo

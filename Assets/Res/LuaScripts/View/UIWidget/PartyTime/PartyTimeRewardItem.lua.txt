@@ -1,0 +1,70 @@
+--[[
+*文件名   :   PartyTimeRewardItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local PartyTimeRewardItem = {}
+
+PartyTimeRewardItem.__index = PartyTimeRewardItem
+
+local ItemGrid=require("View/Item/ItemGrid");
+
+
+function PartyTimeRewardItem:New(_go) 
+    local self = {};    
+    setmetatable(self, PartyTimeRewardItem); 
+    
+
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+    self.rank=self.transform:Find("rank"):GetComponent(typeof(Text));
+
+    --道具
+    self.items={}
+    for i=1,6 do
+        local it = ItemGrid:New(self.transform:Find("Items/ItemGrid"..i).gameObject);
+        it:InitItem(false,function(ritem)  
+            self:OnItemClick(ritem);
+        end);
+        table.insert( self.items,it);
+    end
+
+
+    return self;    --返回自身
+end
+
+
+function PartyTimeRewardItem:OnItemClick(ritem)
+	LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",{ ritem.BaseID,false ,0,ritem.transform,0});
+end
+
+function PartyTimeRewardItem:SetItem(data)
+
+    self.rank.text=data.rankTex;
+
+
+
+    --消耗道具
+	for i=1,#self.items do
+        self.items[i].gameObject:SetActive(false);
+	end
+
+    
+    --消耗道具
+	for i=1,#data.reward do
+        self.items[i].gameObject:SetActive(true);
+        if data.num~= nil then
+            self.items[i]:SetItemNum(data.reward[i],data.num[i]);
+        else
+            self.items[i]:SetItemNum(data.reward[i],0);
+        end
+	end
+
+end
+
+return PartyTimeRewardItem;

@@ -1,0 +1,177 @@
+--[[
+*文件名   :   LifeSkillCreatWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2024/01/18 16:14:04"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]] LifeSkillCreatWidget = class("LifeSkillCreatWidget", UIPanel)
+LifeSkillCreatWidget.m_Slider = nil;
+LifeSkillCreatWidget.m_Text = nil;
+
+-- 单次CD
+LifeSkillCreatWidget.SingleCD = 1;
+
+-- 配方ID
+LifeSkillCreatWidget.CreateID = 0;
+
+-- 制造上限
+LifeSkillCreatWidget.MaxCnt = 1;
+
+-- 当前运行时间
+LifeSkillCreatWidget.RunnigTime = 0;
+
+-- update方法
+LifeSkillCreatWidget.UpdateFun = nil;
+
+LifeSkillCreatWidget.WaitingServerRet = false;
+function LifeSkillCreatWidget:Awake()
+    self.m_Slider = self:Find("Inter/Slider"):GetComponent(typeof(Slider));
+    self.m_Text = self:Find("Inter/Text"):GetComponent(typeof(Text));
+
+    self.UpdateFun = function()
+        self:UpdateTime();
+    end
+
+    CS.StarProject.GlobalEvent.OnBattleStateChange:AddListener(function(battle)
+        self:OnBattleStateChange(battle);
+    end);
+
+    CS.StarProject.GlobalEvent.OnStopCreate:AddListener(function(id)
+        self:OnStopCreate(id);
+    end);
+
+end
+
+function LifeSkillCreatWidget:OnStopCreate(id)
+    if id == 2 then
+        MonoHelper.RemoveUpdateListener(self.UpdateFun);
+        self.Close();
+    end
+end
+
+function LifeSkillCreatWidget:OnBattleStateChange(battle)
+    if battle then
+        MonoHelper.RemoveUpdateListener(self.UpdateFun);
+        self.Close();
+    end
+end
+
+function LifeSkillCreatWidget:UpdateTime()
+    if self.WaitingServerRet then
+        return
+    end
+    if self.RunnigTime >= self.SingleCD then
+
+        -- 发送消息
+        LuaModuleDispatcher:SendMessage(ModuleDef.LivingSkillsModule, "LifeSkillProduceItemReq", self.CreateID);
+        self.WaitingServerRet = true;
+        if self.MaxCnt < 1 then
+
+            self.m_Slider.value = 1;
+            MonoHelper.RemoveUpdateListener(self.UpdateFun);
+            self.Close();
+        end
+        return
+    end
+
+    self.RunnigTime = self.RunnigTime + Time.deltaTime;
+    self.m_Slider.value = self.RunnigTime * 1.0 / self.SingleCD;
+end
+
+function LifeSkillCreatWidget:Start()
+
+    -- local OnLifeSkillProduceItemRet=LuaModuleDispatcher:Event(ModuleDef.LivingSkillsModule,"LifeSkillProduceItemRetEvent");
+    -- OnLifeSkillProduceItemRet:AddListener(function (data)
+    -- self:OnLifeSkillProduceItemRet(data);
+    -- end)
+    CS.SGF.Network.MsgRetManager.Instance:OnMessageEnum(function(data)
+        self:OnLifeSkillProduceItemRet(data)
+    end, CS.MsgIDEnum.LifeSkillProduceItemReqID);
+end
+
+function LifeSkillCreatWidget:OnLifeSkillProduceItemRet(args)
+
+    local RetMsgID = args.MsgRet.RetMsgID; -- 对应的消息号(这个可以判断是哪个协议)
+
+    local RetCode = args.MsgRet.RetCode;
+    self.WaitingServerRet = false;
+    if RetCode == 0 then
+        if self.MaxCnt > 1 then
+            self.m_Slider.value = 0;
+            self.RunnigTime = 0;
+            self.MaxCnt = self.MaxCnt - 1;
+            local animation = ""
+            local cf = ConfigDataAccessor.LifeSkillCreateList[self.CreateID];
+            if cf ~= nil then
+                local configs = ConfigDataAccessor.LifeSkillJobList;
+                for k, v in pairs(configs) do
+                    if v.SkillID == cf.SkillID and v.Level == cf.Level then
+                        animation = v.Action;
+                        break
+                    end
+                end
+                BusinessManager.Instance:OnBeginCreating(cf.SkillID, animation)
+            end
+        else
+            MonoHelper.RemoveUpdateListener(self.UpdateFun);
+            self.Close();
+        end
+
+    else
+        MonoHelper.RemoveUpdateListener(self.UpdateFun);
+        self.Close();
+    end
+
+end
+
+function LifeSkillCreatWidget:OnEnable()
+
+end
+
+function LifeSkillCreatWidget:OnDisable()
+
+end
+
+function LifeSkillCreatWidget:OnDestroy()
+    MonoHelper.RemoveUpdateListener(self.UpdateFun);
+end
+
+function LifeSkillCreatWidget:OnOpen(arg)
+    MonoHelper.RemoveUpdateListener(self.UpdateFun);
+    self.WaitingServerRet = false;
+    self.SingleCD = arg.CD;
+    self.CreateID = arg.ID;
+    self.MaxCnt = arg.Max;
+    self.RunnigTime = 0;
+    self.m_Slider.value = 0;
+    self:OnBegine(true)
+    local animation = ""
+    local cf = ConfigDataAccessor.LifeSkillCreateList[self.CreateID];
+    if cf ~= nil then
+        local configs = ConfigDataAccessor.LifeSkillJobList;
+        for k, v in pairs(configs) do
+            if v.SkillID == cf.SkillID and v.Level == cf.Level then
+                animation = v.Action;
+                break
+            end
+        end
+        BusinessManager.Instance:OnBeginCreating(cf.SkillID, animation)
+    end
+    MonoHelper.AddUpdateListener(self.UpdateFun);
+end
+
+function LifeSkillCreatWidget:OnBegine(star)
+    if CS.StarProject.GlobalEvent.OnStopIner ~= nil then
+        CS.StarProject.GlobalEvent.OnStopIner:Invoke(2, self.CreateID, star);
+    end
+
+end
+
+function LifeSkillCreatWidget:OnClose(arg)
+    self.WaitingServerRet = false;
+    self:OnBegine(false)
+    BusinessManager.Instance:OnEndCreating()
+end
+
+return LifeSkillCreatWidget

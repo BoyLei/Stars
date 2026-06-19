@@ -1,0 +1,189 @@
+-- TalentInfoPanel
+local TalentInfoPanel = {}
+TalentInfoPanel.__index = TalentInfoPanel;
+
+local TalentItemNew = require("View/UIWindow/Skill/TalentItemNew");
+
+function TalentInfoPanel:New(obj)
+    local self = {};
+    setmetatable(self, TalentInfoPanel);
+
+    self.gameObject = obj;
+    self.transform = obj.transform;
+
+    self:Init()
+
+    return self;
+end
+
+function TalentInfoPanel:OnClose(closeCb)
+    self.m_closeCb = closeCb;
+end
+
+-- 天赋界面, 传入 返回按钮点击的 回调
+function TalentInfoPanel:Init()
+
+    self.m_root = self.transform:Find("Cut4Cam90");
+    self.m_Title = self.m_root:Find("Title"):GetComponent(typeof(Text));
+    self.m_skillDesc = self.m_root:Find("skillDesc"):GetComponent(typeof(Text));
+    -- 主动/被动/
+    self.m_TypeName = self.m_root:Find("biaoshi/TypeName"):GetComponent(typeof(Text));
+
+    self.m_TalentItemNew = self.m_root:Find("TalentItemNew").gameObject;
+
+    self.talents = {}
+
+    for i = 1, 3 do
+        local talentItem = GameObject.Instantiate(self.m_TalentItemNew);
+        local parent = self.m_root:Find("Talent" .. i).gameObject;
+
+        self.talents[i] = TalentItemNew:New(talentItem, parent);
+    end
+
+    self.m_TalentItemNew:SetActive(false);
+
+    local m_backBtn = self.m_root:Find("back"):GetComponent(typeof(JButton));
+    m_backBtn.OnClick = function()
+        self:Close();
+    end
+
+    self.m_closeCb = nil;
+
+    -- self.m_TypeName = self.m_root:Find("biaoshi/TypeName"):GetComponent(typeof(Text));
+    -- 标签
+    -- 主动技能
+    self.m_Zhu = self.m_root:Find("biaoshi/Zhu").gameObject;
+
+    -- 被动技能
+    self.m_Fu = self.m_root:Find("biaoshi/Fu").gameObject;
+
+    -- 大招
+    self.m_Neng = self.m_root:Find("biaoshi/Neng").gameObject;
+
+    -- 普攻
+    self.m_Normal = self.m_root:Find("biaoshi/Normal").gameObject;
+end
+
+-- 更新当前 天赋面板的显示 
+-- jobSkillID: 职业技能
+-- selectTalentID: 当前职业技能的天赋id
+-- lv:  天赋等级
+function TalentInfoPanel:Show(jobSkillID, selectTalentID, lv)
+
+    self.gameObject:SetActive(true);
+
+    self.jobSkillID = jobSkillID;
+    self.talentID = selectTalentID;
+    self.lv = lv;
+    self.talenCfg = nil;
+
+    local i = 1;
+    local talenCfgs = GetJobSkillTalents(jobSkillID);
+
+    for _, item in pairs(talenCfgs) do
+        -- 目前设定 就是最多 3个天赋,如果 后面有多个再说
+        if i <= 3 then
+            self.talents[i].gameObject:SetActive(true);
+            -- 根据玩家身上数据刷新
+            self.talents[i]:UpdateItem(jobSkillID, item.ID, lv, selectTalentID);
+        end
+
+        -- 获取 当前 天赋的配置
+        if item.ID == selectTalentID then
+            self.talenCfg = item;
+        end
+
+        i = i + 1;
+    end
+
+    -- 将 没有天赋配置的 天赋 节点关闭
+    for j = i, 3, 1 do
+        self.talents[j].gameObject:SetActive(false);
+    end
+
+    self.m_Title.text = "";
+
+    local skillDescCfg = GetJobSkillLevelDescCfg(self.talentID, self.lv);
+
+    if skillDescCfg ~= nil then
+        self.m_Title.text = skillDescCfg.SkillName;
+    end
+
+    self:RefreshDesc();
+end
+
+-- 设置技能类型 
+-- 1 被动
+-- 2 普攻
+-- 3 大招
+-- 4 普通职业技能
+-- 5 觉醒职业技能
+function TalentInfoPanel:SetSkillType(skillType)
+    -- local key = "SkillNew_36";
+
+    -- if skillType == 1 then
+
+    --     key = "SkillNew_37";
+
+    -- elseif skillType == 2 then
+
+    --     key = "SkillNew_38";
+
+    -- elseif skillType == 3 then
+
+    --     key = "SkillNew_39";
+
+    -- elseif skillType == 4 then
+
+    --     key = "SkillNew_36";
+    -- end
+
+    -- local skillTypeName = LanguageHelp:GetLanguageByKey(key);
+
+    -- self.m_TypeName.text = skillTypeName;
+
+    self:RefreshSkillType(skillType);
+end
+
+function TalentInfoPanel:RefreshDesc()
+    -- 2024/3/4
+    -- 技能优化单 8	天赋详情的文本描述与效果图不符（仅有技能名） 天赋详情的文本描述去掉
+
+    -- self.skillDescCfg = GetJobSkillLevelDescCfg(self.talentID, self.lv);
+
+    -- if self.skillDescCfg ~= nil then
+
+    -- self.m_skillDesc.text = self.skillDescCfg.SkillName;
+    -- end
+end
+
+-- 1 被动
+-- 2 普攻
+-- 3 大招
+-- 4 普通职业技能
+-- 5 觉醒职业技能
+function TalentInfoPanel:RefreshSkillType(skillType)
+
+    self.m_Zhu:SetActive(false);
+    self.m_Fu:SetActive(false);
+    self.m_Neng:SetActive(false);
+    self.m_Normal:SetActive(false);
+
+    if skillType == 1 then
+        self.m_Fu:SetActive(true);
+    elseif skillType == 2 then
+        self.m_Normal:SetActive(true);
+    elseif skillType == 3 then
+        self.m_Neng:SetActive(true);
+    else
+        self.m_Zhu:SetActive(true);
+    end
+end
+
+function TalentInfoPanel:Close()
+    self.gameObject:SetActive(false);
+
+    self.m_closeCb();
+end
+
+return TalentInfoPanel;

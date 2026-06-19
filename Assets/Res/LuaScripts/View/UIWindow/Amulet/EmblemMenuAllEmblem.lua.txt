@@ -1,0 +1,110 @@
+--[[
+*文件名   :   EmblemMenuAllEmblem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local EmblemMenuAllEmblem = {}
+
+EmblemMenuAllEmblem.__index = EmblemMenuAllEmblem
+
+local DefAmuletEquipInfoEmblemItem=require("View/Uiwindow/Amulet/DefAmuletEquipInfoEmblemItem")
+
+
+function EmblemMenuAllEmblem:New(_go,emblemMenu) 
+    local self = {};    
+    setmetatable(self, EmblemMenuAllEmblem); 
+    
+    self.EmblemMenu=emblemMenu;
+
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+	--关闭信息
+	local btnClose=self.transform:Find("BtnClose"):GetComponent(typeof(JButton));
+	btnClose.OnClick=(function()
+		self:Show(false);
+	end);
+
+    self.equipImage=self.transform:Find("EquipItem/Have/Icon"):GetComponent(typeof(Image));
+	self.equipBg=self.transform:Find("EquipItem/Have/BgRare"):GetComponent(typeof(Image));
+	self.equipAdd=self.transform:Find("EquipItem/Have/Num"):GetComponent(typeof(Text));
+    self.equipAdd.text="";
+
+
+    self.Name=self.transform:Find("Name"):GetComponent(typeof(Text));
+
+    --6个星次石
+    self.EmblemItems={};
+    for i =1,6 do
+        local _go=self.transform:Find("Info2/Mask/List/RuneItem"..i).gameObject;
+
+        local it=DefAmuletEquipInfoEmblemItem:New(_go);
+        it:InitItem(i);
+        table.insert( self.EmblemItems, it);
+    end
+
+
+
+    self:Show(false);
+
+    return self;    --返回自身
+end
+
+
+function EmblemMenuAllEmblem:Show(b,baseID)
+    self.gameObject:SetActive(b);
+    if b then
+        self:Refesh(baseID);
+    end
+end
+
+function EmblemMenuAllEmblem:Refesh(baseID)
+
+
+    local cfg=ConfigDataAccessor.Item[baseID];
+
+
+    local type=cfg.SubType;
+
+
+    local quality=cfg.Quality; 
+    --self.equipBg.sprite= AtlasManager.Instance:GetSprite("ui/common/atlas/commonitem","Bag_Grid_sq"..quality);
+    ResourceHelper:LoadIconByAtlasAsync(
+        self.equipBg,
+        ResourceHelper.AtlasPathCommonItem,
+        "Bag_Grid_sq"..quality,
+        false
+    )
+    --LoadIcon(self.equipImage,cfg.Icon);
+    ResourceHelper:LoadIconAsync(self.equipImage, "", cfg.Icon, false)
+	
+    self.Name.text=cfg.Name;
+
+    if type==1 then
+        --攻击类
+
+        --显示星次石底板
+        for i=1,6 do
+            --刷新星次石槽位信息
+            self.EmblemItems[i]:RefeshBoard(i);
+        end
+
+    else
+        --防御类
+
+        --显示星次石底板
+        for i=1,6 do
+            --刷新星次石槽位信息
+            self.EmblemItems[i]:RefeshBoard(10+i);
+        end
+    end
+end
+
+
+
+
+return EmblemMenuAllEmblem;

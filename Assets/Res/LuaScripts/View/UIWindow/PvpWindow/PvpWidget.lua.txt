@@ -1,0 +1,223 @@
+PvpWidget = class("PvpWidget", UIPanel)
+
+function PvpWidget:Awake()
+
+end
+
+function PvpWidget:BindModule(m)
+    PvpWidget.module = m;
+end
+
+function PvpWidget:InitControls()
+    self.transform = self.prefab.transform;
+    self.gameObject = self.transform.gameObject;
+
+    self.sceneName = self.transform:Find("Root/Name"):GetComponent(typeof(Text));
+    self.score1 = self.transform:Find("Root/Score/Score1"):GetComponent(typeof(Text));
+    self.name1 = self.transform:Find("Root/Score/Name1"):GetComponent(typeof(Text));
+    self.score2 = self.transform:Find("Root/Score/Score2"):GetComponent(typeof(Text));
+    self.name2 = self.transform:Find("Root/Score/Name2"):GetComponent(typeof(Text));
+    self.myscore = self.transform:Find("Root/MyScore"):GetComponent(typeof(Text));
+    self.myrank = self.transform:Find("Root/Rank"):GetComponent(typeof(Text));
+    local lookBtn = self.transform:Find("Root/LookBtn"):GetComponent(typeof(Button));
+    lookBtn.onClick:AddListener(function()
+        if self.battleInfoData == nil then
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_274"));
+        else
+            -- 获取当前战斗信息
+            self.module:OnShowBattleInfo();
+        end
+    end);
+
+    self.status = self.transform:Find("Root/Status"):GetComponent(typeof(Text));
+    self.time = self.transform:Find("Root/Time"):GetComponent(typeof(Text));
+
+    self.OnSecTimeUpdate1 = function()
+        self:OnSecTimeUpdateHandler1()
+    end
+
+    self.OnSecTimeUpdate2 = function()
+        self:OnSecTimeUpdateHandler2()
+    end
+end
+
+function PvpWidget:OnSecTimeUpdateHandler1()
+    self.curTime = self.curTime - 1;
+    if self.curTime < 0 then
+        self.curTime = 0;
+    end
+    self.time.text = tostring(self.curTime)..LanguageHelp:GetLanguageByKey("Local_Str_Time_second");
+end
+
+function PvpWidget:OnSecTimeUpdateHandler2()
+    local leftTime = GameManager.Instance:GetEctypeLeftTime();
+    if leftTime < 0 then
+        leftTime = 0;
+    end
+    --self.time.text = TimeUtils.GetTimeStringV2("%mm分钟%ss秒", leftTime);
+    self.time.text = TimeUtils.GetTimeStringV2("%mm"..LanguageHelp:GetLanguageByKey("Local_Str_Time_minute").."%ss".. LanguageHelp:GetLanguageByKey("Local_Str_Time_second"), leftTime);
+
+end
+
+function PvpWidget:SetTimeStatus(sta, t)
+    if sta == 1 then
+        self.status.text =LanguageHelp:GetLanguageByKey("Local_Str_start_countdown")
+        self.time.text = tostring(t);
+        self.curTime = t;
+        MonoHelper.RemoveSecTimeUpdateListener(self.OnSecTimeUpdate1);
+        MonoHelper.RemoveSecTimeUpdateListener(self.OnSecTimeUpdate2);
+        MonoHelper.AddSecTimeUpdateListener(self.OnSecTimeUpdate1);
+    else
+        self.status.text =LanguageHelp:GetLanguageByKey("Local_Str_battleground_countdown")
+        MonoHelper.RemoveSecTimeUpdateListener(self.OnSecTimeUpdate1);
+        MonoHelper.RemoveSecTimeUpdateListener(self.OnSecTimeUpdate2);
+        MonoHelper.AddSecTimeUpdateListener(self.OnSecTimeUpdate2);
+    end
+end
+
+function PvpWidget:InitWithoutSrv()
+    local recyclePlay = ConfigDataAccessor.RecyclePlay;
+    self.sceneName.text = recyclePlay[3].PlayName;
+
+    local factionRelationList = ConfigDataAccessor.FactionRelationList;
+
+    local myFaction = GameManager.Instance:GetMainPlayerFaction();
+    self.name1.text = factionRelationList[myFaction].FactionName;
+    self.name2.text = factionRelationList[11 - myFaction].FactionName;
+    self.myscore.text = "0";
+    self.myrank.text = "1/10";
+
+    self.score1.text = "0";
+    self.score2.text = "0";
+	
+	self.battleInfoData = nil;
+end
+
+function PvpWidget:Init(data)
+    if data == nil then
+        return;
+    end
+
+    self.battleInfoData = data;
+
+    local recyclePlay = ConfigDataAccessor.RecyclePlay;
+    self.sceneName.text = recyclePlay[3].PlayName;
+
+    local factionRelationList = ConfigDataAccessor.FactionRelationList;
+    local redScore = 0;
+    local blueScore = 0;
+
+    for k, v in pairs(data.FacDatas) do
+        local name = factionRelationList[k].FactionName;
+
+        local isMyTeam = false;
+        for i = 0, v.TeamDatas.Count - 1 do
+            local pm = v.TeamDatas[i];
+            if pm.EID == GameManager.Instance.mainPlayerId then
+                isMyTeam = true;
+                break
+            end
+        end
+
+        if isMyTeam then
+            self.name1.text = name;
+            local index = 0;
+            for i = 0, v.TeamDatas.Count - 1 do
+                local pm = v.TeamDatas[i];
+                blueScore = blueScore + pm.Score;
+
+                index = index + 1;
+                if pm.EID == GameManager.Instance.mainPlayerId then
+                    self.myscore.text = pm.Score;
+                    self.myrank.text = index .. "/" .. v.TeamDatas.Count;
+                end
+            end
+        else
+            self.name2.text = name;
+            for i = 0, v.TeamDatas.Count - 1 do
+                local pm = v.TeamDatas[i];
+                redScore = redScore + pm.Score;
+            end
+        end
+    end
+
+    self.score1.text = tostring(blueScore);
+    self.score2.text = tostring(redScore);
+end
+
+function PvpWidget:Refresh(data)
+    if data == nil then
+        return;
+    end
+
+    local redScore = 0;
+    local blueScore = 0;
+    local ps = 0;
+    local myRank = 0;
+
+    for k, v in pairs(data.FacDatas) do
+		local isMyTeam = false;
+		for i = 0, v.TeamDatas.Count - 1 do
+			local pm = v.TeamDatas[i];
+			if pm.EID == GameManager.Instance.mainPlayerId then
+				isMyTeam = true;
+				break;
+			end
+		end
+        if isMyTeam then
+            for i = 0, v.TeamDatas.Count - 1 do
+                local pm = v.TeamDatas[i];
+
+                if pm.EID == GameManager.Instance.mainPlayerId then
+                    ps = pm.Score;
+                    myRank = i+1;
+                end
+                blueScore = blueScore + pm.Score;
+            end
+        else
+            for i = 0, v.TeamDatas.Count - 1 do
+                local pm = v.TeamDatas[i];
+                redScore = redScore + pm.Score;
+            end
+        end
+    end
+
+    self.score1.text = tostring(blueScore);
+    self.score2.text = tostring(redScore);
+    self.myscore.text = ps;
+    self.myrank.text = myRank.."/10";
+
+end
+
+function PvpWidget:OnShow()
+end
+
+function PvpWidget:Start()
+
+end
+
+function PvpWidget:OnEnable()
+
+end
+
+function PvpWidget:OnDisable()
+
+end
+
+function PvpWidget:OnDestroy()
+
+end
+
+function PvpWidget:OnOpen(arg)
+    self.IsOpen = true;
+end
+
+function PvpWidget:OnClose(arg)
+    self:CloseWindow();
+end
+
+function PvpWidget:CloseWindow()
+    self.IsOpen = false;
+end
+
+return PvpWidget

@@ -1,0 +1,128 @@
+--[[
+*文件名   :   FuncTipsModule
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/10/31 14:54:39"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+FuncTipsModule = class("FuncTipsModule",BaseLuaModule)
+
+local FuncTipsWidgetPath = "FuncTips/FuncTipsWidget"
+
+--LuaModule 消息模块
+FuncTipsModule.ModuleMessages=
+{
+	--打开功能Tips
+	--ModuleManager.Instance.SendMessage(ModuleDef.FuncTipsModule, "OnOpenTips", new object[] { 1 }); //只要传一个对话ID
+	["OnOpenTips"]=function(...)
+		FuncTipsModule:OnOpenTips(...);
+	end,
+
+
+	--关闭功能Tips
+	--ModuleManager.Instance.SendMessage(ModuleDef.FuncTipsModule, "OnCloseTips", new object[] {  }); 
+	["OnCloseTips"]=function(...)
+		FuncTipsModule:OnCloseTips(...);
+	end,
+
+
+}
+
+--监听打开Tips事件
+function FuncTipsModule:OnOpenTips(...)
+	local tb=...
+	self.Type=0;
+	--传入功能ID
+	if type(tb)=="table" then
+		--Lua调用
+		self.Type=tb[1];
+		self.AimTransform=tb[2];
+	else
+		--C#调用
+		self.Type=tb[0];
+		self.AimTransform=tb[1];
+	end
+	
+	-- local tipsWidgetCs =UIManager.Instance:OpenWidget(FuncTipsWidgetPath,false,nil,nil,CS.StarProjectDef.MainPageCommond.HideNone,false,true);
+	-- if self.tipsWidgetView == nil then
+	-- 	self.tipsWidgetView=tipsWidgetCs:GetLuaPanel().ScriptTable;	
+	-- 	self.tipsWidgetView:BindModule(self);
+	-- 	self.evtOnCloseTips = LuaModuleDispatcher:Event(ModuleDef.FuncTipsModule, "OnCloseTipsEvt")
+	-- end
+	-- --刷新UI
+	-- self.tipsWidgetView:RefeshTips();
+
+	-- GameManager.Instance.IsOpenFuncTips=true;
+	
+	self.AsyncLoadFuncTipsWidgetCb = function(ui)
+		if ui ~= nil then
+			if self.tipsWidgetView == nil then
+				self.tipsWidgetView=ui:GetLuaPanel().ScriptTable;	
+				self.tipsWidgetView:BindModule(self);
+				self.evtOnCloseTips = LuaModuleDispatcher:Event(ModuleDef.FuncTipsModule, "OnCloseTipsEvt")
+			end
+			--刷新UI
+			self.tipsWidgetView:RefeshTips();
+		
+			GameManager.Instance.IsOpenFuncTips=true;
+		end
+		self.AsyncLoadFuncTipsWidgetCb = nil;
+	end
+	UIManager.Instance:OpenWidgetAsync(FuncTipsWidgetPath, self.AsyncLoadFuncTipsWidgetCb,false,nil,nil,CS.StarProjectDef.MainPageCommond.HideNone,false,true);
+end
+
+
+--监听关闭Tips事件
+function FuncTipsModule:OnCloseTips(...)
+
+	if self.tipsWidgetView~=nil and self.tipsWidgetView.IsOpen then
+		self.tipsWidgetView:CloseWidget();
+		self:OnFinishFuncTipsWidget();
+
+		CS.StarProject.GlobalEvent.OnTipsCloseEvent:Invoke(true);
+	end
+end
+
+
+
+function FuncTipsModule:OnCloseTipsEvt(arg)
+	self.evtOnCloseTips:Invoke()
+end
+
+
+
+--LuaModule 创建
+function FuncTipsModule:OnModuleCreate(arg)
+
+	LuaModuleDispatcher:Register(ModuleDef.FuncTipsModule,self)
+
+end
+
+
+
+function FuncTipsModule:OnFinishFuncTipsWidget()
+
+	print("OnFinishFuncTipsWidget");	
+
+end
+
+--LuaModule 消息处理
+function FuncTipsModule:OnModuleMessage(msg,...)
+	self.ModuleMessages[msg](...);
+end
+
+
+--LuaModule显示
+function FuncTipsModule:OnModuleShow(arg)
+
+end
+
+--LuaModule 释放
+function FuncTipsModule:OnModuleRelease()
+	LuaModuleDispatcher:UnRegister(ModuleDef.FuncTipsModule)
+end
+
+
+return  FuncTipsModule
+

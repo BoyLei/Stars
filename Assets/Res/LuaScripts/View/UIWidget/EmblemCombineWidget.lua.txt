@@ -1,0 +1,368 @@
+--[[
+*文件名   :   EmblemCombineWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/09 17:09:51"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] EmblemCombineWidget =
+    class("EmblemCombineWidget", UIPanel)
+EmblemCombineWidget.IsOpen = false
+
+local EmblemCombineItem = require("View/Uiwindow/Amulet/EmblemCombineItem")
+
+function EmblemCombineWidget:Awake()
+    self.transform = self.prefab.transform
+    self.gameObject = self.transform.gameObject
+
+    local btnCloseInfo = self.transform:Find("Background"):GetComponent(typeof(Button))
+    btnCloseInfo.onClick:AddListener(
+        function()
+            self:OnCloseInfoClick()
+        end
+    )
+
+    self.BtnMinImg = self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnMin"):GetComponent(typeof(CanvasGroup))
+    local btnMin = self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnMin"):GetComponent(typeof(Button))
+    btnMin.onClick:AddListener(
+        function()
+            self:OnBtnMinClick()
+        end
+    )
+
+    self.BtnMaxImg = self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnMax"):GetComponent(typeof(CanvasGroup))
+    local btnMax = self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnMax"):GetComponent(typeof(Button))
+    btnMax.onClick:AddListener(
+        function()
+            self:OnBtnMaxClick()
+        end
+    )
+
+    self.BtnAddImg = self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnAdd"):GetComponent(typeof(CanvasGroup))
+    local btnAdd = self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnAdd"):GetComponent(typeof(Button))
+    btnAdd.onClick:AddListener(
+        function()
+            self:OnBtnAddClick()
+        end
+    )
+
+    self.BtnSubImg = self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnSub"):GetComponent(typeof(CanvasGroup))
+    local btnSub = self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnSub"):GetComponent(typeof(Button))
+    btnSub.onClick:AddListener(
+        function()
+            self:OnBtnSubClick()
+        end
+    )
+
+    local btnConfirm = self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnConfirm"):GetComponent(typeof(Button))
+    self.go_confirm1 = btnConfirm.gameObject
+    btnConfirm.onClick:AddListener(
+        function()
+            self:OnBtnConfirmClick()
+        end
+    )
+
+    local btnConfirm2 = self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnConfirm2"):GetComponent(typeof(Button))
+    self.go_confirm2 = btnConfirm2.gameObject
+    btnConfirm2.onClick:AddListener(
+        function()
+            self:OnBtnConfirmClick()
+        end
+    )
+
+    self.UseNumField = self.transform:Find("Cut4Cam90/AssemblyRatio2/NumInputField"):GetComponent(typeof(InputField))
+    self.UseNumField.onValueChanged:AddListener(
+        function()
+            self:OnValChanged()
+        end
+    )
+
+    -- 三个道具
+    self.items = {}
+    for i = 1, 3 do
+        local it = EmblemCombineItem:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/LvUpEmbItem" .. i).gameObject)
+        table.insert(self.items, it)
+    end
+
+    -- 最终合成道具
+    self.FinalItem = EmblemCombineItem:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/LvUpEmbItemAim").gameObject)
+
+    self.UseNumNow = 1
+    self.message1 = function(data)
+        self:OnGemSynthesizedReqRet(data)
+    end
+    -- 点击关闭事件
+    local btnClick = self:Find("Cut4Cam90/AssemblyRatio2/CloseBtn"):GetComponent(typeof(Button))
+    btnClick.onClick:AddListener(
+        function()
+            self:OnCloseInfoClick()
+        end
+    )
+end
+
+function EmblemCombineWidget:RefeshItem()
+    self.transform:SetAsLastSibling()
+    self.UseNumNow = 1 -- 至少用一个
+
+    local hCfg = ConfigDataAccessor.HeraldryEquip[self.BaseID]
+    local nextLv = hCfg.HeraldryLevel + 1
+
+    self.GrowLevel = nextLv
+
+    -- 判断是否已经最大等级
+    local hCfgNext = ConfigDataAccessor.GetHeraldryEquip(hCfg.ResonanceSlot, nextLv)
+    if hCfgNext == nil then
+        self.IsMaxLv = true
+        return
+    else
+        -- 判断是否能升级
+        local maxLv = ConfigDataAccessor.GetHeraldryGrowMaxLv()
+        if hCfg.HeraldryLevel == maxLv then
+            self.IsMaxLv = true
+            return
+        else
+            self.IsMaxLv = false
+        end
+    end
+
+    -- 计算最大数量
+    local heraldryGrow = ConfigDataAccessor.HeraldryGrow[nextLv] -- 获取获取表
+    local lv1Config = ConfigDataAccessor.GetHeraldryEquip(hCfg.ResonanceSlot, heraldryGrow.NeedLv1)
+    local baseId1 = lv1Config.Id
+    local needNum1 = heraldryGrow.NeedNum1
+    local haveNum1 = BusinessManager.Instance:GetCurrencyNum(baseId1)
+
+    local baseId2 = 0
+    local needNum2 = 0
+    local haveNum2 = 0
+    if heraldryGrow.NeedLv2 > 0 then
+        local lv2Config = ConfigDataAccessor.GetHeraldryEquip(hCfg.ResonanceSlot, heraldryGrow.NeedLv2)
+        baseId2 = lv2Config.Id
+        needNum2 = heraldryGrow.NeedNum2
+        haveNum2 = BusinessManager.Instance:GetCurrencyNum(baseId2)
+    end
+
+    local baseId3 = 0
+    local needNum3 = 0
+    local haveNum3 = 0
+    if heraldryGrow.NeedLv3 > 0 then
+        local lv3Config = ConfigDataAccessor.GetHeraldryEquip(hCfg.ResonanceSlot, heraldryGrow.NeedLv3)
+        baseId3 = lv3Config.Id
+        needNum3 = heraldryGrow.NeedNum3
+        haveNum3 = BusinessManager.Instance:GetCurrencyNum(baseId3)
+    end
+
+    self.MaxNum = 0
+
+    -- 最大999
+    while self.MaxNum < 999 do
+        local num = self.MaxNum + 1
+
+        if num * needNum1 > haveNum1 then
+            break
+        end
+
+        if needNum2 > 0 and num * needNum2 > haveNum2 then
+            break
+        end
+
+        if needNum3 > 0 and num * needNum3 > haveNum3 then
+            break
+        end
+
+        self.MaxNum = self.MaxNum + 1
+    end
+
+    if self.MaxNum == 0 then
+        self.MaxNum = 1
+        self.IsEnough = false
+    else
+        self.IsEnough = true
+    end
+    self.go_confirm1:SetActive(self.IsEnough)
+    self.go_confirm2:SetActive(not (self.IsEnough))
+
+    self:RefeshUseNumTex()
+end
+
+function EmblemCombineWidget:RefeshUseNumTex()
+    self.UseNumField.text = self.UseNumNow
+
+    -- 刷新格子信息
+
+    local hCfg = ConfigDataAccessor.HeraldryEquip[self.BaseID]
+    local nextLv = hCfg.HeraldryLevel + 1
+    local hCfgNext = ConfigDataAccessor.GetHeraldryEquip(hCfg.ResonanceSlot, nextLv)
+    self.NextBaseID = hCfgNext.Id
+
+    local heraldryGrow = ConfigDataAccessor.HeraldryGrow[nextLv] -- 获取获取表
+
+    self.FinalItem:SetItem(hCfgNext.Id, self.UseNumNow, false)
+
+    local lv1Config = ConfigDataAccessor.GetHeraldryEquip(hCfg.ResonanceSlot, heraldryGrow.NeedLv1)
+    self.items[1]:SetItem(lv1Config.Id, self.UseNumNow * heraldryGrow.NeedNum1, true)
+
+    if heraldryGrow.NeedLv2 > 0 then
+        local lvConfig = ConfigDataAccessor.GetHeraldryEquip(hCfg.ResonanceSlot, heraldryGrow.NeedLv2)
+        self.items[2].gameObject:SetActive(true)
+        self.items[2]:SetItem(lvConfig.Id, self.UseNumNow * heraldryGrow.NeedNum2, true)
+    else
+        self.items[2].gameObject:SetActive(false)
+    end
+
+    if heraldryGrow.NeedLv3 > 0 then
+        local lvConfig = ConfigDataAccessor.GetHeraldryEquip(hCfg.ResonanceSlot, heraldryGrow.NeedLv3)
+        self.items[3].gameObject:SetActive(true)
+        self.items[3]:SetItem(lvConfig.Id, self.UseNumNow * heraldryGrow.NeedNum3, true)
+    else
+        self.items[3].gameObject:SetActive(false)
+    end
+
+    if self.UseNumNow == 1 then
+        self.BtnMinImg.alpha = 0.5
+        self.BtnSubImg.alpha = 0.5
+    else
+        self.BtnMinImg.alpha = 1
+        self.BtnSubImg.alpha = 1
+    end
+
+    if self.UseNumNow == self.MaxNum then
+        self.BtnMaxImg.alpha = 0.5
+        self.BtnAddImg.alpha = 0.5
+    else
+        self.BtnMaxImg.alpha = 1
+        self.BtnAddImg.alpha = 1
+    end
+end
+
+function EmblemCombineWidget:OnValChanged()
+    if self.UseNumField.text == "" then
+        self.UseNumField.text = 0
+    end
+
+    self.UseNumNow = math.floor(self.UseNumField.text)
+
+    if self.UseNumNow > self.MaxNum then
+        self.UseNumNow = self.MaxNum
+        self.UseNumField.text = self.MaxNum
+    end
+
+    self:RefeshUseNumTex()
+end
+
+function EmblemCombineWidget:OnBtnMinClick()
+    if self.UseNumNow == 1 then
+        Util.ShowMessageByCode(CRetMsgEnum.Tips_Common_LowerLimit)
+        return
+    end
+    self.UseNumNow = 1
+    self:RefeshUseNumTex()
+end
+
+function EmblemCombineWidget:OnBtnMaxClick()
+    if self.UseNumNow == self.MaxNum then
+        Util.ShowMessageByCode(CRetMsgEnum.Tips_Common_UpperLimit)
+        return
+    end
+    self.UseNumNow = self.MaxNum
+    self:RefeshUseNumTex()
+end
+
+function EmblemCombineWidget:OnBtnAddClick()
+    if self.UseNumNow < self.MaxNum then
+        self.UseNumNow = self.UseNumNow + 1
+        self:RefeshUseNumTex()
+    else
+        Util.ShowMessageByCode(CRetMsgEnum.Tips_Common_UpperLimit)
+    end
+end
+
+function EmblemCombineWidget:OnBtnSubClick()
+    if self.UseNumNow > 1 then
+        self.UseNumNow = self.UseNumNow - 1
+        self:RefeshUseNumTex()
+    else
+        Util.ShowMessageByCode(CRetMsgEnum.Tips_Common_LowerLimit)
+    end
+end
+
+function EmblemCombineWidget:OnBtnConfirmClick()
+    -- 发送使用道具消息
+    if self.IsEnough then
+        local gemSynthesizedReq = CS.ProtoMsg.GemSynthesizedReq()
+        gemSynthesizedReq.ItemIndex = self.NextBaseID
+        gemSynthesizedReq.WantNum = self.UseNumNow
+        gemSynthesizedReq.GrowLevel = self.GrowLevel
+        CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, gemSynthesizedReq, false)
+    else
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_255"))
+    end
+
+    -- self:OnCloseInfoClick();
+end
+
+function EmblemCombineWidget:OnItemClick(bitem)
+    -- 设置道具Tips
+    -- self.module:OpenItemTips(bitem.BaseID,bitem.EntityID,self.ItemGrid.transform);
+end
+
+function EmblemCombineWidget:Start()
+    print("EmblemCombineWidget:Start")
+end
+
+function EmblemCombineWidget:OnEnable()
+end
+
+function EmblemCombineWidget:OnDisable()
+end
+
+function EmblemCombineWidget:OnDestroy()
+end
+
+-- 合成回调 因为没有内容，所以可以使用简单回复
+function EmblemCombineWidget:OnGemSynthesizedReqRet(args)
+    local RetMsgID = args.MsgRet.RetMsgID -- 对应的消息号(这个可以判断是哪个协议)
+
+    local RetCode = args.MsgRet.RetCode
+    if RetCode == 0 then
+        -- 成功
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_92"))
+
+        -- 播放特效
+        --[[
+		if self.NeedPs then
+			self.EmblemMenu:ShowEmblemMenuCombineAnim();
+		end
+		]]
+        -- 刷新面板
+        self:RefeshItem()
+        LuaModuleDispatcher:SendMessage(ModuleDef.AmuletModule, "OnRefeshEmblem", {})
+    else
+        -- 不需要处理，交给上层去处理
+        -- args.IsDialog=true
+        -- Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_93"));
+    end
+end
+
+function EmblemCombineWidget:OnOpen(arg)
+    self.IsOpen = true
+    self.BaseID = tonumber(arg)
+    self:RefeshItem()
+
+    -- 监听合成回调
+    CS.SGF.Network.MsgRetManager.Instance:OnMessageEnum(self.message1, CS.MsgIDEnum.GemSynthesizedReqID)
+end
+
+function EmblemCombineWidget:OnClose(arg)
+    self.IsOpen = false
+end
+
+function EmblemCombineWidget:OnCloseInfoClick()
+    self.gameObject:SetActive(false)
+    UIManager.Instance:CloseWidget("Amulet/EmblemCombineWidget", nil, true)
+
+    -- 监听合成回调
+    CS.SGF.Network.MsgRetManager.Instance:OffMessageEnum(self.message1, CS.MsgIDEnum.GemSynthesizedReqID)
+end
+
+return EmblemCombineWidget

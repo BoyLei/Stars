@@ -1,0 +1,96 @@
+---------------------------------------------------------------------
+-- Stars (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-04-10 13:42:29
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+--[[
+*文件名   :   ItemChatBarrage
+*内  容   :
+*说  明   : 弹幕聊天ITEM
+*创建日期 :   "2022/12/06 10:33:06"
+*创建人   :   "quzhenxin"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+---@class ItemChatBarrage
+local ItemChatBarrage = {}
+
+ItemChatBarrage.__index = ItemChatBarrage;
+ItemChatBarrage.Transform = nil;
+
+ItemChatBarrage.Bg = nil;
+ItemChatBarrage.Rect = nil;
+ItemChatBarrage.Text = nil;
+ItemChatBarrage.TextContentSizeFitter = nil;
+ItemChatBarrage.TextRect = nil;
+
+ItemChatBarrage.index = 1;
+
+ItemChatBarrage.isUser = false;
+ItemChatBarrage.tw = nil;
+ItemChatBarrage.screenWidth = nil;
+
+function ItemChatBarrage:New(_go)
+	local self = {};
+	setmetatable(self, ItemChatBarrage);
+
+	self.Transform = _go.transform;
+	self.Rect = self.Transform:GetComponent(typeof(RectTransform));
+	self.Bg = self.Transform:GetComponent(typeof(Image));
+
+	self.Text = self.Transform:Find("Text"):GetComponent(typeof(Text));
+	self.TextRect = self.Transform:Find("Text"):GetComponent(typeof(RectTransform));
+	self.TextContentSizeFitter = self.Transform:Find("Text"):GetComponent(typeof(ContentSizeFitter));
+
+	self.screenWidth = CS.UnityEngine.Screen.width;
+	return self;
+end
+
+function ItemChatBarrage:UpdateSiblingIndex()
+	if self.Transform ~= nil then
+		self.Transform:SetSiblingIndex(self.Index);
+	end
+end
+
+function ItemChatBarrage:SetItem(item, Vector2Y, index)
+	if item == nil then
+		self:SetUse(false);
+		return;
+	end
+
+	self.Index = index;
+	self:UpdateSiblingIndex();
+	self:SetUse(true);
+
+	-- 判断是不是本人发的
+	local mainPlayerId = GameManager.Instance.mainPlayerId;
+	local eid = item.EID;
+	self.Bg.enabled = mainPlayerId == eid;
+
+	self.Text.text = item.Data;
+	--CS.UnityEngine.UI.LayoutRebuilder:ForceRebuildLayoutImmediate(self.TextRect);
+	self.TextContentSizeFitter:SetLayoutHorizontal();
+	local width = self.TextRect.rect.width;
+	--Log("弹幕的宽度0=》" .. width);
+	local x = self.screenWidth / 2 + (width + 20) / 2;
+	--self.Rect.sizeDelta = Vector2(x, Vector2Y);
+	local v3 = Vector3.zero;
+	v3.x = x;
+	v3.y = Vector2Y;
+	self.Transform.localPosition = v3;
+	if self.tw ~= nil then
+		self.tw:Kill();
+	end
+	self.tw = self.Rect:DOAnchorPosX(-x, 300):SetSpeedBased():SetEase(Ease.Linear):OnComplete(function()
+		self:SetUse(false);
+	end);
+end
+
+function ItemChatBarrage:SetUse(user)
+	self.isUser = user;
+	self.Transform.gameObject:SetActive(self.isUser);
+end
+
+return ItemChatBarrage;

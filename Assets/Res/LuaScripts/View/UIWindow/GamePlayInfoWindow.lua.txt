@@ -1,0 +1,84 @@
+--[[
+*文件名   :   GamePlayInfoWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/09/15 13:09:51"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+GamePlayInfoWindow=class("GamePlayInfoWindow",UIPanel)
+
+function GamePlayInfoWindow:Awake()
+	self.transform =self.prefab.transform;
+	self.gameObject=self.transform.gameObject;
+
+	self.ContentText=self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/ScrollView/Viewport/Content/ContentText"):GetComponent(typeof(Text));
+	self.TitleText=self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/tag1/Selected/TitleText"):GetComponent(typeof(Text));
+
+	self.m_CloseBtn=self:Find("Cut4Cam90/AssemblyRatio2/Info/BtnClose"):GetComponent(typeof(JButton));
+	self.m_CloseBtn.OnClick=(function() self:OnClickCloseBtn() end);
+end
+
+function GamePlayInfoWindow:Start()
+
+end
+
+function GamePlayInfoWindow:OnEnable()
+	
+end
+
+function GamePlayInfoWindow:OnDisable()
+	
+end
+
+function GamePlayInfoWindow:OnDestroy()
+
+end
+
+function GamePlayInfoWindow:OnOpen(arg)
+	self.IntroKey = arg
+	local key = tonumber(arg)
+	local isNameType = true
+	if key ~= nil and type(key) == "number" then
+		isNameType = false
+	end
+
+	-- local cfg=ConfigDataAccessor.RecyclePlay[self.IntroID];
+	-- self.info.text="      "..cfg.PlayDesc;
+	if isNameType then
+		self.IntroKey = string.lower(self.IntroKey)
+	end
+
+	local config = isNameType and ConfigDataAccessor.IntroMap[self.IntroKey] or ConfigDataAccessor.Intro[self.IntroKey]
+	if config == nil then
+		if isNameType then
+			printError(string.format("Intro表中不存在Name为%s的数据", self.IntroKey))
+		else
+			printError(string.format("Intro表中不存在Id为%s的数据", self.IntroKey))
+		end
+		self:Close()
+		return
+	end
+
+	self.TitleText.text = config.IntroTitle
+	self.ContentText.text = config.IntroTxt
+end
+
+function GamePlayInfoWindow:OnClose(arg)
+	--self:CloseWindow();
+end
+
+function GamePlayInfoWindow:OnClickCloseBtn()
+	self.Close();
+
+	--[[
+	self.PlayAnimation("GamePlayInfoWindowAnim_Close", function ()
+		self.IsOpen=false;
+		self.module:OnCloseEvent();
+
+		self.Close();
+	end)
+	]]
+end
+
+return  GamePlayInfoWindow

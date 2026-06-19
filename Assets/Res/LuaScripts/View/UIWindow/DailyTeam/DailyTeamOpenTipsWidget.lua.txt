@@ -1,0 +1,196 @@
+--[[
+*文件名   :   DailyTeamOpenTipsWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/06/21 16:08:20"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+DailyTeamOpenTipsWidget = class("DailyTeamOpenTipsWidget", UIPanel)
+DailyTeamOpenTipsWidget.m_BackGround = nil
+DailyTeamOpenTipsWidget.m_Center = nil
+DailyTeamOpenTipsWidget.m_Num = nil
+DailyTeamOpenTipsWidget.m_LevelGo = nil
+DailyTeamOpenTipsWidget.m_Level = nil
+DailyTeamOpenTipsWidget.m_ItemPreviewGo = nil
+DailyTeamOpenTipsWidget.m_ItemPreview = nil
+DailyTeamOpenTipsWidget.m_Start = nil
+DailyTeamOpenTipsWidget.m_Title = nil
+DailyTeamOpenTipsWidget.PlayID = 0
+DailyTeamOpenTipsWidget.m_Desc = nil
+DailyTeamOpenTipsWidget.m_StartText = nil
+DailyTeamOpenTipsWidget.StartText = nil
+DailyTeamOpenTipsWidget.CallBack = nil
+DailyTeamOpenTipsWidget.OnCloseCallBack = nil
+DailyTeamOpenTipsWidget.m_AdventureGo = nil
+DailyTeamOpenTipsWidget.m_Adventure = nil
+DailyTeamOpenTipsWidget.m_TaskGo = nil
+DailyTeamOpenTipsWidget.m_Task = nil
+
+function DailyTeamOpenTipsWidget:Awake()
+    self.m_BackGround = self:Find("BackGround"):GetComponent(typeof(JButton))
+    self.m_Center = self:Find("Center"):GetComponent(typeof(RectTransform))
+    self.m_Num = self:Find("Center/Players/Num"):GetComponent(typeof(Text))
+    self.m_LevelGo = self:Find("Center/Level").gameObject
+    self.m_Level = self:Find("Center/Level/Level"):GetComponent(typeof(Text))
+    self.m_AdventureGo = self:Find("Center/Adventure").gameObject
+    self.m_Adventure = self:Find("Center/Adventure/Level"):GetComponent(typeof(Text))
+    self.m_TaskGo = self:Find("Center/Task").gameObject
+    self.m_Task = self:Find("Center/Task/Task"):GetComponent(typeof(Text))
+    self.m_ItemPreviewGo = self:Find("Center/ItemPreview").gameObject
+    self.m_Start = self:Find("Center/Start"):GetComponent(typeof(JButton))
+    self.m_StartText = self:Find("Center/Start/StartText"):GetComponent(typeof(Text))
+    self.m_Title = self:Find("Center/Title"):GetComponent(typeof(Text))
+    self.m_ItemPreview = StructAccessor.ItemPreview.new(self.m_ItemPreviewGo)
+    self.m_Desc = self:Find("Center/Content/Desc"):GetComponent(typeof(Text))
+    self.ObjPersonTowerRedPoint = self:Find("Center/Start/personTowerRedPoint").gameObject
+    self.m_BackGround.OnClick = (function()
+        self.Close()
+        if self.OnCloseCallBack ~= nil then
+            self.OnCloseCallBack()
+        end
+    end)
+
+    self.m_Start.OnClick = (function()
+        self:GotoNpc()
+    end)
+end
+
+function DailyTeamOpenTipsWidget:GotoNpc()
+    local config = ConfigDataAccessor.PlayOpenConditions[self.PlayID]
+    if config ~= nil then
+        if not (CheckSysOpen(self.PlayID, true)) then
+            return
+        end
+
+        self.Close()
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        if self.CallBack ~= nil then
+            self.CallBack()
+        end
+    -- TaskHelper.FindPathByNpc(config.MapID,config.NPCID,1,function (result)
+    -- 		if self.CallBack~=nil then
+    -- 			self.CallBack(result);
+    -- 		end
+    -- 	end);
+    end
+end
+
+function DailyTeamOpenTipsWidget:Start()
+end
+
+function DailyTeamOpenTipsWidget:OnEnable()
+end
+
+function DailyTeamOpenTipsWidget:OnDisable()
+end
+
+function DailyTeamOpenTipsWidget:OnDestroy()
+end
+
+function DailyTeamOpenTipsWidget:GetNeedLevel(config)
+    local lv = 0
+    self.m_LevelGo:SetActive(false)
+    if config.PlayerGuidance ~= 0 then
+        local cfg = ConfigDataAccessor.GuidSysOpen[config.PlayerGuidance]
+        if cfg ~= nil then
+            lv = cfg.NeedLv
+            if lv > 0 then
+                --self.m_Level.text=lv.."级及以上";
+                self.m_Level.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_lv_above"), {lv})
+
+                self.m_LevelGo:SetActive(true)
+            end
+        end
+    end
+end
+
+function DailyTeamOpenTipsWidget:GetAdventureLevel(config)
+    local lv = 0
+    self.m_AdventureGo:SetActive(false)
+    if config.PlayerGuidance ~= 0 then
+        local cfg = ConfigDataAccessor.GuidSysOpen[config.PlayerGuidance]
+        if cfg ~= nil then
+            lv = cfg.NeedAdvLv
+            if lv > 0 then
+                --self.m_Adventure.text=lv.."级及以上";
+                self.m_Adventure.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_lv_above"), {lv})
+
+                self.m_AdventureGo:SetActive(true)
+            end
+        end
+    end
+end
+
+function DailyTeamOpenTipsWidget:GetTask(config)
+    local taskid = 0
+    self.m_TaskGo:SetActive(false)
+    if config.PlayerGuidance ~= 0 then
+        local cfg = ConfigDataAccessor.GuidSysOpen[config.PlayerGuidance]
+        if cfg ~= nil then
+            taskid = cfg.NeedQuestCom
+            if taskid > 0 then
+                local task = TaskHelper.GetTaskConfig(taskid)
+                local taskName = task.Base.TaskName
+                local taskType = TaskHelper.TaskTypeToName(task.Base.TaskType)
+                --self.m_Task.text="完成"..taskType.."任务"..taskName;
+                self.m_Task.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_DailyTeamOpenTipsWidget_Task"), {taskType, taskName})
+
+                self.m_TaskGo:SetActive(true)
+            end
+        end
+    end
+end
+
+function DailyTeamOpenTipsWidget:OnOpen(arg)
+    self.PlayID = arg.PlayID
+    self.CallBack = arg.Cb
+    self.OnCloseCallBack = arg.CloseCb
+    self.StrButton = arg.StrButton
+    if self.PlayID == 8 then --个人爬塔
+        self.ObjPersonTowerRedPoint.gameObject:SetActive(true)
+    else
+        self.ObjPersonTowerRedPoint.gameObject:SetActive(false)
+    end
+    local config = ConfigDataAccessor.PlayOpenConditions[self.PlayID]
+    if config ~= nil then
+        --
+        if self.m_Center ~= nil then
+            --self.m_Center:SetX(-40)
+            --self.m_Center:SetY(0)
+            self.m_Center.anchoredPosition = Vector2(config.OffsetX, config.OffsetY)
+        end
+        self.m_Title.text = config.PlayName
+        if tonumber(config.PeopleNum) > 1 then
+            self.m_Num.text = LanguageHelp:GetLanguageByKey("Local_Str_multiplayer")
+        else
+            self.m_Num.text = LanguageHelp:GetLanguageByKey("Local_Str_SOLO")
+        end
+
+        self:GetNeedLevel(config)
+        self:GetAdventureLevel(config)
+        self:GetTask(config)
+        --奖励
+        local Items = ConfigDataAccessor.DropShow[config.AwardID]
+
+        self.CostItems = {}
+        if Items ~= nil then
+            for i, v in ipairs(Items) do
+                table.insert(self.CostItems, {ItemID = v.ItemID, ItemNum = v.Num})
+            end
+        end
+        self.m_ItemPreview:SetItems(self.CostItems)
+
+        self.m_Desc.text = config.TipsDec
+        local str = LanguageHelp:GetLanguageByKey("Local_Str_Go")
+        if self.StrButton ~= nil and self.StrButton ~= "" and self.StrButton ~= " " then
+            str = self.StrButton
+        end
+        self.m_StartText.text = str
+    end
+end
+
+function DailyTeamOpenTipsWidget:OnClose(arg)
+end
+
+return DailyTeamOpenTipsWidget

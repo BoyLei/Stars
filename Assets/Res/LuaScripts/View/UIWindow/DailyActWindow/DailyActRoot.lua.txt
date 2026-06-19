@@ -1,0 +1,130 @@
+--[[
+*文件名   :   DailyActRoot
+*内  容   :
+*说  明   :
+*创建日期 :   "2024/08/07 16:27:49"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+DailyActRoot=class("DailyActRoot",UIPanel)
+DailyActRoot.m_FillAmount=nil;
+DailyActRoot.m_None=nil;
+DailyActRoot.m_Active=nil;
+DailyActRoot.m_NoneIcon=nil;
+DailyActRoot.m_Num=nil;
+DailyActRoot.HasReward=false;
+local NoneIconFunc=nil;
+
+
+function DailyActRoot:ctor(go)
+	self.prefab = go;
+	self.m_FillAmount=self:Find("Bg1/bg2/Image/FillAmount"):GetComponent(typeof(Image));
+	self.m_None=self:Find("Bg1/bg2/None").gameObject;
+	self.m_Active=self:Find("Bg1/bg2/Active").gameObject;
+	self.m_NoneIcon=self:Find("Bg1"):GetComponent(typeof(JButton));
+
+	self.m_Num=self:Find("Bg1/bg2/None/Image/Num"):GetComponent(typeof(Text));
+	NoneIconFunc=function() self:OnClickNoneIcon(); end;
+	self.DailyActivityRewardRet=function(data)
+		self:OnDailyActivityRewardRet(data)
+	end
+	self.HasReward=false;
+	self:Start();
+
+end
+
+function DailyActRoot:Start()
+	self.m_NoneIcon.OnClick= NoneIconFunc;
+	NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.DailyActivityRewardRetID, self.DailyActivityRewardRet, self)
+
+end
+
+function DailyActRoot:OnDailyActivityRewardRet(data)
+	self:OnOpen()
+end
+
+function DailyActRoot:OnDestroy()
+	self.m_NoneIcon.OnClick= nil;
+	NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.DailyActivityRewardRetID, self.DailyActivityRewardRet, self)
+
+end
+
+function DailyActRoot:OnOpen(arg)
+	if not BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.DailyPlayActiv) then 
+		self.prefab:SetActive(false)
+		return
+	end
+
+	self.HasReward=false;
+	local data = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.DailyActivity):GetDailyActivityMD();
+	if data == nil then
+		return;
+	end
+
+	local dailyPlayActivRewardList = ConfigDataAccessor.DailyPlayActivRewardList;
+	local keys = {}
+	for k,v in pairs(dailyPlayActivRewardList) do
+		table.insert(keys, k)
+	end
+	table.sort(keys)
+
+	local progress = data.ActiveValue / keys[#keys];
+
+	local tb = {};
+	for _,v in pairs(keys) do
+		if data.ActiveValue >= v then
+			table.insert(tb, v);
+		end
+	end
+
+	local hasAward=false;
+	for k, v in pairs(tb) do
+		local f = false;
+		local cl = data.CountList.CountList;
+		for i=0, cl.Count-1 do
+			if cl[i] == v then
+				f = true;
+			end
+		end
+		if not f then
+			hasAward=true;
+			break;
+		end
+	end
+	self.m_FillAmount.fillAmount=progress;
+	self.m_None:SetActive(not hasAward)
+
+	self.m_Active:SetActive(hasAward)
+
+	self.m_Num.text=tostring(data.ActiveValue)
+	self.HasReward=hasAward;
+
+end
+
+function DailyActRoot:OnClose(arg)
+
+end
+
+function DailyActRoot:OnClickNoneIcon()
+	if self.HasReward then
+		local msg = CS.ProtoMsg.DailyActivityRewardReq();
+		msg.Type = CS.ProtoMsg.DailyActRewardType.ActiveReward;
+		local gameSocket = NetworkManager.Instance.gameSocket;
+		gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, msg, false);
+	else
+		--打开每日活跃度界面
+		LuaModuleDispatcher:SendMessage(ModuleDef.DailyActModule,"OpenDailyActWindow",{});
+	end
+end
+
+function DailyActRoot:IsRedPoint()
+	local data = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.DailyActivity):GetDailyActivityMD();
+	if data == nil then
+		return false;
+	end
+	local cl = data.CountList.CountList;
+	return cl.Count>=5;
+end
+
+
+return  DailyActRoot

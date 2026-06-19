@@ -1,0 +1,368 @@
+--[[
+*文件名   :   EventPopWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/09/15 13:09:51"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+EventPopWindow = class("EventPopWindow", UIPanel)
+
+local GVEBossGuildRankWindowPath = "Event/GVEBossGuildRankWindow"
+local EventRewardWidgetPath = "Event/EventRewardWidget"
+local AfternoonGveRankRewardWidgetPath = "Event/AfternoonGveRankRewardWidget"
+local PartyTimeRewardWidgetPath = "PartyTime/PartyTimeRewardWidget"
+
+local ItemGrid = require("View/Item/ItemGrid")
+
+function EventPopWindow:Awake()
+    self.transform = self.prefab.transform
+    self.gameObject = self.transform.gameObject
+
+    self.bg = self.transform:Find("bg"):GetComponent(typeof(RawImage))
+
+    self.name = self.transform:Find("Cut4Cam90/AssemblyRatio2/R/name"):GetComponent(typeof(Text))
+    self.time = self.transform:Find("Cut4Cam90/AssemblyRatio2/R/time"):GetComponent(typeof(Text))
+    self.info = self.transform:Find("Cut4Cam90/AssemblyRatio2/R/info"):GetComponent(typeof(Text))
+
+    self.leftTime = self.transform:Find("Cut4Cam90/AssemblyRatio2/R/TimeInfo/time (1)"):GetComponent(typeof(Text))
+
+    self.go_timeInfo = self.transform:Find("Cut4Cam90/AssemblyRatio2/R/TimeInfo").gameObject
+    self.go_notEnough = self.transform:Find("Cut4Cam90/AssemblyRatio2/R/NotEnough").gameObject
+    self.go_btnGo = self.transform:Find("Cut4Cam90/AssemblyRatio2/R/BtnGo").gameObject
+    self.tex_btnGo = self.transform:Find("Cut4Cam90/AssemblyRatio2/R/BtnGo/tt"):GetComponent(typeof(Text))
+
+    self.Eff1 = self.transform:Find("bg/EvenMengJBg").gameObject --梦境入侵
+    self.Eff2 = self.transform:Find("bg/EvenQingSBg").gameObject --无畏之战
+    self.Eff3 = self.transform:Find("bg/EvenFengBaoDKBg").gameObject --风暴对抗
+
+    -- 前往
+    self.go_btnGo:GetComponent(typeof(JButton)).OnClick = (function()
+        if self.PlayMode == 1 then
+            -- 前往大地图
+
+            local GVEStartI2S = GameManager.Instance.GVEStartI2S
+            if GVEStartI2S ~= nil then
+                local mapNowID = GameManager.Instance:GetCurMapId()
+                for k, v in pairs(GVEStartI2S.MapList) do
+                    local mapId = k
+                    local isMapOpen = GameManager.Instance:CheckMapIsOpen(mapId)
+
+                    if isMapOpen and mapNowID ~= mapId then
+                        UIManager.Instance:CloseAllLoadedWindowNWidget()
+                        -- 切换地图
+                        GameManager.Instance:ChangeMap(mapId)
+                    end
+                end
+            end
+        elseif self.PlayMode == 2 then
+            --判断是否有公会
+            if BusinessManager.Instance:GetGuildID() <= 0 then
+                Util.ShowMessageByCode(CRetMsgEnum.Tips_Chat_02)
+                return
+            end
+
+            -- 寻路到NPC
+            self:OnClickCloseBtn()
+            UIManager.Instance:CloseAllLoadedWindowNWidget()
+            BusinessManager.Instance:FindNpcPath(
+                100,
+                220005,
+                1,
+                function(result)
+                    -- 走到面前后交互
+                    if result then
+                        LuaModuleDispatcher:SendMessage(ModuleDef.AfternoonGveModule, "OnOpenAfternoonGvePopWindow", {})
+                    end
+                end
+            )
+        elseif self.PlayMode == 3 then
+            -- 寻路到NPC
+            self:OnClickCloseBtn()
+            UIManager.Instance:CloseAllLoadedWindowNWidget()
+            BusinessManager.Instance:FindNpcPath(
+                12,
+                220004,
+                1,
+                function(result)
+                    -- do noting
+                end
+            )
+        elseif self.PlayMode == 5 then
+            if BusinessManager.Instance:GetGuildID() <= 0 then
+                Util.ShowMessageByCode(CRetMsgEnum.Tips_Chat_02)
+                return
+            end
+            -- 寻路到NPC
+            self:OnClickCloseBtn()
+            UIManager.Instance:CloseAllLoadedWindowNWidget()
+            TaskHelper.FindPathByArea(
+                100,
+                3,
+                1,
+                function()
+                end
+            )
+        end
+    end)
+
+    self.go_btnReward = self.transform:Find("Cut4Cam90/AssemblyRatio2/L/Btns/BtnReward").gameObject
+    self.go_btnRank = self.transform:Find("Cut4Cam90/AssemblyRatio2/L/Btns/BtnRank").gameObject
+    self.go_btnSale = self.transform:Find("Cut4Cam90/AssemblyRatio2/L/Btns/BtnSale").gameObject
+
+    -- 奖励
+    self.go_btnReward:GetComponent(typeof(JButton)).OnClick = (function()
+        if self.PlayMode == 1 then
+            -- GVE
+
+            local data = {}
+            data.PlayMode = self.PlayMode
+            data.OpenIdx = 1
+
+            -- UIManager.Instance:OpenWidget(EventRewardWidgetPath, false, data, nil,
+            --     CS.StarProjectDef.MainPageCommond.HideNone, false, false);
+            UIManager.Instance:OpenWidgetAsync(EventRewardWidgetPath, nil, false, data, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, false)
+        elseif self.PlayMode == 2 then
+            -- GNG
+
+            local data = {}
+            data.OpenIdx = 1
+            data.GuildData = self.GuildData
+            data.PersonalData = self.PersonalData
+            -- UIManager.Instance:OpenWidget(AfternoonGveRankRewardWidgetPath, false, data, nil,
+            --     CS.StarProjectDef.MainPageCommond.HideNone, false, false);
+            UIManager.Instance:OpenWidgetAsync(AfternoonGveRankRewardWidgetPath, nil, false, data, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, false)
+        elseif self.PlayMode == 3 then
+            -- PVP
+            local data = {}
+            LuaModuleDispatcher:SendMessage(ModuleDef.PvpModule, "OnShowRewardWindow", data)
+        elseif self.PlayMode == 5 then
+            -- 篝火
+            UIManager.Instance:OpenWidgetAsync(PartyTimeRewardWidgetPath, nil, false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, false)
+        end
+    end)
+    -- 排行
+    self.go_btnRank:GetComponent(typeof(JButton)).OnClick = (function()
+        --UIManager.Instance:OpenWindow(GVEBossGuildRankWindowPath);
+        UIManager.Instance:OpenWindowAsync(GVEBossGuildRankWindowPath, nil)
+    end)
+    -- 拍卖
+    self.go_btnSale:GetComponent(typeof(JButton)).OnClick = (function()
+        LuaModuleDispatcher:SendMessage(ModuleDef.RechargeModule, "OnOpen", {})
+    end)
+
+    -- 详情
+    -- self.transform:Find("Cut4Cam90/AssemblyRatio2/R/BtnInfo"):GetComponent(typeof(JButton)).OnClick = (function()
+    --     UIManager.Instance:OpenWindow("Common/GamePlayInfoWindow", self.EventID,
+    --         CS.StarProjectDef.MainPageCommond.HideBoth);
+    -- end);
+
+    self.transform:Find("Cut4Cam90/AssemblyRatio2/R/BtnInfo"):GetComponent(typeof(JButton)).OnClick = (function()
+        CS.StarProjectDef.UIAPI.ShowGameplayInfo(self.IntroId)
+    end)
+
+    -- 可获得奖励
+    self.items = {}
+    for i = 1, 4 do
+        local it = ItemGrid:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/R/Items/ItemGrid" .. i).gameObject)
+        it:InitItem(
+            false,
+            function(ritem)
+                self:OnItemClick(ritem)
+            end
+        )
+        table.insert(self.items, it)
+    end
+
+    self.NeedRefesh = false
+    --刷新时间
+    self.UpdateFun = function()
+        self:RefeshLeftTime()
+    end
+    --刷新时间
+    MonoHelper.AddUpdateListener(self.UpdateFun)
+
+    self.m_CloseBtn = self:Find("Cut4Cam90/AssemblyRatio2/L/CloseBtn/CloseBtn1"):GetComponent(typeof(Button))
+    self.m_CloseBtn.onClick:AddListener(
+        function()
+            self:OnClickCloseBtn()
+        end
+    )
+end
+
+function EventPopWindow:Start()
+end
+
+function EventPopWindow:OnEnable()
+end
+
+function EventPopWindow:OnDisable()
+end
+
+function EventPopWindow:OnDestroy()
+end
+
+function EventPopWindow:OnOpen(arg)
+    local event = arg
+    self.EventID = event.id
+
+    local cfg = ConfigDataAccessor.RecyclePlay[self.EventID]
+
+    if self.EventID == 1 then
+        self.Eff1:SetActive(true)
+        self.Eff2:SetActive(false)
+        self.Eff3:SetActive(false)
+    elseif self.EventID == 2 then
+        self.Eff1:SetActive(false)
+        self.Eff2:SetActive(false)
+        self.Eff3:SetActive(false)
+    elseif self.EventID == 3 then
+        self.Eff1:SetActive(false)
+        self.Eff2:SetActive(false)
+        self.Eff3:SetActive(true)
+    elseif self.EventID == 5 then
+        --全部关闭
+        self.Eff1:SetActive(false)
+        self.Eff2:SetActive(false)
+        self.Eff3:SetActive(false)
+    end
+
+    --加载图片
+    ResourceHelper:LoadRawIconAsync(self.bg, cfg.KV, false)
+
+    self.IntroId = cfg.IntroId
+    self.PlayMode = cfg.GameID
+
+    self.name.text = cfg.PlayName
+    self.info.text = cfg.PlayDesc
+
+    self.openHour = event.openHour
+
+    self.closeHour = event.closeHour
+    self.closeMin = event.closeMin
+
+    self.serverOpenTime = event.serverOpenTime
+    self.serverCloseTime = event.serverCloseTime
+
+    local opMin = event.openMin
+    if event.openMin < 10 then
+        opMin = "0" .. event.openMin
+    end
+
+    if self.closeMin > 9 then
+        self.time.text = "" .. event.openHour .. ":" .. opMin .. "~" .. self.closeHour .. ":" .. self.closeMin
+    else
+        self.time.text = "" .. event.openHour .. ":" .. opMin .. "~" .. self.closeHour .. ":0" .. self.closeMin
+    end
+
+    -- 判断开启条件（待定）
+    local isPlayCanPlay = true
+
+    if isPlayCanPlay then
+        self.NeedRefesh = true
+        self:RefeshLeftTime()
+    else
+        self.IsOpen = false
+        self.go_btnRank:SetActive(false)
+        self.go_btnSale:SetActive(false)
+        self.go_timeInfo:SetActive(false)
+        self.go_notEnough:SetActive(true)
+        self.go_btnGo:SetActive(false)
+    end
+
+    -- 奖励道具
+    for i = 1, #self.items do
+        self.items[i].gameObject:SetActive(false)
+    end
+    for i = 1, #cfg.AwardID do
+        if i <= #self.items then
+            self.items[i].gameObject:SetActive(true)
+            self.items[i]:SetItemNum(cfg.AwardID[i], 0)
+        end
+    end
+end
+
+function EventPopWindow:OnItemClick(ritem)
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", {ritem.BaseID, false, 0, ritem.transform, 0})
+end
+
+function EventPopWindow:RefeshLeftTime()
+    if self.NeedRefesh then
+        local serverNowTime = math.floor(GameManager.Instance:GetServerTimeStamp() / 1000)
+        -- local serverCloseTime = GetAimTime(serverNowTime,self.closeHour,self.closeMin);
+        -- local serverOpenTime = GetAimTime(serverNowTime,self.openHour,0);
+
+        -- 判断是否已经结束
+        if serverNowTime > self.serverCloseTime then
+            -- 判断是否未开始
+            self.IsOpen = false
+            self.go_btnRank:SetActive(false)
+            self.go_btnSale:SetActive(false)
+            self.go_timeInfo:SetActive(true)
+            self.go_notEnough:SetActive(false)
+            self.go_btnGo:SetActive(false)
+
+            --self.leftTime.text =LanguageHelp:GetLanguageByKey("Local_Str_Over")
+            self.leftTime.text = LanguageHelp:GetLanguageByKey("Local_Str_Over")
+
+            self.NeedRefesh = false
+        elseif self.serverOpenTime > serverNowTime then
+            -- 进行中
+            local leftSec = self.serverOpenTime - serverNowTime
+
+            self.IsOpen = false
+            self.go_btnRank:SetActive(false)
+            self.go_btnSale:SetActive(false)
+            self.go_timeInfo:SetActive(true)
+            self.go_notEnough:SetActive(false)
+            self.go_btnGo:SetActive(false)
+            local str = SecToStringColon3(leftSec)
+            --self.leftTime.text = "倒计时   " .. str;
+            self.leftTime.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_EventPopWindow_leftTime"), {str})
+        else
+            self.IsOpen = true
+            if self.PlayMode == 1 then
+                self.go_btnRank:SetActive(true)
+                self.go_btnSale:SetActive(true)
+                self.tex_btnGo.text = LanguageHelp:GetLanguageByKey("Local_Str_PartyTime_GoBtn1")
+            elseif self.PlayMode == 2 then
+                self.go_btnRank:SetActive(false)
+                self.go_btnSale:SetActive(false)
+                self.tex_btnGo.text = LanguageHelp:GetLanguageByKey("Local_Str_PartyTime_GoBtn1")
+            elseif self.PlayMode == 3 then
+                self.go_btnRank:SetActive(false)
+                self.go_btnSale:SetActive(false)
+                self.tex_btnGo.text = LanguageHelp:GetLanguageByKey("Local_Str_PartyTime_GoBtn1")
+            elseif self.PlayMode == 5 then
+                self.go_btnRank:SetActive(false)
+                self.go_btnSale:SetActive(false)
+                self.tex_btnGo.text = LanguageHelp:GetLanguageByKey("Local_Str_PartyTime_GoBtn2")
+            end
+            self.go_timeInfo:SetActive(false)
+            self.go_notEnough:SetActive(false)
+            self.go_btnGo:SetActive(true)
+        end
+    end
+end
+
+function EventPopWindow:OnClose(arg)
+    -- self:CloseWindow();
+
+    -- 刷新时间
+    MonoHelper.RemoveUpdateListener(self.UpdateFun)
+end
+
+function EventPopWindow:OnClickCloseBtn()
+    self.Close()
+
+    --[[
+	self.PlayAnimation("EventPopWindowAnim_Close", function ()
+		self.IsOpen=false;
+		self.module:OnCloseEvent();
+
+		self.Close();
+	end)
+	]]
+end
+
+return EventPopWindow

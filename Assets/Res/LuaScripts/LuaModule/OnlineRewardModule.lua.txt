@@ -1,0 +1,162 @@
+OnlineRewardModule = class("OnlineRewardModule",BaseLuaModule)
+
+local onlinerewardwindowPath = "onlinereward/prefab/onlinerewardwindow"
+
+--LuaModule 消息模块
+OnlineRewardModule.ModuleMessages=
+{
+	--打开
+	["OnOpenOnlineRewardWindow"]=function(...)
+		OnlineRewardModule:OnOpenOnlineRewardWindow(...);
+	end,
+}
+
+function OnlineRewardModule:OnOpenOnlineRewardWindow(...)
+
+	self.AsyncLoadOnlineRewardWindowCb = function(ui)
+		if ui ~= nil then
+			local onLineRewardWindowView = ui:GetLuaPanel().ScriptTable;
+			if onLineRewardWindowView~= nil then
+				self.onLineRewardWindowView = onLineRewardWindowView;
+				self.onLineRewardWindowView:BindModule(self);
+				self.onLineRewardWindowView:InitControls();
+			end
+			self.onLineRewardWindowView:InitData(self.dailyActData);
+		end
+		self.AsyncLoadOnlineRewardWindowCb = nil;
+	end
+	UIManager.Instance:OpenWindowAsync(
+		onlinerewardwindowPath,
+		self.AsyncLoadOnlineRewardWindowCb,
+		nil, 
+		CS.StarProjectDef.MainPageCommond.HideNone
+	);
+end
+--LuaModule 创建
+function OnlineRewardModule:OnModuleCreate(arg)
+	LuaModuleDispatcher:Register(ModuleDef.OnlineRewardModule,self)
+
+	FixMessageManager.Instance:OnMessage(FixUpdateDef.DailyActivity, function(data)
+        self:OnDailyActivityInfos(data);
+    end, nil);
+end
+
+function OnlineRewardModule:OnDailyActivityInfos(data)
+    local dailyActMD = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.DailyActivity):GetDailyActivityMD();
+    if dailyActMD == nil then
+        return;
+    end
+    if self.onLineRewardWindowView ~= nil and self.onLineRewardWindowView.IsOpen then
+        self.onLineRewardWindowView:InitData(dailyActMD);
+    end
+
+    self.dailyActData = dailyActMD;
+end
+
+function OnlineRewardModule:IsAllFinish()
+	if self.dailyActData == nil or self.dailyActData.OnlineTimeAward.RewardGroupId <= 0 then
+		return true;
+	end
+	
+	local data = self.dailyActData.OnlineTimeAward;
+
+	local haveGotAwardBitmask = data.HaveGotAwardBitmask;
+	for i=1, 6 do
+		local geted = haveGotAwardBitmask & 1<<(i-1);
+		if geted == 0 then
+			return false;
+		end
+	end
+
+	return true;
+end
+
+function OnlineRewardModule:CanGetOnlineReward()
+	if self.dailyActData == nil then
+		return false;
+	end
+
+	local data = self.dailyActData.OnlineTimeAward;
+	local onlineTime = data.Day5OnlineTime;
+	local latestRecordTime = data.LatestRecordTime;
+	local haveGotAwardBitmask = data.HaveGotAwardBitmask;
+	local rewardGroupId = data.RewardGroupId;
+	
+	local dt = GameManager.Instance:GetServerTimeStamp()/1000 - latestRecordTime;
+	self.totalTime = onlineTime + dt;
+
+	local groupRewards = {};
+	local rewards = ConfigDataAccessor.TimeRewardList;
+	for k,v in pairs(rewards) do
+		if v.RewardGroup == rewardGroupId then
+			table.insert(groupRewards, v);
+		end
+	end
+
+	for k,v in pairs(groupRewards) do
+		if self.totalTime >= v.AccrueTime*60 then
+			local geted = haveGotAwardBitmask & 1<<(k-1);
+			if geted == 0 then
+				return true;
+			end
+		end
+	end
+
+	return false;
+end
+
+function OnlineRewardModule:GetOnlineRewardTime()
+	if self.dailyActData == nil then
+		return "00:00";
+	end
+
+	local data = self.dailyActData.OnlineTimeAward;
+	local onlineTime = data.Day5OnlineTime;
+	local latestRecordTime = data.LatestRecordTime;
+	local haveGotAwardBitmask = data.HaveGotAwardBitmask;
+	local rewardGroupId = data.RewardGroupId;
+	
+	local dt = GameManager.Instance:GetServerTimeStamp()/1000 - latestRecordTime;
+	self.totalTime = onlineTime + dt;
+
+	local groupRewards = {};
+	local rewards = ConfigDataAccessor.TimeRewardList;
+	for k,v in pairs(rewards) do
+		if v.RewardGroup == rewardGroupId then
+			table.insert(groupRewards, v);
+		end
+	end
+
+	for k,v in pairs(groupRewards) do
+		if self.totalTime < v.AccrueTime*60 then
+			return self:FormatTime(v.AccrueTime*60 - self.totalTime);
+		end
+	end
+
+	return "00:00";
+end
+
+function OnlineRewardModule:FormatTime(seconds)
+    local minutes = math.floor(seconds / 60)
+    local remainingSeconds = math.floor(seconds % 60);
+    return string.format("%02d:%02d", minutes, remainingSeconds)
+end
+
+--LuaModule 消息处理
+function OnlineRewardModule:OnModuleMessage(msg,...)
+	self.ModuleMessages[msg](...);
+end
+
+
+--LuaModule显示
+function OnlineRewardModule:OnModuleShow(arg)
+
+end
+
+--LuaModule 释放
+function OnlineRewardModule:OnModuleRelease()
+	LuaModuleDispatcher:UnRegister(ModuleDef.OnlineRewardModule)
+	self.onLineRewardWindowView = nil
+end
+
+return OnlineRewardModule

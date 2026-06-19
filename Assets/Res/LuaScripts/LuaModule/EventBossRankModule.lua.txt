@@ -1,0 +1,119 @@
+--[[
+*文件名   :   EventBossRankModule
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/10/31 14:54:39"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+EventBossRankModule = class("EventBossRankModule", BaseLuaModule)
+
+local EventBossRankWidgetPath = "Event/EventBossRankWidget"
+
+--LuaModule 消息模块
+EventBossRankModule.ModuleMessages = {
+    --打开功能BossRank
+    --ModuleManager.Instance.SendMessage(ModuleDef.EventBossRankModule, "OnOpenBossRank", new object[] { 1 }); //只要传一个对话ID
+    ["OnOpenBossRank"] = function(...)
+        EventBossRankModule:OnOpenBossRank(...)
+    end,
+    --关闭功能BossRank
+    --ModuleManager.Instance.SendMessage(ModuleDef.EventBossRankModule, "OnCloseBossRank", new object[] {  });
+    ["OnCloseBossRank"] = function(...)
+        EventBossRankModule:OnCloseBossRank(...)
+    end,
+    --显隐物件交互
+    --ModuleManager.Instance.SendMessage(ModuleDef.ObjectInteractiveModule, "OnShowHideObjectInteractive", {true});
+    ["OnShowHideObjectInteractive"] = function(...)
+        EventBossRankModule:OnShowHideObjectInteractive(...)
+    end
+}
+
+function EventBossRankModule:OnShowHideObjectInteractive(...)
+    local tb = ...
+    local isShow = false
+    --传入道具ID
+    if type(tb) == "table" then
+        --Lua调用
+        isShow = tb[1]
+    else
+        --C#调用
+        isShow = tb[0]
+    end
+
+    if self.tipsWidgetView ~= nil then
+        self.tipsWidgetView.AnimRoot:SetActive(isShow)
+    end
+end
+
+--监听打开
+function EventBossRankModule:OnOpenBossRank(...)
+    local tb = ...
+    self.BossEID = 0
+    --传入功能ID
+    if type(tb) == "table" then
+        --Lua调用
+        self.BossEID = tb[1]
+    else
+        --C#调用
+        self.BossEID = tb[0]
+    end
+
+    local tipsWidgetCs = UIManager.Instance:OpenWidget(EventBossRankWidgetPath, false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, false)
+    if self.tipsWidgetView == nil then
+        self.tipsWidgetView = tipsWidgetCs:GetLuaPanel().ScriptTable
+        self.tipsWidgetView:BindModule(self)
+    end
+    --刷新UI
+    self.tipsWidgetView:RefeshBossRank()
+
+    --[[
+	self.AsyncLoadEventBossRankWidgetCb = function(ui)
+		if ui ~= nil then
+			if self.tipsWidgetView == nil then
+				self.tipsWidgetView=ui:GetLuaPanel().ScriptTable;
+				self.tipsWidgetView:BindModule(self);
+			end
+			--刷新UI
+			self.tipsWidgetView:RefeshBossRank();
+		end
+		self.AsyncLoadEventBossRankWidgetCb = nil;
+	end
+	UIManager.Instance:OpenWidgetAsync(EventBossRankWidgetPath,self.AsyncLoadEventBossRankWidgetCb,false,nil,nil,CS.StarProjectDef.MainPageCommond.HideNone,false,false);
+
+	]]
+end
+
+--监听关闭BossRank事件
+function EventBossRankModule:OnCloseBossRank(...)
+    self.BossEID = 0
+    if self.tipsWidgetView ~= nil then
+        self.tipsWidgetView:CloseWidget()
+        self:OnFinishEventBossRankWidget()
+    end
+end
+
+--LuaModule 创建
+function EventBossRankModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.EventBossRankModule, self)
+end
+
+function EventBossRankModule:OnFinishEventBossRankWidget()
+    print("OnFinishEventBossRankWidget")
+end
+
+--LuaModule 消息处理
+function EventBossRankModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...)
+end
+
+--LuaModule显示
+function EventBossRankModule:OnModuleShow(arg)
+end
+
+--LuaModule 释放
+function EventBossRankModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.EventBossRankModule)
+end
+
+return EventBossRankModule

@@ -1,0 +1,826 @@
+TeamModule = class("TeamModule", BaseLuaModule)
+
+local TeamWindowPath = "TeamWindow/Prefab/TeamWindow"
+local TargetWindowPath = "TeamWindow/Prefab/TargetWindow"
+local ApplyListWindowPath = "TeamWindow/Prefab/ApplyListWindow"
+local TeamLobbyWindowPath = "TeamWindow/Prefab/TeamLobbyWindow"
+
+-- LuaModule 消息模块
+TeamModule.ModuleMessages = {
+    ["OnDisable"] = function(...)
+        TeamModule:OnDisable(...);
+    end,
+    ["OnOpenTeamWindow"] = function(...)
+        TeamModule:OnOpenTeamWindow(...);
+    end,
+    ["OnOpenTargetWindow"] = function(...)
+        TeamModule:OnOpenTargetWindow(...);
+    end,
+    ["OnOpenApplyListWindow"] = function(...)
+        TeamModule:OnOpenApplyListWindow(...);
+    end,
+
+    ["StartTeamFollowChangeScene"] = function(...)
+        TeamModule:StartTeamFollowChangeScene(...);
+    end,
+
+    ["OnSyncTeamData"] = function(...)
+        TeamModule:OnSyncTeamData(...);
+    end,
+
+    ["OnSyncSelMem"] = function(...)
+        TeamModule:OnSyncSelMem(...);
+    end
+}
+
+TeamModule.AtuoAgreeJoinTeam = true; -- 是否自动同意加入队伍标识
+
+local m_CachePlayerPid = {};
+
+
+-- 打开队伍界面
+function TeamModule:OnOpenTeamWindow(...)
+    local tb = ...
+    local data = nil;
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        data = tb[1]
+    else
+        -- C#调用
+        data = tb[0]
+    end
+    -- local teamWindowCS = UIManager.Instance:OpenWindow(TeamWindowPath, nil,
+    -- 	CS.StarProjectDef.MainPageCommond.HideBoth);
+    -- if self.teamWindow == nil then
+    -- 	self.teamWindow = teamWindowCS:GetLuaPanel().ScriptTable;
+    -- 	self.teamWindow:BindModule(self);
+    -- 	self.teamWindow:InitControls();
+    -- end
+
+    -- self.teamWindow:Show(data);
+
+    self.AsyncLoadTeamWindowCb = function(ui)
+        if ui ~= nil then
+            if self.teamWindow == nil then
+                self.teamWindow = ui:GetLuaPanel().ScriptTable;
+                self.teamWindow:BindModule(self);
+                self.teamWindow:InitControls();
+            end
+
+            self.teamWindow:Show(data);
+			self.teamWindow:Refresh(data);
+        end
+        self.AsyncLoadTeamWindowCb = nil;
+    end
+    UIManager.Instance:OpenWindowAsync(TeamWindowPath, self.AsyncLoadTeamWindowCb, nil,
+        CS.StarProjectDef.MainPageCommond.HideBoth);
+end
+
+-- 目标设置界面
+function TeamModule:OnOpenTargetWindow(...)
+    -- local targetWindowCS = UIManager.Instance:OpenWindow(TargetWindowPath, nil,
+    -- 	CS.StarProjectDef.MainPageCommond.HideBoth);
+    -- if self.targetWindow == nil then
+    -- 	self.targetWindow = targetWindowCS:GetLuaPanel().ScriptTable;
+    -- 	self.targetWindow:BindModule(self);
+    -- 	self.targetWindow:InitControls();
+    -- end
+    -- self.targetWindow:Show();
+
+    self.AsyncLoadTargetWindowCb = function(ui)
+        if ui ~= nil then
+            if self.targetWindow == nil then
+                self.targetWindow = ui:GetLuaPanel().ScriptTable;
+                self.targetWindow:BindModule(self);
+                self.targetWindow:InitControls();
+            end
+            self.targetWindow:Show();
+        end
+        self.AsyncLoadTargetWindowCb = nil;
+    end
+    UIManager.Instance:OpenWindowAsync(TargetWindowPath, self.AsyncLoadTargetWindowCb, nil,
+        CS.StarProjectDef.MainPageCommond.HideBoth);
+
+end
+
+-- 申请列表界面
+function TeamModule:OnOpenApplyListWindow(...)
+    -- local applyListWindowCS = UIManager.Instance:OpenWindow(ApplyListWindowPath, nil,
+    -- 	CS.StarProjectDef.MainPageCommond.HideBoth);
+    -- if self.applyListWindow == nil then
+    -- 	self.applyListWindow = applyListWindowCS:GetLuaPanel().ScriptTable;
+    -- 	self.applyListWindow:BindModule(self);
+    -- 	self.applyListWindow:InitControls();
+    -- end
+    -- self.applyListWindow:Refresh(self.allJoinTeamReqs);
+
+    self.AsyncLoadApplyListWindowCb = function(ui)
+        if ui ~= nil then
+            if self.applyListWindow == nil then
+                self.applyListWindow = ui:GetLuaPanel().ScriptTable;
+                self.applyListWindow:BindModule(self);
+                self.applyListWindow:InitControls();
+            end
+            self.applyListWindow:Refresh(self.allJoinTeamReqs);
+        end
+        self.AsyncLoadApplyListWindowCb = nil;
+    end
+
+    UIManager.Instance:OpenWindowAsync(ApplyListWindowPath, self.AsyncLoadApplyListWindowCb, nil,
+        CS.StarProjectDef.MainPageCommond.HideBoth);
+
+end
+
+function TeamModule:OnSyncSelMem(...)
+    local tb = ...
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        self.selMem = tb[1]
+    else
+        -- C#调用
+        self.selMem = tb[0]
+    end
+end
+
+-- 组队大厅界面
+function TeamModule:OnOpenTeamLobbyWindow(data)
+    -- local teamLobbyWindowCS = UIManager.Instance:OpenWindow(TeamLobbyWindowPath, nil,
+    -- 	CS.StarProjectDef.MainPageCommond.HideBoth);
+    -- if self.teamLobbyWindow == nil then
+    -- 	self.teamLobbyWindow = teamLobbyWindowCS:GetLuaPanel().ScriptTable;
+    -- 	self.teamLobbyWindow:BindModule(self);
+    -- 	self.teamLobbyWindow:InitControls(data);
+    -- end
+    -- self.teamLobbyWindow:Refresh(data);
+
+    self.AsyncLoadTeamLobbyWindowCb = function(ui)
+        if ui ~= nil then
+            if self.teamLobbyWindow == nil then
+                self.teamLobbyWindow = ui:GetLuaPanel().ScriptTable;
+                self.teamLobbyWindow:BindModule(self);
+                self.teamLobbyWindow:InitControls(data);
+            end
+            self.teamLobbyWindow:Refresh(data);
+        end
+        self.AsyncLoadTeamLobbyWindowCb = nil;
+    end
+    UIManager.Instance:OpenWindowAsync(TeamLobbyWindowPath, self.AsyncLoadTeamLobbyWindowCb, nil,
+        CS.StarProjectDef.MainPageCommond.HideBoth);
+end
+
+function TeamModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.TeamModule, self)
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.GetAllTeamRetID, function(data)
+        self:OnGetAllTeamRet(data)
+    end, nil);
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.TeamSetPlayIDRetID, function(data)
+        self:OnTeamSetPlayIDRet(data)
+    end, nil);
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.CreateTeamRetID, function(data)
+        self:OnCreateTeamRet(data)
+    end, nil);
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.SignOutTeamRetID, function(data)
+        self:OnSignOutTeamRet(data)
+    end, nil);
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.JoinTeamRetID, function(data)
+        self:OnSJoinTeamRet(data)
+    end, nil);
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.RequestCaptainRetID, function(data)
+        self:OnRequestCaptainRet(data)
+    end, nil);
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.RequestCaptainReqSrvID, function(data)
+        self:OnRequestCaptainReqSrv(data)
+    end, nil);
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.TeamInfoSrvNtfID, function(data)
+        self:OnTeamInfoSrvNtf(data)
+    end, nil);
+
+    -- 加入队伍申请 todo
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.JoinTeamReqSrvID, function(data)
+        self:OnJoinTeamReqSrv(data)
+    end, nil);
+
+    -- 踢人协议
+    -- 队长踢人 给队长的回复
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.KickOutTeamCapRetID, function(data)
+        self:OnKickOutTeamCapRet(data)
+    end, nil);
+    -- 队长踢人 给被踢者的回复
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.KickOutTeamRetID, function(data)
+        self:OnKickOutTeamRet(data)
+    end, nil);
+    -- 队长踢人 给队伍全员(除队长和被踢者以外)的的通知
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.KickOutTeamNtfID, function(data)
+        self:OnKickOutTeamNtf(data)
+    end, nil);
+
+    self.allJoinTeamReqs = {}
+
+    -- 检测聊天消息
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.ChatMsgNoticeSID, function(data)
+        self:OnChatMsgNoticeS(data)
+    end, nil);
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.GetTargetTeamInfoRetID, function(data)
+        self:OnGetTargetTeamInfoRet(data)
+    end, nil);
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.UpdateTeamDescriptionRetID, function(data)
+        self:OnUpdateTeamDescriptionRet(data)
+    end, nil);
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.ChangeTeamCaptainRetID, function(data)
+        self:OnChangeTeamCaptainRet(data)
+    end, nil);
+
+    -- 请求下队伍数据
+    local getTargetTeamInfoReq = CS.ProtoMsg.GetTargetTeamInfoReq();
+    getTargetTeamInfoReq.TargetID = GameManager.Instance.mainPlayerId;
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace,
+        getTargetTeamInfoReq, false);
+
+    self.selMem = 0;
+
+    CS.StarProject.GlobalEvent.OnBackLogin:AddListener(function(againLoginType)
+        self.tinfo = nil;
+        LuaModuleDispatcher:SendMessage(ModuleDef.TaskModule, "UpdateTeamData", self.tinfo);
+    end)
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.GoodsExchangeRetID, function(data)
+        self:OnGoodsExchangeRet(data)
+    end, nil);
+end
+
+function TeamModule:OnGoodsExchangeRet(data)
+    if data == nil or data.data == nil then
+        return;
+    end
+
+    if data.data.ErrorCode == 0 then
+        local msgCfg = ConfigDataAccessor.CRetMsgList[54];
+        Util.ShowMessage(msgCfg.Note);
+    else
+        local msgCfg = ConfigDataAccessor.CRetMsgList[55];
+        Util.ShowMessage(msgCfg.Note);
+    end
+end
+
+function TeamModule:OnGetTargetTeamInfoRet(data)
+    if data == nil or data.data == nil then
+        print("OnGetTargetTeamInfoRet data is nil...");
+        return;
+    end
+
+    self.tinfo = data.data.TInfo;
+    if self.teamLobbyWindow ~= nil then
+        self.teamLobbyWindow:RefreshTeamBtn();
+    end
+end
+
+function TeamModule:OnUpdateTeamDescriptionRet(data)
+    if data == nil or data.data == nil then
+        print("OnUpdateTeamDescriptionRet data is nil...");
+        return;
+    end
+
+    if data.data.Success then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_43"));
+        self.tinfo.Desc = data.data.Desc;
+    else
+        -- 失败弹窗
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_44"));
+    end
+end
+
+function TeamModule:OnGetAllTeamRet(data)
+    -- 所有队伍
+    self:OnOpenTeamLobbyWindow(data);
+end
+
+function TeamModule:OnTeamSetPlayIDRet(data)
+    -- 队伍目标设置
+    -- local ret = data.data.Ret;
+    -- if ret == CS.ProtoMsg.TeamSetPlayIDRet.Types.SetResult.Ok then
+    -- self.teamWindow:refreshtarget(data.data.PlayID);
+    if self.teamWindow ~= nil and self.tinfo ~= nil then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_45"));
+        self.tinfo.LvLimit = data.data.LvLimit;
+        self.tinfo.FightLimit = data.data.FightLimit;
+        self.tinfo.PlayID = data.data.PlayID;
+        self.teamWindow:Refresh(self.tinfo);
+    end
+    -- else
+    -- 	Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_46"));
+    -- end
+end
+
+function TeamModule:OnCreateTeamRet(data)
+    -- 创建队伍
+    -- 当前结果
+    local ret = data.data.Ret
+    local ti = data.data.TInfo;
+    if ret == CS.ProtoMsg.CreateTeamRet.Types.Result.Success then
+        self.tinfo = ti;
+        self:OnOpenTeamWindow({self.tinfo});
+        -- 刷新队伍信息
+        LuaModuleDispatcher:SendMessage(ModuleDef.TaskModule, "UpdateTeamData", self.tinfo);
+        if self.teamLobbyWindow ~= nil then
+            self.teamLobbyWindow:RefreshTeamBtn();
+        end
+    else
+        -- 失败弹窗
+    end
+end
+
+function TeamModule:OnSignOutTeamRet(data)
+    self.allJoinTeamReqs = {}
+
+    if data == nil or data.data == nil then
+        return;
+    end
+
+    if data.data.Ret == CS.ProtoMsg.SignOutTeamRet.Types.Result.Success then
+        -- 刷新队伍信息
+        if data.data.OutEid == GameManager.Instance.mainPlayerId then
+            LuaModuleDispatcher:SendMessage(ModuleDef.TaskModule, "UpdateTeamData", {});
+            self.tinfo = nil;
+            if self.teamLobbyWindow ~= nil then
+                self.teamLobbyWindow:RefreshTeamBtn();
+            end
+        -- 其他人显示离队提示
+        else
+            local member = self:GetTeammateDataByEid(data.data.OutEid)
+            if member ~= nil then
+                Util.ShowMessage(StringFormat(LanguageHelp:GetLanguageByKey("Team_DropOutTips"), {member.UserName}));
+            end
+        end
+    end
+end
+
+function TeamModule:OnSJoinTeamRet(data)
+    -- 加入队伍
+    if data == nil or data.data == nil then
+        return;
+    end
+
+    if data.data.Ret == CS.ProtoMsg.JoinTeamRet.Types.Result.Ok then
+        local ti = self.tinfo;
+        LuaModuleDispatcher:SendMessage(ModuleDef.TaskModule, "UpdateTeamData", {ti});
+
+        if ti == nil then
+            return;
+        end
+        -- 检测是否和队长在同一分线，不在弹窗
+        local captainSpaceId = nil;
+		local captainSrvId = nil;
+        local mySpaceId = nil;
+		local mySrvId = nil;
+        local members = self.tinfo.UserInfos;
+        local captainData = nil;
+        for i = 0, members.Count - 1 do
+            local mem = members[i];
+            m_CachePlayerPid[mem.PID] = 1
+            if mem.IsCaptain then
+                captainSpaceId = mem.SpaceID;
+				captainSrvId = mem.SrvID;
+                captainData = mem;
+            end
+
+            if mem.Eid == GameManager.Instance.mainPlayerId then
+                mySpaceId = mem.SpaceID;
+				mySrvId = mem.SrvID;
+            end
+        end
+
+        if captainSpaceId ~= mySpaceId or captainSrvId ~= mySrvId then
+            UIAPI.ShowTeamMsgBox(14,10,function(EventName)
+                if EventName == "SURE" then
+                    -- 切换分线
+                    local mapChangeReq = CS.ProtoMsg.MapChangeReq();
+                    mapChangeReq.MapID = captainData.MapID;
+                    mapChangeReq.ServerID = captainData.SrvID;
+                    mapChangeReq.Reason = CS.ProtoMsg.ChangeReason.ChangeLine;
+                    mapChangeReq.SpaceID = captainData.SpaceID;
+                    mapChangeReq.SpType = CS.ProtoMsg.SpaceType.SpaceScene;
+                    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType
+                                                                                     .ServerTypeLobby, mapChangeReq,
+                        false);
+                end
+            end)
+        end
+
+        -- LuaModuleDispatcher:SendMessage(ModuleDef.TeamModule, "OnOpenTeamWindow", {});
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_47"));
+
+        if self.teamLobbyWindow ~= nil then
+            self.teamLobbyWindow.Close();
+        end
+        self:OnOpenTeamWindow({self.tinfo});
+    else
+        -- 队伍满员或者队伍已在副本，直接向服务器请求最新队伍列表信息
+        if data.data.Ret == CS.ProtoMsg.JoinTeamRet.Types.Result.FailFull or data.data.Ret == CS.ProtoMsg.JoinTeamRet.Types.Result.FailInInstance then
+            if self.teamLobbyWindow ~= nil then
+                self.teamLobbyWindow:GetAllTeamInfoReq()
+            end
+        end
+
+        -- if data.data.Ret == CS.ProtoMsg.JoinTeamRet.Types.Result.FailLvLimit then
+        -- 	Util.ShowMessage("等级不足，无法申请");
+        -- elseif data.data.Ret == CS.ProtoMsg.JoinTeamRet.Types.Result.FailAlreadyTeam then
+        -- 	Util.ShowMessage("已经在队伍中，无法申请");
+        -- elseif data.data.Ret == CS.ProtoMsg.JoinTeamRet.Types.Result.FailRefuse then
+        -- 	Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_48"));
+        -- else
+        -- 	Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_49"));
+        -- end
+    end
+end
+
+function TeamModule:OnRequestCaptainRet(data)
+    -- 索要队长
+    if data == nil or data.data == nil then
+        return;
+    end
+
+    if data.data.ret == CS.ProtoMsg.RequestCaptainRet.Types.RequestResult.OK then
+        -- 队长同意
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_50"));
+    elseif data.data.ret == CS.ProtoMsg.RequestCaptainRet.Types.RequestResult.FailRefuse then
+        -- 队长拒绝
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_51"));
+    elseif data.data.ret == CS.ProtoMsg.RequestCaptainRet.Types.RequestResult.FailAlreadyCaptain then
+        -- 队长拒绝
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_52"));
+    elseif data.data.ret == CS.ProtoMsg.RequestCaptainRet.Types.RequestResult.FailNoTeam then
+        -- 队长拒绝
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_49"));
+    end
+end
+
+function TeamModule:OnRequestCaptainReqSrv(data)
+    -- 队长弹窗
+    if data == nil or data.data == nil then
+        return;
+    end
+
+    -- 弹窗，显示xxx索要队长
+    CS.StarProjectDef.UIAPI.ShowTeamMsgBox(13,10,function(str)
+        local isRefuse = nil;
+        if str == "SURE" then
+            -- 队长同意
+            isRefuse = CS.ProtoMsg.AgreeCaptainReq.Types.Result.Success;
+        else
+            -- 队长拒绝
+            isRefuse = CS.ProtoMsg.AgreeCaptainReq.Types.Result.Fail;
+        end
+
+        local agreeCaptainReq = CS.ProtoMsg.AgreeCaptainReq();
+        agreeCaptainReq.Request = data.data.Request;
+        agreeCaptainReq.Ret = isRefuse;
+        CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace,
+            agreeCaptainReq, false);
+    end, data.data.Request.RequesterName);
+end
+
+function TeamModule:OnTeamInfoSrvNtf(data)
+    if data == nil or data.data == nil then
+        return;
+    end
+
+    -- 全量更新队伍
+    LuaModuleDispatcher:SendMessage(ModuleDef.TaskModule, "UpdateTeamData", {data.data.TInfo});
+    -- 如果队伍界面打开，刷新下
+    if self.teamWindow ~= nil then
+        self.teamWindow:Refresh(data.data.TInfo);
+    end
+    self.tinfo = data.data.TInfo;
+    if self.teamLobbyWindow ~= nil then
+        self.teamLobbyWindow:RefreshTeamBtn();
+    end
+    CS.StarProject.GlobalEvent.OnTeamInfoChange:Invoke()
+end
+
+function TeamModule:GetTeamInfo()
+    return self.tinfo;
+end
+
+function TeamModule:OnSyncTeamData(...)
+    local tb = ...
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        self.tinfo = tb[1]
+    else
+        -- C#调用
+        self.tinfo = tb[0]
+    end
+    if self.teamLobbyWindow ~= nil then
+        self.teamLobbyWindow:RefreshTeamBtn();
+    end
+end
+
+function TeamModule:OnJoinTeamReqSrv(data)
+    local name = data.data.Join.UserInfo.UserName;
+    -- 队长收到其他人加入队伍
+    local isMax = false;
+    if self.tinfo ~= nil then
+        -- 判断是否人数已经大于上线
+        isMax = self.tinfo.UserInfos.Count >= 5;
+    end
+    if self.AtuoAgreeJoinTeam and isMax == false then
+        -- 自动同意
+        local agreeJoinReq = CS.ProtoMsg.AgreeJoinReq();
+        agreeJoinReq.IsAgree = true;
+        agreeJoinReq.Join:Add(data.data.Join);
+        NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace, agreeJoinReq, false);
+        m_CachePlayerPid[data.data.Join.UserInfo.PID] = 1
+        -- Util.ShowMessage(name.."自动加入队伍");
+    else
+        local exist = false;
+        for _, v in pairs(self.allJoinTeamReqs) do
+            if v.UserInfo.PID == data.data.Join.UserInfo.PID then
+                exist = true;
+                break
+            end
+        end
+
+        local limit = ConfigDataAccessor.SystemList[188].Value;
+        if not exist then
+            if #self.allJoinTeamReqs >= limit then
+                table.remove(self.allJoinTeamReqs, 1);
+            end
+
+            table.insert(self.allJoinTeamReqs, data.data.Join);
+            -- Util.ShowMessage(name.."申请加入队伍");
+            Util.ShowMessage(StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_250"), {name}))
+        end
+    end
+
+    if self.teamWindow ~= nil then
+        self.teamWindow:RefreshApplyNum();
+    end
+
+end
+
+function TeamModule:OnKickOutTeamCapRet(data)
+    -- 队长踢人，回复给队长
+    if data == nil or data.data == nil then
+        return;
+    end
+
+    -- if data.data.ret == CS.ProtoMsg.KickOutTeamCapRet.Types.KickResult.OK then
+    -- 	-- 踢出成功
+    -- 	Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_54"));
+    -- else
+    -- 	Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_55"));
+    -- end
+end
+
+function TeamModule:OnKickOutTeamRet(data)
+    -- 队长踢人，给被踢者的回复
+    if data == nil or data.data == nil then
+        return;
+    end
+
+    Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_56"));
+    if self.teamWindow ~= nil then
+        self.teamWindow:Refresh(nil);
+        self.teamWindow.Close();
+    end
+
+    -- 关闭组队信息，并且清空
+    self.tinfo = nil;
+
+    LuaModuleDispatcher:SendMessage(ModuleDef.TaskModule, "InformTeammateRefreshWidget", {});
+
+end
+
+function TeamModule:OnKickOutTeamNtf(data)
+    -- 队长踢人，给队伍全员(除队长和被踢者以外)的的通知
+    if data == nil or data.data == nil then
+        return;
+    end
+
+    -- if data.data.ret == CS.ProtoMsg.KickOutTeamCapRet.Types.KickResult.OK then
+    -- xxx被踢出队伍
+    -- 全量更新队伍
+    if data.data.TarID == GameManager.Instance.mainPlayerId then
+        self.tinfo = nil;
+        LuaModuleDispatcher:SendMessage(ModuleDef.TaskModule, "UpdateTeamData", {});
+        -- 如果队伍界面打开，刷新下
+        if self.teamWindow ~= nil then
+            self.teamWindow:Refresh(nil);
+            self.teamWindow.Close();
+        end
+    end
+    -- else
+
+    -- end
+end
+
+-- LuaModule 消息处理
+function TeamModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...);
+end
+
+-- LuaModule显示
+function TeamModule:OnModuleShow(arg)
+
+end
+
+-- LuaModule 释放
+function TeamModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.TeamModule)
+    self.teamWindow = nil;
+end
+
+function TeamModule:StartTeamFollowChangeScene(...)
+    local tb = ...;
+    local entityID = 0;
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        entityID = tb[1];
+    else
+        -- C#调用
+        entityID = tb[0];
+    end
+    self.loadCompleteFunc = function(arg)
+        DelayInvoker.DelayInvoke(self, 1, function()
+            TaskHelper.FindToDynamicTarget("TeamModule", entityID);
+            CS.StarProject.GlobalEvent.OnMainPlayerIsReady:RemoveListener(self.loadCompleteFunc);
+        end)
+    end
+    CS.StarProject.GlobalEvent.OnMainPlayerIsReady:AddListener(self.loadCompleteFunc);
+end
+
+function TeamModule:GetSelfData()
+    if self.tinfo == nil then
+        return;
+    end
+    local members = self.tinfo.UserInfos;
+    for i = 0, members.Count - 1 do
+        local mem = members[i];
+        if mem.Eid == GameManager.Instance.mainPlayerId then
+            return mem;
+        end
+    end
+    return nil;
+end
+
+function TeamModule:GetCaptainData()
+    if self.tinfo == nil then
+        return;
+    end
+    local members = self.tinfo.UserInfos;
+    for i = 0, members.Count - 1 do
+        local mem = members[i];
+        if mem.IsCaptain then
+            return mem;
+        end
+    end
+    return nil;
+end
+
+function TeamModule:GetTeammateDataByEid(eid)
+    if self.tinfo == nil then
+        return
+    end
+
+    local members = self.tinfo.UserInfos;
+    for i = 0, members.Count - 1 do
+        local mem = members[i];
+        if mem.Eid == eid then
+            return mem;
+        end
+    end
+
+    return
+end
+
+function TeamModule:OnChatMsgNoticeS(data)
+    if data == nil or data.data == nil then
+        return;
+    end
+
+    local notices = data.data.CMNotices;
+    for i = 0, notices.Count - 1 do
+        local noticeData = notices[i];
+        if noticeData.Channel == CS.ProtoMsg.ChatChannel.ChannelTeam then
+            local msg = ExtraData.GetChatTypeMsg(data.data, CS.ProtoMsg.ChatExtraInfo.Types.EMsg.TeamGather);
+            if msg ~= nil then
+                if msg.EID ~= GameManager.Instance.mainPlayerId then
+                    -- 队长集合mei
+                    UIAPI.ShowMsgBox(12, function(EventName)
+                        if EventName == "SURE" then
+                            -- 寻路
+                            local selfdata = self:GetSelfData();
+                            if selfdata == nil then
+                                return;
+                            end
+                            local capdata = self:GetCaptainData();
+                            if capdata.SpaceID == selfdata.SpaceID and capdata.SrvID == selfdata.SrvID then
+                                TaskHelper.FindToDynamicTarget("TeamModule", capdata.Eid);
+                            else
+                                local mapChangeReq = CS.ProtoMsg.MapChangeReq();
+                                mapChangeReq.MapID = capdata.MapID;
+                                mapChangeReq.ServerID = capdata.SrvID;
+                                mapChangeReq.Reason = CS.ProtoMsg.ChangeReason.ChangeLine;
+                                mapChangeReq.SpaceID = capdata.SpaceID;
+                                mapChangeReq.SpType = CS.ProtoMsg.SpaceType.SpaceScene;
+                                CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType
+                                                                                                 .ServerTypeLobby,
+                                    mapChangeReq, false);
+
+                                LuaModuleDispatcher:SendMessage("TeamModule", "StartTeamFollowChangeScene", msg.EID);
+                            end
+                        end
+                    end, noticeData.ChatName);
+                else
+                    -- 全员集合已发起
+					Util.ShowMessage(LanguageHelp:GetLanguageByKey("Team_GatherTips"));
+				end
+            end
+            -- 通缉任务共享
+            local shareWantedTaskMsg = ExtraData.GetChatTypeMsg(data.data,
+                CS.ProtoMsg.ChatExtraInfo.Types.EMsg.ShareWantedTask);
+            if shareWantedTaskMsg ~= nil and shareWantedTaskMsg.EID ~= GameManager.Instance.mainPlayerId then
+                -- if shareWantedTaskMsg ~= nil then
+                LuaModuleDispatcher:SendMessage(ModuleDef.WantedModule, "OnShareWantedTask", noticeData.ChatName);
+            end
+        elseif data.data.Channel == CS.ProtoMsg.ChatChannel.ChannelCall then
+            -- 招募频道
+        end
+    end
+end
+
+function TeamModule:GetInviteData(inviteId)
+    -- //邀请者队伍ID
+    -- uint64 InviteTeamID = 1;
+    -- //邀请者ID
+    -- uint64 EID = 2;
+    -- //邀请者名
+    -- string InviteName = 3;
+    -- //被邀请者ID
+    -- uint64 InvitedID = 4;
+    -- //玩法ID
+    -- int32 PlayID = 5;
+
+    if self.tinfo == nil then
+        return nil;
+    end
+
+    local inviteJoinTeamReq = CS.ProtoMsg.InviteJoinTeamReq();
+
+    inviteJoinTeamReq.InviteTeamID = self.tinfo.TeamID
+    inviteJoinTeamReq.PlayID = self.tinfo.PlayID
+    inviteJoinTeamReq.InviteID = GameManager.Instance.mainPlayerId
+    inviteJoinTeamReq.InviteName = GameManager.Instance:GetPlayerName();
+    inviteJoinTeamReq.InvitedID = inviteId;
+
+    return inviteJoinTeamReq;
+end
+
+-- 获取实体ID是否是队伍的队长
+function TeamModule:EntityIsCaptain(entityID)
+    local isCaptain = false;
+    if self.tinfo ~= nil and self.tinfo.TeamID ~= 0 and self.tinfo.UserInfos.Count > 0 then
+        for i = 0, self.tinfo.UserInfos.Count - 1 do
+            local info = self.tinfo.UserInfos[i];
+            if info ~= nil then
+                if info.IsCaptain then
+                    if info.Eid == entityID then -- GameManager.Instance.mainPlayerId
+                        isCaptain = true;
+                    end
+                end
+            end
+        end
+    end
+    return isCaptain;
+end
+
+function TeamModule:OnChangeTeamCaptainRet(data)
+    Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_57"));
+end
+
+function TeamModule:GetRecentTeamMembers()
+    return m_CachePlayerPid
+end
+
+function TeamModule:GetIsRecentTeamByPis(pid)
+    if m_CachePlayerPid == nil or m_CachePlayerPid == {} then
+        return false;
+    end
+    local isHave = m_CachePlayerPid[pid];
+    return isHave == 1;
+end
+
+function TeamModule:OnDisable()
+    m_CachePlayerPid = {}
+end
+
+return TeamModule

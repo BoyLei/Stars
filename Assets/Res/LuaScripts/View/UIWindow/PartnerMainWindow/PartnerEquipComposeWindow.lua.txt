@@ -1,0 +1,611 @@
+--[[
+*文件名   :   PartnerEquipComposeWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2024/06/05 20:11:23"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+PartnerEquipComposeWindow=class("PartnerEquipComposeWindow",UIPanel)
+local PartnerEquipNew=require("View/UIWindow/PartnerWindow/PartnerEquipPart_New")
+local PartnerEquipSelect=require("View/UIWindow/PartnerMainWindow/PartnerEquipSelect")
+
+PartnerEquipComposeWindow.m_PartnerEquip=nil;
+PartnerEquipComposeWindow.m_CloseBtn=nil;
+PartnerEquipComposeWindow.m_name=nil;
+PartnerEquipComposeWindow.m_icon=nil;
+PartnerEquipComposeWindow.m_Next_Power=nil;
+PartnerEquipComposeWindow.m_Cur_Power=nil;
+PartnerEquipComposeWindow.m_SkillName=nil;
+PartnerEquipComposeWindow.m_SkillLevel=nil;
+PartnerEquipComposeWindow.m_SkillDesc=nil;
+PartnerEquipComposeWindow.m_add=nil;
+PartnerEquipComposeWindow.m_addText=nil;
+PartnerEquipComposeWindow.m_PartnerEquipSelect=nil;
+PartnerEquipComposeWindow.m_UpBtn=nil;
+PartnerEquipComposeWindow.EquipProp=nil;
+PartnerEquipComposeWindow.Items=nil;
+PartnerEquipComposeWindow.Right_Items=nil
+PartnerEquipComposeWindow.Stars=nil;
+PartnerEquipComposeWindow.PartnerEquipSelect=nil;
+PartnerEquipComposeWindow.CurrentItemID=nil;
+PartnerEquipComposeWindow.SlotItemEntitys=nil;
+PartnerEquipComposeWindow.CacheData=nil;
+
+local CloseBtnFunc=nil;
+local OnSelectItemCallBack=nil;
+local OnCleanItemCallBack=nil;
+local emptyItemClick=nil;
+local selectItemClick=nil;
+local OnSelectCallBack=nil;
+local OnClickUpBtnFunc=nil;
+local PartnerEquipUPRetEventFunc=nil;
+local OnClickAddBtnFunc=nil;
+local OnTabChange=nil
+
+function PartnerEquipComposeWindow:Awake()
+	self.m_PartnerEquip=self:Find("Cut4Cam90/AssemblyRatio2/Left/PartnerEquip").gameObject;
+	self.m_CloseBtn=self:Find("Cut4Cam90/AssemblyRatio2/Left/CloseBtn"):GetComponent(typeof(JButton));
+	self.m_UpBtn=self:Find("Cut4Cam90/AssemblyRatio2/Right/hecheng/UpBtn"):GetComponent(typeof(JButton));
+
+	self.m_name=self:Find("Cut4Cam90/AssemblyRatio2/Right/hecheng/shengjie/zhong/name"):GetComponent(typeof(Text));
+	self.m_icon=self:Find("Cut4Cam90/AssemblyRatio2/Right/hecheng/shengjie/zhong/icon"):GetComponent(typeof(Image));
+	self.m_Next_Power=self:Find("Cut4Cam90/AssemblyRatio2/Right/hecheng/Content/List/zhanli/Next_Power"):GetComponent(typeof(Text));
+	self.m_Cur_Power=self:Find("Cut4Cam90/AssemblyRatio2/Right/hecheng/Content/List/zhanli/Cur_Power"):GetComponent(typeof(Text));
+	self.m_infomation=self:Find("Cut4Cam90/AssemblyRatio2/Right/hecheng/Content/infomation").gameObject
+	self.m_SkillName=self:Find("Cut4Cam90/AssemblyRatio2/Right/hecheng/Content/infomation/name"):GetComponent(typeof(Text));
+	self.m_SkillLevel=self:Find("Cut4Cam90/AssemblyRatio2/Right/hecheng/Content/infomation/level"):GetComponent(typeof(Text));
+	self.m_SkillDesc=self:Find("Cut4Cam90/AssemblyRatio2/Right/hecheng/Content/infomation/1"):GetComponent(typeof(Text));
+	self.m_add=self:Find("Cut4Cam90/AssemblyRatio2/Right/hecheng/cailiao/add"):GetComponent(typeof(JButton));
+	self.m_addText=self:Find("Cut4Cam90/AssemblyRatio2/Right/hecheng/cailiao/add/tex"):GetComponent(typeof(Text));
+	self.m_PartnerEquipSelect=self:Find("Cut4Cam90/AssemblyRatio2/PartnerEquipSelect").gameObject;
+	self.Items={}
+	for i = 1, 3 do
+		table.insert(self.Items,{
+				empty=self:Find("Cut4Cam90/AssemblyRatio2/Right/hecheng/shengjie/"..i.."/empty").gameObject,
+				Has=self:Find("Cut4Cam90/AssemblyRatio2/Right/hecheng/shengjie/"..i.."/Has").gameObject,
+				Sel=self:Find("Cut4Cam90/AssemblyRatio2/Right/hecheng/shengjie/"..i.."/Has/Sel").gameObject,
+				icon=self:Find("Cut4Cam90/AssemblyRatio2/Right/hecheng/shengjie/"..i.."/Has/icon"):GetComponent(typeof(Image)),
+				di=self:Find("Cut4Cam90/AssemblyRatio2/Right/hecheng/shengjie/"..i.."/Has/di"):GetComponent(typeof(Image)),
+				Star1=self:Find("Cut4Cam90/AssemblyRatio2/Right/hecheng/shengjie/"..i.."/Has/Star1").gameObject,
+				Star2=self:Find("Cut4Cam90/AssemblyRatio2/Right/hecheng/shengjie/"..i.."/Has/Star2").gameObject,
+				Star3=self:Find("Cut4Cam90/AssemblyRatio2/Right/hecheng/shengjie/"..i.."/Has/Star3").gameObject,
+				Clean=function(empty,Has)
+					empty:SetActive(true)
+					Has:SetActive(false)
+				end
+			})
+	end
+	emptyItemClick=function(index)
+		self:OnClickEmpty(index)
+	end
+
+	selectItemClick=function(index)
+		self:OnClickSelect(index)
+	end
+	
+	OnCleanItemCallBack=function(index)
+		
+	end
+	self.Right_Items={}
+	for i = 1, 3 do
+		table.insert(self.Right_Items,{
+				empty=self:Find("Cut4Cam90/AssemblyRatio2/Right/hecheng/cailiao/"..i.."/Empty").gameObject,
+				emptyBtn=self:Find("Cut4Cam90/AssemblyRatio2/Right/hecheng/cailiao/"..i.."/Empty"):GetComponent(typeof(JButton)),
+				selBtn=self:Find("Cut4Cam90/AssemblyRatio2/Right/hecheng/cailiao/"..i.."/Has"):GetComponent(typeof(JButton)),
+				Del=self:Find("Cut4Cam90/AssemblyRatio2/Right/hecheng/cailiao/"..i.."/Has/Sel/delete"):GetComponent(typeof(JButton)),
+
+				Has=self:Find("Cut4Cam90/AssemblyRatio2/Right/hecheng/cailiao/"..i.."/Has").gameObject,
+				Bg=self:Find("Cut4Cam90/AssemblyRatio2/Right/hecheng/cailiao/"..i.."/bg"):GetComponent(typeof(Image)),
+				Sel=self:Find("Cut4Cam90/AssemblyRatio2/Right/hecheng/cailiao/"..i.."/Has/Sel").gameObject,
+				icon=self:Find("Cut4Cam90/AssemblyRatio2/Right/hecheng/cailiao/"..i.."/Has/Icon"):GetComponent(typeof(Image)),
+				di=self:Find("Cut4Cam90/AssemblyRatio2/Right/hecheng/cailiao/"..i.."/Has/BgRare"):GetComponent(typeof(Image)),
+				Clean=function(empty,Has)
+					empty:SetActive(true)
+					Has:SetActive(false)
+				end,
+				SetSelect=function(go,active)
+					go:SetActive(active)
+				end,
+			})
+	end
+
+	for k, v in pairs(self.Right_Items) do
+		v.emptyBtn.OnClick=function()
+			emptyItemClick(k)
+		end
+		
+		v.selBtn.OnClick=function()
+			selectItemClick(k)
+			for k1, v1 in pairs(self.Right_Items) do
+				v1.SetSelect(v1.Sel,k1==k)
+			end
+		end
+		
+		v.Del.OnClick=function()
+			OnCleanItemCallBack(k)
+			for k1, v1 in pairs(self.Right_Items) do
+				if k1==k then
+					v1.Clean(v1.empty,v1.Has);
+				end
+			end
+			
+			for k1, v1 in pairs(self.Items) do
+				if k1==k then
+					v1.Clean(v1.empty,v1.Has);
+				end
+			end
+		end
+	end
+
+	self.Stars={}
+	for i = 1, 3 do
+		table.insert(self.Stars,
+			self:Find("Cut4Cam90/AssemblyRatio2/Right/hecheng/shengjie/zhong/Stars/Star"..i).gameObject
+		)
+	end
+
+	self.ItemAtrrs={}
+
+	for i = 1, 4 do
+		table.insert(self.ItemAtrrs,{
+				icon=self:Find("Cut4Cam90/AssemblyRatio2/Right/hecheng/Content/List/Item"..i.."/Icon"):GetComponent(typeof(Image)),
+				name=self:Find("Cut4Cam90/AssemblyRatio2/Right/hecheng/Content/List/Item"..i.."/Text"):GetComponent(typeof(Text)),
+				Cur=self:Find("Cut4Cam90/AssemblyRatio2/Right/hecheng/Content/List/Item"..i.."/Cur"):GetComponent(typeof(Text)),
+				Next=self:Find("Cut4Cam90/AssemblyRatio2/Right/hecheng/Content/List/Item"..i.."/Value"):GetComponent(typeof(Text))
+			})
+	end
+
+	OnSelectItemCallBack=function(entityid,id)
+		self:OnSelectItem(entityid,id);
+	end
+	
+	OnTabChange=function(idx)
+		self.Idx=idx
+	end
+	
+	self.PartnerEquip=PartnerEquipNew:New(self.m_PartnerEquip,OnSelectItemCallBack,OnTabChange)
+
+	OnSelectCallBack=function(soltid,itemid,entityID)
+		self:OnSelectCallBackHandler(soltid,itemid,entityID)
+	end
+
+	self.PartnerEquipSelect=PartnerEquipSelect.new(self.m_PartnerEquipSelect,OnSelectCallBack)
+
+	CloseBtnFunc=function() self:OnClickCloseBtn(); end;
+
+	OnClickUpBtnFunc=function()
+		self:OnClickUpBtn()
+	end
+
+	PartnerEquipUPRetEventFunc=function(data)
+		self:OnPartnerEquipUPRetEvent(data)
+	end
+	OnClickAddBtnFunc=function()
+		self:OnClickAddBtn()
+	end
+end
+
+function PartnerEquipComposeWindow:OnClickAddBtn()
+	if self.Full then
+		print("点击  11")
+		self:CleanItem();
+	else
+		print("点击  22")
+		self.SlotItemEntitys[self.CurrentItemID]={}
+		--可交易次数
+		--可交易次数更高
+		--可交易次数更低
+		--同类型优先选择未装备的魂石
+		--self.CurrentItemEntityID
+
+		local tempTradedCount=0;
+		local item=BusinessManager.Instance:GetItemByItemEntityId(self.CurrentItemEntityID)
+		if item~=nil then
+			tempTradedCount=item.TradedCount
+		end
+
+		local list={}
+		local items=BusinessManager.Instance:GetAllItemsByItemBaseId(self.CurrentItemID)
+
+		if items.Count>0 then
+			for k, v in pairs(items) do
+
+				local data={}
+				data.data=v;
+
+				if v.HeroID==0 then
+
+					data.Equip=1
+				else
+					data.Equip=0
+				end
+				data.TradedCount=v.TradedCount
+				if v.TradedCount==tempTradedCount then
+					data.Same=1;
+				else
+					data.Same=0;
+				end
+
+				table.insert(list,data)
+			end
+
+			table.sort(list,function (item1,item2)
+					if item1.Same==item2.Same then
+						if item1.Equip==item2.Equip then
+							return item1.TradedCount<item2.TradedCount
+						else
+							return item1.Equip<item2.Equip
+						end
+					else
+						return item1.Same<item2.Same
+					end
+				end)
+
+			print(#list)
+			print(items.Count)
+			self:CleanItem();
+
+			local cnt=0;
+			for k, v in pairs(list) do
+				if cnt<3 then
+					self:SetComposeItem(k,v.data.BaseID,v.data.ID)
+				end
+				cnt=cnt+1
+			end
+		end
+	end
+end
+
+function PartnerEquipComposeWindow:OnPartnerEquipUPRetEvent(data)
+	--self:SetSelectID(self.CurrentItemID,self.CurrentItemEntityID);
+	self.PartnerEquip:OnEquipMenuBtnClick(self.Idx,true)
+end
+
+function PartnerEquipComposeWindow:OnSelectCallBackHandler(soltid,itemid,entityID)
+	self:SetComposeItem(soltid,itemid,entityID)
+end
+
+function PartnerEquipComposeWindow:IsSelect(itemID,entityID)
+	local list=self.SlotItemEntitys[itemID]
+	if list~=nil then
+		for k, v in pairs(list) do
+			if tostring(v.value)==tostring(entityID) then
+				return  true
+			end
+		end
+	end
+	return  false
+end
+
+function PartnerEquipComposeWindow:OnClickEmpty(index)
+	local SelectIndex=0;
+	local list={}
+	local items=BusinessManager.Instance:GetAllItemsByItemBaseId(self.CurrentItemID)
+	for k, v in pairs(items) do
+		
+		if v.HeroID==0 then
+
+			if not self:IsSelect(v.BaseID,v.ID) then
+				if SelectIndex==0 then
+					SelectIndex=tostring(v.ID)
+				end
+			end
+			table.insert(list,v)
+		end
+	end
+	
+	self.PartnerEquipSelect:OnOpen({SlotIndex=index,ItemID=self.CurrentItemID},
+		list,
+		SelectIndex,
+		function ()
+			self:OnEquipSelectClose()
+		end)
+end
+
+function PartnerEquipComposeWindow:OnClickSelect(index)
+	
+end
+
+function PartnerEquipComposeWindow:OnEquipSelectClose()
+
+end
+
+function PartnerEquipComposeWindow:OnSelectItem(entityid,id)
+	print("选中了道具"..id)
+	self.SelectItem=id;
+	self.SelectItemEntityID=entityid;
+	self:SetSelectID(id,entityid);
+end
+
+
+function PartnerEquipComposeWindow:OnClickUpBtn()
+	local partnerEquipUPReq = CS.ProtoMsg.PartnerEquipUPReq();
+	partnerEquipUPReq.ItemID = self.SlotItemEntitys[self.CurrentItemID][1].value;
+	partnerEquipUPReq.MaterialItemID1 = self.SlotItemEntitys[self.CurrentItemID][2].value;
+	partnerEquipUPReq.MaterialItemID2 = self.SlotItemEntitys[self.CurrentItemID][3].value;
+
+	CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, partnerEquipUPReq, false);
+end
+
+function PartnerEquipComposeWindow:Start()
+	self.m_CloseBtn.OnClick= CloseBtnFunc;
+	self.m_UpBtn.OnClick=OnClickUpBtnFunc
+	self.m_add.OnClick=OnClickAddBtnFunc
+end
+
+function PartnerEquipComposeWindow:OnEnable()
+	local PartnerEquipUPRetEvent=LuaModuleDispatcher:Event(ModuleDef.BattleTeamModule,"PartnerEquipUPRetEvent");
+	PartnerEquipUPRetEvent:AddListener(PartnerEquipUPRetEventFunc)
+end
+
+function PartnerEquipComposeWindow:OnDisable()
+
+	local PartnerEquipUPRetEvent=LuaModuleDispatcher:Event(ModuleDef.BattleTeamModule,"PartnerEquipUPRetEvent");
+	PartnerEquipUPRetEvent:RemoveListener(PartnerEquipUPRetEventFunc)
+end
+
+function PartnerEquipComposeWindow:OnDestroy()
+
+end
+
+function PartnerEquipComposeWindow:OnOpen(arg)
+	self.SlotItemEntitys={}
+	self.CacheData=arg;
+	self.Idx=arg.Idx
+	self.PartnerEquip:OnSetPartner(arg.ConfigID,arg.Idx,false,true)
+	self:SetSelectID(arg.ID,arg.ItemMD.ID);
+end
+
+function PartnerEquipComposeWindow:SetSelectID(ID,entityID)
+	self.CurrentItemID=ID
+	self.CurrentItemEntityID=entityID
+	local itemid=self:GetNextID(ID)
+	if itemid==0 then
+		print("找不到合成道具"..ID )
+		return 
+	end
+	local item=ConfigDataAccessor.Item[itemid]
+	if item~=nil then
+		self.m_name.text=item.Name;
+		ResourceHelper:LoadIconAsync(self.m_icon, "", item.Icon, false)
+	end
+
+	local equipCfg=ConfigDataAccessor.PartnerEquip[itemid]
+	if equipCfg~=nil then
+		for k, v in pairs(self.Stars) do
+			v:SetActive(k<=equipCfg.AdvancedLevel)
+		end
+	end
+
+
+	local item_Cfg=ConfigDataAccessor.Item[ID]
+	local itemEqip_Cfg=ConfigDataAccessor.PartnerEquip[ID]
+	local itemEqip_Next_Cfg=ConfigDataAccessor.PartnerEquip[itemid]
+
+
+	self.m_Cur_Power.text=itemEqip_Cfg.Power
+	self.m_Next_Power.text=itemEqip_Next_Cfg.Power
+
+	local datas={}
+	for i = 1, #itemEqip_Cfg.QualiFications do
+		table.insert(datas,{ID=itemEqip_Cfg.QualiFications[i],Cur=itemEqip_Cfg.QualiFicationsValue[i],Next=itemEqip_Next_Cfg.QualiFicationsValue[i],IsPlayer=false})
+	end
+
+	for i = 1, #itemEqip_Cfg.Nature do
+		table.insert(datas,{ID=itemEqip_Cfg.Nature[i],Cur=itemEqip_Cfg.Value[i],Next=itemEqip_Next_Cfg.Value[i],IsPlayer=true})
+	end
+
+	for k, v in pairs(datas) do
+		self:SetAtrribuite(k,v)
+	end
+
+	self.m_infomation:SetActive(false)
+	local equipCfg=ConfigDataAccessor.PartnerEquip[ID]
+	if equipCfg~=nil then
+		
+	if #equipCfg.Effect>0 then
+		self.m_infomation:SetActive(true)
+		local effectcfg=ConfigDataAccessor.PartnerEquipEffect[equipCfg.Effect[1]]
+		if effectcfg~=nil then
+
+
+			local PartnerType="";
+
+			local PartnerTypeCfg=ConfigDataAccessor.PartnerType[effectcfg.PartnerType]
+			if PartnerTypeCfg~=nil then
+				PartnerType=PartnerTypeCfg.Name
+			end
+
+			if PartnerType== nil or PartnerType=="" or PartnerType=='' then
+				self.m_SkillName.text=effectcfg.Name
+			else
+				self.m_SkillName.text=effectcfg.Name.."<"..PartnerType..">"
+			end
+
+			self.m_SkillLevel.text=StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"),{equipCfg.EquipLevel})
+			self.m_SkillDesc.text=effectcfg.Desc
+			--self.m_Skillicon=self:Find("Content/infomation/Skillicon"):GetComponent(typeof(Image));;
+
+		end
+	end
+	end
+	self:CleanItem();
+	self:SetComposeItem(1,ID,entityID)
+
+end
+
+function PartnerEquipComposeWindow:OnSlotItemChange(itemID)
+	local count=0;
+	if self.SlotItemEntitys[itemID]~=nil then
+		for k, v in pairs(self.SlotItemEntitys[itemID]) do
+			if v~=nil then
+				count=count+1
+			end
+		end
+	end
+	return count==3;
+end
+
+function PartnerEquipComposeWindow:SetComposeItem(index,itemID,entityID)
+
+	if self.SlotItemEntitys[itemID] ==nil then
+		self.SlotItemEntitys[itemID]={}
+	end
+	--table.insert(self.SlotItemEntitys[itemID],index,uint64.new(entityID))
+	self.SlotItemEntitys[itemID][index]=uint64.new(entityID)
+	local isFull=self:OnSlotItemChange(itemID);
+	self.Full=isFull
+	self.m_UpBtn.gameObject:SetActive(isFull)
+	if isFull then
+		self.m_addText.text=LanguageHelp:GetLanguageByKey("partner_sys_17")
+	else
+		self.m_addText.text=LanguageHelp:GetLanguageByKey("partner_sys_16")
+	end
+
+	local itemCfg=ConfigDataAccessor.Item[itemID]
+	local equipCfg=ConfigDataAccessor.PartnerEquip[itemID]
+	if itemCfg~=nil and equipCfg~=nil then
+		local centerItem=self.Items[index]
+		local rightItem=self.Right_Items[index]
+
+		if centerItem~=nil then
+			centerItem.Has:SetActive(true)
+			local quality = itemCfg.Quality;
+			if quality==99 then
+				quality=1;
+			end
+			ResourceHelper:LoadIconByAtlasAsync(
+				centerItem.di,
+				"UI/Partner/Atlas/Partner1",
+				"Partner_btn_" .. quality,
+				false,
+				function (s)
+					centerItem.di.gameObject:SetActive(true)
+				end
+			)
+
+			ResourceHelper:LoadIconAsync(centerItem.icon, "", itemCfg.Icon, false)
+			if equipCfg.AdvancedLevel==1 then
+				centerItem.Star1:SetActive(true)
+				centerItem.Star2:SetActive(false)
+				centerItem.Star3:SetActive(false)
+			elseif  equipCfg.AdvancedLevel==2 then
+				centerItem.Star1:SetActive(false)
+				centerItem.Star2:SetActive(true)
+				centerItem.Star3:SetActive(false)
+			elseif  equipCfg.AdvancedLevel==3 then
+				centerItem.Star1:SetActive(false)
+				centerItem.Star2:SetActive(false)
+				centerItem.Star3:SetActive(true)
+			end
+		end
+
+		if rightItem~=nil then
+
+			rightItem.Has:SetActive(true)
+			local quality = itemCfg.Quality;
+			if quality==99 then
+				quality=1;
+			end
+			ResourceHelper:LoadIconByAtlasAsync(
+				rightItem.di,
+				ResourceHelper.AtlasPathCommonItem,
+				"Bag_Grid_sq" .. quality,
+				false,
+				function (s)
+					rightItem.di.gameObject:SetActive(true)
+				end
+			)
+
+			ResourceHelper:LoadIconAsync(rightItem.icon, "", itemCfg.Icon, false)
+		end
+
+	end
+
+end
+
+function PartnerEquipComposeWindow:CleanItem()
+	for k, v in pairs(self.Items) do
+		v.Clean(v.empty,v.Has);
+	end
+
+	for k, v in pairs(self.Right_Items) do
+		v.Clean(v.empty,v.Has);
+	end
+	
+	--local isFull=self:OnSlotItemChange(itemID);
+	self.Full=false
+	self.m_UpBtn.gameObject:SetActive(self.Full)
+	if self.Full then
+		self.m_addText.text=LanguageHelp:GetLanguageByKey("partner_sys_17")
+	else
+		self.m_addText.text=LanguageHelp:GetLanguageByKey("partner_sys_16")
+	end
+end
+
+function PartnerEquipComposeWindow:SetAtrribuite(index,data)
+	local item=self.ItemAtrrs[index]
+	if item~=nil and data~=nil then
+
+		local Name=""
+		if data.IsPlayer then
+
+			local config1=  ConfigDataAccessor.GetAttrByID(data.ID);
+			local attrName1 = "";
+			if config1 ~= nil then
+				attrName1 = config1.Name;
+			end
+
+			Name=attrName1..LanguageHelp:GetLanguageByKey("partner_sys_12")
+
+		else
+			local config=ConfigDataAccessor.GetAttrByID(data.ID)
+			if config~=nil then
+				Name=config.Name;
+			end
+		end
+		item.name.text=Name;
+
+		item.Cur.text=data.Cur
+		item.Next.text=data.Next
+		self:GetSpriteByAtlas("UI/Icons/Atlas/IconAttribute","Attribute_"..data.ID,function (sp)
+				item.icon.sprite=sp
+			end)
+	end
+
+end
+
+function  PartnerEquipComposeWindow:SetItemEmpty(item,isEmpty)
+	item.empty:SetActive(isEmpty)
+	item.Sel:SetActive(not isEmpty)
+	item.icon.gameObject:SetActive(not isEmpty)
+	item.Star1:SetActive(not isEmpty)
+	item.Star2:SetActive(not isEmpty)
+	item.Star3:SetActive(not isEmpty)
+end
+
+
+function PartnerEquipComposeWindow:GetNextID(id)
+	for k, v in pairs(ConfigDataAccessor.Compose) do
+		if v.Id==id then
+			return v.TargeID
+		end
+	end
+	return 0
+end
+
+function PartnerEquipComposeWindow:OnClose(arg)
+
+	if self.CacheData.CallBack~=nil then
+		self.CacheData.CallBack()
+	end
+end
+
+function PartnerEquipComposeWindow:OnClickCloseBtn()
+	self.Close()
+end
+
+
+
+return  PartnerEquipComposeWindow

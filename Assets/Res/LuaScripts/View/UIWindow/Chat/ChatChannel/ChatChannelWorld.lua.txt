@@ -1,0 +1,351 @@
+local ChatChannelWorld = {}
+ChatChannelWorld.__index = ChatChannelWorld
+
+local WorldItem = require("View/UIWindow/Chat/ChatChannel/WorldItem");
+local SystemMsgItem = require("View/UIWindow/Chat/ChatChannel/SystemMsgItem");
+local ItemChatTime = require("View/UIWindow/Chat/ChatChannel/ItemChatTime");
+local SelectBtn = require("View/Item/SelectBtn");
+
+ChatChannelWorld.Channel = nil;
+ChatChannelWorld.Parent = nil;
+ChatChannelWorld.LastTime = 0;
+ChatChannelWorld.IsUnLock = false;
+
+ChatChannelWorld.AcceptLastTime = 0; --接受消息的上次时间
+
+ChatChannelWorld.ChatChannelMaxCount = 50;
+
+
+function ChatChannelWorld:New(obj, Channel)
+	local self = {};
+	setmetatable(self, ChatChannelWorld);
+
+	self.Channel = Channel;
+	self:InitEntityData();
+	self:InitControls(obj)
+
+	return self;
+end
+
+function ChatChannelWorld:InitControls(obj)
+	self.gameObject = obj;
+	self.transform = obj.transform;
+
+	self.ContentCanvasGroup = self.gameObject:GetComponent(typeof(CanvasGroup));
+	self.FunctionalArea = self.transform:Find("FunctionalArea").gameObject;
+	-- 不可发言提示
+	self.NotInput = self.transform:Find("NotInput").gameObject;
+	-- 播放语音
+	self.JBtnVoice = self.FunctionalArea.transform:Find("JBtnVoice"):GetComponent(typeof(JButton));
+	self.JVoice = SelectBtn:New(self.FunctionalArea.transform:Find("JBtnVoice").gameObject);
+	self.JVoiceFun = function(idx)
+		-- 播放语音
+		self:ClickVoiceBtn();
+	end
+	self.JVoice:InitItem(0, self.JVoiceFun);
+	--JVoice:MakeSelected(false);
+	-- 弹幕
+	self.JBtnBarrage = self.FunctionalArea.transform:Find("JBtnBarrage"):GetComponent(typeof(JButton));
+	self.JBarrage = SelectBtn:New(self.FunctionalArea.transform:Find("JBtnBarrage").gameObject);
+	self.JBarrageFun = function(idx)
+		-- 弹幕
+		self:ClickBarrageBtn();
+	end
+	self.JBarrage:InitItem(0, self.JBarrageFun);
+	--JBarrage:MakeSelected(false);
+	-- 清空
+	self.JBtnClear = self.FunctionalArea.transform:Find("JBtnClear"):GetComponent(typeof(JButton));
+	self.JBtnClearFun = function()
+		self:ClearItem();
+	end
+	self.JBtnClear.OnClick = self.JBtnClearFun;
+
+	-- 回到底部按钮
+	--self.BtnDown = self.FunctionalArea.transform:Find("ScrollView/BtnDown"):GetComponent(typeof(Button));
+	--self.BtnDown.onClick:RemoveAllListeners();
+	--self.BtnDown.onClick:AddListener(
+	--function()
+	----11
+	--end);
+
+	if self.chatCfg ~= nil then
+		-- 是否支持语音
+		self.JBtnVoice.gameObject:SetActive(self.chatCfg.AllowVoice);
+		-- 是否支持弹幕
+		self.JBtnBarrage.gameObject:SetActive(self.chatCfg.AllowVoice);
+		-- 是否支持发言
+		self.NotInput:SetActive((not self.chatCfg.AllowInput));
+	end
+
+	self.ScrollView = self.transform:Find("ScrollView"):GetComponent(typeof(ScrollViewExtend));
+
+	--self.ScrollView.onValueChanged:AddListener((function(v2)
+	--self:Test11(v2);
+	--end)
+	--)
+
+	self.Content = self.transform:Find("ScrollView/Viewport/Content");
+	self.ContentVerticalLayoutGroup = self.Content.transform:GetComponent(typeof(VerticalLayoutGroup));
+	self.ContentContentSizeFitter = self.Content.transform:GetComponent(typeof(ContentSizeFitter));
+
+	self.AcceptLastTime = 0;
+	self.allMsgs = {};
+end
+
+function ChatChannelWorld:Test11(v2)
+	-- 自适应新加入的item,并且自动滑动到最下面
+	self.ContentVerticalLayoutGroup:CalculateLayoutInputVertical();
+	self.ContentContentSizeFitter:SetLayoutVertical();
+	self.ScrollView:SetLayoutVertical();
+	self.ScrollView.verticalNormalizedPosition = 0;
+end
+
+function ChatChannelWorld:InitEntityData()
+	local index = GetChatChannelToIndex(self.Channel);
+	self.chatCfg = ConfigDataAccessor.ChatList[index];
+	self.ChatChannelMaxCount = self.chatCfg.MaxCount;
+end
+
+function ChatChannelWorld:GetIsSend()
+	local isSend = false;
+
+	if self.Channel == CS.ProtoMsg.ChatChannel.ChannelUnion then
+		-- 如果是冒险团频道，检查是否有冒险团
+		if BusinessManager.Instance:GetGuildID() == 0 then
+			Util.ShowMessageByCode(CRetMsgEnum.Tips_Chat_02)
+			return isSend;
+		end
+	elseif self.Channel == CS.ProtoMsg.ChatChannel.ChannelTeam then
+		-- 如果是队伍频道，检查是否有队伍
+		local module = ModuleManager.Instance:GetModule(ModuleDef.TeamModule)
+		local luatable = module:GetLuaTable()
+		local teamInfo = luatable:GetTeamInfo()
+		local hasTeam = false -- 是否有队伍
+		if teamInfo ~= nil and teamInfo.TeamID ~= 0 and teamInfo.UserInfos.Count > 0 then
+			hasTeam = true
+		end
+		if hasTeam == false then
+			Util.ShowMessageByCode(CRetMsgEnum.Tips_Chat_01)
+			return isSend;
+		end
+	end
+
+	local curTime = CS.SGF.Time.TimeUtils.ServerNowStampMilli;
+	if self.chatCfg ~= nil then
+		-- 判断 是否支持输入
+		local AllowInput = self.chatCfg.AllowInput;
+		if AllowInput == true then
+			-- 判断 发言条件 是否解锁
+			if self.IsUnLock == false then
+				self.IsUnLock = GlobalFunctionManager.Instance:ConditionGroupMete(GameManager.Instance.mainPlayerId,
+					self.chatCfg.Condition);
+			end
+
+			if self.IsUnLock == true then
+				-- 判断发言间隔（秒）
+				-- Log("聊天间隔=" .. (curTime - self.LastTime));
+				-- Log("聊天配置间隔=" .. self.chatCfg.SendInterval);
+
+				if (curTime - self.LastTime) >= self.chatCfg.SendInterval then
+					isSend = true;
+				else
+					CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_285"));
+				end
+			else
+				CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_286"));
+			end
+		else
+			CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_287"));
+		end
+	end
+	if isSend then
+		self.LastTime = curTime;
+	end
+	return isSend;
+end
+
+function ChatChannelWorld:UpdateEndTime(lastTime)
+	self.LastTime = lastTime;
+end
+
+function ChatChannelWorld:BindParent(parent)
+	self.Parent = parent;
+end
+
+function ChatChannelWorld:AddItem(chatMsgNotice)
+	local Channel = chatMsgNotice.Channel;
+	-- if Channel ~= self.Channel and self.Channel ~= CS.ProtoMsg.ChatChannel.ChannelWorld then
+	-- 	return;
+	-- end
+	if Channel ~= self.Channel then
+		return;
+	end
+	if self.Channel == CS.ProtoMsg.ChatChannel.ChannelWorld then
+		-- 组队招募喊话只显示在招募频道中
+		if Channel == CS.ProtoMsg.ChatChannel.ChannelCall then
+			return;
+		end
+	end
+
+	local eid = chatMsgNotice.EID;
+	-- 时间间隔检查
+	self:TimeIntervalCheck();
+
+	local go = self:GetGodByChannel(Channel, eid);
+	if go == nil then
+		--Log("聊天频道go=nil -->Channel=" .. Channel);
+		return;
+	end
+
+	local worldItem = self:GetItemByChannel(Channel, go, eid);
+	if worldItem == nil then
+		--Log("聊天频道item=nil -->Channel=" .. Channel);
+		return;
+	end
+	--Log("聊天频道item=nil -->Data=" .. chatMsgNotice.Data);
+	worldItem:SetItem(chatMsgNotice);
+	table.insert(self.allMsgs, worldItem);
+
+	self:RemoveItemList();
+	--self:Test11(nil);
+end
+
+function ChatChannelWorld:GetGodByChannel(channel, eid)
+	local go = nil;
+	if channel == CS.ProtoMsg.ChatChannel.ChannelSystem then
+		go = newObject(self.Parent.SystemMsgItem);
+	elseif eid == 0 then
+		-- 如果频道聊天里面，收到的eid是0的话，那就是该频道的系统消息
+		go = newObject(self.Parent.SystemMsgItem);
+	else
+		local mainPlayerId = GameManager.Instance.mainPlayerId;
+		if eid == mainPlayerId then
+			go = newObject(self.Parent.SelfMsgItem);
+		else
+			go = newObject(self.Parent.OtherMsgItem);
+		end
+	end
+	go.transform:SetParent(self.Content);
+	go.transform.localPosition = Vector3.zero;
+	go.transform.localScale = Vector3.one;
+	go:SetActive(true);
+
+	return go;
+end
+
+function ChatChannelWorld:GetItemByChannel(channel, go, eid)
+	local item = nil;
+	if channel == CS.ProtoMsg.ChatChannel.ChannelSystem then
+		item = SystemMsgItem:New(go);
+	elseif eid == 0 then
+		item = SystemMsgItem:New(go);
+	else
+		item = WorldItem:New(go);
+	end
+
+	return item;
+end
+
+-----------------------------------------------
+----------------------时间间隔检查-------------------------
+-----------------------------------------------
+function ChatChannelWorld:TimeIntervalCheck()
+	local curTime = CS.SGF.Time.TimeUtils.ServerNowStampMilli;
+	if self.AcceptLastTime > 0 then
+		if (curTime - self.AcceptLastTime) >= 60000 then
+			-- 时间显示
+			self:ShowTimeItem(curTime);
+		end
+	end
+
+	self.AcceptLastTime = curTime;
+end
+
+function ChatChannelWorld:ShowTimeItem(curTime)
+	local go = self:GetGodTime();
+	if go ~= nil then
+		local item = self:GetItemByTime(go);
+		item:SetItem(curTime);
+		table.insert(self.allMsgs, item);
+	end
+end
+
+function ChatChannelWorld:GetGodTime()
+	local go = newObject(self.Parent.ChatTimeItem);
+	go.transform:SetParent(self.Content);
+	go.transform.localPosition = Vector3.zero;
+	go.transform.localScale = Vector3.one;
+	go:SetActive(true);
+	return go;
+end
+
+function ChatChannelWorld:GetItemByTime(go)
+	local item = ItemChatTime:New(go);
+	return item;
+end
+
+-----------------------------------------------
+----------------------时间间隔检查-------------------------
+-----------------------------------------------
+
+-----------------------------------------------
+----------------------按钮回调-------------------------
+-----------------------------------------------
+
+ChatChannelWorld.isOpenVoice = false;
+-- 自动播放语音
+function ChatChannelWorld:ClickVoiceBtn()
+	self.isOpenVoice = (not self.isOpenVoice);
+	self.JVoice:MakeSelected(self.isOpenVoice);
+end
+
+ChatChannelWorld.isOpenBarrage = false;
+-- 打开频道弹幕
+function ChatChannelWorld:ClickBarrageBtn()
+	self.isOpenBarrage = (not self.isOpenBarrage);
+	self.JBarrage:MakeSelected(self.isOpenBarrage);
+
+	self.Parent:SetBarrageChannelState(self.Channel, self.isOpenBarrage);
+end
+
+function ChatChannelWorld:ClearItem()
+	for i = 1, #self.allMsgs do
+		GameObject.Destroy(self.allMsgs[i].GameObject);
+	end
+	self.allMsgs = {};
+
+	LuaModuleDispatcher:SendMessage(ModuleDef.ChatModule, "OnClearChatItemType", self.Channel);
+end
+
+function ChatChannelWorld:ClearAllItem()
+	for i = 1, #self.allMsgs do
+		GameObject.Destroy(self.allMsgs[i].GameObject);
+	end
+	self.allMsgs = {};
+end
+
+function ChatChannelWorld:RemoveItemList()
+    local count = #self.allMsgs;
+    if count >= self.ChatChannelMaxCount then
+        table.remove(self.allMsgs, 1);
+        GameObject.Destroy(self.allMsgs[1].GameObject);
+    end
+end
+
+-----------------------------------------------
+----------------------按钮回调-------------------------
+-----------------------------------------------
+
+function ChatChannelWorld:MakeSelected(b)
+	local alpha = 0;
+	if b == true then
+		alpha = 1;
+	end
+	self.ContentCanvasGroup.alpha = alpha;
+	self.ContentCanvasGroup.blocksRaycasts = b;
+	if b == true then
+		self.transform:SetAsFirstSibling();
+	end
+end
+
+return ChatChannelWorld;

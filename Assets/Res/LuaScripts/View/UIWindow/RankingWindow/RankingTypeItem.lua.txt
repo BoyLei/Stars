@@ -1,0 +1,66 @@
+local RankingTypeItem = {}
+RankingTypeItem.__index = RankingTypeItem
+
+function RankingTypeItem:New(obj)
+    local self = {};
+    setmetatable(self, RankingTypeItem);
+
+    self:InitControls(obj)
+
+    return self;
+end
+
+function RankingTypeItem:InitControls(obj)
+    self.gameObject = obj;
+    self.transform = obj.transform;
+
+    --title
+    self.titleGo = self.transform:Find("Title").gameObject;
+    self.titleText = self.transform:Find("Title/Text"):GetComponent(typeof(Text));
+
+    --select
+    self.selectGo = self.transform:Find("Select").gameObject;
+    self.selectText = self.transform:Find("Select/Text"):GetComponent(typeof(Text));
+
+    --normal
+    self.normalGo = self.transform:Find("Normal").gameObject;
+    self.normalText = self.transform:Find("Normal/Text"):GetComponent(typeof(Text));
+
+    local btn = self.transform:Find("Click"):GetComponent(typeof(Button));
+    btn.onClick:AddListener(function()
+        --切换页签 
+        self:OnSelItem();
+
+        LuaModuleDispatcher:SendMessage(ModuleDef.RankModule, "OnSelectRankItem", self.curIndex);
+    end);
+end
+
+function RankingTypeItem:OnSelItem(isSel)
+    self:Init(self.curType, isSel, self.curStr, self.curIndex);
+end
+
+function RankingTypeItem:Init(t, sel, str, id)
+    self.curType = t;
+    self.curSel = sel;
+    self.curStr = str;
+    self.curIndex = id;
+
+
+    self.titleGo:SetActive(false);
+    self.selectGo:SetActive(false);
+    self.normalGo:SetActive(false);
+
+    --if t == 1 then
+        --self.titleGo:SetActive(true);
+        --self.titleText.text = str;
+    --else
+	if sel then
+        self.selectGo:SetActive(true);
+        self.selectText.text = str;
+    else
+        self.normalGo:SetActive(true);
+        self.normalText.text = str;
+    end
+end
+
+return RankingTypeItem

@@ -1,0 +1,365 @@
+--[[
+*文件名   :   FirstPayWidget
+*内  容   :   现金购买
+*说  明   :
+*创建日期 :   "2022/12/06 10:33:06"
+*创建人   :   "quzhenxin"
+*版权所有 :   游卡网络科技技术有限公司
+]] FirstPayWidget = class("FirstPayWidget", UIPanel)
+
+local ObjectPool = require("Common/Helper/ObjectPool")
+
+function FirstPayWidget:Awake()
+    self.transform = self.prefab.transform;
+    self.gameObject = self.transform.gameObject;
+
+    self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/BtnClose"):GetComponent(typeof(JButton)).OnClick = (function()
+        self:OnPlayBack();
+    end);
+
+    self.go_BtnGo = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/BtnGo").gameObject;
+    self.go_BtnGo:GetComponent(typeof(JButton)).OnClick = (function()
+        self:OnPlayBack();
+        UIManager.Instance:OpenWidget("Shop/BuyCashWidget", false, 1, nil, CS.StarProjectDef.MainPageCommond.HideNone,
+            false, false);
+    end);
+    self.go_BtnGo:SetActive(false);
+
+    self.go_BtnGet = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/BtnGet").gameObject;
+    self.go_BtnGet:GetComponent(typeof(JButton)).OnClick = (function()
+        local firstPaySignReq = CS.ProtoMsg.FirstPaySignReq();
+        firstPaySignReq.FirstPayAwardNum = self.SelectedIdx;
+        CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+            firstPaySignReq, false);
+    end);
+    self.go_BtnGet:SetActive(false);
+
+    self.go_Get = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/Get").gameObject;
+    self.go_NextDay = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/NextDay").gameObject;
+
+    -- 中间tag页
+    local _go1 = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/TagRoot/tag").gameObject;
+    self.subTagsPool = ObjectPool:New(4, "View/Item/SelectBtn", _go1, _go1.transform.parent, function(ritem)
+        ritem:PoolInit(function(idx)
+            -- 点击事件
+            self:OnSubShopTagClick(idx);
+        end)
+    end, function(ritem)
+        ritem:SetUse(false);
+    end)
+
+    -- 中间道具列表
+    local _go = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/Grid/SignItem").gameObject;
+    local _parent = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/Grid");
+    self.rewardItemPool = ObjectPool:New(4, "View/Item/SignItem", _go, _parent, -- 生成回调
+    function(ritem)
+        ritem:InitItem();
+    end, -- 回收回调
+    function(ritem)
+        ritem:SetUse(false);
+    end)
+
+    -- 左边菜单
+    self.transform:Find("Cut4Cam90/AssemblyRatio2/Menu/tag2"):GetComponent(typeof(JButton)).OnClick = (function()
+        self:OnPlayBack();
+        -- 打开月卡
+        LuaModuleDispatcher:SendMessage(ModuleDef.CommercializationModule, "OnOpenCommercialization", {2})
+        -- UIManager.Instance:OpenWidget("Shop/MoonCardWidget", false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone,false,false);
+    end);
+
+    self.transform:Find("Cut4Cam90/AssemblyRatio2/Menu/tag3"):GetComponent(typeof(JButton)).OnClick = (function()
+        self:OnPlayBack();
+        -- 打开通行证
+        LuaModuleDispatcher:SendMessage(ModuleDef.CommercializationModule, "OnOpenCommercialization", {3})
+        -- UIManager.Instance:OpenWidget("Shop/BattlePassWidget", false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone,false,false);
+    end);
+
+    self.go_ViewBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/ViewBtn").gameObject;
+    self.go_ViewBtn:GetComponent(typeof(JButton)).OnClick = (function()
+
+    end);
+    self.go_ViewBtn:SetActive(false);
+
+end
+
+function FirstPayWidget:OnSubShopTagClick(idx)
+
+    self.SelectedIdx = idx;
+
+    for i = 1, #self.subTagsPool.m_ObjPool do
+        self.subTagsPool.m_ObjPool[i]:MakeSelected(false);
+    end
+    self.subTagsPool.m_ObjPool[idx]:MakeSelected(true);
+
+    local cfg = self.subTagsPool.m_ObjPool[idx].cfg; -- 配置表 SignIn
+
+    self.go_BtnGo:SetActive(false);
+    self.go_BtnGet:SetActive(false);
+    self.go_Get:SetActive(false);
+    self.go_NextDay:SetActive(false);
+
+    if self.FirstPaySignInfo ~= nil then
+        local HaveFirstPayAct = self.FirstPaySignInfo.HaveFirstPayAct;
+        local GetFirstPayAwardNum = self.FirstPaySignInfo.GetFirstPayAwardNum;
+        local LastGetFirstPayAwardTime = self.FirstPaySignInfo.LastGetFirstPayAwardTime;
+
+        local diff = idx - GetFirstPayAwardNum; -- 天数相差
+        local canGet = false;
+        local canJump = false;
+
+        -- 领完了
+        if GetFirstPayAwardNum < self.MaxDay then
+
+            -- 一次都没领
+            if GetFirstPayAwardNum == 0 then
+
+                -- 判断是否有充值信息，有就领取，没有就跳转
+                if self.FinishedProductIds ~= nil and self.FinishedProductIds.Count > 0 then
+                    if idx == 1 then
+                        canGet = true;
+                        -- self.go_BtnGet:SetActive(true);
+                    end
+                else
+                    canJump = true;
+                    -- self.go_BtnGo:SetActive(true);
+                end
+
+            else
+                -- 判断是不是同一天
+                local serverNowTime = math.floor(GameManager.Instance:GetServerTimeStamp() / 1000) -- 凌晨五点刷新（扣除5小时）
+                local day1 = GetDay(serverNowTime - 5 * 3600);
+                local day2 = 0;
+                if LastGetFirstPayAwardTime ~= 0 then
+                    day2 = GetDay(LastGetFirstPayAwardTime - 5 * 3600); -- 凌晨五点刷新（扣除5小时）
+                end
+
+                -- 不是同一天
+                if day1 ~= day2 then
+                    -- 可以领取
+                    if diff == 1 then
+                        canGet = true;
+                    end
+                end
+
+            end
+        end
+
+        if canJump then
+            self.go_BtnGo:SetActive(true);
+        elseif canGet then
+            self.go_BtnGet:SetActive(true);
+        else
+            if diff <= 0 then
+                self.go_Get:SetActive(true);
+            elseif diff == 1 then
+                self.go_NextDay:SetActive(true);
+            end
+        end
+
+    else
+        self.go_BtnGo:SetActive(true);
+    end
+
+    self.rewardItemPool:RecycleAll();
+
+    if cfg ~= nil then
+        for i = 1, #cfg.Item do
+            local d = {}
+            d.ItemID = cfg.Item[i];
+            d.Title = cfg.Title[i];
+            d.ItemNum = cfg.Num[i];
+
+            local item = self.rewardItemPool:Spawn();
+            item:SetItem(d);
+
+        end
+    end
+
+end
+
+function FirstPayWidget:Refesh()
+    self.FirstPaySignInfo = GameManager.Instance.FirstPaySignInfo;
+    self.subTagsPool:RecycleAll();
+
+    local idx = 0;
+    local SignInCfgs = ConfigDataAccessor.SignIn;
+
+    local ii = 0;
+    for k, v in pairs(SignInCfgs) do
+        ii = ii + 1;
+    end
+    self.MaxDay = ii;
+    for k, v in pairs(SignInCfgs) do
+        if v.Group == 1 and v.SignInType == 1 then
+            idx = idx + 1
+            local subTag = self.subTagsPool:Spawn();
+            subTag:InitItem(idx, nil);
+            subTag.cfg = v;
+            -- subTag:SetText("第"..idx.."天");
+            subTag:SetText(StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_AccumulateItem_day2"), {idx}));
+
+            -- 判断是否有红点
+            local go_redPoint = subTag.transform:Find("RedPoint").gameObject;
+            local canGet = false;
+            if self.FirstPaySignInfo ~= nil then
+                local HaveFirstPayAct = self.FirstPaySignInfo.HaveFirstPayAct;
+                local GetFirstPayAwardNum = self.FirstPaySignInfo.GetFirstPayAwardNum;
+                local LastGetFirstPayAwardTime = self.FirstPaySignInfo.LastGetFirstPayAwardTime;
+
+                local diff = idx - GetFirstPayAwardNum; -- 天数相差
+
+                -- 领完了
+                if GetFirstPayAwardNum < self.MaxDay then
+
+                    -- 一次都没领
+                    if GetFirstPayAwardNum == 0 then
+
+                        -- 判断是否有充值信息，有就领取
+                        if self.FinishedProductIds ~= nil and self.FinishedProductIds.Count > 0 then
+                            if idx == 1 then
+                                canGet = true;
+                            end
+                        end
+
+                    else
+                        -- 判断是不是同一天
+                        local serverNowTime = math.floor(GameManager.Instance:GetServerTimeStamp() / 1000) -- 凌晨五点刷新（扣除5小时）
+                        local day1 = GetDay(serverNowTime - 5 * 3600);
+                        local day2 = 0;
+                        if LastGetFirstPayAwardTime ~= 0 then
+                            day2 = GetDay(LastGetFirstPayAwardTime - 5 * 3600); -- 凌晨五点刷新（扣除5小时）
+                        end
+
+                        -- 不是同一天
+                        if day1 ~= day2 then
+                            -- 可以领取
+                            if diff == 1 then
+                                canGet = true;
+                            end
+                        end
+
+                    end
+                end
+            end
+
+            go_redPoint:SetActive(canGet);
+
+        end
+    end
+
+    self.FinishedProductIds = nil;
+
+    local RechargeInfo = GameManager.Instance.RechargeInfo;
+    if RechargeInfo ~= nil then
+        self.FinishedProductIds = RechargeInfo.FinishedProductIds;
+    end
+
+    local aimIdx = 1;
+
+    if self.FirstPaySignInfo ~= nil then
+        local HaveFirstPayAct = self.FirstPaySignInfo.HaveFirstPayAct;
+        local GetFirstPayAwardNum = self.FirstPaySignInfo.GetFirstPayAwardNum;
+        local LastGetFirstPayAwardTime = self.FirstPaySignInfo.LastGetFirstPayAwardTime;
+
+        -- 没完了
+        if GetFirstPayAwardNum < self.MaxDay then
+
+            -- 一次都没领
+            if GetFirstPayAwardNum == 0 then
+                aimIdx = 1;
+            else
+                -- 判断是不是同一天
+                local serverNowTime = math.floor(GameManager.Instance:GetServerTimeStamp() / 1000)
+                local day1 = GetDay(serverNowTime - 5 * 3600);
+                local day2 = 0;
+                if LastGetFirstPayAwardTime ~= 0 then
+                    day2 = GetDay(LastGetFirstPayAwardTime - 5 * 3600); -- 凌晨五点刷新（扣除5小时）
+                end
+
+                -- 不是同一天
+                if day1 ~= day2 then
+                    aimIdx = GetFirstPayAwardNum + 1;
+                else
+                    aimIdx = GetFirstPayAwardNum + 1;
+                end
+
+            end
+        else
+            -- 领完了(最后一天)
+            aimIdx = GetFirstPayAwardNum;
+        end
+
+    end
+
+    self:OnSubShopTagClick(aimIdx);
+
+end
+
+function FirstPayWidget:Start()
+
+end
+
+function FirstPayWidget:OnEnable()
+
+end
+
+function FirstPayWidget:OnDisable()
+
+end
+
+function FirstPayWidget:OnDestroy()
+
+end
+
+function FirstPayWidget:RefeshData()
+
+end
+
+function FirstPayWidget:OnOpen(arg)
+
+    --[[
+	if type(arg)=="table" then
+		--Lua调用
+		self.GNGPersonRewardNtf =arg[1];
+		self.GNGGuildRewardNtf =arg[2];
+	else
+		--C#调用
+		self.GNGPersonRewardNtf =arg[0];
+		self.GNGGuildRewardNtf =arg[1];
+	end
+	]]
+
+    -- 监听请求签到
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.FirstPaySignInfoNtfID, function(data)
+        self:OnFirstPaySignInfoNtf(data)
+    end, nil);
+
+    self:Refesh();
+
+end
+
+function FirstPayWidget:OnFirstPaySignInfoNtf(data)
+
+    local ret = data.data
+
+    DOVirtual.DelayedCall(0.02, function()
+        self:Refesh();
+    end)
+
+end
+
+function FirstPayWidget:OnClose(arg)
+
+end
+
+function FirstPayWidget:OnPlayBack()
+
+    self.gameObject:SetActive(false);
+    UIManager.Instance:CloseWidget("Shop/FirstPayWidget", nil, false);
+
+    CS.SGF.Network.NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.FirstPaySignInfoNtfID, function(data)
+        self:OnFirstPaySignInfoNtf(data)
+    end, nil);
+end
+
+return FirstPayWidget

@@ -1,0 +1,81 @@
+-- 战力子模块
+local PowerSubModuleItem = {}
+PowerSubModuleItem.__index = PowerSubModuleItem
+
+function PowerSubModuleItem:New(obj)
+    local self = {};
+    setmetatable(self, PowerSubModuleItem);
+
+    self:Init(obj)
+
+    return self;
+end
+
+function PowerSubModuleItem:Init(obj)
+    self.gameObject = obj;
+    self.transform = obj.transform;
+    self.icon = self.transform:Find("Icon"):GetComponent(typeof(Image));
+    self.titleText = self.transform:Find("Title"):GetComponent(typeof(Text));
+    self.descText = self.transform:Find("Desc"):GetComponent(typeof(Text));
+    self.levelText = self.transform:Find("Level"):GetComponent(typeof(Text));
+
+    self.scoreText = self.transform:Find("Image/Score"):GetComponent(typeof(Text));
+
+    self.expSlider = self.transform:Find("Exp"):GetComponent(typeof(Slider));
+    self.fillImage = self.transform:Find("Exp/Fill Area/Fill"):GetComponent(typeof(Image));
+
+    local jButton = self.transform:Find("GoBtn"):GetComponent(typeof(JButton));
+    jButton.OnClick = function()
+        self:OnClick();
+    end
+
+    self.moduleData = nil;
+
+end
+
+function PowerSubModuleItem:UpdateData(moduleData)
+
+    -- 赋值 模块数据
+    self.moduleData = moduleData;
+
+    if self.moduleData == nil then
+        self:Show(false);
+        return;
+    end
+
+    self:Show(true);
+
+    -- 名字
+    self.titleText.text = moduleData.PowerModuleDataCellCfg.PartName;
+    self.descText.text = moduleData.PowerModuleDataCellCfg.PartDesc;
+    self.scoreText.text = moduleData.CurPower;
+
+    if moduleData.CurProgressModuleEvalueCfg ~= nil then
+        self.levelText.text = moduleData.CurProgressModuleEvalueCfg.Evalue;
+    end
+
+    -- 更新进度条
+    self.expSlider.value = moduleData.Progress;
+    self:RefreshLevel(moduleData.CurProgressModuleEvalueCfg.ShowQuality);
+    -- 刷新 icon 图标
+    ResourceHelper:LoadAtlasPathIconAsync(self.icon, moduleData.PowerModuleDataCellCfg.PartIcon, false)
+
+end
+
+-- 刷新不同等级对应的颜色
+function PowerSubModuleItem:RefreshLevel(quality)
+    local colorStr = GetPowerLevelColor(quality);
+    local res, color = CS.UnityEngine.ColorUtility.TryParseHtmlString(colorStr);
+    self.levelText.color = color;
+    self.fillImage.color = color;
+end
+
+function PowerSubModuleItem:OnClick()
+    JumpBySystemJumpById(self.moduleData.PowerModuleDataCellCfg.SystemJump);
+end
+
+function PowerSubModuleItem:Show(b)
+    self.gameObject:SetActive(b);
+end
+
+return PowerSubModuleItem

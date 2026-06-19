@@ -1,0 +1,27 @@
+BaseLuaModule =class("BaseLuaModule")
+--事件表
+BaseLuaModule.LuaEventTable=nil;
+--消息处理模块
+BaseLuaModule.ModuleMessages={}
+
+--LuaModule 创建
+function BaseLuaModule:OnModuleCreate(arg)
+	print("BaseLuaModule:OnModuleCreate")
+end
+
+--LuaModule 消息处理
+function BaseLuaModule:OnModuleMessage(msg,...)
+	print("BaseLuaModule:OnModuleMessage")
+end
+
+
+--LuaModule显示
+function BaseLuaModule:OnModuleShow(arg)
+	print("BaseLuaModule:OnModuleShow")
+end
+
+--LuaModule 释放
+function BaseLuaModule:OnModuleRelease()
+	print("BaseLuaModule:OnModuleRelease")
+end
+return BaseLuaModule;

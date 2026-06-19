@@ -1,0 +1,60 @@
+--[[
+*文件名   :   EquipUpgradeSimpleSuccess
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local EquipUpgradeSimpleSuccess = {}
+
+EquipUpgradeSimpleSuccess.__index = EquipUpgradeSimpleSuccess
+
+
+local EquipUpgradeSlotAttr=require("View/Uiwindow/EquipUpgrade/EquipUpgradeSlotAttr")
+
+function EquipUpgradeSimpleSuccess:New(_go,onClose) 
+    local self = {};    
+    setmetatable(self, EquipUpgradeSimpleSuccess); 
+    
+
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+	self.OnClose=onClose;
+
+    self.canClose=false;
+
+    self:Show(false);
+
+    return self;    --返回自身
+end
+
+
+
+function EquipUpgradeSimpleSuccess:Show(b,slot_id,base_id)
+    self.gameObject:SetActive(b);
+    if b then
+        SoundManager.Instance:PlayEventName("UI_QiangHua_S_01", self.gameObject, self.gameObject);
+
+        if self.tw~= nil then
+            self.tw:Kill();
+        end
+        --延迟一段时间后调用
+        self.tw=DOVirtual.DelayedCall(1.5,function ()
+    
+            if self.OnClose~=nil then
+                self.OnClose();
+            end
+            self:Show(false);
+        end)
+        
+    else
+        
+    end
+end
+
+
+
+return EquipUpgradeSimpleSuccess;

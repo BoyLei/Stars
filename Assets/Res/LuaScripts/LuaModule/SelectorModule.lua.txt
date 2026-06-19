@@ -1,0 +1,158 @@
+SelectorModule = class("SelectorModule", BaseLuaModule)
+
+
+local SelectorWindowPath = "ComSelector/Prefab/SelectorWindow"
+local SelectorWordsPath = "ComSelector/Prefab/SelectorWords"
+
+-- LuaModule 消息模块
+SelectorModule.ModuleMessages = {
+    ["OnOpenSelectorByType"] = function(...)
+        SelectorModule:OnOpenSelectorByType(...);
+    end,
+
+    ["OnOpenSelectorByItemID"] = function(...)
+        SelectorModule:OnOpenSelectorByItemID(...);
+    end
+}
+
+-- LuaModule 创建
+function SelectorModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.SelectorModule, self)
+end
+
+-- LuaModule 消息处理
+function SelectorModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...);
+end
+
+function SelectorModule:OnOpenSelectorByType(...)
+    local tb = ...;
+    local itemType = nil;
+    if type(tb) == "table" then
+        itemType = tb[1];
+        self.okCallback = tb[2];
+        self.cancleCallback = tb[3];
+    else
+        itemType = tb[0];
+        self.okCallback = tb[1];
+        self.cancleCallback = tb[2];
+    end
+    
+    -- local selectorWindowCS = UIManager.Instance:OpenWindow(SelectorWindowPath, nil,
+    --     CS.StarProjectDef.MainPageCommond.HideNone, true);
+    -- if self.selectorWindow == nil then
+    --     self.selectorWindow = selectorWindowCS:GetLuaPanel().ScriptTable;
+    --     self.selectorWindow:BindModule(self);
+    --     self.selectorWindow:InitControls();
+    -- end
+
+    -- local data = ConfigDataAccessor.ItemMainTypeList;
+    -- for k, v in pairs(data) do
+    --     if itemType == v.ItemType then
+    --         self.selectorWindow:SetType(v.OperaFilter, itemType);
+    --         break
+    --     end
+    -- end
+
+    self.AsyncLoadSelectorWindowCb = function(ui)
+        if ui ~= nil then
+            if self.selectorWindow == nil then
+                self.selectorWindow = ui:GetLuaPanel().ScriptTable;
+                self.selectorWindow:BindModule(self);
+                self.selectorWindow:InitControls();
+            end
+        
+            local data = ConfigDataAccessor.ItemMainTypeList;
+            for k, v in pairs(data) do
+                if itemType == v.ItemType then
+                    self.selectorWindow:SetType(v.OperaFilter, itemType);
+                    break
+                end
+            end
+        end
+        self.AsyncLoadSelectorWindowCb = nil;
+    end
+    UIManager.Instance:OpenWindowAsync(SelectorWindowPath,self.AsyncLoadSelectorWindowCb, nil,
+        CS.StarProjectDef.MainPageCommond.HideNone, true);
+
+end
+
+function SelectorModule:OnOpenSelectorByItemID(...)
+    local tb = ...;
+    local itemId = nil;
+    if type(tb) == "table" then
+        itemId = tb[1];
+        self.okCallback = tb[2];
+        self.cancleCallback = tb[3];
+    else
+        itemId = tb[0];
+        self.okCallback = tb[1];
+        self.cancleCallback = tb[2];
+    end
+
+    local itemType = ConfigDataAccessor.Item[itemId].ItemType;
+
+    -- local selectorWordsCS = UIManager.Instance:OpenWindow(SelectorWordsPath, nil,
+    --     CS.StarProjectDef.MainPageCommond.HideNone, true);
+    -- if self.selectorWords == nil then
+    --     self.selectorWords = selectorWordsCS:GetLuaPanel().ScriptTable;
+    --     self.selectorWords:BindModule(self);
+    --     self.selectorWords:InitControls();
+    -- end
+	
+    -- local data = ConfigDataAccessor.ItemMainTypeList;
+    -- for k, v in pairs(data) do
+    --     if itemType == v.ItemType then
+	-- 		self.selectorWords:Show(true, v.OperaFilter);
+    --         --self.selectorWords:SetType(v.OperaFilter);
+    --         break
+    --     end
+    -- end
+
+    self.AsyncLoadSelectorWordsCb = function(ui)
+        if ui ~= nil then
+            if self.selectorWords == nil then
+                self.selectorWords = ui:GetLuaPanel().ScriptTable;
+                self.selectorWords:BindModule(self);
+                self.selectorWords:InitControls();
+            end
+            
+            local data = ConfigDataAccessor.ItemMainTypeList;
+            for k, v in pairs(data) do
+                if itemType == v.ItemType then
+                    self.selectorWords:Show(true, v.OperaFilter);
+                    --self.selectorWords:SetType(v.OperaFilter);
+                    break
+                end
+            end
+        end
+        self.AsyncLoadSelectorWordsCb = nil;
+    end
+    UIManager.Instance:OpenWindowAsync(SelectorWordsPath,self.AsyncLoadSelectorWordsCb, nil,
+    CS.StarProjectDef.MainPageCommond.HideNone, true);
+
+end
+
+-- LuaModule显示
+function SelectorModule:OnModuleShow(arg)
+
+end
+
+-- LuaModule 释放
+function SelectorModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.SelectorModule)
+end
+
+function SelectorModule:OnClickOkEvent(data)
+    if self.okCallback ~= nil then
+        self.okCallback(data);
+    end
+end
+
+function SelectorModule:OnClickCancleEvent()
+    if self.cancleCallback ~= nil then
+        self.cancleCallback();
+    end
+end
+
+return SelectorModule

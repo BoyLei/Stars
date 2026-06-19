@@ -1,0 +1,536 @@
+--[[
+*文件名   :   GatherPart
+*内  容   :
+*说  明   :
+*创建日期 :   "2024/01/12 10:59:53"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+GatherPart=class("GatherPart",UIPanel)
+local GatherPartItem=require("View/UIWindow/LivingSkillsWindow/GatherPartItem")
+local OutputItem=require("View/UIWindow/LivingSkillsWindow/OutputItem")
+
+GatherPart.m_Tabs=nil;
+GatherPart.m_JobIcon=nil;
+GatherPart.m_ScrollView=nil;
+GatherPart.m_ItemGrid=nil;
+GatherPart.m_BgRare=nil;
+GatherPart.m_Output=nil;
+GatherPart.m_Input=nil;
+GatherPart.m_GatherBtn=nil;
+GatherPart.m_GatherImage=nil;
+GatherPart.m_Cost=nil;
+GatherPart.m_JobName=nil;
+GatherPart.m_JobLv=nil;
+GatherPart.m_Exp=nil;
+GatherPart.m_Break=nil;
+GatherPart.m_TaskName=nil;
+GatherPart.m_TaskGoto=nil;
+GatherPart.m_Icon=nil;
+GatherPart.m_Name=nil;
+GatherPart.m_Level=nil;
+GatherPart.m_Info=nil;
+GatherPart.m_Desc=nil;
+GatherPart.m_ChanChuText=nil;
+GatherPart.m_OwnText=nil;
+GatherPart.m_OutputItemGrid=nil;
+GatherPart.m_OutputScrollView=nil;
+GatherPart.m_ExpValue=nil;
+GatherPart.m_CostEngeryIcon=nil;
+--GatherPart.m_InputItemGrid=nil;
+--GatherPart.m_InputScrollView=nil;
+GatherPart.m_Num=nil;
+GatherPart.m_left=nil;
+GatherPart.m_right=nil;
+GatherPart.m_jian=nil;
+GatherPart.m_jia=nil;
+GatherPart.m_Input=nil;
+GatherPart.m_OutputIntro=nil;
+
+GatherPart.DataLists={}
+GatherPart.GridItemList={}
+GatherPart.GridItemOutPutList={}
+GatherPart.OutputDataLists={}
+GatherPart.CurrentJob=1;
+GatherPart.CurrntSelect=0;
+GatherPart.BreakTaskID=0;
+GatherPart.OnShowTipsAction=nil;
+local GatherBtnFunc=nil;
+local leftFunc=nil;
+local rightFunc=nil;
+local jianFunc=nil;
+local jiaFunc=nil;
+local TaskGotoFunc=nil;
+local IntroOnFunc=nil;
+
+local JobConfig={
+	[101]={SpriteName="Live_icon_01",JobName=LanguageHelp:GetLanguageByKey("Local_Str_JobName_1"),Level=1,Exp=100},
+	[102]={SpriteName="Live_icon_02",JobName=LanguageHelp:GetLanguageByKey("Local_Str_JobName_2"),Level=1,Exp=100},
+	[103]={SpriteName="Live_icon_03",JobName=LanguageHelp:GetLanguageByKey("Local_Str_JobName_3"),Level=1,Exp=100},
+}
+
+local BaseJob=100;
+
+
+
+function GatherPart:ctor(go,atlas,action)
+	self.prefab=go;
+	self.AtlasPath=atlas;
+	self.OnShowTipsAction=action
+	self.m_Tabs=self:Find("Tabs"):GetComponent(typeof(StarUITabMenu));
+	self.m_JobIcon=self:Find("JobInfo/JobIcon"):GetComponent(typeof(Image));
+	self.m_ScrollView=self:Find("Scroll View"):GetComponent(typeof(SuperScrollViewController));
+	self.m_ItemGrid=self:Find("ItemGrid").gameObject;
+	self.m_BgRare=self:Find("ItemInfo/BgRare"):GetComponent(typeof(Image));
+	self.m_Output=self:Find("Output").gameObject;
+	self.m_Input=self:Find("Input").gameObject;
+	self.m_GatherBtn=self:Find("GatherBtn"):GetComponent(typeof(JButton));
+	self.m_GatherImage=self:Find("GatherBtn"):GetComponent(typeof(Image));
+	self.m_Cost=self:Find("CostIcon/Cost"):GetComponent(typeof(Text));
+	self.m_CostEngeryIcon=self:Find("CostIcon/Icon").gameObject
+	self.m_JobName=self:Find("JobInfo/JobName"):GetComponent(typeof(Text));
+	self.m_JobLv=self:Find("JobInfo/JobLv"):GetComponent(typeof(Text));
+	self.m_Exp=self:Find("JobInfo/Exp"):GetComponent(typeof(Slider));
+	self.m_ExpValue=self:Find("JobInfo/Exp/ExpValue"):GetComponent(typeof(Text));
+	self.m_Icon=self:Find("ItemInfo/BgRare/Icon"):GetComponent(typeof(Image));
+	self.m_Name=self:Find("ItemInfo/Name"):GetComponent(typeof(Text));
+	self.m_Level=self:Find("ItemInfo/Name/Level"):GetComponent(typeof(Text));
+	self.m_Info=self:Find("ItemInfo/Info"):GetComponent(typeof(Text));
+	self.m_Desc=self:Find("ItemInfo/Desc"):GetComponent(typeof(Text));
+	self.m_OutputItemGrid=self:Find("Output/ItemGrid").gameObject;
+	self.m_OutputScrollView=self:Find("Output/Scroll View"):GetComponent(typeof(SuperScrollViewController));
+	self.m_ChanChuText=self:Find("ItemInfo/chanchu/ChanChuText"):GetComponent(typeof(Text));
+	self.m_OwnText=self:Find("ItemInfo/own/OwnText"):GetComponent(typeof(Text));
+	--self.m_InputItemGrid=self:Find("Input/ItemGrid").gameObject;
+	--self.m_InputScrollView=self:Find("Input/Scroll View"):GetComponent(typeof(SuperScrollViewController));
+
+	self.m_Num=self:Find("Count/Num"):GetComponent(typeof(Text));
+	self.m_left=self:Find("Count/left"):GetComponent(typeof(JButton));
+	self.m_right=self:Find("Count/right"):GetComponent(typeof(JButton));
+	self.m_jian=self:Find("Count/jian"):GetComponent(typeof(JButton));
+	self.m_jia=self:Find("Count/jia"):GetComponent(typeof(JButton));
+	self.m_Input=self:Find("Count/Input"):GetComponent(typeof(InputField));
+	self.m_Break=self:Find("JobInfo/Break").gameObject
+	self.m_TaskName=self:Find("JobInfo/Break/TaskName"):GetComponent(typeof(Text));
+	self.m_TaskGoto=self:Find("JobInfo/Break/Goto"):GetComponent(typeof(JButton));
+	self.m_OutputIntro=self:Find("Output/button"):GetComponent(typeof(JButton));
+	GatherBtnFunc=function() self:OnClickGatherBtn(); end;
+	leftFunc=function() self:OnClickleft(); end;
+	rightFunc=function() self:OnClickright(); end;
+	jianFunc=function() self:OnClickjian(); end;
+	jiaFunc=function() self:OnClickjia(); end;
+	TaskGotoFunc=function() self:OnTaskGoto() end;
+	IntroOnFunc=function()
+		self:OnIntroClick()
+	end
+	self.m_ScrollView:NewScroll(self.m_ItemGrid, 0, function (tr,idx)
+			self:OnGridItemRefesh(tr,idx);
+		end);
+
+
+	self.m_OutputScrollView:NewScroll(self.m_OutputItemGrid, 0, function (tr,idx)
+			self:OnOutPutGridItemRefesh(tr,idx);
+		end);
+
+
+	self:Start()
+	self.GridItemList={}
+
+end
+
+function GatherPart:Start()
+	self.m_GatherBtn.OnClick= GatherBtnFunc;
+	self.m_left.OnClick= leftFunc;
+	self.m_right.OnClick= rightFunc;
+	self.m_jian.OnClick= jianFunc;
+	self.m_jia.OnClick= jiaFunc;
+	self.m_TaskGoto.OnClick= TaskGotoFunc;
+	self.m_OutputIntro.OnClick= IntroOnFunc;
+end
+
+function GatherPart:OnIntroClick()
+	if self.OnShowTipsAction~=nil then
+		self.OnShowTipsAction("LivingSkillsWindow_Info_1")
+	end
+end
+
+function GatherPart:OnTaskGoto()
+	if self.BreakTaskID>0 then
+		local taskinfo=TaskHelper.GetTaskConfig(self.BreakTaskID)
+		if taskinfo~=nil then
+			if taskinfo.TaskFinishInfo.Targets.Count>0 then
+				local target=taskinfo.TaskFinishInfo.Targets[0].Target;
+				if target~=nil and target.FindPath~=nil then
+					TaskHelper.FindPathByTask(target.MapID,target.FindPath,target.TargetID)
+					LuaModuleDispatcher:SendMessage(ModuleDef.LivingSkillsModule, "CloseSkillsWindow", {});
+				end
+			end
+		end
+	end
+end
+
+
+function GatherPart:OnGridItemRefesh(tr,idx)
+	if self.GridItemList==nil then
+		return;
+	end
+
+	for i=1,#self.GridItemList do
+		if self.GridItemList[i].transform == tr then
+			self.GridItemList[i]:UpdateContent(self.DataLists[idx+1],self.CurrntSelect,function (Index)
+					self:OnSelectCallBack(Index.Config.ID)
+				end);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+			return
+		end
+	end
+
+	local bi = GatherPartItem.new(tr.gameObject,self.AtlasPath);
+	bi.prefab:SetActive(true);
+	bi:UpdateContent(self.DataLists[idx+1],self.CurrntSelect,function (Index)
+			self:OnSelectCallBack(Index.Config.ID)
+		end);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+	table.insert(self.GridItemList, bi);
+end
+
+
+function GatherPart:OnOutPutGridItemRefesh(tr,idx)
+	if self.GridItemOutPutList==nil then
+		return;
+	end
+	for i=1,#self.GridItemOutPutList do
+		if self.GridItemOutPutList[i].transform == tr then
+			self.GridItemOutPutList[i]:UpdateContent(self.OutputDataLists[idx+1]);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+			return
+		end
+	end
+
+	local bi = OutputItem.new(tr.gameObject,self.AtlasPath);
+	bi.prefab:SetActive(true);
+	bi:UpdateContent(self.OutputDataLists[idx+1]);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+	table.insert(self.GridItemOutPutList, bi);
+end
+
+
+function GatherPart:OnSelectCallBack(Index)
+	for i=1,#self.GridItemList do
+		if self.GridItemList[i]~=nil then
+			if self.GridItemList[i].Data~=nil and self.GridItemList[i].Data.Config~=nil and self.GridItemList[i].Data.Config.ID==Index then
+				self.GridItemList[i]:Select(true)
+			else
+				self.GridItemList[i]:Select(false)
+			end
+		end
+	end
+	self.CurrntSelect=Index;
+	local cfgs=ConfigDataAccessor.LifeSkillMineList[Index];
+	if cfgs~=nil then
+		self.OutputDataLists={}
+		local config=ConfigDataAccessor.Item[cfgs.BasicOutput]
+		if config~=nil then
+			self.m_Name.text=GetQualityColor(config.Quality).. config.Name.."</color>"
+			local quality=config.Quality;
+			ResourceHelper:LoadIconByAtlasAsync(
+				self.m_BgRare,
+				ResourceHelper.AtlasPathCommonItem,
+				"Bag_Grid_sq"..quality,
+				false
+			)
+			ResourceHelper:LoadIconAsync(self.m_Icon, "", config.Icon, false)
+			self.m_Desc.text=config.Desc
+		else
+			LogError("找不到配置"..cfgs.BasicOutput)
+		end
+		
+		
+		self.m_Info.text=cfgs.CreatSource
+		
+		--self.m_Level.text=cfgs.Level.."级"
+		self.m_Level.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {cfgs.Level});
+
+		--self.m_ChanChuText.text="单次产出:"..cfgs.BasicOutputNum
+		self.m_ChanChuText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_FabricatePart_ChanChuText"), {cfgs.BasicOutputNum});
+
+		local ownCnt=BusinessManager.Instance:GetCurrencyNum(cfgs.BasicOutput)
+		if ownCnt>999 then
+			--self.m_OwnText.text="拥有:999+"
+			self.m_OwnText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_SellCount_OwnCount"), {":999+"});
+
+		else
+			--self.m_OwnText.text="拥有:"..ownCnt
+			self.m_OwnText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_SellCount_OwnCount"), {":"..ownCnt});
+
+		end
+
+		for i, v in ipairs(cfgs.RareOutput) do
+			table.insert(self.OutputDataLists,{ItemID=v,ItemNum=cfgs.RareOutputNum[i]})
+		end
+
+		self.m_OutputScrollView:ContinueScroll(#self.OutputDataLists);
+	end
+
+	--采集活力值
+	self:SetConditionText(cfgs.EnergyCost,cfgs.Level);
+end
+
+function GatherPart:SetConditionText(EnergyCost,Level)
+	--local text=EnergyCost.."/次"
+	local text=StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LimitTime"), {EnergyCost});
+
+	local bset=false;
+	local sceneType= GameManager.Instance:GetCurMapType()
+	if sceneType==CS.ProtoMsg.SpaceType.SpaceScene then
+		local job=BaseJob+self.CurrentJob;
+		local lifeSkillMgr=BusinessManager.Instance.M_LifeSkillUserDataMDMgr
+		if lifeSkillMgr~=nil then
+			local jobInfo=lifeSkillMgr:GetData(job)
+			if jobInfo~=nil then
+				if Level<=jobInfo.SkillLevel then
+					local energy = GameManager.Instance:GetPlayerCollectEnergy();
+					if energy<EnergyCost then
+						text=LanguageHelp:GetLanguageByKey("Local_Str_item_insufficient_2");
+						bset=true;
+					end
+				else
+					text=LanguageHelp:GetLanguageByKey("Local_Str_item_insufficient_3");
+					bset=true;
+				end
+			end
+		end
+	else
+		text=LanguageHelp:GetLanguageByKey("Local_Str_Tips38")
+		bset=true;
+	end
+	self.m_CostEngeryIcon:SetActive(not bset)
+	self.m_GatherBtn.UnClick=bset
+	self.m_GatherImage.raycastTarget=not bset;
+
+	self.m_Cost.text=text
+end
+
+function GatherPart:OnEnable()
+
+end
+
+function GatherPart:OnDisable()
+
+end
+
+function GatherPart:OnDestroy()
+	self.m_GatherBtn.OnClick= nil;
+	self.m_left.OnClick= nil;
+	self.m_right.OnClick= nil;
+	self.m_jian.OnClick= nil;
+	self.m_jia.OnClick= nil;
+	self.m_TaskGoto.OnClick= nil;
+	self.m_OutputIntro.OnClick= nil;
+end
+
+function GatherPart:OnTabMenuItemClick(index)
+	if self.CurrentJob==index then
+		return
+	end
+	self.m_Tabs:Check(index);
+	self.CurrentJob=index;
+	self:InitItemList(0);
+end
+
+function GatherPart:OnOpen(arg)
+	local jobID=1;
+	local selectID=0;
+	if arg~=nil then
+		jobID=arg.JobID%100
+		selectID=arg.MineID
+	end
+
+	self.CurrentJob=jobID;
+	self.m_Tabs:Init(self.CurrentJob,function (index)
+			self:OnTabMenuItemClick(index);
+		end)
+	self:InitItemList(selectID);
+end
+
+function GatherPart:GetConfig(job,level)
+	local configs=ConfigDataAccessor.LifeSkillJobList;
+	for k, v in pairs(configs) do
+		if v.SkillID==job and v.Level==level then
+			return v
+		end
+	end
+	return nil
+end
+function GatherPart:InitItemList(arg)
+
+	local job=BaseJob+self.CurrentJob;
+	self.DataLists={}
+	self.CurrntSelect=arg;
+	local lifeSkillMgr=BusinessManager.Instance.M_LifeSkillUserDataMDMgr
+	local jobInfo=lifeSkillMgr:GetData(job)
+
+	local configs=ConfigDataAccessor.LifeSkillJobList;
+	local MaxLevel=0;
+	self.BreakTaskID=0;
+	local CurrentCfg=nil;
+
+	for k, v in pairs(configs) do
+
+		if v.SkillID==job and v.Level==jobInfo.SkillLevel then
+			CurrentCfg=v;
+		end
+		if v.SkillID==job and v.Level>=jobInfo.SkillLevel then
+
+			if v.BreakQuest~=0 then
+				self.BreakTaskID=v.BreakQuest
+				MaxLevel=v.Level;
+				break;
+			end
+		end
+	end
+
+	local cfgs=ConfigDataAccessor.LifeSkillMineList;
+	for k, v in pairs(cfgs) do
+
+		if v.SkillID==job and v.Level<MaxLevel then
+			local display=1;
+			local cf=self:GetConfig(job,v.Level);
+			if cf~=nil then
+				display=cf.DisplayGroup;
+			end
+			local unLock=1;
+			if v.Level<=jobInfo.SkillLevel then
+				unLock=2;
+			end
+
+			table.insert(self.DataLists,{Config=v,DisplayGroup=display,Level=jobInfo.SkillLevel,UnLock=unLock})
+
+		end
+	end
+
+	if CurrentCfg~=nil then
+		if jobInfo.SkillExp<CurrentCfg.NeedEX then
+			self.m_Exp.gameObject:SetActive(true)
+			self.m_Break:SetActive(false);
+			self.m_Exp.value=jobInfo.SkillExp/CurrentCfg.NeedEX
+			self.m_ExpValue.text=jobInfo.SkillExp.."/"..CurrentCfg.NeedEX
+			--self.m_JobLv.text=jobInfo.SkillLevel.."级"
+			self.m_JobLv.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {jobInfo.SkillLevel});
+
+		else
+			if self.BreakTaskID>0 then
+				local taskinfo=TaskHelper.GetTaskConfig(self.BreakTaskID)
+				if taskinfo~=nil then
+					self.m_TaskName.text="["..taskinfo.Base.TaskName.."]"
+				end
+			end
+			self.m_Break:SetActive(true);
+			self.m_Exp.gameObject:SetActive(false)
+			--self.m_JobLv.text=jobInfo.SkillLevel.."级".."(经验已满)"
+			self.m_JobLv.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_FabricatePart_JobLv"), {jobInfo.SkillLevel});
+
+		end
+
+	end
+	self:SortItems();
+	for k, v in pairs(self.GridItemList) do
+		v:ClearData();
+	end
+
+	for k, v in pairs(self.DataLists) do
+		if self.CurrntSelect==0 then
+			self.CurrntSelect=v.Config.ID;
+		end
+	end
+
+
+	self.m_ScrollView:ContinueScroll(#self.DataLists);
+	self:OnSelectCallBack(self.CurrntSelect)
+	self.m_JobName.text=JobConfig[job].JobName
+	self:GetSprite(JobConfig[job].SpriteName,function (sp)
+			self.m_JobIcon.sprite=sp
+		end)
+
+
+end
+
+function GatherPart:SortItems()
+	if self.DataLists==nil or #self.DataLists==0 then
+		return
+	end
+	-- 解锁>>区间>> 道具品质>> 等级
+	table.sort(self.DataLists, function(a, b)
+			if a.UnLock>b.UnLock then
+				return true
+			elseif a.UnLock==b.UnLock then
+
+				if a.DisplayGroup>b.DisplayGroup then
+					return true
+				elseif a.DisplayGroup==b.DisplayGroup then
+
+					if a.Level>b.Level then
+						return true
+					elseif a.Level==b.Level then
+						local a_Quality=0;
+						local b_Quality=0;
+
+						local aCfg=	ConfigDataAccessor.Item[a.Config.BasicOutput];
+						if aCfg~=nil then
+							a_Quality=	aCfg.Quality;
+						else
+							LogError("读取配置失败 "..a.Config.BasicOutput)
+						end
+
+						local bCfg=	ConfigDataAccessor.Item[b.Config.BasicOutput];
+						if bCfg~=nil then
+							b_Quality=	bCfg.Quality;
+						else
+							LogError("读取配置失败 "..b.Config.BasicOutput)
+						end
+						return a_Quality>b_Quality
+					end
+				end
+			end
+		end);
+
+
+end
+
+function GatherPart:OnClose(arg)
+
+end
+
+function GatherPart:OnClickGatherBtn()
+	local sceneType= GameManager.Instance:GetCurMapType()
+	if sceneType==CS.ProtoMsg.SpaceType.SpaceScene then
+		local MineID=self.CurrntSelect; 		--矿ID
+		local config=ConfigDataAccessor.LifeSkillMineList[MineID];
+		if config~=nil then
+			local	MaxCnt=config.PersonReserve
+			local CallBack=function(mapID,pos)
+				TaskHelper.FindPostion(mapID,pos);
+			end
+
+			LuaModuleDispatcher:SendMessage(ModuleDef.LivingSkillsModule, "OnGetMinePosition", {MineID,MaxCnt,CallBack});
+		end
+	else
+		Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Tips41"))
+	end
+end
+
+function GatherPart:OnClickleft()
+
+end
+
+function GatherPart:OnClickright()
+
+end
+
+function GatherPart:OnClickjian()
+
+end
+
+function GatherPart:OnClickjia()
+
+end
+
+
+
+return  GatherPart

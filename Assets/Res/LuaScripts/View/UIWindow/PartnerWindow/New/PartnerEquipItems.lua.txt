@@ -1,0 +1,213 @@
+---@class PartnerEquipItems
+local PartnerEquipItems = {}
+PartnerEquipItems.__index = PartnerEquipItems
+
+local ItemGrid = require("View/Item/ItemGrid")
+
+function PartnerEquipItems:ctor(go)
+	local self = {}
+	setmetatable(self, PartnerEquipItems)
+
+	self:InitControls(go)
+
+	return self
+end
+
+function PartnerEquipItems:InitControls(go)
+	self.gameObject = go;
+	self.transform = go.transform;
+
+	self.go_BagItem = self.transform:Find("ItemGrid").gameObject
+
+	self.rect_grid = self.transform:Find("SV/Mask/List"):GetComponent(typeof(RectTransform))
+
+	self.BagItemList = {}
+	self.tr_ItemRoot = self.transform:Find("SV/Mask/List")
+	self.go_BagItem:SetActive(false)
+	self.go_BagItem.transform:SetParent(self.transform:Find("Items"))
+	self.BagScorllView = self.transform:Find("SV"):GetComponent(typeof(SuperScrollViewController))
+	self.BagScorllView:NewScroll(
+		self.go_BagItem,
+		0,
+		function(tr, idx)
+			self:OnBagItemRefesh(tr, idx)
+		end
+	)
+
+	self.ItemDataList = {};
+end
+
+function PartnerEquipItems:Init(equipType,istakeoff)
+	self.curEquipType = equipType;
+	self.allitems = BusinessManager.Instance:GetItemsByItemType(4, 0)
+	self:GetDataByEquipType(equipType,istakeoff);
+end
+
+function PartnerEquipItems:RefreshItems()
+	self:Init(self.curEquipType);
+end
+
+function PartnerEquipItems:CleanAllSelected()
+	--无限列表
+	for i = 1, #self.BagItemList do
+		self.BagItemList[i]:MakeSelected(false)
+	end
+end
+
+function PartnerEquipItems:OnBagItemRefesh(tr, idx)
+	for i = 1, #self.BagItemList do
+		if self.BagItemList[i].transform == tr then
+			self.BagItemList[i]:SetItem(self.ItemDataList[idx + 1]) --idx是从0开始，如果ItemDataList是lua的table需要idx+1
+
+			--刷新头像
+			local baseID = self:GetPartnerBaseIdByEntityID(self.ItemDataList[idx + 1].Heroid)
+			if baseID > 0 then
+				self.BagItemList[i]:SetPartnerHead(baseID)
+			end
+			return
+		end
+	end
+
+	--tr.gameObject:SetActive(true);
+	local bi = ItemGrid:New(tr.gameObject, self.tr_ItemRoot)
+	bi:InitItem(
+		true,
+		function(ritem)
+			self:OnItemClick(ritem)
+		end
+	)
+	bi.gameObject:SetActive(true)
+	bi:SetItem(self.ItemDataList[idx + 1]) --idx是从0开始，如果ItemDataList是lua的table需要idx+1
+
+	--刷新头像
+	local baseID = self:GetPartnerBaseIdByEntityID(self.ItemDataList[idx + 1].Heroid)
+	if baseID > 0 then
+		bi:SetPartnerHead(baseID)
+	end
+
+	table.insert(self.BagItemList, bi)
+end
+
+function PartnerEquipItems:OnItemClick(bitem)
+	self:CleanAllSelected()
+	bitem:MakeSelected(true)
+
+	self.partnerEquipTips:Show(bitem.BaseID, self.equipedEquip, bitem.EntityID, self.selectPatnerID);
+end
+
+function PartnerEquipItems:SetequipedItem(istakeoff)
+	if istakeoff==true then
+		return;
+	end
+	self:CleanAllSelected()
+	for i = 1, #self.BagItemList do
+		if self.BagItemList[i].BaseID == self.equipedEquip then
+			self.BagItemList[i]:MakeSelected(true)
+			break;
+		end
+	end
+end
+
+function PartnerEquipItems:GetPartnerBaseIdByEntityID(entityID)
+	if entityID==nil then
+		return 0;
+	end
+
+	for _k,_v in pairs(self.Partners) do
+		if _v.ID== entityID then
+			return _v.Index
+		end
+	end
+	return 0;
+end
+
+function PartnerEquipItems:RefeshItems()
+	self:SortItem(self.ItemDataList)
+
+	--背包数量限制
+	local nowNum = #self.ItemDataList
+
+	for i = #self.ItemDataList + 1, 100 do
+		local it = {}
+		it.BaseID = 0
+		table.insert(self.ItemDataList, it)
+	end
+
+	self.BagScorllView:ContinueScroll(#self.ItemDataList, true)
+
+	-- local str = "" .. nowNum
+	-- if nowNum < 100 and nowNum > 10 then
+	--     str = "0" .. nowNum
+	-- elseif nowNum < 10 then
+	--     str = "00" .. nowNum
+	-- end
+
+	-- self.BagLimit.text = str .. "/" .. self.maxNum
+end
+
+function PartnerEquipItems:SortItem(tbl)
+	if #tbl > 1 then
+		table.sort(
+			tbl,
+			function(a, b)
+				if a.SortProp < b.SortProp then
+					-- 按SortProp升序
+					return true
+				elseif a.SortProp == b.SortProp then
+					-- 如果SortProp相等，按Type升序
+					if a.ItemType < b.ItemType then
+						return true
+					elseif a.ItemType == b.ItemType then
+						-- 如果Type相等，按Id升序
+						return a.BaseID < b.BaseID
+					end
+				end
+				return false
+			end
+		)
+	end
+end
+
+function PartnerEquipItems:GetDataByEquipType(equipType,istakeoff)
+	self.ItemDataList = {};
+	for i = 0, self.allitems.Count - 1 do
+		local cfg = ConfigDataAccessor.Item[self.allitems[i].BaseID]
+		if cfg.SubType == equipType then
+			local it = {}
+			it.EntityID = self.allitems[i].EntityID
+			it.BaseID = self.allitems[i].BaseID
+			it.Heroid = self.allitems[i].Heroid
+			it.Num = self.allitems[i].Num
+			it.IsNew = self.allitems[i].IsNew
+			it.SortProp = cfg.SortProp
+			it.ItemType = cfg.ItemType
+			table.insert(self.ItemDataList, it)
+		end
+	end
+
+	self:RefeshItems();
+	self:SetequipedItem(istakeoff);
+end
+
+function PartnerEquipItems:Show(equipType, ps, equipedEquip, istakeoff)
+	self.Partners = ps.Partners;
+	self.partnerEquipTips = ps.partnerEquipTips;
+	if equipedEquip == nil then
+		self.equipedEquip = nil;
+	else
+		self.equipedEquip = equipedEquip.BaseID;
+	end
+	self.gameObject:SetActive(true);
+	self:Init(equipType, istakeoff);
+
+	local data= ps:GetSelectPartner();
+	if data~=nil then
+		self.selectPatnerID = data.ID;
+	end
+end
+
+function PartnerEquipItems:Hide()
+	self.gameObject:SetActive(false);
+end
+
+return PartnerEquipItems;

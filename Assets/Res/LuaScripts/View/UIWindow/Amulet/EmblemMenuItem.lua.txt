@@ -1,0 +1,156 @@
+--[[
+*文件名   :   EmblemMenuItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/18 16:55:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local EmblemMenuItem = {}
+
+EmblemMenuItem.__index = EmblemMenuItem
+
+function EmblemMenuItem:New(_go)
+    local self = {}
+    setmetatable(self, EmblemMenuItem)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    --self.Num=self.transform:Find("Have/Num"):GetComponent(typeof(Text));--数量
+    self.Icon = self.transform:Find("Have/Icon"):GetComponent(typeof(Image))
+    self.Rare = self.transform:Find("Have/BgRare"):GetComponent(typeof(Image))
+
+    if self.transform:Find("Have/Equip") ~= nil then
+        self.go_Equip = self.transform:Find("Have/Equip").gameObject
+        self.go_Equip:SetActive(false)
+    end
+
+    self.go_Selected = self.transform:Find("Have/Selected").gameObject
+    self.go_Selected:SetActive(false)
+
+    self.EmblemSlotBg = {}
+    self.EmblemSlotIcon = {}
+
+    for i = 1, 4 do
+        local bg = self.transform:Find("Have/EmblemList/EmblemItem" .. i .. "/iconbg"):GetComponent(typeof(Image))
+        local icon = self.transform:Find("Have/EmblemList/EmblemItem" .. i .. "/icon"):GetComponent(typeof(Image))
+        table.insert(self.EmblemSlotBg, bg)
+        table.insert(self.EmblemSlotIcon, icon)
+    end
+
+    self.IsUsed = false
+
+    --点击事件
+    self.btnClick = self.transform:GetComponent(typeof(JButton))
+    self.btnClick.OnClick = (function()
+        if self.OnItemClick ~= nil then
+            if self.IsUsed then
+                self.OnItemClick(self)
+            else
+                self.OnItemClick(nil)
+            end
+        end
+    end)
+
+    return self --返回自身
+end
+
+--初始化Item
+function EmblemMenuItem:InitItem(idx, onItemClick)
+    self.Idx = idx
+    self.OnItemClick = onItemClick
+    self:SetUse(false)
+end
+
+function EmblemMenuItem:SetUse(b)
+    self.IsUsed = b
+
+    --如果没有有底板就隐藏
+    self.gameObject:SetActive(b)
+end
+
+--设置Item
+function EmblemMenuItem:SetItem(data)
+    if data ~= nil then
+        self:SetUse(true)
+
+        self.Data = data
+
+        local baseID = data.BaseID
+        local combatSkills = data.CombatSkills
+        local gemSlots = data.GemSlots
+
+        --查看宝石
+        for i = 0, gemSlots.List.Count - 1 do
+            self.EmblemSlotIcon[i + 1].gameObject:SetActive(false)
+            --刷新宝石槽位颜色
+            local slotID = gemSlots.List[i].SlotID
+            local gemID = gemSlots.List[i].GemID
+
+            if gemID ~= nil and gemID ~= 0 then
+                self.EmblemSlotIcon[i + 1].gameObject:SetActive(true)
+                local itemData = BusinessManager.Instance:GetItemByItemEntityId(gemID)
+                local cfg = ConfigDataAccessor.Item[itemData.BaseID]
+                --LoadIcon(self.EmblemSlotIcon[i+1],cfg.Icon);
+                ResourceHelper:LoadIconAsync(self.EmblemSlotIcon[i + 1], "", cfg.Icon, false)
+            end
+
+            --self.EmblemSlotBg[i+1].color=GetEmblemBgColorRGB(slotID);
+            if slotID > 9 then
+                ResourceHelper:LoadIconByAtlasAsync(
+                    self.EmblemSlotBg[i + 1],
+                    ResourceHelper.AtlasPathRune,
+                    "Rune_slot_s_" .. slotID,
+                    false
+                )
+            else
+                ResourceHelper:LoadIconByAtlasAsync(
+                    self.EmblemSlotBg[i + 1],
+                    ResourceHelper.AtlasPathRune,
+                    "Rune_slot_s_0" .. slotID,
+                    false
+                )
+            end
+        end
+
+        self.BaseID = baseID
+
+        local cfg = ConfigDataAccessor.Item[self.BaseID]
+        --LoadIcon(self.Icon,cfg.Icon);
+        ResourceHelper:LoadIconAsync(self.Icon, "", cfg.Icon, false)
+
+        --稀有度底板
+        local cfg = ConfigDataAccessor.Item[self.BaseID]
+        local quality = cfg.Quality
+        --self.Rare.sprite = AtlasManager.Instance:GetSprite("ui/common/atlas/commonitem", "Bag_Grid_sq" .. quality)
+        ResourceHelper:LoadIconByAtlasAsync(
+            self.Rare,
+            ResourceHelper.AtlasPathCommonItem,
+            "Bag_Grid_sq" .. quality,
+            false
+        )
+        --self.Num.text="";--阶级暂时没有
+
+        --判断是是否已装备
+        --是否显示已装备
+        self.go_Equip:SetActive(false)
+        if
+            data.EntityID ~= nil and data.EntityID ~= 0 and (data.ItemType == 4 or data.ItemType == 5) and
+                data.Heroid > 0
+         then
+            if self.go_Equip ~= nil then
+                self.go_Equip:SetActive(true)
+            end
+        end
+    else
+        self:SetUse(false)
+    end
+end
+
+--是否被选中
+function EmblemMenuItem:MakeSelected(b)
+    self.go_Selected:SetActive(b)
+end
+
+return EmblemMenuItem

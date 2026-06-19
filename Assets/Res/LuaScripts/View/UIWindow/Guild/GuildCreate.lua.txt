@@ -1,0 +1,354 @@
+--[[
+*文件名   :   GuildCreate
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] local GuildCreate = {}
+
+GuildCreate.__index = GuildCreate
+local ItemGrid = require("View/Item/ItemGrid")
+
+local ChoiceBtn = require("View/Item/ChoiceBtn")
+
+function GuildCreate:New(_go, guildJoinWindow)
+    local self = {}
+    setmetatable(self, GuildCreate)
+
+    self.GuildJoinWindow = guildJoinWindow
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.GuildName = self.transform:Find("Right/NameInputField"):GetComponent(typeof(InputField))
+    self.GuildDesc = self.transform:Find("Right/DescInputField"):GetComponent(typeof(InputField))
+    self.GuildPlaceholder = self.transform:Find("Right/DescInputField/Text Area/Placeholder"):GetComponent(typeof(Text))
+
+    self.Icon = self.transform:Find("Zhong/icon"):GetComponent(typeof(Image))
+    self.IconBg = self.transform:Find("Zhong/iconBg"):GetComponent(typeof(Image))
+
+    -- 图标
+    self.IconBtns = {}
+    for i = 1, 6 do
+        local btn = ChoiceBtn:New(self.transform:Find("Zhong/QIZi/GuildIconList/Mask/List/GuildIcon" .. i).gameObject, "Have/Selected")
+        btn:InitItem(
+            i,
+            function(idx)
+                self:OnIconBtnClick(idx)
+            end
+        )
+        table.insert(self.IconBtns, btn)
+    end
+
+    -- 背景板
+    self.IconBgBtns = {}
+    for i = 1, 6 do
+        local btn = ChoiceBtn:New(self.transform:Find("Zhong/QIZi/GuildBgList/Mask/List/GuildBgIcon" .. i).gameObject, "Have/Selected")
+        btn:InitItem(
+            i,
+            function(idx)
+                self:OnIconBgBtnClick(idx)
+            end
+        )
+        table.insert(self.IconBgBtns, btn)
+    end
+
+    -- 标签
+    self.LabelBtns = {}
+    for i = 1, 3 do
+        self.transform:Find("Right/label" .. i .. "/tt"):GetComponent(typeof(Text)).text = ConfigDataAccessor.GuildLabel[i].LabelDec
+
+        local btn = ChoiceBtn:New(self.transform:Find("Right/label" .. i).gameObject, "select")
+        btn:InitItem(
+            i,
+            function(idx)
+                self:OnLabelBtnsClick(idx)
+            end
+        )
+        table.insert(self.LabelBtns, btn)
+    end
+
+    -- 点击事件
+
+    local btnClick = self.transform:Find("Right/BtnCreate"):GetComponent(typeof(Button))
+    btnClick.onClick:AddListener(
+        function()
+            self:OnCreateBtnClick()
+        end
+    )
+
+    -- 道具
+    self.items = {}
+    for i = 1, 4 do
+        local it = ItemGrid:New(self.transform:Find("Right/Items/ItemGrid" .. i).gameObject)
+        it:InitItem(
+            false,
+            function(ritem)
+                self:OnItemClick(ritem)
+            end
+        )
+        table.insert(self.items, it)
+    end
+
+    self.message1 = function(data)
+        self:OnGuildCreateRet(data)
+    end
+
+    self.gameObject:SetActive(false)
+
+    return self -- 返回自身
+end
+
+function GuildCreate:OnIconBtnClick(idx)
+    self.SelectedBadgeID = idx
+
+    self:SelectIcon(idx)
+
+    self:RefeshIconPreview()
+end
+
+function GuildCreate:SelectIcon(idx)
+    for i = 1, #self.IconBtns do
+        self.IconBtns[i]:MakeSelected(false)
+    end
+    self.IconBtns[idx]:MakeSelected(true)
+end
+
+function GuildCreate:OnIconBgBtnClick(idx)
+    self.SelectedIconBg = idx
+
+    self:SelectIconBg(idx)
+
+    self:RefeshIconPreview()
+end
+
+function GuildCreate:SelectIconBg(idx)
+    for i = 1, #self.IconBgBtns do
+        self.IconBgBtns[i]:MakeSelected(false)
+    end
+    self.IconBgBtns[idx]:MakeSelected(true)
+end
+
+function GuildCreate:OnLabelBtnsClick(idx)
+    self.SelectedLabelID = idx
+
+    self:SelectLabel(idx)
+end
+
+function GuildCreate:SelectLabel(idx)
+    for i = 1, #self.LabelBtns do
+        self.LabelBtns[i]:MakeSelected(false)
+    end
+    self.LabelBtns[idx]:MakeSelected(true)
+end
+
+function GuildCreate:RefeshIconPreview()
+    -- 冒险团图标
+    ResourceHelper:GetSpriteInAtlasByName(
+        ResourceHelper.AtlasGuild,
+        "Guild_icon_0" .. self.SelectedBadgeID,
+        function(sp)
+            if sp ~= nil then
+                self.Icon.sprite = sp
+            end
+        end
+    )
+
+    -- 冒险团图标背景(新UI创建)
+    local iconbgNum = self.SelectedIconBg + 6
+    local iconbgStr = "Guild_icon_0" .. iconbgNum
+    if iconbgNum > 9 then
+        iconbgStr = "Guild_icon_" .. iconbgNum
+    end
+    ResourceHelper:GetSpriteInAtlasByName(
+        ResourceHelper.AtlasGuild,
+        iconbgStr,
+        function(sp2)
+            if sp2 ~= nil then
+                self.IconBg.sprite = sp2
+            end
+        end
+    )
+end
+
+-- 创建冒险团回调
+function GuildCreate:OnGuildCreateRet(data)
+    -- 成功
+    Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_182"))
+
+    -- local Player=data.data.Player; --PlayerGuildInfo
+
+    local Info = data.data.GuildInfo
+
+    -- 存储信息
+    self.GuildJoinWindow.module.GuildInfo = Info
+
+    UIManager.Instance:CloseAllLoadedWindowNWidget()
+    -- 进入冒险团信息面板
+    LuaModuleDispatcher:SendMessage(ModuleDef.GuildModule, "OnOpenGuildInfo", {})
+
+    -- 发送LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_182欢迎加入的消息")
+    -- local chatMsg = "<link>冒险团 "..Info.GuName.." 建立了，欢迎有志之士加入，点击申请加入。</link>";
+    local chatMsg = "<link>" .. StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_264"), {Info.GuName}) .. "</link>"
+    chatMsg = "[1]"
+    local chatChannel = CS.ProtoMsg.ChatChannel.ChannelWorld
+    local extrainfos = CS.ProtoMsg.ChatExtraInfos()
+    local chatExtraInfo = CS.ProtoMsg.ChatExtraInfo()
+    chatExtraInfo.EType = CS.ProtoMsg.ChatExtraInfo.Types.EMsg.GuildCreate
+    chatExtraInfo.GuildID = Info.GuildID
+    chatExtraInfo.Captainer = Info.GuName
+
+    extrainfos.ChatExtraInfo:Add(chatExtraInfo)
+
+    local pid = BusinessManager.Instance:GetUserPID()
+    LuaModuleDispatcher:SendMessage(ModuleDef.ChatModule, "OnSendChatMsg", {chatMsg, chatChannel, extrainfos, pid})
+end
+
+function GuildCreate:OnCreateBtnClick()
+    -- 等CD
+    local serverTime = GameManager.Instance:GetServerTimeStamp() / 1000
+    local outGuildTime = BusinessManager.Instance:GetOutGuildTime()
+    local outGuildCd = ConfigDataAccessor.SystemList[93].Value -- 重新加入冒险团CD
+    local leftTime = outGuildCd - (serverTime - outGuildTime)
+
+    if leftTime > 0 then
+        local timeStr = SecToStringColon2(leftTime)
+        -- Util.ShowMessage("您刚离开一个冒险团， "..timeStr.." 内无法加入新冒险团");
+        Util.ShowMessage(StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Tips23"), {timeStr}))
+
+        do
+            return
+        end
+    end
+
+    if not (self.IsMoneyEnough) then
+        Util.ShowMessage(self.IsMoneyEnoughStr)
+        return
+    end
+    if self.GuildName.text == "" then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Tips24"))
+        return
+    end
+
+    if string.utf8len(self.GuildName.text) <= 1 then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Tips25"))
+        return
+    end
+
+    local desc = self.GuildDesc.text
+    if desc == "" then
+        desc = self.GuildPlaceholder.text
+    end
+    --[[
+    -- 冒险团创建确认框
+    UIAPI.ShowMsgBox(
+        27,
+        self.MoneyID,
+        function(EventName)
+            if EventName == "SURE" then
+                -- 发送请求
+                local guildCreateReq = CS.ProtoMsg.GuildCreateReq()
+                guildCreateReq.GBName = self.GuildName.text
+                local baseInfo = CS.ProtoMsg.GuildBaseField()
+                baseInfo.Declaration = desc
+                baseInfo.Notice = ""
+                baseInfo.BadgeID = self.SelectedBadgeID
+                baseInfo.LabelID = self.SelectedLabelID
+                baseInfo.IconBg = self.SelectedIconBg
+                guildCreateReq.BaseInfo = baseInfo
+                CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, guildCreateReq, false)
+            end
+        end,
+        self.MoneyCount
+    )
+    ]]
+    CS.StarProjectDef.UIAPI.ShowMsgBox(
+        27,
+        function(str)
+            if str == "SURE" then
+                -- 发送请求
+                local guildCreateReq = CS.ProtoMsg.GuildCreateReq()
+                guildCreateReq.GBName = self.GuildName.text
+                local baseInfo = CS.ProtoMsg.GuildBaseField()
+                baseInfo.Declaration = desc
+                baseInfo.Notice = ""
+                baseInfo.BadgeID = self.SelectedBadgeID
+                baseInfo.LabelID = self.SelectedLabelID
+                baseInfo.IconBg = self.SelectedIconBg
+                guildCreateReq.BaseInfo = baseInfo
+                CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, guildCreateReq, false)
+            end
+        end,
+        self.MoneyName,
+        self.MoneyCount
+    )
+end
+
+function GuildCreate:Show(b)
+    self.gameObject:SetActive(b)
+    if b then
+        NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.GuildCreateRetID, self.message1, nil)
+
+        self:Refesh()
+    else
+        NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.GuildCreateRetID, self.message1, nil)
+    end
+end
+
+function GuildCreate:OnItemClick(ritem)
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", {ritem.BaseID, false, 0, ritem.transform, 0})
+end
+
+function GuildCreate:Refesh()
+    self.GuildName.text = ""
+    self.GuildDesc.text = ""
+
+    self.SelectedBadgeID = 1
+    self.SelectedLabelID = 1
+    self.SelectedIconBg = 1
+
+    -- 显示消耗
+    -- 消耗道具
+    for i = 1, #self.items do
+        self.items[i].gameObject:SetActive(false)
+    end
+
+    self.IsMoneyEnough = true
+    self.IsMoneyEnoughStr = LanguageHelp:GetLanguageByKey("Local_Str_No_Item")
+
+    self.MoneyName = ""
+    self.MoneyCount = 0
+    self.MoneyID = 0
+
+    local config = ConfigDataAccessor.Cost[10004]
+    if config ~= nil then
+        local count = #config.ItemCost
+        for i = 1, count do
+            self.items[i].gameObject:SetActive(true)
+            local isItemEnough = self.items[i]:SetItemNum(config.ItemCost[i], config.ItemNum[i], false)
+
+            if not (isItemEnough) then
+                self.items[i].Num.text = "<color=#ff0000>" .. config.ItemNum[i] .. "</color>"
+
+                self.IsMoneyEnough = false
+                -- self.IsMoneyEnoughStr=ConfigDataAccessor.Item[config.ItemCost[i]].Name.."不足";
+                self.IsMoneyEnoughStr = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_ShopItem_buyErrorMsg"), {ConfigDataAccessor.Item[config.ItemCost[i]].Name})
+            else
+                self.items[i].Num.text = config.ItemNum[i]
+                self.MoneyID = config.ItemCost[i]
+                self.MoneyName = ConfigDataAccessor.Item[config.ItemCost[i]].Name
+                self.MoneyCount = config.ItemNum[i]
+            end
+        end
+    end
+
+    self:SelectIcon(self.SelectedBadgeID)
+    self:SelectIconBg(self.SelectedIconBg)
+    self:SelectLabel(self.SelectedLabelID)
+
+    -- 刷新图标
+    self:RefeshIconPreview()
+end
+
+return GuildCreate

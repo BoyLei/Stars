@@ -1,0 +1,100 @@
+---------------------------------------------------------------------
+-- WindowsTrunk (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2024-06-09 16:06:00
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class EquipSelectItem
+local EquipSelectItem = {}
+
+EquipSelectItem=class("EquipSelectItem",UIPanel)
+EquipSelectItem.BgRare=nil;
+EquipSelectItem.Icon=nil;
+EquipSelectItem.Name=nil;
+EquipSelectItem.Trace=nil;
+EquipSelectItem.Stars=nil;
+EquipSelectItem.Selected=nil;
+EquipSelectItem.Btn=nil;
+EquipSelectItem.onSelectCallBack=nil;
+EquipSelectItem.ItemUniID=0;
+local OnItemClick=nil;
+
+
+function EquipSelectItem:ctor(go,cb)
+	self.prefab=go
+	self.onSelectCallBack=cb;
+	self.BgRare=self:Find("BgRare"):GetComponent(typeof(Image));
+	self.Icon=self:Find("Icon"):GetComponent(typeof(Image));
+	self.Name=self:Find("Name"):GetComponent(typeof(Text));
+	self.Trace=self:Find("Trace"):GetComponent(typeof(Text));
+	self.Stars={}
+	for i = 1, 3 do
+		table.insert(self.Stars,self:Find("Stars/Star"..i).gameObject)
+	end
+
+	self.Selected=self:Find("Selected").gameObject
+	self.Btn=self.prefab.transform:GetComponent(typeof(JButton));
+	OnItemClick=function() self:OnClickItem(); end;
+	self.Btn.OnClick= OnItemClick;
+end
+
+function EquipSelectItem:OnClickItem()
+	if self.onSelectCallBack~=nil then
+		self.onSelectCallBack(self.ItemUniID)
+	end
+	self:SetSelect(true)
+end
+
+function EquipSelectItem:SetSelect(active)
+	self.Selected:SetActive(active)
+end
+
+function EquipSelectItem:OnUpdateContent(data,selectIndex)
+	self.ItemUniID=tostring(data.ID)
+	local config=ConfigDataAccessor.Item[data.BaseID]
+	if config~=nil then
+
+		local quality = config.Quality;
+		if quality==99 then
+			quality=1;
+		end
+		self.Name.text=config.Name
+		ResourceHelper:LoadIconByAtlasAsync(
+			self.BgRare,
+			"UI/Partner/Atlas/Partner1",
+			"Partner_btn_" .. quality,
+			false,
+			function (s)
+				self.BgRare.gameObject:SetActive(true)
+			end
+		)
+
+		ResourceHelper:LoadIconAsync(self.Icon, "", config.Icon, false)
+
+		if data.IsBind then
+			self.Trace.text=LanguageHelp:GetLanguageByKey("partner_sys_14")
+		else
+			self.Trace.text=StringFormat(LanguageHelp:GetLanguageByKey("partner_sys_14"),{data.TradedCount})
+		end
+
+	end
+
+	local itemEqip_Cfg=ConfigDataAccessor.PartnerEquip[data.BaseID]
+	if itemEqip_Cfg~=nil then
+		self:SetStar(itemEqip_Cfg.AdvancedLevel)
+	end
+
+	self:SetSelect(selectIndex==self.ItemUniID)
+end
+
+function EquipSelectItem:SetStar(star)
+	for k, v in pairs(self.Stars) do
+		v:SetActive(k<=star)
+	end
+end
+
+
+return  EquipSelectItem

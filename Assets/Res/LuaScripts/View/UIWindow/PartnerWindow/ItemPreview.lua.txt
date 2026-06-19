@@ -1,0 +1,248 @@
+local CostItem = require("View/UIWindow/PartnerWindow/CostItem");
+ItemPreview = class("ItemPreview", UIPanel)
+ItemPreview.m_ScrollView = nil;
+ItemPreview.m_Item = nil;
+ItemPreview.m_Close = nil;
+ItemPreview.ItemList = {};
+ItemPreview.ItemDatas = {}
+ItemPreview.ItemDropDatas = {} -- 掉落信息
+ItemPreview.MinWidth = 0;
+ItemPreview.ItemWidth = 0;
+ItemPreview.Space = 0;
+ItemPreview.m_HorizontalLayoutGroup = nil;
+ItemPreview.m_RectTransform = nil;
+ItemPreview.m_ScrollRect = nil;
+ItemPreview.UseCustom = false;
+ItemPreview.IsShowDropData = false; -- 是否显示掉落信息
+ItemPreview.ShowGetState = -1;      -- 0：都不显示 1：显示可领取 2：显示不可领取
+
+
+function ItemPreview:ctor(go)
+	self.prefab = go;
+	self.UseCustom = false;
+	self.m_ScrollView = self:Find("ScrollView"):GetComponent(typeof(SuperScrollViewController));
+	self.m_ScrollRect = self:Find("ScrollView"):GetComponent(typeof(ScrollRect));
+	self.m_Item = self:Find("Item").gameObject
+	if self.m_Item ~= nil then
+		self.m_Item:SetActive(false)
+	end
+	self.m_Close = self:Find("Close"):GetComponent(typeof(Button));
+	self.m_HorizontalLayoutGroup = self:Find("ScrollView/Mask/List"):GetComponent(typeof(HorizontalLayoutGroup));
+	self.m_RectTransform = self:Find("ScrollView/Mask/List"):GetComponent(typeof(RectTransform));
+	self.m_ScrollView:NewScroll(self.m_Item, 0, function(tr, idx)
+			self:OnItemRefesh(tr, idx);
+		end);
+	self.m_Close.onClick:AddListener(function() self:OnClickHandler() end);
+end
+
+function ItemPreview:ItemClickCall()
+	self.m_Close.targetGraphic.raycastTarget = true
+end
+
+function ItemPreview:OnClickHandler()
+	LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips");
+	self.m_Close.targetGraphic.raycastTarget = false
+end
+
+function ItemPreview:SetSize(minSize, itemSize, space)
+	self.MinWidth = minSize
+	self.ItemWidth = itemSize
+	self.Space = space
+	self.UseCustom = true;
+end
+
+function ItemPreview:OnDestroy()
+	if self.ItemList==nil then
+		self.ItemList ={}
+	else
+		for k,_ in pairs(self.ItemList) do self.ItemList[k] = nil end
+		--self.ItemDataList ={}
+	end
+end
+
+
+function ItemPreview:SetShowDropData(isDrop)
+	self.IsShowDropData = isDrop
+end
+
+function ItemPreview:SetShowGetState(State, isRefreshItemState)
+	self.ShowGetState = State
+	if isRefreshItemState then
+		self.m_ScrollView:ContinueScroll(#self.ItemDatas);
+	end
+end
+
+function ItemPreview:SetItems(items)
+	--ItemID排序
+	for i, v in pairs(items) do
+		local config = ConfigDataAccessor.Item[v.ItemID]
+		if config ~= nil then
+			v.quality = config.Quality
+			v.itemType =config.ItemType
+		else
+			v.quality = 1
+			v.itemType =1
+			v.ItemNum=1
+		end
+	end
+
+	table.sort(items,function	(a,b)
+			if a==nil or b==nil then
+				return false;
+			end
+
+			if a.quality == ItemQualityType.Currency and b.quality == ItemQualityType.Currency then
+				if a.itemType == b.itemType then
+					return a.ItemID<b.ItemID
+				else
+					return a.itemType<b.itemType
+				end
+			elseif a.quality == ItemQualityType.Currency and b.quality ~= ItemQualityType.Currency then
+				return true
+			elseif a.quality ~= ItemQualityType.Currency and b.quality == ItemQualityType.Currency then
+				return false
+			else
+				return a.quality > b.quality
+			end
+		end)
+
+	self.ItemDatas = items
+	local count = #self.ItemDatas
+	if self.UseCustom == nil then
+		self.UseCustom = false;
+	end
+	if self.UseCustom then
+		local needSize = count * self.ItemWidth + (count - 1) * self.Space
+		local width = self.MinWidth
+		local needScroll = false
+		self.m_ScrollView:ContinueScroll(count);
+		if needSize > self.MinWidth then
+			width = needSize;
+			needScroll = true;
+		end
+		if self.m_RectTransform ~= nil then
+			self.m_RectTransform:SetWidth(width);
+		end
+
+		if self.m_HorizontalLayoutGroup ~= nil then
+			self.m_HorizontalLayoutGroup.enabled = not needScroll
+		end
+		if self.m_ScrollRect ~= nil then
+			self.m_ScrollRect.horizontal = needScroll
+		end
+	else
+		self.m_ScrollView:ContinueScroll(count);
+	end
+end
+function ItemPreview:SetItemsNotSort(items)
+	self.ItemDatas = items
+	local count = #self.ItemDatas
+	if self.UseCustom == nil then
+		self.UseCustom = false;
+	end
+	if self.UseCustom then
+		local needSize = count * self.ItemWidth + (count - 1) * self.Space
+		local width = self.MinWidth
+		local needScroll = false
+		self.m_ScrollView:ContinueScroll(count);
+		if needSize > self.MinWidth then
+			width = needSize;
+			needScroll = true;
+		end
+		if self.m_RectTransform ~= nil then
+			self.m_RectTransform:SetWidth(width);
+		end
+
+		if self.m_HorizontalLayoutGroup ~= nil then
+			self.m_HorizontalLayoutGroup.enabled = not needScroll
+		end
+		if self.m_ScrollRect ~= nil then
+			self.m_ScrollRect.horizontal = needScroll
+		end
+	else
+		self.m_ScrollView:ContinueScroll(count);
+	end
+end
+function ItemPreview:SetDropItems(items)
+	self.ItemDropDatas = items
+	local count = #self.ItemDropDatas
+	if self.UseCustom == nil then
+		self.UseCustom = false;
+	end
+	if self.UseCustom then
+		local needSize = count * self.ItemWidth + (count - 1) * self.Space
+		local width = self.MinWidth
+		local needScroll = false
+		self.m_ScrollView:ContinueScroll(count);
+		if needSize > self.MinWidth then
+			width = needSize;
+			needScroll = true;
+		end
+		if self.m_RectTransform ~= nil then
+			self.m_RectTransform:SetWidth(width);
+		end
+
+		if self.m_HorizontalLayoutGroup ~= nil then
+			self.m_HorizontalLayoutGroup.enabled = not needScroll
+		end
+		if self.m_ScrollRect ~= nil then
+			self.m_ScrollRect.horizontal = needScroll
+		end
+	else
+		self.m_ScrollView:ContinueScroll(count);
+	end
+end
+
+function ItemPreview:OnItemRefesh(tr, idx)
+	if self.IsShowDropData then
+		self:OnDropItemRefesh(tr, idx);
+	else
+		self:OnCommonItemRefesh(tr, idx);
+	end
+end
+
+function ItemPreview:OnCommonItemRefesh(tr, idx)
+	if self.ItemList == nil then
+		return;
+	end
+	for i = 1, #self.ItemList do
+		if self.ItemList[i].transform == tr then
+			self.ItemList[i]:UpdateContent(self.ItemDatas[idx + 1], function()
+					self:ItemClickCall()
+				end); --idx是从0开始，如果ItemDataList是lua的table需要idx+1
+			self.ItemList[i]:UpdateGetState(self.ShowGetState);
+			return
+		end
+	end
+
+	local bi = CostItem.new(tr.gameObject, self.m_ItemRoot, self.AtlasPath);
+	bi.prefab:SetActive(true);
+	bi:UpdateContent(self.ItemDatas[idx + 1], function()
+			self:ItemClickCall()
+		end); --idx是从0开始，如果ItemDataList是lua的table需要idx+1
+	bi:UpdateGetState(self.ShowGetState);
+	table.insert(self.ItemList, bi);
+end
+
+function ItemPreview:OnDropItemRefesh(tr, idx)
+	if self.ItemList == nil then
+		return;
+	end
+	for i = 1, #self.ItemList do
+		if self.ItemList[i].transform == tr then
+			self.ItemList[i]:UpdateDropContent(self.ItemDropDatas[idx + 1], function()
+					self:ItemClickCall()
+				end); --idx是从0开始，如果ItemDataList是lua的table需要idx+1
+			return
+		end
+	end
+
+	local bi = CostItem.new(tr.gameObject, self.m_ItemRoot, self.AtlasPath);
+	bi.prefab:SetActive(true);
+	bi:UpdateDropContent(self.ItemDropDatas[idx + 1], function()
+			self:ItemClickCall()
+		end); --idx是从0开始，如果ItemDataList是lua的table需要idx+1
+	table.insert(self.ItemList, bi);
+end
+
+return ItemPreview;

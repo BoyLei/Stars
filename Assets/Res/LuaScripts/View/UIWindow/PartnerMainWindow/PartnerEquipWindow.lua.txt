@@ -1,0 +1,352 @@
+--[[
+*文件名   :   PartnerEquipWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2024/05/31 17:28:05"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local PartnerEquipNew=require("View/UIWindow/PartnerWindow/PartnerEquipPart_New")
+local EquipProp=require("View/UIWindow/PartnerMainWindow/PartnerEquipProp")
+
+PartnerEquipWindow=class("PartnerEquipWindow",UIPanel)
+PartnerEquipWindow.m_CloseBtn=nil;
+PartnerEquipWindow.m_PartnerEquip=nil;
+PartnerEquipWindow.m_Name=nil;
+PartnerEquipWindow.m_Item=nil;
+PartnerEquipWindow.m_Equiped=nil;
+PartnerEquipWindow.m_LeftTimes=nil;
+PartnerEquipWindow.m_Type=nil;
+PartnerEquipWindow.m_LevelLimit=nil;
+PartnerEquipWindow.m_Content=nil;
+PartnerEquipWindow.m_RoleImage=nil;
+PartnerEquipWindow.m_DisplayRawimg=nil;
+PartnerEquipWindow.m_Slots=nil;
+PartnerEquipWindow.m_EquipProp=nil;
+PartnerEquipWindow.PartnerEquip=nil;
+PartnerEquipWindow.EquipProp=nil;
+PartnerEquipWindow.m_BackBtn=nil;
+PartnerEquipWindow.m_UpBtn=nil;
+PartnerEquipWindow.SlotIsEmpty=nil;
+PartnerEquipWindow.SlotID=0;
+PartnerEquipWindow.m_UpBtnText=nil;
+PartnerEquipWindow.SelectItem=nil;
+PartnerEquipWindow.CloseCallBack=nil;
+local BackFunc=nil;
+local UpFunc=nil;
+local CloseBtnFunc=nil;
+local OnClickEmptySlot=nil;
+local OnSelectSlotFunc=nil;
+local OnSelectItemCallBack=nil;
+local  WearParEquipRetEventFunc=nil;
+local TakeOffParEquipRetEventFunc=nil;
+local OnTabChange=nil;
+function PartnerEquipWindow:Awake()
+	self.m_CloseBtn=self:Find("Cut4Cam90/AssemblyRatio2/Left/CloseBtn"):GetComponent(typeof(JButton));
+
+	self.m_Name=self:Find("Cut4Cam90/AssemblyRatio2/Right/EquipProp/Top/Name"):GetComponent(typeof(Text));
+	self.m_Item=self:Find("Cut4Cam90/AssemblyRatio2/Right/EquipProp/Top/ItemGrid").gameObject;
+	self.m_Equiped=self:Find("Cut4Cam90/AssemblyRatio2/Right/EquipProp/Top/Equiped").gameObject;
+	self.m_LeftTimes=self:Find("Cut4Cam90/AssemblyRatio2/Right/EquipProp/Top/LeftTimes").gameObject;
+	self.m_Type=self:Find("Cut4Cam90/AssemblyRatio2/Right/EquipProp/Top/Type").gameObject;
+	self.m_LevelLimit=self:Find("Cut4Cam90/AssemblyRatio2/Right/EquipProp/Top/LevelLimit").gameObject;
+	self.m_Content=self:Find("Cut4Cam90/AssemblyRatio2/Right/EquipProp/Content").gameObject;
+	self.m_RoleImage=self:Find("Cut4Cam90/AssemblyRatio2/Center/RoleImage"):GetComponent(typeof(RawImage));
+	self.m_DisplayRawimg = self:Find("Cut4Cam90/AssemblyRatio2/Center/DisplayRawimg"):GetComponent(typeof(DisplayRawimg));
+	self.m_EquipProp=self:Find("Cut4Cam90/AssemblyRatio2/Right/EquipProp").gameObject
+	self.m_BackBtn=self:Find("Cut4Cam90/AssemblyRatio2/Right/EquipProp/Content/Back"):GetComponent(typeof(JButton));;
+	self.m_UpBtn=self:Find("Cut4Cam90/AssemblyRatio2/Right/EquipProp/Content/UpBtn"):GetComponent(typeof(JButton));;
+	self.m_UpBtnText=self:Find("Cut4Cam90/AssemblyRatio2/Right/EquipProp/Content/UpBtn/Text"):GetComponent(typeof(Text));;
+
+	OnClickEmptySlot=function(id)
+		self:ClickEmptySlot(id)
+		self.PartnerEquip:SetPartnerEquip(id)
+	end;
+	OnSelectSlotFunc=function(id,itemMD)
+		self:SelectSlot(id)
+		self:OnSelectItem(itemMD.ID,id)
+		local isEmpty=self.m_Slots[self.SlotIndex]:IsEmptySlot()
+		self.SlotIsEmpty=isEmpty
+		self.m_BackBtn.gameObject:SetActive(not isEmpty)
+		self.PartnerEquip:SetPartnerEquip(id)
+	end;
+
+	self.m_Slots={}
+	for i = 1, 3 do
+		self.m_Slots[i]=StructAccessor.SoulStoneSlotItem.new(self:Find("Cut4Cam90/AssemblyRatio2/Center/Slots/"..i).gameObject,i,OnClickEmptySlot,OnSelectSlotFunc)
+	end
+
+	local go=self:Find("Cut4Cam90/AssemblyRatio2/Left/PartnerEquip").gameObject;
+	OnSelectItemCallBack=function(entityid,id)
+		self:OnSelectItem(entityid,id);
+	end
+	OnTabChange=function(id)
+		self:OnSelectSlot(id)
+	end
+	self.PartnerEquip=PartnerEquipNew:New(go,OnSelectItemCallBack,OnTabChange)
+	self.EquipProp=EquipProp.new(self.m_EquipProp)
+	CloseBtnFunc=function() self:OnClickCloseBtn(); end;
+
+	BackFunc=function()
+		self:OnBackCallBack();
+	end;
+	UpFunc=function()
+		self:OnUpCallBack();
+	end;
+	WearParEquipRetEventFunc=function(data)
+		self:OnWearParEquipRet(data)
+	end;
+	TakeOffParEquipRetEventFunc=function(data)
+		self:OnTakeOffParEquipRet(data)
+	end;
+	self:Start();
+end
+
+
+function  PartnerEquipWindow:FreshSolts()
+
+	local isEmpty=true;
+	local equip1= BusinessManager.Instance:GetPartnerEquipedEquip(self.partner.ID,1);
+	local equip2= BusinessManager.Instance:GetPartnerEquipedEquip(self.partner.ID,2);
+	local equip3= BusinessManager.Instance:GetPartnerEquipedEquip(self.partner.ID,3);
+	self.m_Slots[1]:OnOpen(equip1)
+	self.m_Slots[2]:OnOpen(equip2)
+	self.m_Slots[3]:OnOpen(equip3)
+	isEmpty=self.m_Slots[self.SlotIndex]:IsEmptySlot()
+	self.m_Slots[self.SlotIndex]:SetSelect(true)
+	self.SlotIsEmpty=isEmpty
+	self.m_BackBtn.gameObject:SetActive(not isEmpty)
+	if self.SlotIsEmpty then
+		self.m_UpBtnText.text=LanguageHelp:GetLanguageByKey("partner_sys_13")
+	else
+		self.m_UpBtnText.text=LanguageHelp:GetLanguageByKey("Local_Str_Replace")
+	end
+end
+
+function PartnerEquipWindow:OnWearParEquipRet(data)
+	self:FreshSolts()
+	self.PartnerEquip:SetPartnerEquip(self.SlotIndex)
+end
+
+function PartnerEquipWindow:OnTakeOffParEquipRet(data)
+	self:FreshSolts()
+	self.PartnerEquip:SetPartnerEquip(self.SlotIndex)
+end
+
+function PartnerEquipWindow:OnSelectItem(entityid,id)
+	if (entityid~=nil) and (id~=nil) then
+		print("选中了道具"..id)
+		self.SelectItem=id;
+		self.SelectItemEntityID=entityid;
+		local item=BusinessManager.Instance:GetItemByItemEntityId(entityid)
+		self.EquipProp:SetItem(item)
+	else
+		self.EquipProp:SetItem(nil)
+	end
+	--self.m_Slots[self.SlotID]:OnOpen(item)
+end
+
+function PartnerEquipWindow:Start()
+
+
+
+
+end
+
+function PartnerEquipWindow:OnBackCallBack()
+	if self.m_Slots[self.SlotIndex]~=nil then
+		local item=self.m_Slots[self.SlotIndex]:GetItem()
+		if item~=nil then
+			local takeOffEquipReq = CS.ProtoMsg.TakeOffParEquipReq()
+
+			takeOffEquipReq.ItemEntityID =item.ID
+			takeOffEquipReq.PartnerID = item.HeroID
+			CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, takeOffEquipReq, false)
+		end
+	end
+end
+
+function PartnerEquipWindow:OnUpCallBack()
+	local wearEquipReq = CS.ProtoMsg.WearParEquipReq()
+	wearEquipReq.ItemEntityID= self.SelectItemEntityID
+	wearEquipReq.PartnerID = self.PartnerEntyID
+	CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, wearEquipReq, false)
+end
+
+function PartnerEquipWindow:OnEnable()
+	local WearParEquipRetEvent=LuaModuleDispatcher:Event(ModuleDef.BattleTeamModule,"WearParEquipRetEvent");
+	WearParEquipRetEvent:AddListener(WearParEquipRetEventFunc)
+
+
+	local TakeOffParEquipRetEvent=LuaModuleDispatcher:Event(ModuleDef.BattleTeamModule,"TakeOffParEquipRetEvent");
+	TakeOffParEquipRetEvent:AddListener(TakeOffParEquipRetEventFunc)
+
+
+	self.m_CloseBtn.OnClick= CloseBtnFunc;
+	self.m_BackBtn.OnClick=BackFunc
+	self.m_UpBtn.OnClick=UpFunc
+end
+
+function PartnerEquipWindow:OnDisable()
+	local WearParEquipRetEvent=LuaModuleDispatcher:Event(ModuleDef.BattleTeamModule,"WearParEquipRetEvent");
+	WearParEquipRetEvent:RemoveListener(WearParEquipRetEventFunc)
+
+
+	local TakeOffParEquipRetEvent=LuaModuleDispatcher:Event(ModuleDef.BattleTeamModule,"TakeOffParEquipRetEvent");
+	TakeOffParEquipRetEvent:RemoveListener(TakeOffParEquipRetEventFunc)
+
+
+	self.m_CloseBtn.OnClick= nil;
+	self.m_BackBtn.OnClick=nil;
+	self.m_UpBtn.OnClick=nil;
+end
+
+function PartnerEquipWindow:OnDestroy()
+
+end
+
+function PartnerEquipWindow:ClickEmptySlot(id)
+	print("ClickEmptySlot"..id)
+	self:OnSelectItem(nil,nil)
+	self.SlotIndex=id
+	local isEmpty=self.m_Slots[self.SlotIndex]:IsEmptySlot()
+	self.m_Slots[self.SlotIndex]:SetSelect(true)
+	self.SlotIsEmpty=isEmpty
+	self.m_BackBtn.gameObject:SetActive(not isEmpty)
+	
+end
+
+function PartnerEquipWindow:SelectSlot(id)
+	print("SelectSlot"..id)
+	self:OnSelectSlot(id)
+end
+
+
+function PartnerEquipWindow:OnSelectSlot(id)
+	if self.m_Slots~=nil then
+		for k, v in pairs(self.m_Slots) do
+			v:SetSelect(false)
+		end
+		self.m_Slots[id]:SetSelect(true)
+	end
+	self.SlotIndex=id
+	local isEmpty=self.m_Slots[self.SlotIndex]:IsEmptySlot()
+	self.m_Slots[self.SlotIndex]:SetSelect(true)
+	self.SlotIsEmpty=isEmpty
+	self.m_BackBtn.gameObject:SetActive(not isEmpty)
+end
+
+function PartnerEquipWindow:OnOpen(arg)
+	--HeroID
+	--ID
+	if self.PartnerEquip~=nil then
+
+		local isEmpty=true;
+		local mgr=	BusinessManager.Instance:GetPartnerMDMgr()
+		if mgr~= nil then
+			self.partner= mgr:GetData(arg.ConfigID)
+
+			local equip1= BusinessManager.Instance:GetPartnerEquipedEquip(self.partner.ID,1);
+			local equip2= BusinessManager.Instance:GetPartnerEquipedEquip(self.partner.ID,2);
+			local equip3= BusinessManager.Instance:GetPartnerEquipedEquip(self.partner.ID,3);
+			self.m_Slots[1]:OnOpen(equip1)
+			self.m_Slots[2]:OnOpen(equip2)
+			self.m_Slots[3]:OnOpen(equip3)
+			isEmpty=self.m_Slots[arg.Idx]:IsEmptySlot()
+			self:OnSelectSlot(arg.Idx)
+
+		end
+
+		--{EntityID=EntityID,ConfigID=ConfigID,Idx=Idx,ID=ID},
+		self.PartnerEntyID=arg.EntityID
+		self.SlotIsEmpty=isEmpty;
+		self.SlotIndex=arg.Idx
+		self.SlotID=arg.ID
+		self.CloseCallBack=arg.CallBack
+		self.PartnerEquip:OnSetPartner(arg.ConfigID,arg.Idx,isEmpty,false)
+		------- 设置模型
+		self.m_RoleImage.texture = ResourceManager.Instance.RenderTexture;
+
+
+		self.m_BackBtn.gameObject:SetActive(not isEmpty)
+		if self.SlotIsEmpty then
+			self.m_UpBtnText.text=LanguageHelp:GetLanguageByKey("partner_sys_13")
+		else
+			self.m_UpBtnText.text=LanguageHelp:GetLanguageByKey("Local_Str_Replace")
+		end
+	end
+end
+
+
+function PartnerEquipWindow:SetModel(avatarDataCell, scale, localRotate, localPos, animName)
+	if self.m_avatarDataCell ~= avatarDataCell then
+		------- 设置模型
+		self:PushDisplayGob();
+		self.m_avatarDataCell = avatarDataCell;
+		ResourceManager.Instance:PopGameObject("Roles/Template/Display_Model", function(go)
+				if go == nil then
+					return;
+				end
+				if self.m_avatarDataCell == nil then
+					ResourceManager.Instance:PushGameObject("Roles/Template/Display_Model", go);
+					return;
+				end
+				UIManager.Instance:SetModel2UI2(go, self.m_avatarDataCell.AvatarID, CS.StarProjectDef.ThreeDModelPos.Raw, scale,
+					Vector3.zero, localRotate, localPos, animName);
+				go:SetActive(true);
+				self.m_ModelViewDisplay = go:GetComponent(typeof(RoleViewDisplay));
+				self.m_DisplayRawimg:SetModelView(self.m_ModelViewDisplay);
+
+				if self.m_ModelViewDisplay ~= nil then
+					local rotation = Quaternion.Euler(0, 0, 0);
+					self.m_ModelViewDisplay:SetRotation(rotation);
+					self.m_DisplayRawimg:SetState(true);
+				end
+
+				------- 设置模型
+				self.m_RoleImage.texture = ResourceManager.Instance.RenderTexture;
+			end);
+
+	end
+	if self.m_ModelViewDisplay ~= nil then
+		local rotation = Quaternion.Euler(0, 0, 0);
+		self.m_ModelViewDisplay:SetRotation(rotation);
+		self.m_DisplayRawimg:SetState(true);
+	end
+end
+
+function PartnerEquipWindow:PushDisplayGob()
+	if self.m_ModelViewDisplay ~= nil then
+		ResourceManager.Instance:PushGameObject("Roles/Template/Display_Model", self.m_ModelViewDisplay.gameObject);
+		-- GameObject.Destroy(self.m_ModelViewDisplay.gameObject);
+		self.m_ModelViewDisplay = nil;
+		self.m_DisplayRawimg:SetModelView(self.m_ModelViewDisplay);
+	end
+end
+
+function PartnerEquipWindow:PushDisplayGob()
+	if self.m_ModelViewDisplay ~= nil then
+		ResourceManager.Instance:PushGameObject("Roles/Template/Display_Model", self.m_ModelViewDisplay.gameObject);
+		-- GameObject.Destroy(self.m_ModelViewDisplay.gameObject);
+		self.m_ModelViewDisplay = nil;
+		self.m_DisplayRawimg:SetModelView(self.m_ModelViewDisplay);
+	end
+end
+
+
+function PartnerEquipWindow:OnClose(arg)
+	if self.CloseCallBack~=nil then
+		self.CloseCallBack();
+	end
+end
+
+function PartnerEquipWindow:OnClickCloseBtn()
+
+	self.Close();
+end
+
+
+
+
+return  PartnerEquipWindow

@@ -1,0 +1,334 @@
+--[[
+*文件名   :   ExchangeWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/09 17:09:51"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] ExchangeWidget = class("ExchangeWidget", UIPanel)
+ExchangeWidget.IsOpen = false
+
+local ItemGrid = require("View/Item/ItemGrid")
+
+function ExchangeWidget:Awake()
+    self.transform = self.prefab.transform
+    self.gameObject = self.transform.gameObject
+
+    self.BtnMinImg = self.transform:Find("Cut4Cam90/Info/BtnMin"):GetComponent(typeof(CanvasGroup))
+    local btnMin = self.transform:Find("Cut4Cam90/Info/BtnMin"):GetComponent(typeof(Button))
+    btnMin.onClick:AddListener(
+        function()
+            self:OnBtnMinClick()
+        end
+    )
+
+    self.BtnMaxImg = self.transform:Find("Cut4Cam90/Info/BtnMax"):GetComponent(typeof(CanvasGroup))
+    local btnMax = self.transform:Find("Cut4Cam90/Info/BtnMax"):GetComponent(typeof(Button))
+    btnMax.onClick:AddListener(
+        function()
+            self:OnBtnMaxClick()
+        end
+    )
+
+    self.BtnAddImg = self.transform:Find("Cut4Cam90/Info/BtnAdd"):GetComponent(typeof(CanvasGroup))
+    local btnAdd = self.transform:Find("Cut4Cam90/Info/BtnAdd"):GetComponent(typeof(Button))
+    btnAdd.onClick:AddListener(
+        function()
+            self:OnBtnAddClick()
+        end
+    )
+
+    self.BtnSubImg = self.transform:Find("Cut4Cam90/Info/BtnSub"):GetComponent(typeof(CanvasGroup))
+    local btnSub = self.transform:Find("Cut4Cam90/Info/BtnSub"):GetComponent(typeof(Button))
+    btnSub.onClick:AddListener(
+        function()
+            self:OnBtnSubClick()
+        end
+    )
+
+    local btnConfirm = self.transform:Find("Cut4Cam90/BtnConfirm"):GetComponent(typeof(JButton))
+    btnConfirm.OnClick = function()
+        self:OnBtnConfirmClick()
+    end
+
+    self.slider = self.transform:Find("Cut4Cam90/Info/Slider"):GetComponent(typeof(Slider))
+    self.slider.onValueChanged:AddListener(
+        function()
+            self:OnSliderValChanged()
+        end
+    )
+
+    self.UseNumNow = 1
+
+    self.ItemGrid1 = ItemGrid:New(self.transform:Find("Cut4Cam90/Info/ItemGrid1").gameObject) -- 第一个不填会默认创建一个
+    self.ItemGrid1:InitItem(
+        false,
+        function(it)
+            self:OnItemClick(it)
+        end
+    )
+
+    self.ItemGrid2 = ItemGrid:New(self.transform:Find("Cut4Cam90/Info/ItemGrid2").gameObject) -- 第一个不填会默认创建一个
+    self.ItemGrid2:InitItem(
+        false,
+        function(it)
+            self:OnItemClick(it)
+        end
+    )
+
+    NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.Money2MoneyRetID,
+        function(data)
+            self:OnMoney2MoneyRet(data)
+        end,
+        nil
+    )
+
+    self.Name1 = self.transform:Find("Cut4Cam90/Info/name1"):GetComponent(typeof(Text))
+    self.Name2 = self.transform:Find("Cut4Cam90/Info/name2"):GetComponent(typeof(Text))
+
+    self.Icon1 = self.transform:Find("Cut4Cam90/Info/Icon1"):GetComponent(typeof(Image))
+    self.Num1 = self.transform:Find("Cut4Cam90/Info/Num1"):GetComponent(typeof(Text))
+
+    self.Icon2 = self.transform:Find("Cut4Cam90/Info/Icon2"):GetComponent(typeof(Image))
+    self.Num2 = self.transform:Find("Cut4Cam90/Info/Num2"):GetComponent(typeof(Text))
+
+    self.Icon3 = self.transform:Find("Cut4Cam90/Info/Icon3"):GetComponent(typeof(Image))
+    self.Num3 = self.transform:Find("Cut4Cam90/Info/Num3"):GetComponent(typeof(Text))
+
+    self.Icon4 = self.transform:Find("Cut4Cam90/Info/Icon4"):GetComponent(typeof(Image))
+    self.Num4 = self.transform:Find("Cut4Cam90/Info/Num4"):GetComponent(typeof(Text))
+
+    self.go_notEnough = self.transform:Find("Cut4Cam90/Info/tt").gameObject
+    self.BtnSubmitImg = self.transform:Find("Cut4Cam90/BtnConfirm"):GetComponent(typeof(CanvasGroup))
+
+    -- 点击关闭事件
+    local btnClick = self:Find("Cut4Cam90/BtnClose"):GetComponent(typeof(Button))
+    btnClick.onClick:AddListener(
+        function()
+            self:OnCloseInfoClick()
+        end
+    )
+end
+
+function ExchangeWidget:RefeshItem()
+    self.transform:SetAsLastSibling()
+
+    -- 已经拥有的道具数量
+    local haveNumFrom = BusinessManager.Instance:GetCurrencyNum(self.FromBaseID)
+    --目标道具数量
+    local haveNumAim = BusinessManager.Instance:GetCurrencyNum(self.AimBaseID)
+
+    -- 刷新格子信息
+    self.ItemGrid1:SetItemNum(self.FromBaseID, self.StuffNumFrom)
+    self.ItemGrid2:SetItemNum(self.AimBaseID, self.StuffNumAim)
+
+    self.MaxNum = math.floor(haveNumFrom / self.StuffNumFrom)
+
+    self.IsEnough = (self.MaxNum > 0)
+
+    if self.MaxNum > 0 then
+        self.slider.maxValue = self.MaxNum
+
+        self.go_notEnough:SetActive(false)
+        self.BtnSubmitImg.alpha = 1
+    else
+        self.slider.maxValue = 1
+
+        self.go_notEnough:SetActive(true)
+        self.BtnSubmitImg.alpha = 0.7
+    end
+
+    self.UseNumNow = 1 -- 至少用一个
+
+    local cfg1 = ConfigDataAccessor.Item[self.FromBaseID]
+    local cfg2 = ConfigDataAccessor.Item[self.AimBaseID]
+
+    --ICON
+    ResourceHelper:LoadIconAsync(self.Icon1, "", cfg1.Icon, false)
+
+    --ICON
+    ResourceHelper:LoadIconAsync(self.Icon2, "", cfg2.Icon, false)
+
+    --ICON
+    ResourceHelper:LoadIconAsync(self.Icon3, "", cfg1.Icon, false)
+
+    --ICON
+    ResourceHelper:LoadIconAsync(self.Icon4, "", cfg2.Icon, false)
+
+    self.Name1.text = cfg1.Name
+    self.Name2.text = cfg2.Name
+
+    --拥有数量
+    self.Num1.text = haveNumFrom
+    self.Num2.text = haveNumAim
+
+    self:RefeshUseNumTex()
+end
+
+function ExchangeWidget:RefeshUseNumTex()
+    self.slider.value = self.UseNumNow
+    --self.UseNum.text="<color=#EF991F>"..self.UseNumNow .."</color> / "..self.MaxNum;
+
+    local showUseNumNow = self.UseNumNow
+    if showUseNumNow == 0 then
+        showUseNumNow = 1
+    end
+
+    --使用数量
+    self.Num3.text = self.UseNumNow * self.StuffNumFrom
+
+    --获得数量
+    self.Num4.text = self.UseNumNow * self.StuffNumAim
+
+    if showUseNumNow == 1 then
+        self.BtnMinImg.alpha = 0.5
+        self.BtnSubImg.alpha = 0.5
+    else
+        self.BtnMinImg.alpha = 1
+        self.BtnSubImg.alpha = 1
+    end
+
+    if showUseNumNow == self.MaxNum then
+        self.BtnMaxImg.alpha = 0.5
+        self.BtnAddImg.alpha = 0.5
+    else
+        self.BtnMaxImg.alpha = 1
+        self.BtnAddImg.alpha = 1
+    end
+end
+
+function ExchangeWidget:OnSliderValChanged()
+    if self.slider.value < 1 then
+        self.slider.value = 1
+    end
+
+    self.UseNumNow = math.floor(self.slider.value)
+    self:RefeshUseNumTex()
+end
+
+function ExchangeWidget:OnBtnMinClick()
+    if self.UseNumNow == 1 then
+        Util.ShowMessageByCode(CRetMsgEnum.Tips_Common_LowerLimit)
+        return
+    end
+    self.UseNumNow = 1
+    self:RefeshUseNumTex()
+end
+
+function ExchangeWidget:OnBtnMaxClick()
+    if self.UseNumNow == self.MaxNum then
+        Util.ShowMessageByCode(CRetMsgEnum.Tips_Common_UpperLimit)
+        return
+    end
+    self.UseNumNow = self.MaxNum
+    self:RefeshUseNumTex()
+end
+
+function ExchangeWidget:OnBtnAddClick()
+    if self.UseNumNow < self.MaxNum then
+        self.UseNumNow = self.UseNumNow + 1
+        self:RefeshUseNumTex()
+    else
+        Util.ShowMessageByCode(CRetMsgEnum.Tips_Common_UpperLimit)
+    end
+end
+
+function ExchangeWidget:OnBtnSubClick()
+    if self.UseNumNow > 1 then
+        self.UseNumNow = self.UseNumNow - 1
+        self:RefeshUseNumTex()
+    else
+        Util.ShowMessageByCode(CRetMsgEnum.Tips_Common_LowerLimit)
+    end
+end
+
+function ExchangeWidget:OnBtnConfirmClick()
+    -- 发送兑换消息
+    if self.IsEnough then
+        local money2MoneyReq = CS.ProtoMsg.Money2MoneyReq()
+        money2MoneyReq.PID = GameManager.Instance.mainPlayerId
+        money2MoneyReq.TradeType = self.tradeType
+        money2MoneyReq.Num = self.UseNumNow
+        CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, money2MoneyReq, false)
+    else
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_No_Item"))
+    end
+
+    -- self:OnCloseInfoClick();
+end
+
+function ExchangeWidget:OnItemClick(bitem)
+    -- 设置道具Tips
+    -- 设置道具Tips
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", {bitem.BaseID, false, bitem.EntityID, bitem.transform, 0})
+end
+
+function ExchangeWidget:Start()
+    print("ExchangeWidget:Start")
+end
+
+function ExchangeWidget:OnEnable()
+end
+
+function ExchangeWidget:OnDisable()
+end
+
+function ExchangeWidget:OnDestroy()
+end
+
+function ExchangeWidget:OnMoney2MoneyRet(args)
+    -- 成功
+    Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_3"))
+
+    DOVirtual.DelayedCall(
+        0.3,
+        function()
+            self:RefeshItem()
+        end
+    )
+end
+
+function ExchangeWidget:OnOpen(arg)
+    self.IsOpen = true
+    self.FromBaseID = arg.FromBaseID
+    self.AimBaseID = arg.AimBaseID
+
+    if self.FromBaseID == 3 then
+        --钻石换绑钻
+        self.tradeType = CS.ProtoMsg.Money2Money.M2MD2Bd
+    else
+        --绑钻换银币
+        self.tradeType = CS.ProtoMsg.Money2Money.M2MBd2S
+    end
+
+    --来源的比例
+    self.StuffNumFrom = 1
+    --兑换的比例
+    self.StuffNumAim = arg.StuffNumAim
+
+    self:RefeshItem()
+end
+
+function ExchangeWidget:OnClose(arg)
+    self.IsOpen = false
+end
+
+function ExchangeWidget:OnCloseInfoClick()
+    if GameManager.Instance.IsOpenItemTips then
+        LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips", {})
+    else
+        NetworkManager.Instance:OffMessageEnum(
+            CS.MsgIDEnum.Money2MoneyRetID,
+            function(data)
+                self:OnMoney2MoneyRet(data)
+            end,
+            nil
+        )
+
+        self.gameObject:SetActive(false)
+        UIManager.Instance:CloseWidget("Common/ExchangeWidget", nil, true)
+    end
+end
+
+return ExchangeWidget

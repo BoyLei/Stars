@@ -1,0 +1,125 @@
+--[[
+*文件名   :   ArenaRankRewardWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/12/12 10:33:06"
+*创建人   :   "caojie"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+ArenaRankRewardWidget=class("ArenaRankRewardWidget",UIPanel)
+local ArenaRankItem=require("View/UIWidget/Arena/ArenaRankItem")
+
+function ArenaRankRewardWidget:Awake()
+	self.transform=self.prefab.transform;
+	self.gameObject=self.transform.gameObject;
+
+	self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/BtnClose"):GetComponent(typeof(JButton)).OnClick=(function()
+		self:OnPlayBack();
+	end);
+
+	self.MyRankItem=ArenaRankItem:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/Rank/MyRankItem").gameObject);
+    --道具列表
+    self.AfternoonGveRankItemList={};
+	--无限列表
+	self.go_AfternoonGveRankItem = self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/Rank/Scroll View/Mask/List/Item").gameObject;
+
+	self.tr_ItemRoot=self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/Rank/Scroll View/Mask/List");
+	self.go_AfternoonGveRankItem:SetActive(false);
+	self.go_AfternoonGveRankItem.transform:SetParent(self.transform);
+	self.EventRewardPersonalScorllView=self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/Rank/Scroll View"):GetComponent(typeof(SuperScrollViewController));
+	self.EventRewardPersonalScorllView:NewScroll(self.go_AfternoonGveRankItem, 0, function (tr,idx)
+		self:OnAfternoonGveRankItemRefesh(tr,idx);
+	end);
+end
+
+function ArenaRankRewardWidget:OnAfternoonGveRankItemRefesh(tr,idx)
+	for i=1,#self.AfternoonGveRankItemList do
+		if self.AfternoonGveRankItemList[i].transform == tr then
+            self.AfternoonGveRankItemList[i]:SetItem(self.ItemDataList[idx+1]);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+		end
+	end
+
+    local bi = ArenaRankItem:New(tr.gameObject);
+	bi.gameObject:SetActive(true);
+	bi:SetItem(self.ItemDataList[idx+1]);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+
+    table.insert(self.AfternoonGveRankItemList, bi);
+end
+
+function ArenaRankRewardWidget:Refesh()
+	--开服天数
+	local openServerDay=30;
+	if GameManager.Instance.GloInfoSrv~=nil then
+		openServerDay=GameManager.Instance.GloInfoSrv.GRisk.OffDay;
+	end
+
+	--自己的排名
+	local selfRank=self.RankNum;
+	local selfData=self:GetCurRankItemData(selfRank);
+
+	--个人排行奖励
+	if self.PersonalData~= nil then
+		selfRank=self.PersonalData.Rank;
+	end
+
+	self.EventRewardPersonalScorllView:ContinueScroll(#self.ItemDataList);
+	if selfRank>0 and selfData~=nil then
+		--刷新自己的
+		self.MyRankItem:SetItem(selfData);
+	else
+		self.MyRankItem:SetNull();
+	end
+end
+
+function ArenaRankRewardWidget:GetCurRankItemData(selfRank)
+	local data = nil
+	for i=1,#self.ItemDataList do
+		local tempData = self.ItemDataList[i]
+		if selfRank>= tempData.rank and selfRank<tempData.rankEnd then
+			data = {}
+			data.reward = tempData.reward
+			data.num = tempData.num
+			data.rank = tempData.rank
+			data.rankTex = selfRank
+		end
+	end
+
+	return data
+end
+
+function ArenaRankRewardWidget:Start()
+
+end
+
+function ArenaRankRewardWidget:OnEnable()
+	
+end
+
+function ArenaRankRewardWidget:OnDisable()
+	
+end
+
+function ArenaRankRewardWidget:OnDestroy()
+
+end
+
+function ArenaRankRewardWidget:RefeshData()
+
+end
+
+function ArenaRankRewardWidget:OnOpen(arg)
+	self.ItemDataList = arg.RankRewardData
+	self.RankNum = arg.MyRankInfoData.Rank
+	self:Refesh();
+end
+
+function ArenaRankRewardWidget:OnClose(arg)
+
+end
+
+function ArenaRankRewardWidget:OnPlayBack()
+	UIManager.Instance:CloseWidget("Arena/Prefab/ArenaRankRewardWidget",nil,false);
+end
+
+return  ArenaRankRewardWidget

@@ -1,0 +1,80 @@
+local GamePlayPreviewPanel = {}
+GamePlayPreviewPanel.__index = GamePlayPreviewPanel
+
+local GamePlayPreviewItem=require("View/UIWindow/SignInWindow/GamePlayPreviewItem")
+GamePlayPreviewPanel.ItemList={}
+GamePlayPreviewPanel.PreviewDataList={}
+
+function GamePlayPreviewPanel:New(obj)
+    local self = {};
+    setmetatable(self, GamePlayPreviewPanel);
+
+    self:InitAllComponent(obj)
+
+    return self;
+end
+
+function GamePlayPreviewPanel:InitAllComponent(obj)
+    self.gameObject = obj;
+    self.transform = obj.transform;
+
+    self.m_ScrollView=self.transform:GetComponent(typeof(SuperScrollViewController));
+	self.m_GamePlayItem=self.transform:Find("Mask/List/GamePlayItem").gameObject;
+
+	self.m_ScrollView:NewScroll(self.m_GamePlayItem, 0, function (tr,idx)
+		self:OnItemRefesh(tr,idx);
+	end);
+end
+
+function GamePlayPreviewPanel:RenderGamePlayPreviewList(data)
+	self.PreviewDataList = data
+	-- 可领取和下一个解锁的显示到第二个位置
+	local index = table.find1st(self.PreviewDataList, function(k,v)
+		local isUnlock, strLocked = CheckPlayerGuidanceOpen(v.GuidSysOpenID, "", false, false)
+		return isUnlock and not v.IsReceived
+	end)
+	-- 有可领取的并且不是第一个位置的，那么定位在上一个位置
+	if index ~= nil and index > 1 then
+		index = index - 1
+	end
+
+	if index == nil then
+		index = table.find1st(self.PreviewDataList, function(k,v)
+			local isUnlock, strLocked = CheckPlayerGuidanceOpen(v.GuidSysOpenID, "", false, false)
+			return not isUnlock
+		end)
+
+		-- 有未解锁的并且不是第一个位置的，那么定位在上一个位置
+		if index ~= nil and index > 1 then
+			index = index - 1
+		end
+	end
+
+	if index == nil then
+		index = 1
+	end
+
+	if index + 3 >= #self.PreviewDataList then
+		index = #self.PreviewDataList - 3
+	end
+
+	self.m_ScrollView:ContinueScroll(#self.PreviewDataList, false, index - 1);
+end
+
+function GamePlayPreviewPanel:OnItemRefesh(tr,idx)
+	if self.ItemList ==nil then return end
+	for i=1,#self.ItemList do
+		if self.ItemList[i].transform == tr then
+            self.ItemList[i]:SetItem(self.PreviewDataList[idx+1]);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+		end
+	end
+
+    local bi = GamePlayPreviewItem:New(tr.gameObject);
+	bi.gameObject:SetActive(true);
+	bi:SetItem(self.PreviewDataList[idx+1]);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+
+    table.insert(self.ItemList, bi);
+end
+
+return GamePlayPreviewPanel

@@ -1,0 +1,283 @@
+ResultWindow = class("ResultWindow", UIPanel);
+
+local ResultItem = require("View/UIWindow/PvpWindow/ResultItem");
+local RewardInfoTips = require("View/UIWindow/PvpWindow/RewardInfoTips");
+
+function ResultWindow:Awake()
+
+end
+
+function ResultWindow:BindModule(m)
+	ResultWindow.module = m;
+end
+
+function ResultWindow:InitControls()
+	self.transform = self.prefab.transform;
+	self.gameObject = self.transform.gameObject;
+
+	self.blueItem = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Blue/Viewport/Content/Item").gameObject;
+	self.redItem = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Red/Viewport/Content/Item").gameObject;
+
+	self.blueScore = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/BlueScore"):GetComponent(typeof(Text));
+	self.redScore = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/RedScore"):GetComponent(typeof(Text));
+
+	self.blueScoreName = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/ScoreName1"):GetComponent(typeof(Text));
+    self.redScoreName = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/ScoreName2"):GetComponent(typeof(Text));
+
+    self.groupName = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Player/GroupName"):GetComponent(typeof(Text));
+    self.name = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Player/Name"):GetComponent(typeof(Text));
+    self.killNum = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Player/KillNum"):GetComponent(typeof(Text));
+    self.score = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Player/Score"):GetComponent(typeof(Text));
+    self.jobImg = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Player/Job"):GetComponent(typeof(Image));
+
+	self.closeBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Close"):GetComponent(typeof(Button));
+	self.closeBtn.onClick:AddListener(function()
+        local mapType = GameManager.Instance:GetCurMapType()
+        if mapType ~= CS.ProtoMsg.SpaceType.Space10V10 then
+            self.Close();
+            LuaModuleDispatcher:SendMessage(ModuleDef.PvpModule, "OnShowBattleWidget", {true});
+        else
+            MonoHelper.RemoveSecTimeUpdateListener(self.OnSecTimeUpdate);
+		    self:LeaveEctype();
+        end
+    end);
+
+    self.rankText = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Rank"):GetComponent(typeof(Text));
+
+    self.leaveText = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/LeaveText"):GetComponent(typeof(Text));
+
+    self.wingo = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Win").gameObject;
+	self.losego = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Lose").gameObject;
+	self.windi = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Losedi").gameObject;
+	self.losedi = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Windi").gameObject;
+		
+    self.allIcons = {};
+    for i=1, 3 do
+        self.allIcons[i] = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Icon"..i).gameObject;
+    end
+	
+	local rewardGo = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Rewards").gameObject;
+	self.rewardInfoTips = RewardInfoTips:New(rewardGo);
+	self.rewardBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/RewardBtn"):GetComponent(typeof(Button));
+	self.rewardBtn.onClick:AddListener(function()
+			self.rewardInfoTips:Show();
+		end);
+end
+
+function ResultWindow:Init(data)
+	if data == nil then
+        return;
+    end
+
+    if self.allItems ~= nil then
+        for _, v in pairs(self.allItems) do
+            GameObject.Destroy(v.gameObject);
+        end
+    end
+    self.allItems = {};
+
+    local factionRelationList = ConfigDataAccessor.FactionRelationList;
+    local redScore = 0;
+    local blueScore = 0;
+    local pgn = "";
+    local pn = "";
+    local pkillnum = 0;
+    local ps = 0;
+	
+	local isSuc = data.data.Success;
+	local faction = data.data.Faction;
+	local myRank = 0;
+
+    -- if isSuc == true then
+    --     self.winloseText.text =LanguageHelp:GetLanguageByKey("Local_Str_win")
+    -- else
+    --     self.winloseText.text =LanguageHelp:GetLanguageByKey("Local_Str_fail")
+    -- end
+	self.wingo:SetActive(isSuc);
+	self.losego:SetActive(not isSuc);
+	self.windi:SetActive(isSuc);
+	self.losedi:SetActive(not isSuc);
+
+    for k, v in pairs(data.data.ScoreData.FacDatas) do
+        local name = factionRelationList[k].FactionName;
+
+		local isMyTeam = false;
+		for i = 0, v.TeamDatas.Count - 1 do
+			local pm = v.TeamDatas[i];
+			if pm.EID == GameManager.Instance.mainPlayerId then
+				isMyTeam = true;
+			end
+		end
+        if isMyTeam then
+            --self.blueScoreName.text = "当前" .. name .. "积分";
+            self.blueScoreName.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_BattleInfoWindow_blueScoreName"), {name});
+
+            for i = 0, v.TeamDatas.Count - 1 do
+                local pm = v.TeamDatas[i];
+
+                if pm.EID == GameManager.Instance.mainPlayerId then
+                    pgn = name;
+                    pn = pm.RoleName;
+                    pkillnum = pm.KillNum;
+                    ps = pm.Score;
+                    myRank = i + 1;
+                end
+
+                local go = newObject(self.blueItem);
+                go.transform:SetParent(self.blueItem.transform.parent);
+                go.transform.localPosition = Vector3.zero;
+                go.transform.localScale = Vector3.one;
+                go:SetActive(true);
+
+                local bii = ResultItem:New(go, pm, i+1);
+
+                table.insert(self.allItems, bii);
+
+                blueScore = blueScore + pm.Score;
+            end
+        else
+            --self.redScoreName.text = "当前" .. name .. "积分";
+            self.redScoreName.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_BattleInfoWindow_blueScoreName"), {name});
+
+            for i = 0, v.TeamDatas.Count - 1 do
+                local pm = v.TeamDatas[i];
+
+                local go = newObject(self.redItem);
+                go.transform:SetParent(self.redItem.transform.parent);
+                go.transform.localPosition = Vector3.zero;
+                go.transform.localScale = Vector3.one;
+                go:SetActive(true);
+
+                local bii = ResultItem:New(go, pm, i+1);
+
+                table.insert(self.allItems, bii);
+
+                redScore = redScore + pm.Score;
+            end
+        end
+    end
+
+    self.blueScore.text = tostring(blueScore);
+    self.redScore.text = tostring(redScore);
+
+    self.groupName.text = pgn;
+    self.name.text = pn;
+    self.killNum.text = pkillnum;
+    self.score.text = ps;
+
+    self.rankText.text = self:GetRankStr(myRank);
+
+    local jobDataCell = ConfigDataAccessor.Job[GameManager.Instance:GetPlayerJob()];
+    if jobDataCell ~= nil then
+        local avatarDataCell = ConfigDataAccessor.Avatar[jobDataCell.AvatarID];
+        if avatarDataCell ~= nil then
+            local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID];
+            if headCfg ~= nil then
+                -- AtlasManager.Instance:GetSprite(headCfg.HeadAtlasName, headCfg.MaxHead,function (sp)
+				-- 		self.jobImg.sprite =sp
+				-- end);
+
+                ResourceHelper:LoadIconByAtlasAsync(
+						self.jobImg,
+						headCfg.HeadAtlasName,
+						headCfg.MinHead,
+						false
+					)
+            end
+        end
+    end
+
+    self.curTime = ConfigDataAccessor.SystemList[184].Value;
+    --self.leaveText.text = "将会在"..self.curTime.."秒后离开活动副本";
+    self.leaveText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_ResultWindow_leaveText"), {self.curTime});
+
+    self.OnSecTimeUpdate=function()
+		self:OnSecTimeUpdateHandler()
+	end
+    MonoHelper.AddSecTimeUpdateListener(self.OnSecTimeUpdate);
+end
+
+function ResultWindow:OnSecTimeUpdateHandler()
+    self.curTime = self.curTime - 1;
+    if self.curTime <= 0 then
+        self.curTime = 0;
+        MonoHelper.RemoveSecTimeUpdateListener(self.OnSecTimeUpdate);
+		self:LeaveEctype();
+    end
+    --self.leaveText.text = "将会在"..self.curTime.."秒后离开活动副本";
+    self.leaveText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_ResultWindow_leaveText"), {self.curTime});
+
+end
+
+function ResultWindow:LeaveEctype()
+	local mapChangeReqMsg = CS.ProtoMsg.LeaveInstanceReq();
+	CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace,
+		mapChangeReqMsg, false);
+	
+	LuaModuleDispatcher:SendMessage(ModuleDef.PvpModule, "OnLeavePvp", {});
+	self.Close();
+end
+
+function ResultWindow:GetRankStr(rank)
+    for i=1, 3 do
+        self.allIcons[i]:SetActive(rank == i);
+    end
+    if rank == 1 then
+        return LanguageHelp:GetLanguageByKey("Local_Str_Rank_First");
+    elseif rank == 2 then
+        return LanguageHelp:GetLanguageByKey("Local_Str_Rank_Second");
+    elseif rank == 3 then
+        return LanguageHelp:GetLanguageByKey("Local_Str_Rank_Third");
+    elseif rank == 4 then
+        return LanguageHelp:GetLanguageByKey("Local_Str_Rank_Fourth");
+    elseif rank == 5 then
+        return LanguageHelp:GetLanguageByKey("Local_Str_Rank_Fifth");
+    elseif rank == 6 then
+        return LanguageHelp:GetLanguageByKey("Local_Str_Rank_Sixth");
+    elseif rank == 7 then
+        return LanguageHelp:GetLanguageByKey("Local_Str_Rank_Seventh");
+    elseif rank == 8 then
+        return LanguageHelp:GetLanguageByKey("Local_Str_Rank_Eighth");
+    elseif rank == 9 then
+        return LanguageHelp:GetLanguageByKey("Local_Str_Rank_Ninth");
+    elseif rank == 10 then
+        return LanguageHelp:GetLanguageByKey("Local_Str_Rank_Tenth");
+    end
+    return "";
+end
+
+function ResultWindow:OnShow()
+end
+
+function ResultWindow:Start()
+
+end
+
+function ResultWindow:OnEnable()
+
+end
+
+function ResultWindow:OnDisable()
+
+end
+
+function ResultWindow:OnDestroy()
+
+end
+
+function ResultWindow:OnOpen(arg)
+	self.IsOpen = true;
+end
+
+function ResultWindow:OnClose(arg)
+	self:CloseWindow();
+    LuaModuleDispatcher:SendMessage(ModuleDef.PvpModule, "OnShowBattleWidget", {true});
+    self.module.resultWindow=nil;
+end
+
+function ResultWindow:CloseWindow()
+	self.IsOpen = false;
+    self.module.resultWindow=nil;
+end
+
+return ResultWindow

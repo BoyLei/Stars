@@ -1,0 +1,825 @@
+SkillWindowModule = class("SkillWindowModule", BaseLuaModule)
+
+local SkillWindowPath = "Skill/Prefab/SkillWindow"
+
+-- LuaModule 消息模块
+SkillWindowModule.ModuleMessages = {
+    -- 打开技能装配
+    ["OnOpenSkill"] = function(...)
+        SkillWindowModule:OnOpenSkill(...);
+    end,
+
+    ["OnRegisterAttribute"] = function(...)
+        SkillWindowModule:OnRegisterAttribute(...);
+    end
+}
+
+-- 监听打开出战界面事件
+function SkillWindowModule:OnOpenSkill(...)
+
+    local tb = ...
+
+    if GameManager.Instance.IsSeverBattleState then
+
+        CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(
+            LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_4"));
+        return;
+    end
+
+    -- 先初始化一些数据
+    self:InitData();
+
+    self.asyncLoadCb = function(ui)
+        if ui == nil then
+            return;
+        end
+
+        if self.skillWindowView == nil then
+            self.skillWindowView = ui:GetLuaPanel().ScriptTable;
+            self.skillWindowView:BindModule(self);
+            self.skillWindowView:InitControls();
+        end
+
+        -- 列表
+        local parsedParameters = ParseParameters(tb);
+
+        local skillType = 1;
+        local curselskill = nil
+        -- TODO  动画播放参数的 处理
+        if parsedParameters ~= nil then
+            -- 如果参数 中存在 isEnter 标识,且标识为 true, 表明是从 外面第一次进入, 此时需要播放进入动画
+            -- if parsedParameters.isEnter ~= nil and parsedParameters.isEnter then
+            --     self.skillWindowView:PlayEnterAnim(true);
+            -- else
+            --     -- 否则就是正常 点击动画
+            --     self.skillWindowView:PlayEnterAnim(false);
+            -- end
+            if parsedParameters.skillType ~= nil then
+                skillType = parsedParameters.skillType;
+            end
+
+            if parsedParameters.selSkill ~= nil then
+                curselskill = parsedParameters.selSkill
+            end
+        end
+
+        self.skillWindowView:Open(skillType, false, curselskill);
+        -- 先刷新 技能
+        self:RefreshRedPointData();
+        self.asyncLoadCb = nil;
+    end
+
+    UIManager.Instance:OpenWindowAsync(SkillWindowPath, self.asyncLoadCb, nil,
+        CS.StarProjectDef.MainPageCommond.HideBoth);
+
+end
+
+function SkillWindowModule:OnRegisterAttribute(...)
+    local tb = ...
+
+    local entityBase = nil
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        entityBase = tb[1]
+    else
+        -- C#调用
+        entityBase = tb[0]
+    end
+    self.M_EntityBase = entityBase;
+
+    -- 绑定属性同步回调  START
+    self.attrLuaKey = "SkillWindowModule_" .. GameManager.Instance.mainPlayerId;
+    self:InitAttribute();
+    -- 绑定属性同步回调----- END
+end
+
+function SkillWindowModule:InitAttribute()
+    -- 技能点数变更，刷新技能点数
+    self.M_EntityBase.Data:AddAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.SkillPoint, self.attrLuaKey,
+        function(key, value)
+            self:RefreshRedPointData();
+        end)
+
+    -- 等级变化的时候, 也需要刷新红点数据
+    self.M_EntityBase.Data:AddAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.PlayerLevel, self.attrLuaKey,
+        function(key, value)
+            self:RefreshRedPointData();
+        end)
+
+    self:RefreshRedPointData();
+end
+
+-- LuaModule 创建
+function SkillWindowModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.SkillWindowModule, self)
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.AllSkillNoticeID, function(data)
+        self:OnAllSkillNotice(data)
+    end, nil);
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.ResetJobSkillPointRetID, function(data)
+        Util.ShowMessageByCode(67)
+    end, nil);
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.UpdateJobSkillRetID, function(data)
+        self:OnUpdateJobSkillRet(data)
+    end, nil);
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.SwitchTalentRetID, function(data)
+        self:OnSwitchTalentRet(data)
+    end, nil);
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.SwitchSkillPosRetID, function(data)
+        self:OnSwitchSkillPosRet(data)
+    end, nil);
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.UpSkillCaseDataRetID, function(data)
+        self:OnUpSkillCaseDataRet(data)
+    end, nil);
+
+end
+
+-- 所有技能信息 对应的 红点信息
+function SkillWindowModule:OnAllSkillNotice(data)
+    if data == nil or data.data == nil then
+        return;
+    end
+
+    self.skillList = data.data.Skilllist;
+    self.skillPosList = data.data.Skillposlist;
+
+    self.skillInfoList = {};
+    self.skillPosInfoList = {};
+
+    -- 技能位信息
+    for i = 0, self.skillPosList.Count - 1 do
+        local posID = self.skillPosList[i].PosID; -- 技能位
+        local skillID = self.skillPosList[i].JobSkillID; -- 技能ID
+        local skillPosItem = {}
+        skillPosItem.PosID = posID;
+        skillPosItem.JobSkillID = skillID;
+        table.insert(self.skillPosInfoList, skillPosItem);
+    end
+
+    -- 技能信息，所有技能
+    for i = 0, self.skillList.Count - 1 do
+        local skillID = self.skillList[i].SkillDBID; -- 技能编号
+        local skillLevel = self.skillList[i].SkillLevel; -- 技能等级
+        local talentID = self.skillList[i].TalentID; -- 天赋编号
+        local skillItem = {}
+        skillItem.SkillDBID = skillID;
+        skillItem.SkillLevel = skillLevel;
+        skillItem.TalentID = talentID;
+        self.skillInfoList[skillID] = skillItem;
+    end
+
+    -- 目前 切换方案 服务器走的 OnSwitchSkillPosRet. 同时, 下发技能的全同步. 
+    -- 在 OnSwitchSkillPosRet 不太好区分 是改名 还是 切换的方案.
+    -- 同时, 孔磊 跟我保证 OnAllSkillNotice 先到, 所以在 此处 做技能方案变化的 提示
+    if self.caseID ~= nil and self.caseID ~= 0 and self.caseID ~= data.data.CaseID then
+        -- Util.ShowMessage("启动技能方案: 方案" .. tostring(self.caseID));
+        Util.ShowMessage(StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_238"), {data.data.CaseID}))
+    end
+
+    self.caseID = data.data.CaseID;
+    self.caseName = data.data.CaseName;
+
+    self:UpdateWindowView();
+
+    self:RefreshRedPointData();
+    self:TriggerRefreshNewPoint();
+end
+
+function SkillWindowModule:UpdateWindowView()
+
+    if self.skillWindowView ~= nil then
+        self.skillWindowView:OnUpdateData();
+    end
+end
+
+-- 刷新 天赋 new 的红点数
+function SkillWindowModule:RefreshTalentNew()
+    -- 先拿到玩家当前的职业, 根据职业id, 就能确定 玩家这个职业有哪些 配置技能
+    local playerJob = GameManager.Instance:GetPlayerJob();
+
+    -- 玩家等级
+    local playerLevel = GameManager.Instance:GetPlayerLevel();
+
+    -- 拿到职业对应的 配置
+    local jobCfg = GetJobCfg(playerJob);
+
+    -- 刷新 普工普攻技能 是否有 新的状态
+    if jobCfg.AttackJobSkill ~= nil then
+        local jobSkillID = jobCfg.AttackJobSkill;
+
+        -- 如果 检查到 普工 存在新的状态, 那就 直接return
+        if self:TriggerSkillNewRefreshPoint(jobSkillID, playerLevel) then
+            return;
+        end
+    end
+
+    local bornJobs = jobCfg.BornJobSkills;
+
+    -- 刷新 职业技能对应的 新的状态
+    if bornJobs ~= nil then
+
+        -- 初始职业技能, 是个人都有, 所以 直接遍历刷新
+        -- 初始职业技能 最多4个, UI 刷新的话 根据配置 数据刷新, 如果配置 2个，那么剩余两个就关闭
+        for i = 1, 4, 1 do
+            local jobSkillID = bornJobs[i];
+
+            if jobSkillID ~= nil then
+
+                if self:TriggerSkillNewRefreshPoint(jobSkillID, playerLevel) then
+                    return;
+                end
+
+            end
+        end
+    end
+
+    -- 刷新 转职技能 新的状态
+    local tansJobSkills = jobCfg.TransferJobSkills;
+
+    if tansJobSkills ~= nil then
+        -- 进阶职业 技能6个, 但不一定 一开始所有都开放
+        for i = 1, 6, 1 do
+            local jobSkillID = tansJobSkills[i];
+
+            if jobSkillID ~= nil then
+
+                if self:TriggerSkillNewRefreshPoint(jobSkillID, playerLevel) then
+                    return;
+                end
+            end
+        end
+    end
+
+    -- 如果 一个 新的状态都找不到, 那就 刷新红点数为 0
+    RedPointManager.Instance:RefreshRedPointCount(RedPointType.SkillNewRedPoint, 0);
+
+end
+
+-- 尝试 刷新 "新" 状态的红点数
+function SkillWindowModule:TriggerRefreshNewPoint()
+
+    if DelayInvoker.ContainInvoke(self) then
+        return;
+    end
+
+    DelayInvoker.DelayInvoke(self, 0.1, function()
+        -- LogError("[TriggerRefreshNewPoint]");
+        self:RefreshTalentNew();
+        DelayInvoker.CancelInvoke(self);
+    end);
+
+end
+
+-- 尝试触发 刷新 技能 "新" 状态的红点数据
+function SkillWindowModule:TriggerSkillNewRefreshPoint(jobSkillID, playerLevel)
+    if self:CheckJobSkillHasNewTalent(jobSkillID, playerLevel) then
+        RedPointManager.Instance:RefreshRedPointCount(RedPointType.SkillNewRedPoint, 1);
+        return true;
+    end
+
+    return false;
+end
+
+-- 检查 职业技能对应的 天赋 是否有 "新" 的状态
+function SkillWindowModule:CheckJobSkillHasNewTalent(jobSkillID, playerLevel)
+
+    -- 玩家这个职业技能 对应的天赋
+    local talentCfgs = GetJobSkillTalents(jobSkillID);
+
+    local hasNew = false;
+
+    -- 天赋 ID 采用 默认的天赋ID
+    if talentCfgs ~= nil and #talentCfgs > 0 then
+
+        for k, v in pairs(talentCfgs) do
+            -- 天赋开启了
+            if playerLevel >= v.LimitLv then
+                local notHave = not LocalCacheManager.Instance:Has("New_Talent_" .. v.ID);
+                if notHave then
+                    hasNew = true;
+                end
+            end
+        end
+    end
+
+    return hasNew;
+end
+
+-- 发送重置职业技能点数
+function SkillWindowModule:SendResetJobSkillPointReq()
+
+end
+
+function SkillWindowModule:RefreshRedPointData()
+
+    -- local key = "SkillWindowModule_SkillPoint";
+    -- local isHad = LocalCacheManager.Instance:Has(key, CacheType.Normal);
+
+    -- -- 如果没有红点数据, 那就第一次进入这个系统, 有 技能点就显示红点
+    -- -- 否则 有红点数据, 那就判定 当天有没有点过
+    -- if isHad then
+    --     local cacheClickDay = LocalCacheManager.Instance:Get(key, CacheType.Normal);
+
+    --     -- 如果有点过的记录, 那就 将红点数设置为 0
+    --     if cacheClickDay ~= nil and cacheClickDay == TimeUtils.ServerNowDay then
+    --         skillPoint = 0;
+    --     end
+
+    -- end
+    local isOpen = CS.StarProject.Service.SystemOpen.SystemOpenManager.Instance:SystemIsOpen(SystemOpenType.Skill);
+
+    if not isOpen then
+        -- 如果技能都未开放, 那 红点数直接清空
+        self:RefreshRedPointCount(0);
+        return;
+    end
+
+    local skillPoint = GameManager.Instance:GetSkillPoint();
+    local canLevelUpList = self:GetCanLevelUpSkillList(skillPoint);
+
+    self.cur_skillPoint = skillPoint;
+    self.cur_canLevelUpList = canLevelUpList;
+
+    if skillPoint == 0 then
+
+        self:RefreshRedPointCount(0);
+        return;
+    end
+
+    -- 技能还没同步的时候,不刷新可升级红点
+    if self.skillList == nil then
+        return;
+    end
+
+    -- 需求:
+    --      如果存在红点数, 并且 有技能可以升级了, 那就显示 红点.关闭界面后不需要再显示.
+    -- 分析需求细节:
+    --      1.红点数 有增加 (有技能可升级)
+    --      2.或者有新的 技能可以 升级, 都显示红点.
+    --      3.只要界面开着, 并且有可升级的技能, 就显示红点
+    --
+    -- 存的数据: 1. 红点数  ， 2. 可升级的 技能id 列表
+
+    local count = #canLevelUpList;
+
+    -- 如果没有可以升级技能
+    if count == 0 then
+        self:RefreshRedPointCount(0);
+        return;
+    end
+
+    local skillListStr = "";
+
+    for k, v in pairs(canLevelUpList) do
+        skillListStr = skillListStr .. tostring(v) .. "_";
+    end
+
+    -- 先判定 有没有对应的 技能点数量
+    local cacheDayPoint = LocalCacheManager.Instance:GetDayValue("Skill_Point_Count", CacheType.Normal);
+
+    -- 如果 进入缓存不存在, 说明今天没点进去过
+    if cacheDayPoint == nil then
+        -- 刷新对应的红点数
+        self:RefreshRedPointCount(1);
+        return;
+    end
+
+    -- 如果有 技能点的缓存,  首先判定 技能点 有没有变多, 如果 没有变多了, 那就显示 红点信息
+    local cachePoint = tonumber(cacheDayPoint);
+
+    if cachePoint < skillPoint then
+
+        -- 如果技能点增多了, 那清除之前的缓存
+        self:ClearSkillUpCache();
+        self:RefreshRedPointCount(1);
+        return;
+    end
+
+    -- 如果 技能点没有增多, 看升级的技能的缓存有没有变化
+    local cacheSkills = LocalCacheManager.Instance:GetDayValue("JobSkill_LevelUp", CacheType.Normal);
+
+    if cacheSkills == nil then
+        -- 刷新对应的红点数
+        self:RefreshRedPointCount(1);
+        return;
+    end
+
+    -- local skillListStr = "";
+
+    -- for k, v in pairs(canLevelUpList) do
+    --     skillListStr = skillListStr .. tostring(v) .. "_";
+    -- end
+
+    -- 如果缓存一样, 那就不需要
+    if skillListStr ~= cacheSkills then
+        -- logError("skillListStr: " .. skillListStr .. "  cacheSkills: " .. cacheSkills);
+        for k, v in pairs(canLevelUpList) do
+            local s_start, s_end = string.find(cacheSkills, tostring(v));
+
+            -- 如果能找到一个新的技能, 那就 显示红点
+            if s_start == nil then
+                -- logError("找到新的技能: " .. tostring(v));
+                self:ClearSkillUpCache();
+                self:RefreshRedPointCount(1);
+                return;
+            end
+        end
+    end
+
+    self:RefreshRedPointCount(0);
+end
+
+-- 得到可以升级的 技能id列表
+function SkillWindowModule:GetCanLevelUpSkillList(skillPoint)
+
+    local canLevelUpList = {};
+
+    local playerJob = GameManager.Instance:GetPlayerJob();
+    local playerLevel = GameManager.Instance:GetPlayerLevel();
+
+    -- 拿到职业对应的 配置
+    local jobCfg = GetJobCfg(playerJob);
+
+    -- 获得 普攻是否可以升级
+    self:GetJobSkillCanLevelUp(canLevelUpList, jobCfg.AttackJobSkill, playerLevel, skillPoint);
+
+    self:GetJobSkillCanLevelUp(canLevelUpList, jobCfg.UltimateJobSkills, playerLevel, skillPoint);
+
+    local bornJobs = jobCfg.BornJobSkills;
+
+    if bornJobs ~= nil then
+        -- 初始职业技能 最多4个, UI 刷新的话 根据配置 数据刷新, 如果配置 2个，那么剩余两个就关闭
+        for i = 1, 4, 1 do
+
+            local jobSkillID = bornJobs[i];
+            self:GetJobSkillCanLevelUp(canLevelUpList, jobSkillID, playerLevel, skillPoint);
+        end
+    end
+
+    local tansJobSkills = jobCfg.TransferJobSkills;
+    if tansJobSkills ~= nil then
+
+        -- 进阶职业 技能6个, 但不一定 一开始所有都开放
+        if tansJobSkills ~= nil then
+            for i = 1, 6, 1 do
+
+                local jobSkillID = tansJobSkills[i];
+                self:GetJobSkillCanLevelUp(canLevelUpList, jobSkillID, playerLevel, skillPoint);
+            end
+        end
+    end
+
+    -- for k, v in pairs(canLevelUpList) do
+    --     logError("可以升级id: " .. tostring(v));
+    -- end
+
+    return canLevelUpList;
+
+end
+
+function SkillWindowModule:GetJobSkillCanLevelUp(canLevelUpList, jobSkillID, playerLevel, skillPoint)
+
+    if jobSkillID == 0 then
+        return canLevelUpList;
+    end
+
+    -- 获得 普攻是否可以升级
+    local canLevelUp = self:CheckCanLevelUp(jobSkillID, playerLevel, skillPoint);
+
+    if canLevelUp then
+        table.insert(canLevelUpList, jobSkillID);
+    end
+
+    return canLevelUpList;
+end
+
+function SkillWindowModule:CheckCanLevelUp(jobSkillID, playerLevel, skillPoint)
+
+    if jobSkillID == nil then
+        return false;
+    end
+
+    local skillInfo = self.skillInfoList[jobSkillID];
+
+    -- local open = false;
+    local talentID = 0;
+    local skillLevel = 1;
+
+    -- for k, v in pairs(self.skillPosInfoList) do
+    --     if v.JobSkillID == jobSkillID then
+    --         open = true;
+    --         break
+    --     end
+    -- end
+    if skillInfo ~= nil then
+
+        talentID = skillInfo.TalentID;
+        skillLevel = skillInfo.SkillLevel;
+    end
+
+    -- 如果技能都未 开放,那肯定不能升级
+    -- if not open then
+    --     return false;
+    -- end
+
+    local isLock = self:CheckJobSkillIsLock(jobSkillID, playerLevel);
+    if isLock then
+        return false;
+    end
+
+    local isMaxLevel = self:CheckJobSkillIsMaxLevel(jobSkillID, skillLevel);
+    if isMaxLevel then
+        return false;
+    end
+
+    local isMatchPoints = self:CheckJobSkillMatchRequirePoints(jobSkillID, skillLevel, skillPoint);
+    if not isMatchPoints then
+        return false;
+    end
+
+    local conditionID = GetJobSkillLevelUpCondition(jobSkillID, skillLevel);
+
+    local isMatchCondition = GlobalFunctionManager.Instance:ConditionGroupMete(GameManager.Instance.mainPlayerId,
+        conditionID, nil);
+
+    if not isMatchCondition then
+        return false;
+    end
+
+    return true;
+end
+
+-- 检查 技能点是否可以 升级这个职业技能
+function SkillWindowModule:CheckJobSkillMatchRequirePoints(jobSkillID, skillLevel, skillPoint)
+
+    local requirePoints = GetJobSkillLevelUpPoint(jobSkillID, skillLevel);
+
+    if skillPoint < requirePoints then
+        return false;
+    end
+
+    return true;
+end
+
+-- 检查 职业技能是否达到最大等级
+function SkillWindowModule:CheckJobSkillIsMaxLevel(jobSkillID, skillLevel)
+
+    local maxLevel = 0;
+
+    -- 找到最大等级
+    for k, v in pairs(ConfigDataAccessor.SkillLevelList) do
+        if v.SkillID == jobSkillID then
+            if v.Skill_Level > maxLevel then
+                maxLevel = v.Skill_Level;
+            end
+        end
+    end
+
+    if skillLevel >= maxLevel then
+        return true;
+    end
+
+    return false;
+end
+
+-- 检查职业天赋 是否解锁
+function SkillWindowModule:CheckJobSkillIsLock(jobSkillID, playerLevel)
+    local talentCfgs = GetJobSkillTalents(jobSkillID);
+    local count = #talentCfgs;
+
+    local isLock = true;
+
+    local unLockLevel = 1;
+
+    for i = 1, count, 1 do
+
+        if i == 1 then
+            unLockLevel = talentCfgs[i].LimitLv;
+        end
+
+        if playerLevel >= talentCfgs[i].LimitLv then
+
+            -- 只要有一个天赋 解锁了, 那这个技能就 解锁了
+            return false;
+        end
+    end
+
+    -- 没有一个天赋解锁, 那返回技能 被锁住
+    return true;
+end
+
+-- 刷新技能点 的红点数
+function SkillWindowModule:RefreshRedPointCount(count)
+    RedPointManager.Instance:RefreshRedPointCount(RedPointType.SkillRedPoint, count);
+end
+
+function SkillWindowModule:ClearSkillUpCache()
+
+    LocalCacheManager.Instance:RemoveDayValue("Skill_Point_Count");
+    LocalCacheManager.Instance:RemoveDayValue("JobSkill_LevelUp");
+end
+
+function SkillWindowModule:MarkOpenSkill()
+
+    if self.cur_canLevelUpList == nil then
+        return;
+    end
+
+    local skillListStr = "";
+
+    for k, v in pairs(self.cur_canLevelUpList) do
+        skillListStr = skillListStr .. tostring(v) .. "_";
+    end
+
+    LocalCacheManager.Instance:SetDayValue("Skill_Point_Count", self.cur_skillPoint);
+    LocalCacheManager.Instance:SetDayValue("JobSkill_LevelUp", skillListStr);
+
+    -- 设置 红点缓存后, 刷新红点数
+    self:RefreshRedPointData();
+end
+
+-- 技能升级
+function SkillWindowModule:OnUpdateJobSkillRet(data)
+    if data == nil or data.data == nil then
+        return;
+    end
+
+    if data.data.RetValue == CS.ProtoMsg.UpdateJobSkillRet.Types.UpdateResult.Ok then
+
+        self:UpdateWindowView();
+
+        CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(
+            LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_19"));
+    end
+
+    if data.data.RetValue == CS.ProtoMsg.UpdateJobSkillRet.Types.UpdateResult.FailMaxLimit then
+
+        CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(
+            LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_18"));
+
+    elseif data.data.RetValue == CS.ProtoMsg.UpdateJobSkillRet.Types.UpdateResult.FailNotEnoughCost then
+
+        CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(
+            LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_17"));
+
+    elseif data.data.RetValue == CS.ProtoMsg.UpdateJobSkillRet.Types.UpdateResult.FailJobSkillNotAlive then
+
+        CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(
+            LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_16"));
+
+    elseif data.data.RetValue == CS.ProtoMsg.UpdateJobSkillRet.Types.UpdateResult.FailJobNotAlive then
+
+        CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(
+            LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_15"));
+
+    elseif data.data.RetValue == CS.ProtoMsg.UpdateJobSkillRet.Types.UpdateResult.FailUnknown then
+
+        CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(
+            LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_14"));
+
+    elseif data.data.RetValue == CS.ProtoMsg.UpdateJobSkillRet.Types.UpdateResult.FailInBattle then
+
+        CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(
+            LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_20"));
+
+    end
+end
+
+-- 天赋切换
+function SkillWindowModule:OnSwitchTalentRet(data)
+    if data == nil or data.data == nil then
+        return;
+    end
+
+    if data.data.RetValue == CS.ProtoMsg.SwitchTalentRet.Types.SwitchResult.FailSameTalent then
+
+        CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(
+            LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_25"));
+
+    elseif data.data.RetValue == CS.ProtoMsg.SwitchTalentRet.Types.SwitchResult.FailNoTalent then
+
+        CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(
+            LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_24"));
+
+    elseif data.data.RetValue == CS.ProtoMsg.SwitchTalentRet.Types.SwitchResult.FailLocking then
+
+        CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(
+            LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_23"));
+
+    elseif data.data.RetValue == CS.ProtoMsg.SwitchTalentRet.Types.SwitchResult.FailNoSkill then
+
+        CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(
+            LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_22"));
+
+    elseif data.data.RetValue == CS.ProtoMsg.SwitchTalentRet.Types.SwitchResult.FailTalentLock then
+
+        CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(
+            LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_21"));
+
+    elseif data.data.RetValue == CS.ProtoMsg.SwitchTalentRet.Types.SwitchResult.FailInBattle then
+        CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(
+            LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_4"));
+
+    end
+    -- data.data.RetValue
+end
+
+-- 技能替换返回
+function SkillWindowModule:OnSwitchSkillPosRet(data)
+    local switchSkillPosRet = data.data;
+
+    local retValue = switchSkillPosRet.RetValue;
+    if retValue == CS.ProtoMsg.SwitchSkillPosRet.Types.SwitchResult.Ok then
+        -- 技能方案切换 服务器会 通过 AllSkillNotice 通知刷新所有技能
+        -- local posID = switchSkillPosRet.CaseID;
+        -- local list = switchSkillPosRet.List;
+
+        -- if self.skillSwitchWindowView ~= nil then
+        -- self.skillSwitchWindowView:SwitchCaseID(posID,list);
+        -- self.skillSwitchWindowView:SwitchData(posID, skillID, replacePos);
+        -- end
+    elseif retValue == CS.ProtoMsg.SwitchSkillPosRet.Types.SwitchResult.FailBattleState then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_239"));
+
+    elseif retValue == CS.ProtoMsg.SwitchSkillPosRet.Types.SwitchResult.FailSameSkill then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_240"));
+    elseif retValue == CS.ProtoMsg.SwitchSkillPosRet.Types.SwitchResult.FailErrType then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_241"));
+    elseif retValue == CS.ProtoMsg.SwitchSkillPosRet.Types.SwitchResult.FailNoExistSkill then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_242"));
+    elseif retValue == CS.ProtoMsg.SwitchSkillPosRet.Types.SwitchResult.FailErrPos then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_243"));
+    elseif retValue == CS.ProtoMsg.SwitchSkillPosRet.Types.SwitchResult.FailPosNoLock then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_244"));
+    elseif retValue == CS.ProtoMsg.SwitchSkillPosRet.Types.SwitchResult.FailAlreadyInPos then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_245"));
+    elseif retValue == CS.ProtoMsg.SwitchSkillPosRet.Types.SwitchResult.FailUnknownSkillLockLevel then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_246"));
+    else
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_247"));
+    end
+end
+
+-- 方案名修改 的回复
+function SkillWindowModule:OnUpSkillCaseDataRet(data)
+    local upSkillCaseDataRet = data.data;
+
+    local result = upSkillCaseDataRet.Success;
+    if result then
+        if self.caseName ~= nil then
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_248"));
+        end
+
+        self.caseName = upSkillCaseDataRet.CaseName;
+
+        self:UpdateWindowView();
+
+    else
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_249"));
+    end
+end
+
+function SkillWindowModule:InitData()
+    if self.initData ~= nil then
+        return;
+    end
+
+    self.initData = true;
+
+    local systemItemData = CS.StarProject.Service.SystemOpen.SystemOpenManager.Instance:GetSystemItemData(
+        SystemOpenType.TransferJob);
+
+    if systemItemData == nil then
+        self.transferJobLevel = 0;
+        return;
+    end
+    self.transferJobLevel = systemItemData.RoleLevel;
+
+end
+
+-- LuaModule 消息处理
+function SkillWindowModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...);
+end
+
+-- LuaModule显示
+function SkillWindowModule:OnModuleShow(arg)
+
+end
+
+function SkillWindowModule:OnWindowClose()
+    self.skillWindowView = nil;
+end
+
+-- LuaModule 释放
+function SkillWindowModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.SkillWindowModule)
+end
+
+return SkillWindowModule

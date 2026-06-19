@@ -1,0 +1,292 @@
+--[[
+*文件名   :   BattlePassBuyWidget
+*内  容   :   现金购买
+*说  明   :
+*创建日期 :   "2022/12/06 10:33:06"
+*创建人   :   "quzhenxin"
+*版权所有 :   游卡网络科技技术有限公司
+]] BattlePassBuyWidget = class("BattlePassBuyWidget", UIPanel)
+
+local ItemGrid = require("View/Item/ItemGrid")
+local ObjectPool = require("Common/Helper/ObjectPool")
+
+function BattlePassBuyWidget:Awake()
+    self.transform = self.prefab.transform;
+    self.gameObject = self.transform.gameObject;
+
+    local btnCloseInfo = self.transform:Find("Background"):GetComponent(typeof(Button));
+    btnCloseInfo.onClick:AddListener(function()
+        -- self:OnPlayBack();
+    end);
+
+    self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/BtnClose"):GetComponent(typeof(JButton)).OnClick = (function()
+        self:OnPlayBack();
+    end);
+
+    -- 左边菜单
+    self.commonBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/Common/BtnBuy"):GetComponent(typeof(JButton))
+    self.commonBtn.OnClick = (function()
+        -- 购买
+        self:OnBuyClick(1);
+    end);
+
+    -- 右边菜单
+    self.advanceBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/Advance/BtnBuy"):GetComponent(typeof(JButton))
+    self.advanceBtn.OnClick = (function()
+        -- 购买
+        self:OnBuyClick(2);
+    end);
+
+    self.PriceCommon = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/Common/BtnBuy/tex"):GetComponent(typeof(Text));
+    self.PriceAdvance = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/Advance/BtnBuy/tex"):GetComponent(typeof(Text));
+
+    self.goBuy = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/Common/BuyGo").gameObject;
+
+    -- 通行证中间
+    self.Name = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/View/name"):GetComponent(typeof(Text));
+    self.Char = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/Char"):GetComponent(typeof(Image));
+    self.Info = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/View/RewBtn/tex"):GetComponent(typeof(Text));
+
+    -- 预览伙伴
+    self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/View/RewBtn"):GetComponent(typeof(JButton)).OnClick = (function()
+
+    end);
+
+    -- 奖励对象池
+    local _go1 = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/Common/RewardRoot/Mask/List/BattlePassRewardItem")
+                     .gameObject;
+    self.rewardItemPool = ObjectPool:New(4, "View/UIWidget/BattlePass/BattlePassRewardItem", _go1,
+        _go1.transform.parent, -- 生成回调
+        function(ritem)
+            ritem:InitItem();
+        end, -- 回收回调
+        function(ritem)
+            ritem:SetUse(false);
+        end)
+
+    -- 道具
+    self.items = {}
+    for i = 1, 4 do
+        local it = ItemGrid:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/Advance/Items/ItemGrid" .. i)
+                                    .gameObject);
+        it:InitItem(false, function(ritem)
+            self:OnItemClick(ritem)
+        end);
+        table.insert(self.items, it);
+    end
+
+end
+
+function BattlePassBuyWidget:OnItemClick(ritem)
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", {ritem.BaseID, false, 0, ritem.transform, 0});
+end
+
+function BattlePassBuyWidget:OnBuyClick(type)
+
+    local aimId = self.GoodsId_Common;
+    if type == 1 then
+        aimId = self.GoodsId_Common;
+    else
+        aimId = self.GoodsId_Advance;
+    end
+
+    local getRechargeOrderReq = CS.ProtoMsg.GetRechargeOrderReq();
+    getRechargeOrderReq.ProductID = aimId;
+    getRechargeOrderReq.OS = 1;
+    getRechargeOrderReq.ChannelId = 1;
+    getRechargeOrderReq.Extension = "";
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+        getRechargeOrderReq, false);
+
+end
+
+function BattlePassBuyWidget:Refesh()
+
+    self.BattlePassInfo = GameManager.Instance.BattlePassInfo;
+
+    self.GoodsId_Common = 8;
+
+    self.GoodsId_Advance = 9;
+
+    -- 判断是否可以买
+    if self.BattlePassInfo ~= nil then
+
+        local SeasonId = self.BattlePassInfo.SeasonId;
+        local seasonCfg = ConfigDataAccessor.BPSeason[SeasonId];
+
+        local partnerId = seasonCfg.BigPrizePartner;
+        -- self.Info.text="冒险企划"..seasonCfg.BigPrizeLevel.."级奖励";
+        self.Info.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Info"), {seasonCfg.BigPrizeLevel});
+
+        local partnerCfg = ConfigDataAccessor.Partner[partnerId];
+        self.Name.text = partnerCfg.Name;
+        self.Char.gameObject:SetActive(false);
+        local avatarDataCell = ConfigDataAccessor.Avatar[partnerCfg.AvatarID];
+        if avatarDataCell ~= nil then
+            local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID];
+            if headCfg ~= nil then
+                if self.Char ~= nil then
+
+                    -- ResourceHelper:LoadIconAsync(self.Char, "", headCfg.HalfDrawing, true,function() 
+                    ResourceHelper:LoadSpriteAtlasAsync(self.Char, ResourceHelper.HeadAtlasPath .. headCfg.HalfDrawing,
+                        headCfg.HalfDrawing, false, function()
+                            self.Char.gameObject:SetActive(true);
+                            self.Char:SetNativeSize();
+                        end)
+
+                end
+            end
+        end
+
+        if self.BattlePassInfo.BPType == CS.ProtoMsg.BPTypeEnum.FreePass then
+            -- 当前是免费的全可以购买
+            self.GoodsId_Advance = 9;
+            self.commonBtn.enabled = true;
+            self.advanceBtn.enabled = true;
+            self.PriceCommon.text = "¥ " .. ConfigDataAccessor.ExternalPay[self.GoodsId_Common].Price;
+            self.PriceAdvance.text = "¥ " .. ConfigDataAccessor.ExternalPay[self.GoodsId_Advance].Price;
+
+            self.commonBtn.gameObject:SetActive(true);
+            self.goBuy:SetActive(false);
+
+        elseif self.BattlePassInfo.BPType == CS.ProtoMsg.BPTypeEnum.PayJunior then
+            -- 当前是普通的可以补差价
+            self.GoodsId_Advance = 10;
+            -- 普通的卖不掉
+            self.commonBtn.enabled = false;
+            self.advanceBtn.enabled = true;
+
+            -- self.PriceCommon.text="已购买";
+            self.PriceCommon.text = LanguageHelp:GetLanguageByKey("Local_Str_PriceCommon");
+            self.PriceAdvance.text = "¥ " .. ConfigDataAccessor.ExternalPay[self.GoodsId_Advance].Price;
+
+            self.commonBtn.gameObject:SetActive(false);
+            self.goBuy:SetActive(true);
+
+        elseif self.BattlePassInfo.BPType == CS.ProtoMsg.BPTypeEnum.PaySenior then
+            -- 啥都不可以购买
+            self.commonBtn.enabled = false;
+            self.advanceBtn.enabled = false;
+
+            -- self.PriceCommon.text="已购买";
+            self.PriceCommon.text = LanguageHelp:GetLanguageByKey("Local_Str_PriceCommon");
+
+            -- self.PriceAdvance.text="已购买";
+            self.PriceAdvance.text = LanguageHelp:GetLanguageByKey("Local_Str_PriceCommon");
+
+            self.commonBtn.gameObject:SetActive(false);
+            self.goBuy:SetActive(true);
+        end
+    end
+
+    local commonCfg = ConfigDataAccessor.ExternalPay[self.GoodsId_Common];
+    if commonCfg ~= nil then
+
+        self.rewardItemPool:RecycleAll();
+        for i = 1, #commonCfg.ItemID do
+
+            local d = {}
+            d.ItemID = commonCfg.ItemID[i];
+            d.ItemNum = commonCfg.ItemNum[i];
+
+            local item = self.rewardItemPool:Spawn();
+            item:SetItem(d);
+
+        end
+    end
+
+    local advanceCfg = ConfigDataAccessor.ExternalPay[self.GoodsId_Advance];
+    -- 奖励道具
+    for i = 1, #self.items do
+        self.items[i].gameObject:SetActive(false);
+    end
+    for i = 1, #advanceCfg.ItemID do
+        self.items[i].gameObject:SetActive(true);
+
+        self.items[i]:SetItemNum(advanceCfg.ItemID[i], advanceCfg.ItemNum[i]);
+
+    end
+
+end
+
+function BattlePassBuyWidget:OnGetRechargeOrderRet(data)
+
+    local ret = data.data
+
+    print("请求充值订单回调")
+
+    local OrderId = ret.OrderId;
+
+end
+
+function BattlePassBuyWidget:OnPaySuccessNtf(data)
+
+    local ret = data.data
+
+    Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_31"));
+
+    print("充值成功回调")
+
+    local ProductID = ret.ProductID;
+
+    -- self:Refesh();
+    self:OnPlayBack();
+end
+
+function BattlePassBuyWidget:Start()
+
+end
+
+function BattlePassBuyWidget:OnEnable()
+
+end
+
+function BattlePassBuyWidget:OnDisable()
+
+end
+
+function BattlePassBuyWidget:OnDestroy()
+
+end
+
+function BattlePassBuyWidget:RefeshData()
+
+end
+
+function BattlePassBuyWidget:OnOpen(arg)
+    -- 监听充值订单回调
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.GetRechargeOrderRetID, function(data)
+        self:OnGetRechargeOrderRet(data)
+    end, nil);
+
+    -- 充值成功并发货通知
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.PaySuccessNtfID, function(data)
+        self:OnPaySuccessNtf(data)
+    end, nil);
+
+    self:Refesh()
+
+end
+
+function BattlePassBuyWidget:OnClose(arg)
+
+end
+
+function BattlePassBuyWidget:OnPlayBack()
+
+    -- 请求充值订单
+    CS.SGF.Network.NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.GetRechargeOrderRetID, function(data)
+        self:OnGetRechargeOrderRet(data)
+    end, nil);
+
+    -- 充值成功并发货通知
+    CS.SGF.Network.NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.PaySuccessNtfID, function(data)
+        self:OnPaySuccessNtf(data)
+    end, nil);
+
+    self.gameObject:SetActive(false);
+    UIManager.Instance:CloseWidget("Shop/BattlePassBuyWidget", nil, false);
+
+end
+
+return BattlePassBuyWidget

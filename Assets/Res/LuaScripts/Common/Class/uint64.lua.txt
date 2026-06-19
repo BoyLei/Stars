@@ -1,0 +1,97 @@
+---------------------------------------------------------------------
+-- src (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-10-31 18:23:49
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class uint64
+-- 定义一个无符号整数类型
+local uint64 = {}
+
+-- 创建一个新的无符号整数
+function uint64.new(value)
+	local obj = {}
+	obj.value = value or 0
+	setmetatable(obj, { __index = uint64 })
+	return obj
+end
+
+-- 重载加法运算符
+function uint64.__add(a, b)
+	return uint64.new(a.value + b.value)
+end
+
+-- 重载减法运算符
+function uint64.__sub(a, b)
+	return uint64.new(a.value - b.value)
+end
+
+-- 重载乘法运算符
+function uint64.__mul(a, b)
+	return uint64.new(a.value * b.value)
+end
+
+-- 重载除法运算符
+function uint64.__div(a, b)
+	return uint64.new(a.value / b.value)
+end
+
+-- 重载取模运算符
+function uint64.__mod(a, b)
+	return uint64.new(a.value % b.value)
+end
+
+-- 重载位与运算符
+function uint64.__band(a, b)
+	return uint64.new(a.value & b.value)
+end
+
+-- 重载位或运算符
+function uint64.__bor(a, b)
+	return uint64.new(a.value | b.value)
+end
+
+-- 重载位异或运算符
+function uint64.__bxor(a, b)
+	return uint64.new(a.value ~ b.value)
+end
+
+-- 重载位非运算符
+function uint64.__bnot(a)
+	return uint64.new(~a.value)
+end
+
+-- 重载左移运算符
+function uint64.__shl(a, b)
+	return uint64.new(a.value << b.value)
+end
+
+-- 重载右移运算符
+function uint64.__shr(a, b)
+	return uint64.new(a.value >> b.value)
+end
+
+-- 重载相等运算符
+function uint64.__eq(a, b)
+	return a.value == b.value
+end
+
+-- 重载小于运算符
+function uint64.__lt(a, b)
+	return a.value < b.value
+end
+
+-- 重载小于等于运算符
+function uint64.__le(a, b)
+	return a.value <= b.value
+end
+
+-- 将无符号整数转换为字符串
+function uint64.__tostring(a)
+	return tostring(a.value)
+end
+
+return uint64

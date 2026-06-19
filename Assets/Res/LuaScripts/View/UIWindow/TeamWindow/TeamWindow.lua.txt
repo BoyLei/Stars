@@ -1,0 +1,771 @@
+TeamWindow = class("TeamWindow", UIPanel)
+TeamWindow.IsOpen = false;
+
+function TeamWindow:Awake()
+
+end
+
+function TeamWindow:BindModule(m)
+    self.module = m;
+end
+
+function TeamWindow:InitControls()
+    self.transform = self.prefab.transform;
+    self.gameObject = self.transform.gameObject;
+
+    -- self.m_memberRawImage = self.transform:Find("Cut4Cam90/AssemblyRatio2/RawImage"):GetComponent(typeof(RawImage));
+    self.targetBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/SettingBtn/SettingBtn"):GetComponent(typeof(Button));
+    self.speakBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/SpeakBtn"):GetComponent(typeof(Button));
+    self.leaveBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/SV/Viewport/Content/LeaveBtn"):GetComponent(typeof(
+        Button));
+    self.lobbyBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/SV/Viewport/Content/TeamLobbyBtn"):GetComponent(
+        typeof(Button));
+    -- self.targetText = self.transform:Find("Cut4Cam90/AssemblyRatio2/TargetText"):GetComponent(typeof(Text));
+
+    self.applyListBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/ApplyListBtn"):GetComponent(typeof(Button));
+    self.applyListBtn.onClick:AddListener(function()
+        -- 显示申请列表界面
+        LuaModuleDispatcher:SendMessage(ModuleDef.TeamModule, "OnOpenApplyListWindow", {});
+    end);
+    self.applyNumGo = self.transform:Find("Cut4Cam90/AssemblyRatio2/ApplyListBtn/ImageNum").gameObject;
+    self.applyNum = self.transform:Find("Cut4Cam90/AssemblyRatio2/ApplyListBtn/ImageNum/Num"):GetComponent(typeof(Text));
+    self.applyNumGo = self.transform:Find("Cut4Cam90/AssemblyRatio2/ApplyListBtn/ImageNum").gameObject;
+
+    self.targetBtn.onClick:AddListener(function()
+        -- 修改目标
+        LuaModuleDispatcher:SendMessage(ModuleDef.TeamModule, "OnOpenTargetWindow");
+        -- self:CloseWindow();
+    end);
+    self.leaveBtn.onClick:AddListener(function()
+        -- 离开队伍
+        UIAPI.ShowMsgBox(18, function(EventName)
+            if EventName == "SURE" then
+                if self.tinfo ~= nil then
+                    local signOutTeamReq = CS.ProtoMsg.SignOutTeamReq();
+                    signOutTeamReq.Eid = GameManager.Instance.mainPlayerId;
+                    signOutTeamReq.TeamID = self.tinfo.TeamID;
+                    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType
+                                                                                     .ServerTypeSpace, signOutTeamReq,
+                        false);
+                    self:CloseWindow();
+                end
+            end
+        end);
+    end);
+    -- self.leaveBtn.onClick:AddListener(function()
+    --     -- 离开队伍
+    --     local signOutTeamReq = CS.ProtoMsg.SignOutTeamReq();
+    --     signOutTeamReq.Eid = GameManager.Instance.mainPlayerId;
+    --     signOutTeamReq.TeamID = self.tinfo.TeamID;
+    --     CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace,
+    --         signOutTeamReq, false);
+    --     self:CloseWindow();
+    -- end);
+    self.lobbyBtn.onClick:AddListener(function()
+        -- 大厅
+        -- self.teamWidget:SetTeamInfo(nil);
+        local getAllTeamInfoReq = CS.ProtoMsg.GetAllTeamInfoReq();
+        getAllTeamInfoReq.Select = CS.ProtoMsg.SelectTeamType.Null;
+        CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace,
+            getAllTeamInfoReq, false);
+        self:CloseWindow();
+    end);
+
+    self.speakBtn.onClick:AddListener(function()
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Tips60"));
+    end);
+
+    self.teamNameInput = self.transform:Find("Cut4Cam90/AssemblyRatio2/InputField"):GetComponent(typeof(InputField));
+    self.teamNameInput.onEndEdit:AddListener(function()
+        local str = self.teamNameInput.text;
+        if str ~= nil then
+            local updateTeamDescriptionReq = CS.ProtoMsg.UpdateTeamDescriptionReq();
+            updateTeamDescriptionReq.Desc = str;
+            CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace,
+                updateTeamDescriptionReq, false);
+        end
+    end);
+
+    -- 自动同意入队申请
+    self.AtuoAgreeToggle = self.transform:Find("Cut4Cam90/AssemblyRatio2/Toggle"):GetComponent(typeof(Toggle));
+    self.AtuoAgreeToggle.onValueChanged:RemoveAllListeners();
+    self.AtuoAgreeToggle.onValueChanged:AddListener(function(isOn)
+        -- 缓存自动同意的设置
+        if self.module ~= nil then
+            self.module.AtuoAgreeJoinTeam = isOn;
+        end
+    end);
+
+    self.AtuoAgreeToggle.isOn = self.module.AtuoAgreeJoinTeam;
+    -- self.allModels = {}
+
+    -- 招募ai
+    self.AtuoAIToggle = self.transform:Find("Cut4Cam90/AssemblyRatio2/ToggleAI"):GetComponent(typeof(Toggle));
+    self.AtuoAIToggle.onValueChanged:RemoveAllListeners();
+    self.AtuoAIToggle.onValueChanged:AddListener(function(isOn)
+        if self.module ~= nil then
+            local tdSetNeedRobotNtf = CS.ProtoMsg.TDSetNeedRobotNtf()
+            tdSetNeedRobotNtf.NeedRobot = isOn;
+            tdSetNeedRobotNtf.TeamID = self.tinfo.TeamID;
+            CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace,
+                tdSetNeedRobotNtf, false)
+        end
+    end);
+
+    -- 所有items
+    self.allPlayers = {}
+    for i = 1, 5 do
+        local memItem = self.transform:Find("Cut4Cam90/AssemblyRatio2/MemberItem" .. i);
+        local hasPlayer = memItem:Find("HasPlayer");
+        local noPlayer = memItem:Find("NoPlayer");
+        local autoAI = memItem:Find("AutoAI");
+        local name = hasPlayer:Find("Name"):GetComponent(typeof(Text));
+        local headIcon = hasPlayer:Find("HeadIcon"):GetComponent(typeof(Image));
+        local BtnHeadIcon = hasPlayer:Find("HeadIcon"):GetComponent(TButton);
+        local levelText = hasPlayer:Find("Level"):GetComponent(typeof(Text));
+        local riskText = hasPlayer:Find("Power"):GetComponent(typeof(Text));
+        local captain = hasPlayer:Find("Captain");
+        local imageBg = hasPlayer:Find("Image"):GetComponent(typeof(Image));
+        local imageJob = hasPlayer:Find("Image/Image"):GetComponent(typeof(Image));
+        local playerItem = {};
+        playerItem.hasPlayer = hasPlayer.gameObject;
+        playerItem.noPlayer = noPlayer.gameObject;
+        playerItem.autoAI = autoAI.gameObject;
+        playerItem.name = name;
+        playerItem.headIcon = headIcon;
+        playerItem.levelText = levelText;
+        playerItem.captain = captain.gameObject;
+        playerItem.riskLevel = riskText;
+        playerItem.jobBg = imageBg;
+        playerItem.jobIcon = imageJob;
+        BtnHeadIcon.onClick:AddListener(function()
+            self:OnClickPlayer(i, BtnHeadIcon.gameObject.transform)
+        end)
+        self.allPlayers[i] = playerItem;
+
+    end
+
+    self.limitText = self.transform:Find("Cut4Cam90/AssemblyRatio2/Limit/Text"):GetComponent(typeof(Text));
+    self.targetText = self.transform:Find("Cut4Cam90/AssemblyRatio2/Target/Text"):GetComponent(typeof(Text));
+end
+
+function TeamWindow:Show(data)
+    self.tinfo = data;
+    self.pid = BusinessManager.Instance:GetUserPID();
+
+    if data == nil then
+        return;
+    end
+
+    local isCaptain = self.module:EntityIsCaptain(GameManager.Instance.mainPlayerId);
+    self.AtuoAIToggle.gameObject:SetActive(isCaptain);
+    if isCaptain then
+        self.AtuoAIToggle.isOn = data.NeedRobot;
+    end
+
+    self:ShowMemberModels(self.tinfo.UserInfos);
+    self.teamNameInput.text = self.tinfo.Desc;
+    self:SetBaseUIData();
+    -- UIManager.Instance:SetRawCamrea(true);
+
+    -- self.limitText.text = self:GetAdvStr(self.tinfo.FightLimit) .. "  <color=#FCFCE6>等级：</color><color=#FFF6B8>" .. self.tinfo.LvLimit .. "级</color>";
+    self.limitText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_TeamWindow_limitText"),
+        {self:GetAdvStr(self.tinfo.FightLimit), self.tinfo.LvLimit});
+
+    local teamPlayList = ConfigDataAccessor.TeamPlayList;
+    self.targetText.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips9");
+    for k, v in pairs(teamPlayList) do
+        if k == self.tinfo.PlayID then
+            -- self.targetText.text = "目标:" .. v.PlayName;
+            self.targetText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_TeamLobbyItem_targetText"),
+                {v.PlayName});
+            break
+        end
+    end
+
+end
+
+function TeamWindow:GetAdvStr(flv)
+    return ""
+    -- if flv == nil or flv <= 0 then
+    --     return LanguageHelp:GetLanguageByKey("Local_Str_Tips8");
+    -- else
+    --     local cfg = ConfigDataAccessor.AdvGradeExp[flv]
+    --     --return "<color=#FCFCE6>冒险等级:</color><color=#FFF6B8>" .. cfg.AdvClass .. GetRomaNum(cfg.AdvOrder).."</color>";
+    --     if cfg~=nil then
+    --         return StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_TeamWindow_GetAdvStr"), {cfg.AdvClass .. GetRomaNum(cfg.AdvOrder)});
+    --     end
+    -- end
+end
+
+function TeamWindow:ShowMemberModels(mems)
+    if mems == nil then
+        return;
+    end
+
+    local mmLists = {};
+
+    for i = 0, mems.Count - 1 do
+        local mem = mems[i];
+        if mem.IsCaptain then
+            table.insert(mmLists, 1, mem);
+            print("[Team] i: " .. i .. " 是组长, 插入 1号位");
+        else
+            table.insert(mmLists, mem);
+            print("[Team] i: " .. i .. " 组员, 插入 " .. #mmLists);
+
+        end
+
+    end
+
+    -- self.m_memberRawImage.texture = ResourceManager.Instance.RenderTexture;
+
+    -- for _, v in pairs(self.allModels) do
+    -- GameObject.Destroy(v.gameObject);
+    -- end
+
+    -- self.allModels = {}
+
+    -- local tb = {}
+    -- table.insert(tb, Vector3(-2.71, -0.48, 7.5));
+    -- table.insert(tb, Vector3(-1.58, -0.48, 7.5));
+    -- table.insert(tb, Vector3(-0.3, -0.48, 7.5));
+    -- table.insert(tb, Vector3(-1.12, -0.48, 7.5));
+    -- table.insert(tb, Vector3(-2.34, -0.48, 7.5));
+
+    for i = 1, 5 do
+        self.allPlayers[i].hasPlayer:SetActive(false);
+        self.allPlayers[i].noPlayer:SetActive(true);
+        self.allPlayers[i].captain:SetActive(false);
+        self.allPlayers[i].autoAI:SetActive(false);
+
+        if self.tinfo.NeedRobot then
+            self.allPlayers[i].noPlayer:SetActive(false);
+            self.allPlayers[i].autoAI:SetActive(true);
+        end
+    end
+
+    for i = 1, #mmLists do
+        local mem = mmLists[i];
+        local jobDataCell = ConfigDataAccessor.Job[mem.JobId];
+        if jobDataCell ~= nil then
+            local avatarDataCell = ConfigDataAccessor.Avatar[jobDataCell.AvatarID];
+            if avatarDataCell ~= nil then
+                local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID];
+                if headCfg ~= nil then
+                    -- self.allPlayers[i].headIcon.sprite = AtlasManager.Instance:GetSprite(headCfg.HeadAtlasName,
+                    --     headCfg.MaxHead);
+                    -- ResourceHelper:LoadIconAsync(self.allPlayers[i].headIcon, "", headCfg.HalfDrawing, true)
+
+                    -- ResourceManager.Instance:LoadTextureAsync(headCfg.HalfDrawing, function(sp)
+                    --     if sp ~= nil then
+                    --         self.allPlayers[i].headIcon.sprite.texture = sp;
+                    --     end
+                    -- end)
+                    -- ResourceHelper:LoadRawIconAsync(self.allPlayers[i].headIcon, headCfg.HalfDrawing, false)
+                    ResourceHelper:LoadSpriteAtlasAsync(self.allPlayers[i].headIcon,
+                        ResourceHelper.HeadAtlasPath .. headCfg.HalfDrawing, headCfg.HalfDrawing .. "_Half", false,
+                        function()
+
+                        end)
+                end
+            end
+        end
+
+        self.allPlayers[i].hasPlayer:SetActive(true);
+        self.allPlayers[i].noPlayer:SetActive(false);
+        self.allPlayers[i].autoAI:SetActive(false);
+        self.allPlayers[i].name.text = mem.UserName;
+        -- self.allPlayers[i].levelText.text = mem.Level .. "级";
+        self.allPlayers[i].levelText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"),
+            {mem.Level});
+
+        self.allPlayers[i].captain:SetActive(mem.IsCaptain);
+
+        -- table.insert(self.allModels, obj);
+    end
+
+    self:RefreshApplyNum();
+    self.applyNumGo:SetActive(#self.module.allJoinTeamReqs > 0);
+
+    local tb = {};
+    local applyCount = 0;
+    for _, v in pairs(self.module.allJoinTeamReqs) do
+        if tb[v.UserInfo.Eid] == nil then
+            tb[v.UserInfo.Eid] = 1;
+            applyCount = applyCount + 1;
+        end
+    end
+    RedPointManager.Instance:RefreshRedPointCount(RedPointType.TeamGroup, applyCount);
+end
+
+-- 设置基础的UI信息
+-- 判断UI的显示隐藏
+function TeamWindow:SetBaseUIData()
+    local isCaptain = self.module:EntityIsCaptain(GameManager.Instance.mainPlayerId);
+    self.AtuoAgreeToggle.gameObject:SetActive(isCaptain);
+    self.applyListBtn.gameObject:SetActive(isCaptain);
+    self.targetBtn.gameObject:SetActive(isCaptain);
+    -- self.speakBtn.gameObject:SetActive(isCaptain);
+
+    self.teamNameInput.interactable = isCaptain;
+end
+
+function TeamWindow:RefreshApplyNum()
+    local applyCount = #self.module.allJoinTeamReqs;
+
+    local tb = {};
+    applyCount = 0;
+    for _, v in pairs(self.module.allJoinTeamReqs) do
+        if tb[v.UserInfo.Eid] == nil then
+            tb[v.UserInfo.Eid] = 1;
+            applyCount = applyCount + 1;
+        end
+    end
+
+    self.applyNum.text = tostring(applyCount);
+    self.applyNumGo:SetActive(applyCount > 0);
+    self.applyNumGo:SetActive(#self.module.allJoinTeamReqs > 0);
+
+    RedPointManager.Instance:RefreshRedPointCount(RedPointType.TeamGroup, applyCount);
+end
+
+function TeamWindow:Refresh(ti)
+    self.tinfo = ti;
+
+    if ti == nil then
+        return;
+    end
+    if ti.FightLimit ~= nil and ti.LvLimit ~= nil then
+        -- self.limitText.text = self:GetAdvStr(ti.FightLimit) .. "  <color=#FCFCE6>等级：</color><color=#FFF6B8>" .. self.tinfo.LvLimit .. "级</color>";
+        self.limitText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_TeamWindow_limitText"),
+            {self:GetAdvStr(ti.FightLimit), self.tinfo.LvLimit});
+
+    end
+    local teamPlayList = ConfigDataAccessor.TeamPlayList;
+    self.targetText.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips9");
+    for k, v in pairs(teamPlayList) do
+        if k == ti.PlayID then
+            -- self.targetText.text = "目标:" .. v.PlayName;
+            self.targetText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_TeamLobbyItem_targetText"),
+                {v.PlayName});
+            break
+        end
+    end
+
+    -- for _, v in pairs(self.allModels) do
+    -- GameObject.Destroy(v.gameObject);
+    -- end
+
+    -- self.allModels = {}
+    local mems = ti.UserInfos;
+    if mems == nil or not self.IsOpen then
+        return;
+    end
+
+    -- local tb = {}
+    -- table.insert(tb, Vector3(-2.71, -0.48, 7.5));
+    -- table.insert(tb, Vector3(-1.58, -0.48, 7.5));
+    -- table.insert(tb, Vector3(-0.3, -0.48, 7.5));
+    -- table.insert(tb, Vector3(-1.12, -0.48, 7.5));
+    -- table.insert(tb, Vector3(-2.34, -0.48, 7.5));
+
+    for i = 1, 5 do
+        self.allPlayers[i].hasPlayer:SetActive(false);
+        self.allPlayers[i].noPlayer:SetActive(true);
+        self.allPlayers[i].autoAI:SetActive(false);
+        self.allPlayers[i].captain:SetActive(false);
+
+        if self.tinfo.NeedRobot then
+            self.allPlayers[i].noPlayer:SetActive(false);
+            self.allPlayers[i].autoAI:SetActive(true);
+        end
+    end
+
+    local mmLists = {};
+
+    for i = 0, mems.Count - 1 do
+        local mem = mems[i];
+        if mem.IsCaptain then
+            table.insert(mmLists, 1, mem);
+            print("[Team] i: " .. i .. " 是组长, 插入 1号位");
+        else
+            table.insert(mmLists, mem);
+            print("[Team] i: " .. i .. " 组员, 插入 " .. #mmLists);
+
+        end
+
+    end
+
+    for i = 1, #mmLists do
+        local mem = mmLists[i];
+
+        self.allPlayers[i].hasPlayer:SetActive(true);
+        self.allPlayers[i].noPlayer:SetActive(false);
+        self.allPlayers[i].autoAI:SetActive(false);
+        self.allPlayers[i].name.text = mem.UserName;
+        self.allPlayers[i].captain:SetActive(mem.IsCaptain);
+
+        -- local jobDataCell = ConfigDataAccessor.Job[mem.JobId];
+        -- if jobDataCell ~= nil then
+        -- 	local avatarDataCell = ConfigDataAccessor.Avatar[jobDataCell.AvatarID];
+        -- 	if avatarDataCell ~= nil then
+        -- 		local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID];
+        -- 		if headCfg ~= nil then
+        -- 			ResourceManager.Instance:LoadSpriteAsync(headCfg.HalfDrawing, function(sp)
+        -- 					if self.allPlayers[i].headIcon ~= nil and sp ~= nil then
+        -- 						self.allPlayers[i].headIcon.sprite = sp;
+        -- 					end
+        -- 				end);
+        -- 		end
+        -- 	end
+        -- end
+
+        local jobshi = math.floor(mem.JobId / 10)
+        if self.allPlayers[i].jobBg ~= nil then
+            local jobTypeBgName = "Icon_ArmBg" .. jobshi
+            ResourceHelper:LoadIconByAtlasAsync(self.allPlayers[i].jobBg, ResourceHelper.AtlasPathRole, jobTypeBgName,
+                false)
+        end
+
+        if self.allPlayers[i].jobIcon ~= nil then
+            local jobTypeName = "Icon_Arm" .. jobshi
+            ResourceHelper:LoadIconByAtlasAsync(self.allPlayers[i].jobIcon, ResourceHelper.AtlasPathRole, jobTypeName,
+                false)
+        end
+
+        local jobDataCell = ConfigDataAccessor.Job[mem.JobId];
+        if jobDataCell ~= nil then
+            local avatarDataCell = ConfigDataAccessor.Avatar[jobDataCell.AvatarID];
+            if avatarDataCell ~= nil then
+                local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID];
+                if headCfg ~= nil then
+                    -- self.allPlayers[i].headIcon.sprite = AtlasManager.Instance:GetSprite(headCfg.HeadAtlasName,
+                    --     headCfg.MaxHead);
+                    -- ResourceHelper:LoadIconAsync(self.allPlayers[i].headIcon, "", headCfg.HalfDrawing, true)
+
+                    -- ResourceManager.Instance:LoadTextureAsync(headCfg.HalfDrawing, function(sp)
+                    --     if sp ~= nil then
+                    --         self.allPlayers[i].headIcon.sprite.texture = sp;
+                    --     end
+                    -- end)
+                    -- ResourceHelper:LoadRawIconAsync(self.allPlayers[i].headIcon, headCfg.HalfDrawing, false)
+                    ResourceHelper:LoadSpriteAtlasAsync(self.allPlayers[i].headIcon,
+                        ResourceHelper.HeadAtlasPath .. headCfg.HalfDrawing, headCfg.HalfDrawing .. "_Half", false,
+                        function()
+
+                        end)
+                end
+            end
+        end
+
+        -- self.allPlayers[i].levelText.text = mem.Level .. "级";
+        self.allPlayers[i].levelText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"),
+            {mem.Level});
+
+        self.allPlayers[i].captain:SetActive(mem.IsCaptain);
+
+        if self.pid == mem.PID then
+            self.allPlayers[i].riskLevel.text = GetPlayerTotalPowerRankLevel(false);
+
+        else
+            self.allPlayers[i].riskLevel.text = GetTotalPowerRankLevel(mem.Power);
+        end
+
+        -- table.insert(self.allModels, obj);
+    end
+
+    self:SetBaseUIData();
+
+end
+
+function TeamWindow:Start()
+    print("TeamWindow:Start")
+end
+
+function TeamWindow:OnEnable()
+
+end
+
+function TeamWindow:OnDisable()
+
+end
+
+function TeamWindow:OnDestroy()
+
+end
+
+function TeamWindow:OnOpen(arg)
+    self.IsOpen = true;
+end
+
+function TeamWindow:OnClose(arg)
+    -- self:CloseWindow();
+    self.module.teamWindow = nil;
+end
+function TeamWindow:OnClickPlayer(index, trans)
+    if self.tinfo and self.tinfo.UserInfos then
+        local playerData = self.tinfo.UserInfos[index - 1]
+        if playerData then
+            self.curSelMem = playerData
+            local isself = false;
+            local selfcap = false
+            local selfData
+            local data = self.tinfo.UserInfos[index - 1]
+			local pid = BusinessManager.Instance:GetUserPID()
+            if pid == data.PID then 
+                isself = true
+            end
+			local length = self.tinfo.UserInfos.Count
+            for i = 1,length do 
+                local player = self.tinfo.UserInfos[i - 1]
+                if player and player.PID and  player.PID == pid and player.IsCaptain then
+                    selfcap = true
+                end
+            end
+
+            local othercap = data.IsCaptain;
+            local btnStrs
+            local btnCBs
+
+            if selfcap and isself then
+                btnStrs = {LanguageHelp:GetLanguageByKey("Local_Str_TeamGather"),
+                           LanguageHelp:GetLanguageByKey("Local_Str_LeaveTeam")};
+                btnCBs = {function()
+                    self:Gather()
+                end, function()
+                    self:LeaveTeam()
+                end}
+
+            elseif selfcap and not othercap then
+                btnStrs = {LanguageHelp:GetLanguageByKey("Local_Str_TransCaptain"),
+                           LanguageHelp:GetLanguageByKey("Local_Str_TeamGather"),
+                           LanguageHelp:GetLanguageByKey("Local_Str_FindPath"),
+                           LanguageHelp:GetLanguageByKey("Local_Str_KickOut")};
+                btnCBs = {function()
+                    self:ChangeCaptain()
+                end, function()
+                    self:Gather()
+                end, function()
+                    self:PathFind()
+                end, function()
+                    self:KickOut()
+                end}
+            elseif not selfcap and othercap then
+                btnStrs = {LanguageHelp:GetLanguageByKey("Local_Str_GetCaptain"),
+                           LanguageHelp:GetLanguageByKey("Local_Str_FindPath"),
+                           LanguageHelp:GetLanguageByKey("Local_Str_LeaveTeam")};
+                btnCBs = {function()
+                    self:ReqCaptain()
+                end, function()
+                    self:PathFind()
+                end, function()
+                    self:LeaveTeam()
+                end}
+            elseif not selfcap and not isself and not othercap then
+                btnStrs = {LanguageHelp:GetLanguageByKey("Local_Str_TeamGather"),
+                           LanguageHelp:GetLanguageByKey("Local_Str_FindPath"),
+                           LanguageHelp:GetLanguageByKey("Local_Str_LeaveTeam")};
+                btnCBs = {function()
+                    self:Gather()
+                end, function()
+                    self:PathFind()
+                end, function()
+                    self:LeaveTeam()
+                end}
+            elseif not selfcap and isself then
+                btnStrs = {LanguageHelp:GetLanguageByKey("Local_Str_TeamGather"),
+                           LanguageHelp:GetLanguageByKey("Local_Str_LeaveTeam")};
+                btnCBs = {function()
+                    self:Gather()
+                end, function()
+                    self:LeaveTeam()
+                end}
+            end
+            -- if not isself then
+            --     table.insert(btnStrs, LanguageHelp:GetLanguageByKey("Local_Str_Player_Info"))
+            --     table.insert(btnCBs, function()
+            --         self:OnPlayerInfo(data.PID)
+            --     end)
+            -- end
+            -- if BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.Friend) then
+            --     if not isself then
+            --         table.insert(btnStrs, LanguageHelp:GetLanguageByKey("Local_Str_add_friends"))
+            --         table.insert(btnCBs, function()
+            --             self:AddFriend(data.PID)
+            --         end)
+            --     end
+            -- end
+            -- if BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.Guild) then
+            --     if BusinessManager.Instance:IsHaveGuildPower(3) and not isself then
+            --         table.insert(btnStrs, LanguageHelp:GetLanguageByKey("Local_Str_GuildInvite"))
+            --         table.insert(btnCBs, function()
+            --             self:OnGuildInvite(data.PID)
+            --         end)
+            --     end
+            -- end
+            -- LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnOpenFriendTipsWidget",
+            --     {nil, btnStrs, btnCBs, trans});
+
+            LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnOtherOpenFriendTipsWidget",
+                {data.PID, btnStrs, btnCBs, trans, false});
+        end
+    end
+end
+function TeamWindow:CloseWindow()
+    self.IsOpen = false;
+    self.module.teamWindow = nil;
+    self.Close();
+    -- for i, v in pairs(self.allModels) do
+    --     BusinessManager.Instance:CloseModel(i, v);
+    -- end
+    -- UIManager.Instance:SetRawCamrea(false);
+end
+function TeamWindow:ReqCaptain()
+    if self.tinfo == nil then
+        return;
+    end
+    local requestCaptainReq = CS.ProtoMsg.RequestCaptainReq();
+    requestCaptainReq.RequesterID = GameManager.Instance.mainPlayerId;
+    local playerName = GameManager.Instance:GetEntityNameById(GameManager.Instance.mainPlayerId);
+    requestCaptainReq.RequesterName = playerName;
+    requestCaptainReq.TeamID = self.tinfo.TeamID;
+    for i = 0, self.tinfo.UserInfos.Count - 1 do
+        if self.tinfo.UserInfos[i].IsCaptain then
+            requestCaptainReq.BeRequester = self.tinfo.UserInfos[i].Eid;
+            break
+        end
+    end
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace,
+        requestCaptainReq, false);
+ --   self.captainGo:SetActive(false);
+end
+function TeamWindow:PathFind()
+    local selfdata
+    if self.tinfo.UserInfos then
+        for i = 0, self.tinfo.UserInfos.Count - 1 do
+            local userInfo = self.tinfo.UserInfos[i];
+            if userInfo then
+                if userInfo.PID == BusinessManager.Instance:GetUserPID() then
+                    selfdata = userInfo
+                    break
+                end
+            end
+
+        end
+    end
+    if selfdata == nil or self.curSelMem == nil then
+        return;
+    end
+    if self.curSelMem.SpaceID == selfdata.SpaceID and self.curSelMem.SrvID == selfdata.SrvID then
+        TaskHelper.FindToDynamicTarget("TeamModule", self.curSelMem.Eid);
+    else
+        local mapChangeReq = CS.ProtoMsg.MapChangeReq();
+        mapChangeReq.MapID = self.curSelMem.MapID;
+        mapChangeReq.ServerID = self.curSelMem.SrvID;
+        mapChangeReq.Reason = CS.ProtoMsg.ChangeReason.ChangeLine;
+        mapChangeReq.SpaceID = self.curSelMem.SpaceID;
+        mapChangeReq.SpType = CS.ProtoMsg.SpaceType.SpaceScene;
+        CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+            mapChangeReq, false);
+
+        LuaModuleDispatcher:SendMessage(ModuleDef.TeamModule, "StartTeamFollowChangeScene", self.curSelMem.Eid);
+    end
+end
+function TeamWindow:Gather()
+    Util.ShowMessage(LanguageHelp:GetLanguageByKey("Team_GatherTips"));
+    local extrainfos = CS.ProtoMsg.ChatExtraInfos();
+    local chatExtraInfo = CS.ProtoMsg.ChatExtraInfo();
+    chatExtraInfo.EType = CS.ProtoMsg.ChatExtraInfo.Types.EMsg.TeamGather;
+    extrainfos.ChatExtraInfo:Add(chatExtraInfo);
+
+    local sendChatMsgReq = CS.ProtoMsg.SendChatMsgReq();
+    local targetID = GameManager.Instance.mainPlayerId;
+    local playerName = GameManager.Instance:GetEntityNameById(targetID);
+    sendChatMsgReq.ChatMsg = playerName;
+    sendChatMsgReq.Channel = CS.ProtoMsg.ChatChannel.ChannelTeam;
+    sendChatMsgReq.ChatTime = TimeUtils.ServerNowStampMilli;
+    sendChatMsgReq.SendData:Add(ExtraData.ToByteString(extrainfos));
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+        sendChatMsgReq, false);
+end
+
+function TeamWindow:KickOut()
+    UIAPI.ShowMsgBox(15, function(EventName)
+        if EventName == "SURE" then
+            if self.tinfo == nil then
+                return;
+            end
+            local kickOutTeamCapReq = CS.ProtoMsg.KickOutTeamCapReq();
+            kickOutTeamCapReq.TeamID = self.tinfo.TeamID;
+            kickOutTeamCapReq.TarID = self.curSelMem.Eid;
+            -- kickOutTeamCapReq.TarName = self.curSelMem.UserName;
+            CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace,
+                kickOutTeamCapReq, false);
+        end
+    end)
+end
+function TeamWindow:ChangeCaptain()
+    if self.tinfo == nil then
+        return;
+    end
+    local changeTeamCaptainReq = CS.ProtoMsg.ChangeTeamCaptainReq();
+    changeTeamCaptainReq.TeamID = self.tinfo.TeamID;
+    changeTeamCaptainReq.OldCapEID = GameManager.Instance.mainPlayerId;
+    changeTeamCaptainReq.NewCapEID = self.curSelMem.Eid;
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace,
+        changeTeamCaptainReq, false);
+end
+function TeamWindow:LeaveTeam()
+    UIAPI.ShowMsgBox(18, function(EventName)
+        if EventName == "SURE" then
+            if self.tinfo == nil then
+                return;
+            end
+            local signOutTeamReq = CS.ProtoMsg.SignOutTeamReq();
+            signOutTeamReq.Eid = GameManager.Instance.mainPlayerId;
+            signOutTeamReq.TeamID = self.tinfo.TeamID;
+            CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace,
+                signOutTeamReq, false);
+            -- if self.captainGo then
+            --     self.captainGo:SetActive(false);
+            -- end
+            self:CloseWindow();
+        end
+    end)
+end
+-- 玩家信息
+function TeamWindow:OnPlayerInfo(PID)
+    if PID == nil then
+        return;
+    end
+    LuaModuleDispatcher:SendMessage(ModuleDef.PlayerPreviewModule, "SendGetOtherPlayerNameplateReq", {PID})
+end
+function TeamWindow:AddFriend(PID)
+    if PID == nil then
+        return;
+    end
+    local FriendModule = ModuleManager.Instance:GetModule(ModuleDef.FriendModule);
+    if FriendModule then
+        local luatable = FriendModule:GetLuaTable()
+        local friendRelation = luatable:GetFriendRelation(PID);
+        if friendRelation == 0 then
+            local pids = {PID};
+            local key = "ItemRecommendFriend_" .. PID;
+            LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnSendApplyToAddFriendReq",
+                {pids, key, self.OnApplyToAddFriendRespFun});
+        elseif friendRelation == 1 then
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_PlayerIsFriend"));
+        elseif friendRelation == 2 then
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_friend_request_fail_5"));
+        end
+    end
+end
+
+function TeamWindow:OnGuildInvite(PID)
+    if PID == nil then
+        return;
+    end
+    LuaModuleDispatcher:SendMessage(ModuleDef.GuildModule, "OnInviteToGuild", {PID})
+end
+return TeamWindow

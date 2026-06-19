@@ -1,0 +1,123 @@
+--[[
+*文件名   :   DefAmuletEquipInfo
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local DefAmuletEquipInfo = {}
+
+DefAmuletEquipInfo.__index = DefAmuletEquipInfo
+
+local DefAmuletSkillPoint=require("View/Uiwindow/Amulet/DefAmuletSkillPoint")
+local DefAmuletEquipInfoEmblemItem=require("View/Uiwindow/Amulet/DefAmuletEquipInfoEmblemItem")
+
+function DefAmuletEquipInfo:New(_go,defAmulet) 
+    local self = {};    
+    setmetatable(self, DefAmuletEquipInfo); 
+    
+
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+
+    self.DefAmulet=defAmulet;
+
+	--关闭信息
+    --[[
+	local btnClose=self.transform:Find("BtnClose"):GetComponent(typeof(JButton));
+	btnClose.OnClick=(function()
+		self:Show(false);
+	end);
+    ]]
+
+    self.go_Have=self.transform:Find("Have").gameObject;
+    self.go_Null=self.transform:Find("Null").gameObject;
+
+    --技能点
+	self.pointList={}
+	for i=1,6 do
+		local _goIt=self.transform:Find("Have/Info/Mask/List/DefAmuletSkillPoint"..i).gameObject;
+		local pointItem=DefAmuletSkillPoint:New(_goIt);
+		table.insert( self.pointList, pointItem);
+	end
+
+    --四个星次石
+    self.EmblemItems={};
+    for i =1,4 do
+        local _go=self.transform:Find("Have/Info2/Mask/List/RuneItem"..i).gameObject;
+
+        local it=DefAmuletEquipInfoEmblemItem:New(_go);
+        it:InitItem(i,function (daei)
+            --点击跳转
+            LuaModuleDispatcher:SendMessage(ModuleDef.AmuletModule,"OnOpenEmblemMenuCombine",{self.DefAmulet.Idx,daei.SlotID,daei.Idx});
+
+        end);
+        table.insert( self.EmblemItems, it);
+    end
+
+
+    self:Show(false);
+
+    return self;    --返回自身
+end
+
+
+function DefAmuletEquipInfo:Show(b,data)
+    self.gameObject:SetActive(b);
+    if b then
+        self:Refesh(data);
+    end
+end
+
+function DefAmuletEquipInfo:Refesh(data)
+    if data~=nil then
+        self.go_Have:SetActive(true);
+        self.go_Null:SetActive(false);
+
+
+
+
+        --显示技能词条
+
+        local baseID=data.BaseID;
+        local combatSkills =data.CombatSkills;
+
+		local itemCfg=ConfigDataAccessor.Item[baseID];
+
+
+		local maxNum=ConfigDataAccessor.GetMaxPolishNum(itemCfg.Quality);--铭刻次数的上限
+
+
+        for i=1,#self.pointList do
+            self.pointList[i].gameObject:SetActive(false);
+        end
+        for i=0,combatSkills.List.Count-1 do
+            if i+1 <= #self.pointList then
+                self.pointList[i+1].gameObject:SetActive(true);
+                local cs=combatSkills.List[i];
+                self.pointList[i+1]:Refesh(maxNum,cs)
+            end
+        end
+
+        --显示星次石信息
+        local gemSlots =data.GemSlots;
+        --查看星次石
+        for i=0,gemSlots.List.Count-1 do
+            --刷新星次石槽位信息
+            self.EmblemItems[i+1]:SetInfo(gemSlots.List[i]);
+        end
+
+    else
+
+        self.go_Have:SetActive(false);
+        self.go_Null:SetActive(true);
+
+    end
+end
+
+
+
+return DefAmuletEquipInfo;

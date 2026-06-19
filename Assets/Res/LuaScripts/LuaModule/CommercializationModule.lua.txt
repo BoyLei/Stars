@@ -1,0 +1,167 @@
+--[[
+*文件名   :   CommercializationModule
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/02/03 13:39:39"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+CommercializationModule = class("CommercializationModule", BaseLuaModule)
+
+local FirstPayWidgetPath = "Shop/FirstPayWidget"
+local MoonCardWidgetPath = "Shop/MoonCardWidget"
+local BattlePassWidgetPath = "Shop/BattlePassWidget"
+
+-- LuaModule 消息模块
+CommercializationModule.ModuleMessages = {
+    ["OnOpenCommercialization"] = function(...)
+        CommercializationModule:OnOpenCommercializationMsg(...)
+    end,
+    ["OnCheckBattlePassTask"] = function(...)
+        CommercializationModule:OnCheckBattlePassTaskMsg(...)
+    end
+}
+
+function CommercializationModule:OnOpenCommercializationMsg(...)
+    local tb = ...
+    -- 列表
+    self.OpenType = 1
+    self.OpenTag1 = 0
+    self.OpenTag2 = 0
+
+    if type(tb) == "table" then
+        -- Lua调用
+        self.OpenType = tb[1]
+        if #tb > 1 then
+            self.OpenTag1 = tb[2]
+        end
+        if #tb > 2 then
+            self.OpenTag2 = tb[3]
+        end
+    else
+        -- C#调用
+        self.OpenType = tb[0]
+        if tb.Length > 1 then
+            self.OpenTag1 = tb[1]
+        end
+        if tb.Length > 2 then
+            self.OpenTag2 = tb[2]
+        end
+    end
+
+    if self.OpenType == 1 then
+        -- 打开首充相关
+        --UIManager.Instance:OpenWidget(FirstPayWidgetPath, false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone,false,false);
+        UIManager.Instance:OpenWidgetAsync(FirstPayWidgetPath, nil, false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, false)
+    elseif self.OpenType == 2 then
+        -- 打开月卡相关
+        --UIManager.Instance:OpenWidget(MoonCardWidgetPath, false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone,false,false);
+        UIManager.Instance:OpenWidgetAsync(MoonCardWidgetPath, nil, false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, false)
+    elseif self.OpenType == 3 then
+        -- 打开通行证相关
+        --UIManager.Instance:OpenWidget(BattlePassWidgetPath, false, {self.OpenTag1,self.OpenTag2}, nil, CS.StarProjectDef.MainPageCommond.HideNone,false,false);
+        UIManager.Instance:OpenWidgetAsync(BattlePassWidgetPath, nil, false, {self.OpenTag1, self.OpenTag2}, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, false)
+    end
+end
+
+function CommercializationModule:OnCheckBattlePassTaskMsg(...)
+    local tb = ...
+    -- 列表
+
+    if type(tb) == "table" then
+        -- Lua调用
+        --self.OpenType=tb[1];
+    else
+        -- C#调用
+        --self.OpenType=tb[0];
+    end
+
+    --检查下任务状态
+    self:TaskStageChange(2)
+end
+
+function CommercializationModule:OnCloseCommercializationMsg()
+end
+
+-- 关闭回调
+function CommercializationModule:OnCloseCommercializationEvt(arg)
+    self.evtOnCloseCommercialization:Invoke()
+end
+
+-- 关闭
+function CommercializationModule:OnCloseCommercialization()
+    self:OnCloseCommercializationEvt()
+end
+
+-- LuaModule 创建
+function CommercializationModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.CommercializationModule, self)
+
+    self.callback = function(type, taskid)
+        self:TaskStageChange(type, taskid)
+    end
+    self.callback2 = function(timeLineId, isPlay)
+        self:OnTimeLineFinish(timeLineId, isPlay)
+    end
+    -- 任务状态变化
+    CS.StarProject.GlobalEvent.TaskStageChange:AddListener(self.callback)
+    CS.StarProject.GlobalEvent.OnTimelinePlayStateChangeEvent:AddListener(self.callback2)
+end
+
+function CommercializationModule:OnTimeLineFinish(timeLineId, isPlay)
+    if timeLineId == 10200 and not (isPlay) then
+        UIManager.Instance:OpenWidgetAsync("SettingWindow/Prefab/SettingCameraRotateWidget", nil, false, {}, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, true)
+
+        --打开镜头设置界面
+        DOVirtual.DelayedCall(
+            3,
+            function()
+            end
+        )
+    end
+end
+
+function CommercializationModule:TaskStageChange(type, taskid)
+    if type == 2 or type == 3 then
+        local canShowRedPoint = false
+        for k, v in pairs(ConfigDataAccessor.BPTask) do
+            --任务状态
+            if TaskHelper.ContainTask(v.TaskID) then
+                --正在进行
+                local TaskInfo = TaskHelper.GetRunningTask(v.TaskID)
+                if TaskInfo ~= nil then
+                    if TaskInfo.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStageFinished then
+                        --任务已完成未提交
+                        --更改红点状态
+                        canShowRedPoint = true
+                        break
+                    end
+                end
+            end
+        end
+
+        RedPointManager.Instance:TriggerConditionTypeBoolValue(RedPointConditionType.BattlePass_Task, canShowRedPoint)
+    end
+end
+
+-- LuaModule 消息处理
+function CommercializationModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...)
+end
+
+-- LuaModule显示
+function CommercializationModule:OnModuleShow(arg)
+    self:OnOpenCommercializationMsg(arg)
+end
+
+function CommercializationModule:OnModuleHide(arg)
+end
+
+-- LuaModule 释放
+function CommercializationModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.CommercializationModule)
+    CS.StarProject.GlobalEvent.TaskStageChange:RemoveListener(self.callback)
+    CS.StarProject.GlobalEvent.OnTimelinePlayStateChangeEvent:RemoveListener(self.callback2)
+end
+
+return CommercializationModule

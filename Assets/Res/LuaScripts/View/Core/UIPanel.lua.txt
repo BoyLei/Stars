@@ -1,0 +1,40 @@
+UIPanel = class("UIPanel")
+
+function UIPanel:Find(path, parent)
+	if parent == nil then
+		if self.prefab ~= nil then
+			return self.prefab.transform:Find(path);
+		end
+	else
+		return parent:Find(path);
+	end
+
+	return nil;
+end
+
+function UIPanel:GetSprite(name,cb)
+	if name ~= nil and name ~= "" then
+		self:GetSpriteByAtlas(self.AtlasPath,name,cb)
+	end
+end
+
+function UIPanel:GetSpriteByAtlas(AtlasPath, name,cb)
+	AtlasManager.Instance:GetSpriteAsync(AtlasPath,name,function (sprite)
+			if cb~=nil then
+				cb(sprite)
+			end
+		end)
+end
+
+
+function UIPanel:LoadIcon(Icon, AtlasPath, path)
+	if path ~= nil and path ~= "" then
+		self:GetSpriteByAtlas(AtlasPath, path,function (sprite)
+				if sprite ~= nil then
+					Icon.sprite = sprite;
+				end
+			end);
+	end
+end
+
+return UIPanel

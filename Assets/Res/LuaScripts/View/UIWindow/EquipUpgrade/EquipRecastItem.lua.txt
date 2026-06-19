@@ -1,0 +1,114 @@
+--[[
+*文件名   :   EquipRecastItem
+*内  容   :   定轨页面纹章选择列表中的Item
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local EquipRecastItem = {}
+
+EquipRecastItem.__index = EquipRecastItem
+
+function EquipRecastItem:New(_go, canClick)
+    local self = {}
+    setmetatable(self, EquipRecastItem)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.Name = self.transform:Find("Have/Name"):GetComponent(typeof(Text))
+    self.Num = self.transform:Find("Have/Num"):GetComponent(typeof(Text))
+    self.Icon = self.transform:Find("Have/Icon"):GetComponent(typeof(Image))
+    self.Rare = self.transform:Find("Have/BgRare"):GetComponent(typeof(Image))
+
+    self.GoCantSelect = self.transform:Find("CantSelect").gameObject
+    self.GoCantSelect:SetActive(false)
+    self.CantSelect = false
+
+    --点击出现详情
+    self.Rare.transform:GetComponent(typeof(JButton)).OnClick = (function()
+        LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", {self.BaseID, false, self.EntityID, self.Rare.transform, 0})
+    end)
+    self.SelectedNum = self.transform:Find("Have/Selected/Index"):GetComponent(typeof(Text))
+
+    self.Power = self.transform:Find("Have/Point"):GetComponent(typeof(Text))
+
+    self.go_Selected = self.transform:Find("Have/Selected").gameObject
+    self.go_Selected:SetActive(false)
+
+    --点击事件
+    self.btnClick = self.transform:Find("Have"):GetComponent(typeof(JButton))
+    self.btnClick.OnClick = (function()
+        if self.OnItemClick ~= nil then
+            if self.CantSelect then
+                local retMsg = ConfigDataAccessor.RetMsg[1113]
+                Util.ShowMessage(retMsg.ClientStr)
+            else
+                self.OnItemClick(self)
+            end
+        end
+    end)
+
+    return self --返回自身
+end
+
+function EquipRecastItem:InitItem(onItemClick)
+    self.OnItemClick = onItemClick
+end
+
+function EquipRecastItem:SetItem(data, SelectEquipLevel)
+    self.Data = data
+
+    if data ~= nil then
+        self.gameObject:SetActive(true)
+
+        self.EntityID = data.Data.EntityID
+        self.BaseID = data.Data.BaseID
+
+        local cfg = ConfigDataAccessor.Item[self.BaseID]
+        --LoadIcon(self.Icon,cfg.Icon);
+        ResourceHelper:LoadIconAsync(self.Icon, "", cfg.Icon, false)
+
+        --稀有度底板
+        local quality = cfg.Quality
+        --self.Rare.sprite= AtlasManager.Instance:GetSprite("ui/common/atlas/commonitem","Bag_Grid_sq"..quality);
+        ResourceHelper:LoadIconByAtlasAsync(self.Rare, ResourceHelper.AtlasPathCommonItem, "Bag_Grid_sq" .. quality, false)
+
+        local equipCfg = ConfigDataAccessor.Equip[self.BaseID]
+        self.Num.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {equipCfg.Level})
+        --self.m_Score.text="评分 ???";
+        --计算战力
+        --装备战力
+        local itemData = BusinessManager.Instance:GetItemByItemEntityId(self.EntityID)
+        local equipPower = FightPowerManager.Instance:GetShowEquipPower(itemData)
+        --全部槽位战力，共鸣战力
+        --local allPower,slotPower,slotResonancePower=FightPowerManager.Instance:GetEquipSlotsPower();
+        --单个槽位战力
+        --local singleSlotPower=FightPowerManager.Instance:GetEquipSlotsPowerBySlotID(cfg.SubType);
+        self.Power.text = "<color=#ACA6A3>" .. LanguageHelp:GetLanguageByKey("Local_Str_Tips_Condition27_Power") .. "</color>" .. (equipPower)
+
+        self:MakeSelected(data.SelectedIdx > 0)
+        if data.SelectedIdx > 0 then
+            self.SelectedNum.text = data.SelectedIdx
+        end
+
+        self.Name.text = GetQualityColor(quality) .. cfg.Name .. "</color>"
+
+        if SelectEquipLevel == 0 then
+            self.CantSelect = false
+        else
+            self.CantSelect = SelectEquipLevel ~= data.EquipLevel
+        end
+        self.GoCantSelect:SetActive(self.CantSelect)
+    else
+        self.gameObject:SetActive(false)
+    end
+end
+
+--是否被选中
+function EquipRecastItem:MakeSelected(b)
+    self.go_Selected:SetActive(b)
+end
+
+return EquipRecastItem

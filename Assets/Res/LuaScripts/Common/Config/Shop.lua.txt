@@ -1,0 +1,104 @@
+
+local KeyMap = {
+	Id = 1,
+	Shoptype = 2,
+	Shop_name = 3,
+	Shop_icon = 4,
+	Sub_shopid = 5,
+	Sub_shopname = 6,
+	Currency = 7,
+	AvatarID = 8,
+	Dialog_id = 9,
+
+}
+
+local R = {
+	_1 = 'Shopshop_name',
+	_2 = 'Shopsub_shopname',
+	_3 = {3},
+	_4 = {4},
+	_5 = {5},
+}
+
+local ShopList = 
+{
+	[1]=
+	{
+		1,
+		1,
+		L("Shopshop_name1"),
+		"Equipment_icon_list_01",
+		{1},
+		L("Shopsub_shopname1"),
+		R._3,
+		0,
+		{},
+	},
+	[2]=
+	{
+		2,
+		1,
+		L("Shopshop_name2"),
+		"Equipment_icon_list_02",
+		{2},
+		L("Shopsub_shopname2"),
+		R._4,
+		0,
+		{},
+	},
+	[3]=
+	{
+		3,
+		1,
+		L("Shopshop_name3"),
+		"Equipment_icon_list_03",
+		R._3,
+		L("Shopsub_shopname3"),
+		{1,2},
+		0,
+		{},
+	},
+	[4]=
+	{
+		4,
+		1,
+		L("Shopshop_name4"),
+		"Equipment_icon_list_04",
+		R._4,
+		L("Shopsub_shopname4"),
+		{7},
+		0,
+		{},
+	},
+	[5]=
+	{
+		5,
+		1,
+		L("Shopshop_name5"),
+		"Equipment_icon_list_05",
+		R._5,
+		L("Shopsub_shopname5"),
+		R._5,
+		0,
+		{},
+	},
+	[7]=
+	{
+		7,
+		1,
+		L("Shopshop_name7"),
+		"Equipment_icon_list_06",
+		{6},
+		L("Shopsub_shopname7"),
+		{117,118},
+		0,
+		{},
+	},
+
+}
+
+do
+    MT(KeyMap, ShopList)
+end
+
+return ShopList

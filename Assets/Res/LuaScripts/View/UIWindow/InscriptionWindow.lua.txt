@@ -1,0 +1,208 @@
+--[[
+*文件名   :   InscriptionWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/02/03 13:09:51"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+InscriptionWindow=class("InscriptionWindow",UIPanel)
+InscriptionWindow.IsOpen=false;
+
+
+local SelectBtn= require("View/Item/SelectBtn")
+local CurrencyBar =require("View/Item/CurrencyBar")
+
+local InscriptionPartA=require("View/Uiwindow/Amulet/InscriptionPartA")
+local InscriptionPartB=require("View/Uiwindow/Amulet/InscriptionPartB")
+local InscriptionSuccess=require("View/Uiwindow/Amulet/InscriptionSuccess")
+
+
+function InscriptionWindow:Awake()
+
+end
+
+function InscriptionWindow:BindModule(m)
+	self.module=m;
+end
+
+function InscriptionWindow:InitItems()
+	self.transform =self.prefab.transform;
+	self.gameObject=self.transform.gameObject;
+
+	self.idxNow=-1;
+
+
+	--菜单按钮
+	self.MenuBtns={};
+
+	local btn1=SelectBtn:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/TagMenu/EquipTagItem1").gameObject);
+	btn1:InitItem(1,function (idx)
+		self:OnMenuBtnClick(idx,0);
+	end);
+	table.insert(self.MenuBtns,btn1);
+
+	local btn2=SelectBtn:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/TagMenu/EquipTagItem2").gameObject);
+	btn2:InitItem(2,function (idx)
+		self:OnMenuBtnClick(idx,0);
+	end);
+	table.insert( self.MenuBtns,btn2);
+
+
+	self.InscriptionPartA= InscriptionPartA:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/PartA").gameObject,self);
+	self.InscriptionPartB= InscriptionPartB:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/PartB").gameObject,self);
+	self.InscriptionSuccess= InscriptionSuccess:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Success").gameObject,self);
+
+
+	--显示资源栏
+	self.currencyBar=CurrencyBar:New(nil,self.transform:Find("Cut4Cam90/AssemblyRatio2/CurrencyAhchor"));
+
+	self.m_CloseBtn=self:Find("Cut4Cam90/AssemblyRatio2/Back/CloseBtn"):GetComponent(typeof(Button));
+	self.m_CloseBtn.onClick:AddListener(function() self:OnClickCloseBtn() end);
+
+	self.m_IntroduceBtn=self:Find("Cut4Cam90/AssemblyRatio2/Back/IntroduceBtn"):GetComponent(typeof(Button));
+	self.m_IntroduceBtn.onClick:AddListener(function() 
+		
+		if self.idxNow==1 then
+			CS.StarProjectDef.UIAPI.ShowGameplayInfo(101)
+		else
+			CS.StarProjectDef.UIAPI.ShowGameplayInfo(10101)
+		end
+
+	
+	end);
+
+end
+
+
+
+function InscriptionWindow:OpenInscription(idx,skillID)
+
+	self:OnMenuBtnClick(idx,skillID);
+
+end
+
+function InscriptionWindow:ShowSuccess(data)
+	self.InscriptionSuccess:Show(true,data);
+end
+
+function InscriptionWindow:RefeshInscriptionUpgrade()
+
+	--刷新货币
+	local coins={4,3,2,1}
+	self.currencyBar:RefeshBar(coins);
+
+end
+
+
+function InscriptionWindow:OnMenuBtnClick(idx,skillID)
+
+	if self.idxNow==idx then
+		return;
+	end
+
+	if idx==1 then
+		self.InscriptionPartA:Show(true,skillID);
+		self.InscriptionPartB:Show(false,skillID);
+	elseif idx==2 then
+		self.InscriptionPartA:Show(false,skillID);
+		self.InscriptionPartB:Show(true,skillID);
+	end
+
+
+	self.idxNow=idx;
+	self:RefeshInscriptionUpgrade();
+
+	for i=1,#self.MenuBtns do
+		self.MenuBtns[i]:MakeSelected(false);
+	end
+	self.MenuBtns[idx]:MakeSelected(true);
+
+
+end
+
+
+function InscriptionWindow:Start()
+	print("InscriptionWindow:Start")
+
+end
+
+function InscriptionWindow:OnEnable()
+	
+end
+
+function InscriptionWindow:OnDisable()
+	
+end
+
+function InscriptionWindow:OnDestroy()
+
+end
+
+function InscriptionWindow:OnOpen(arg)
+	self.IsOpen=true;
+	self:OnListener();
+end
+
+function InscriptionWindow:OnClose(arg)
+	--self:CloseWindow();
+	self.InscriptionPartB:Show(false);
+	self:OffListener();
+	self.module.InscriptionWindowView = nil
+end
+
+
+function InscriptionWindow:InitAttribute()
+	
+	self.M_EntityBase.Data:AddAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.Tweeter1, self.attrLuaKey ,function(key,value)
+			self.InscriptionPartB:RefeshSelectedEtchItem();
+		end
+	)
+	self.M_EntityBase.Data:AddAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.Tweeter2, self.attrLuaKey ,function(key,value)
+			self.InscriptionPartB:RefeshSelectedEtchItem();
+		end
+	)
+	
+end
+
+function InscriptionWindow:DelAttribute()
+
+	self.M_EntityBase.Data:DelAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.Tweeter1, self.attrLuaKey);
+
+	self.M_EntityBase.Data:DelAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.Tweeter2, self.attrLuaKey);
+
+end
+
+--
+function InscriptionWindow:OnListener()
+
+    --属性同步回调
+	self.M_EntityBase = GameManager.Instance.M_MainPlayerCtrlBase;
+	self.attrLuaKey = "InscriptionWindow_" .. GameManager.Instance.mainPlayerId;
+	self:InitAttribute();
+
+end
+
+function InscriptionWindow:OffListener()
+
+    --解绑属性同步回调
+	if self.M_EntityBase ~= nil and self.M_EntityBase.Data ~= nil then
+		self:DelAttribute();
+	end
+end
+
+
+function InscriptionWindow:OnClickCloseBtn()
+
+	self.idxNow=-1;
+	self.IsOpen=false;
+	self.module:OnCloseInscription();
+
+	self.Close();
+
+	self.module.InscriptionWindowView = nil
+end
+
+
+
+return  InscriptionWindow

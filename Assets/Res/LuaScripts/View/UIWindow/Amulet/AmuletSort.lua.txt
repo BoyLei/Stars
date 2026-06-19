@@ -1,0 +1,357 @@
+--[[
+*文件名   :   AmuletSort
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local ItemGrid= require("View/Item/ItemGrid")
+local SelectBtn= require("View/Item/SelectBtn")
+local AmuletSortItem=require("View/Uiwindow/Amulet/AmuletSortItem")
+
+local AmuletSort = {}
+
+AmuletSort.__index = AmuletSort
+
+function AmuletSort:New(_go,dfAmuletEquip) 
+    local self = {};    
+    setmetatable(self, AmuletSort); 
+    
+
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+	--关闭信息
+	local btnClose=self.transform:Find("BtnClose"):GetComponent(typeof(JButton));
+	btnClose.OnClick=(function()
+
+
+
+		self.DefAmuletEquip:ClearAllAmuletSortSelectedIds();--清除所有选中的
+		--把所有选中的放进去
+		for i=1,#self.ItemDataList do
+			if self.ItemDataList[i].IsSelected then
+				self.DefAmuletEquip:AddAmuletSortSelectedId(self.ItemDataList[i].WarSkillId);
+			end
+		end
+		self.DefAmuletEquip:RefeshAmuletSortBtnText();
+		
+		self:Show(false);
+
+	end);
+
+    self.DefAmuletEquip=dfAmuletEquip;
+
+
+    --道具列表
+    self.BagItemList={};
+	--无限列表
+	self.go_BagItem = self.transform:Find("AmuletSortItem").gameObject;
+
+	self.rect_grid=self.transform:Find("Scroll View/Mask/List"):GetComponent(typeof(RectTransform));
+
+	self.tr_ItemRoot=self.transform:Find("Scroll View/Mask/List");
+	self.go_BagItem:SetActive(false);
+	self.BagScorllView=self.transform:Find("Scroll View"):GetComponent(typeof(SuperScrollViewController));
+	self.BagScorllView:NewScroll(self.go_BagItem, 0, function (tr,idx)
+		self:OnBagItemRefesh(tr,idx);
+	end);
+
+	--装备菜单
+	self.EquipMenuBtns={};
+	for i=1,2 do 
+		local btn=SelectBtn:New(self.transform:Find("EquipMenu/Scroll View/Mask/List/EquipTagItem"..i).gameObject);
+		btn:InitItem(i,function (idx)
+			self:OnSortMenuTypeBtnClick(idx);
+		end);
+		table.insert( self.EquipMenuBtns,btn);
+	end
+    self.EquipMenuIdx=1;
+
+
+	--点击清除勾选
+	local btnClean=self.transform:Find("MarchOne/BtnClean"):GetComponent(typeof(JButton));
+	btnClean.OnClick=(function()
+		self:OnBtnCleanClick();
+	end);
+
+    
+    self.go_MarchOne=self.transform:Find("MarchOne").gameObject
+    self.go_MarchAll=self.transform:Find("MarchAll").gameObject
+    
+    self.SelectedNum=self.transform:Find("MarchAll/SelectedNum"):GetComponent(typeof(Text));
+
+
+    self:Show(false);
+
+    return self;    --返回自身
+end
+
+
+--点击清除勾选
+function AmuletSort:OnBtnCleanClick()
+
+	self:CleanAllSelected();
+
+end
+
+
+function AmuletSort:Show(b,idx)
+    self.gameObject:SetActive(b);
+    if b then
+        self.EquipMenuIdx=idx;
+        self:Refesh();
+    end
+end
+
+function AmuletSort:Refesh()
+	self:OnSortMenuTypeBtnClick(self.EquipMenuIdx);
+
+end
+
+
+--重新筛选
+function AmuletSort:Resort()
+
+    --数据层
+    for i=1,#self.ItemDataList do
+        if self.ItemDataList[i].IsSelected then
+            --选中的技能
+            local WarSkillId=self.ItemDataList[i].WarSkillId;
+
+
+        end
+    end
+
+
+end
+
+
+------------------------------
+------------------------------无限列表相关
+
+--刷新装备列表
+function AmuletSort:RefeshItems()
+	
+	--self:SortItem(self.ItemDataList);
+
+	self.BagScorllView:ContinueScroll(#self.ItemDataList,false);
+
+end
+
+
+
+
+function AmuletSort:OnSortMenuTypeBtnClick(idx,noResetPos)
+	if noResetPos==nil then
+		self.rect_grid.anchoredPosition=Vector2(self.rect_grid.anchoredPosition.x,0);
+	end
+
+	for i=1,#self.EquipMenuBtns do
+		self.EquipMenuBtns[i]:MakeSelected(false);
+	end
+
+
+    if idx==nil then
+        idx =self.EquipMenuIdx;
+    end
+
+	self.EquipMenuBtns[idx]:MakeSelected(true);
+
+
+
+	self:ClearItemData();
+
+
+    --拿到所有的技能
+
+	--每一级的点数
+	local perLevelPoint=5;
+
+
+    self.Type=self.DefAmuletEquip.EquipMenuIdx;
+
+    if self.Type==1 then
+
+
+        --攻击
+        local WarSkillId=1001;
+        local pd=ConfigDataAccessor.GetPassiveDesc(WarSkillId,1);
+        while pd~= nil do
+            local maxLv=ConfigDataAccessor.GetPassiveDescMaxLv(WarSkillId);
+
+            pd=ConfigDataAccessor.GetPassiveDesc(WarSkillId,1);
+            if pd~= nil then
+                local data={};
+                data.WarSkillId=WarSkillId;
+                data.Points=maxLv*perLevelPoint;
+
+
+                data.IsSelected=false;
+				for i=1,#self.DefAmuletEquip.AmuletSortSelectedIds do
+					if self.DefAmuletEquip.AmuletSortSelectedIds[i]==WarSkillId then
+						data.IsSelected=true;
+						break;
+					end
+				end
+
+
+                data.Lv=maxLv;
+                table.insert( self.ItemDataList, data )
+
+                WarSkillId=WarSkillId+1;
+            end
+        end
+
+    else
+
+        --防御
+        WarSkillId=1001;
+        pd=ConfigDataAccessor.GetPassiveDesc(WarSkillId,1);
+        while pd~= nil do
+            local maxLv=ConfigDataAccessor.GetPassiveDescMaxLv(WarSkillId);
+
+            pd=ConfigDataAccessor.GetPassiveDesc(WarSkillId,1);
+                if pd~= nil then
+
+                local data={};
+                data.WarSkillId=WarSkillId;
+                data.Points=maxLv*perLevelPoint;
+				data.IsSelected=false;
+				for i=1,#self.DefAmuletEquip.AmuletSortSelectedIds do
+					if self.DefAmuletEquip.AmuletSortSelectedIds[i]==WarSkillId then
+						data.IsSelected=true;
+						break;
+					end
+				end
+                data.Lv=maxLv;
+                table.insert( self.ItemDataList, data )
+
+                WarSkillId=WarSkillId+1;
+            end
+        end
+
+    end
+
+
+	
+	self.EquipMenuIdx=idx;
+	
+
+	if  idx==1 then
+		--满足一种
+		--self:CleanAllSelected();
+        self.go_MarchAll:SetActive(true);
+        self.go_MarchOne:SetActive(false);
+        self:Resort();--重新筛选
+	elseif idx==2 then
+		--满足全部
+		--self:CleanAllSelected();
+        self.go_MarchAll:SetActive(false);
+        self.go_MarchOne:SetActive(true);
+        self:Resort();--重新筛选
+	end
+
+
+	self:RefeshItems();
+
+end
+
+
+function AmuletSort:CleanAllSelected()
+
+    --数据层
+    for i=1,#self.ItemDataList do
+		self.ItemDataList[i].IsSelected=false;
+	end
+
+	--无限列表表现层
+	for i=1,#self.BagItemList do
+		self.BagItemList[i]:MakeSelected(false);
+	end
+end
+
+function AmuletSort:OnBagItemRefesh(tr,idx)
+
+
+	for i=1,#self.BagItemList do
+		if self.BagItemList[i].transform == tr then
+            self.BagItemList[i]:RefeshSortItem(self.ItemDataList[idx+1]);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+		end
+
+	end
+
+	--tr.gameObject:SetActive(true);
+    local bi = AmuletSortItem:New(tr.gameObject);
+	bi:SetItem(idx,function (ritem)
+		self:OnItemClick(ritem);
+	end)
+	bi.gameObject:SetActive(true);
+	bi:RefeshSortItem(self.ItemDataList[idx+1]);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+
+    table.insert(self.BagItemList, bi);
+
+end
+
+function AmuletSort:OnItemClick(bitem)
+
+
+    --满足一种
+    if self.EquipMenuIdx == 1 then
+	    self:CleanAllSelected();
+        bitem:MakeSelected(true);
+    else
+        bitem:SwitchSelected();
+    end
+
+
+	self:Resort();--重新筛选
+
+
+end
+
+function AmuletSort:ClearItemData()
+
+	if self.ItemDataList==nil then
+		self.ItemDataList ={}
+	else
+		for k,_ in pairs(self.ItemDataList) do self.ItemDataList[k] = nil end
+		--self.ItemDataList ={}
+	end
+end
+
+
+
+
+function AmuletSort:SortItem(tbl)
+
+	if #tbl > 1 then
+
+		table.sort(tbl, function(a, b)
+			if a.SortProp < b.SortProp then
+				-- 按SortProp升序
+				return true
+			elseif a.SortProp == b.SortProp then
+				-- 如果SortProp相等，按Type升序
+				if a.ItemType < b.ItemType then
+					return true
+				elseif a.ItemType == b.ItemType then
+					-- 如果Type相等，按Id升序
+					return a.BaseID < b.BaseID
+				end
+			end
+			return false
+		end)
+
+	end
+
+end
+
+
+------------------------------无限列表相关
+------------------------------
+
+
+return AmuletSort;

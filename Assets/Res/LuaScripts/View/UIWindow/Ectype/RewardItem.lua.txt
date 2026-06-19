@@ -1,0 +1,58 @@
+-- 奖励
+local RewardItem = {};
+
+RewardItem.__index = RewardItem;
+
+function RewardItem:New(go, itemID, num, firstSuc)
+    local self = {};
+    setmetatable(self, RewardItem);
+
+    self.transform = go.transform;
+    self.gameObject = go;
+	Log("图集图片加载 0000000 self.transform=" .. self.transform.name);
+    -- icon
+    self.icon = self.transform:Find("Icon"):GetComponent(typeof(Image));
+
+    -- 数量
+    self.numTxt = self.transform:Find("Num"):GetComponent(typeof(Text));
+
+    -- 品质
+    self.Rare = self.transform:Find("Rare"):GetComponent(typeof(Image));
+
+    -- 已领取
+    if self.transform:Find("Get")~= nil then
+        self.HasTake = self.transform:Find("Get").gameObject;
+    end
+
+    -- print("sssssssssssssssss"..itemID);
+    local cfg = ConfigDataAccessor.Item[itemID];
+    --LoadIcon(self.icon, cfg.Icon);
+	ResourceHelper:LoadIconAsync(self.icon, "", cfg.Icon, false)
+
+    local quality = cfg.Quality;
+    --self.Rare.sprite = AtlasManager.Instance:GetSprite("ui/common/atlas/commonitem", "Bag_Grid_sq" .. quality);
+    ResourceHelper:LoadIconByAtlasAsync(
+        self.Rare,
+        ResourceHelper.AtlasPathCommonItem,
+        "Bag_Grid_sq" .. quality,
+        false
+    )
+    self.numTxt.gameObject:SetActive(num > 0);
+    self.numTxt.text = tostring(num);
+
+    if  self.HasTake~=nil then
+        self.HasTake:SetActive(false);
+        if firstSuc ~= nil then
+            self.HasTake:SetActive(firstSuc);
+        end
+    end
+
+    local btn = self.transform:GetComponent(typeof(JButton));
+    btn.OnClick = (function()
+        LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", {itemID, false, 0, self.transform, 0});
+    end);
+
+    return self;
+end
+
+return RewardItem

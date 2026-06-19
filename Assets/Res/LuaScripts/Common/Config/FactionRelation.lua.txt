@@ -1,0 +1,117 @@
+
+local KeyMap = {
+	ID = 1,
+	FriendlyFaction = 2,
+	NeutralFaction = 3,
+	OpposingFaction = 4,
+	FactionName = 5,
+
+}
+
+local R = {
+	_1 = "",
+	_2 = {1},
+	_3 = {0,3,7,8,9},
+	_4 = 'FactionRelationFactionName',
+	_5 = {0,8,9},
+	_6 = {1,2},
+}
+
+local FactionRelationList = 
+{
+	[0]=
+	{
+		0,
+		{0,4,8},
+		{},
+		{1,2,5,6,7},
+		R._1,
+	},
+	[1]=
+	{
+		1,
+		{2,4,10},
+		R._2,
+		R._3,
+		R._1,
+	},
+	[2]=
+	{
+		2,
+		{1,2,4},
+		{},
+		R._3,
+		R._1,
+	},
+	[3]=
+	{
+		3,
+		{3,4,0},
+		R._2,
+		{2,7},
+		R._1,
+	},
+	[4]=
+	{
+		4,
+		{0,1,2,3,4},
+		{},
+		{7},
+		R._1,
+	},
+	[5]=
+	{
+		5,
+		{},
+		{},
+		{0,6,7,8},
+		L("FactionRelationFactionName5"),
+	},
+	[6]=
+	{
+		6,
+		{},
+		{},
+		{0,5,7,8},
+		L("FactionRelationFactionName6"),
+	},
+	[7]=
+	{
+		7,
+		{},
+		{},
+		{0,1,2,3,4,5,6,7,8},
+		R._1,
+	},
+	[8]=
+	{
+		8,
+		R._5,
+		{},
+		R._6,
+		R._1,
+	},
+	[9]=
+	{
+		9,
+		R._5,
+		{},
+		R._6,
+		R._1,
+	},
+	[10]=
+	{
+		10,
+		{},
+		{},
+		R._2,
+		R._1,
+	},
+
+}
+
+do
+    MT(KeyMap, FactionRelationList)
+end
+
+return FactionRelationList

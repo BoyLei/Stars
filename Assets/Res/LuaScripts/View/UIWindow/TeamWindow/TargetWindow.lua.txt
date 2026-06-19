@@ -1,0 +1,242 @@
+TargetWindow = class("TargetWindow", UIPanel)
+TargetWindow.IsOpen = false;
+
+local TargetItem = require("View/UIWindow/TeamWindow/TargetItem")
+
+function TargetWindow:Awake()
+
+end
+
+function TargetWindow:BindModule(m)
+    self.module = m;
+end
+
+function TargetWindow:InitControls()
+    self.transform = self.prefab.transform;
+    self.gameObject = self.transform.gameObject;
+
+    self.playTypeItem = self.transform:Find("Cut4Cam90/AssemblyRatio2/PlayTypes/Viewport/Content/Item").gameObject;
+    self.playTypeSubItems = self.transform:Find("Cut4Cam90/AssemblyRatio2/PlayTypes/Viewport/Content/SubItems")
+                                .gameObject;
+
+    self.allPlayTypeBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/PlayTypes/Viewport/Content/AllItem")
+        :GetComponent(typeof(Button));
+    self.allPlayTypeSelect = self.transform:Find("Cut4Cam90/AssemblyRatio2/PlayTypes/Viewport/Content/AllItem/Select")
+                                 .gameObject;
+    -- self.teamPlayTargetItem = self.transform:Find("Cut4Cam90/AssemblyRatio2/AllTargets/Viewport/Content/Item").gameObject;
+    -- self.levelLimitInput = self.transform:Find("Cut4Cam90/AssemblyRatio2/LevelLimit"):GetComponent(typeof(InputField));
+    -- self.powerLimitInput = self.transform:Find("Cut4Cam90/AssemblyRatio2/Power"):GetComponent(typeof(InputField));
+
+    self.levelLimitPicker = self.transform:Find("Cut4Cam90/AssemblyRatio2/LevelLimit/Viewport/Content"):GetComponent(
+        typeof(NumPicker));
+    self.powerLimitPicker = self.transform:Find("Cut4Cam90/AssemblyRatio2/PowerLimit/Viewport/Content"):GetComponent(
+        typeof(NumPicker));
+
+    self.levelLimitPicker:Init(0, 100, 5);
+    self.powerLimitPicker:Init(1, 48, 1, true);
+
+    self.allSelGo = {};
+
+    self.allTypeTeams = {};
+    local teamPlayList = ConfigDataAccessor.TeamPlayList;
+    for k, v in pairs(teamPlayList) do
+        if self.allTypeTeams[v.PlayType] == nil then
+            self.allTypeTeams[v.PlayType] = {}
+        end
+        table.insert(self.allTypeTeams[v.PlayType], v);
+    end
+
+    self.allPlayTypes = {};
+    for k, v in pairs(self.allTypeTeams) do
+        local gob = newObject(self.playTypeItem);
+        gob:SetActive(true);
+        gob.transform:SetParent(self.playTypeItem.transform.parent);
+        gob.transform.localPosition = Vector3.zero;
+        gob.transform.localScale = Vector3.one;
+
+        local txt = gob.transform:Find("Name"):GetComponent(typeof(Text));
+        txt.text =LanguageHelp:GetLanguageByKey("Local_Str_play_name")
+
+        if k == 1 then
+            txt.text = LanguageHelp:GetLanguageByKey("Local_Str_playName2")
+        elseif k == 2 then
+            txt.text =LanguageHelp:GetLanguageByKey("Local_Str_Dailyteam")
+        elseif k == 3 then
+            txt.text =LanguageHelp:GetLanguageByKey("Local_Str_playName1")
+        end
+
+        local foldGo = gob.transform:Find("Fold").gameObject;
+        local unfoldGo = gob.transform:Find("UnFold").gameObject;
+
+        local btn = gob.transform:GetComponent(typeof(Button));
+        btn.onClick:AddListener(function()
+            self.allPlayTypes[gob]:SetActive(not self.allPlayTypes[gob].activeSelf);
+            foldGo:SetActive(not self.allPlayTypes[gob].activeSelf);
+            unfoldGo:SetActive(self.allPlayTypes[gob].activeSelf);
+        end);
+
+        local playTypeSubItems = newObject(self.playTypeSubItems);
+        playTypeSubItems:SetActive(true);
+        playTypeSubItems.transform:SetParent(self.playTypeItem.transform.parent);
+        playTypeSubItems.transform.localPosition = Vector3.zero;
+        playTypeSubItems.transform.localScale = Vector3.one;
+        playTypeSubItems.transform:SetAsLastSibling();
+
+        local playTypeSubItem = playTypeSubItems.transform:Find("Item").gameObject;
+        for k2, v2 in pairs(v) do
+            local gob2 = newObject(playTypeSubItem);
+            gob2:SetActive(true);
+            gob2.transform:SetParent(playTypeSubItem.transform.parent);
+            gob2.transform.localPosition = Vector3.zero;
+            gob2.transform.localScale = Vector3.one;
+            gob2.transform:SetAsLastSibling();
+
+            local txt2 = gob2.transform:Find("Name"):GetComponent(typeof(Text));
+            txt2.text = v2.PlayName;
+
+            local txt3 = gob2.transform:Find("Limit"):GetComponent(typeof(Text));
+            txt3.text = v2.NumberDec .. " " .. v2.TimeDec;
+
+            local btn2 = gob2.transform:GetComponent(typeof(Button));
+            btn2.onClick:AddListener(function()
+                self.curSelPlayID = v2.PlayID;
+                -- local getAllTeamInfoReq = CS.ProtoMsg.GetAllTeamInfoReq();
+                -- getAllTeamInfoReq.Select = CS.ProtoMsg.SelectTeamType.PlayID;
+                -- getAllTeamInfoReq.PlayID = v2.PlayID;
+                -- CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType
+                -- .ServerTypeSpace,
+                -- getAllTeamInfoReq, false);
+
+                for _, g in pairs(self.allSelGo) do
+                    g:SetActive(false);
+                end
+				self.allPlayTypeSelect:SetActive(false);
+                self.allSelGo[btn2]:SetActive(true);
+            end);
+
+            local selGo = gob2.transform:Find("Select").gameObject;
+            self.allSelGo[btn2] = selGo;
+        end
+        self.allPlayTypes[gob] = playTypeSubItems;
+        
+        foldGo:SetActive(not self.allPlayTypes[gob].activeSelf);
+        unfoldGo:SetActive(self.allPlayTypes[gob].activeSelf);
+    end
+
+    self.allPlayTypeBtn.onClick:AddListener(function()
+		self.curSelPlayID = 0;
+		for _, g in pairs(self.allSelGo) do
+			g:SetActive(false);
+		end
+		self.allPlayTypeSelect:SetActive(true);
+    end);
+
+    self.okBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/OkBtn"):GetComponent(typeof(Button));
+    self.okBtn.onClick:AddListener(function()
+        if self.curSelPlayID == nil then
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Tips56"));
+            return;
+        end
+
+        -- if self.levelLimitInput.text == "" then
+        -- 	Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_225"));
+        -- 	return;
+        -- end
+
+        -- if self.powerLimitInput.text == "" then
+        -- 	Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_226"));
+        -- 	return;
+        -- end
+
+        -- if self.selItem == nil then
+        -- return;
+        -- end
+
+        local levelLimit = self.levelLimitPicker:GetCurSel();
+        local powerLimit = self.powerLimitPicker:GetCurSel();
+        --[[local teamSetPlayIDReq = CS.ProtoMsg.TeamSetPlayIDReq();
+			teamSetPlayIDReq.PlayID = self.playId;
+			CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace,
+			teamSetPlayIDReq, false);]] --
+        -- if self.setType == 0 then
+        --     -- local createTeamReq = CS.ProtoMsg.CreateTeamReq();
+        --     -- createTeamReq.TeamType = self.selItem.PlayType;
+        --     -- createTeamReq.PlayID = self.selItem.PlayID;
+        --     -- CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(
+        --     --     CS.SGF.Network.ServerType.ServerTypeSpace, createTeamReq, false);
+        -- else
+        local teamSetPlayIDReq = CS.ProtoMsg.TeamSetPlayIDReq();
+		if self.curSelPlayID == 0 or self.curSelPlayID == nil then
+	        teamSetPlayIDReq.PlayID = 0;
+		else
+			teamSetPlayIDReq.PlayID = self.curSelPlayID;
+		end
+        teamSetPlayIDReq.LvLimit = levelLimit;
+        teamSetPlayIDReq.FightLimit = 0; --删除冒险等级，服务器协议保留强制设为0
+        teamSetPlayIDReq.TeamID = self.module.tinfo.TeamID;
+        CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace,
+            teamSetPlayIDReq, false);
+        -- end
+
+        self:CloseWindow();
+    end);
+end
+
+-- function TargetWindow:ShowTargets(k, v)
+--     if self.typeItems[k] == nil then
+--         self.typeItems[k] = {};
+--     else
+--         for _, obj in pairs(self.typeItems[k]) do
+--             GameObject.Destroy(obj.gameObject);
+--         end
+--     end
+
+--     for _, item in pairs(v) do
+--         local gob = newObject(self.teamPlayTargetItem);
+--         gob:SetActive(true);
+--         gob.transform:SetParent(self.teamPlayTargetItem.transform.parent);
+--         gob.transform.localPosition = Vector3.zero;
+--         gob.transform.localScale = Vector3.one;
+
+--         local it = TargetItem:New(gob, item, function(data)
+--             self.selItem = data;
+--         end);
+--         table.insert(self.typeItems[k], it);
+--     end
+-- end
+
+function TargetWindow:Show(data)
+    -- self.setType = data;
+end
+
+function TargetWindow:Start()
+    print("TargetWindow:Start")
+end
+
+function TargetWindow:OnEnable()
+
+end
+
+function TargetWindow:OnDisable()
+
+end
+
+function TargetWindow:OnDestroy()
+
+end
+
+function TargetWindow:OnOpen(arg)
+    self.IsOpen = true;
+end
+
+function TargetWindow:OnClose(arg)
+    self.module.targetWindow=nil;
+end
+
+function TargetWindow:CloseWindow()
+    self.IsOpen = false;
+    self.module.targetWindow=nil;
+    self.Close();
+end
+
+return TargetWindow

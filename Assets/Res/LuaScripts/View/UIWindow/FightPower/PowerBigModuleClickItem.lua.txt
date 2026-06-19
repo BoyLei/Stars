@@ -1,0 +1,79 @@
+-- 战力大模块 点击的按钮
+local PowerBigModuleClickItem = {}
+PowerBigModuleClickItem.__index = PowerBigModuleClickItem
+
+function PowerBigModuleClickItem:New(obj)
+    local self = {};
+    setmetatable(self, PowerBigModuleClickItem);
+
+    self:Init(obj)
+
+    return self;
+end
+
+function PowerBigModuleClickItem:Init(obj)
+    self.gameObject = obj;
+    self.transform = obj.transform;
+    self.itemCopy = self.transform:Find("ItemCopy");
+
+    self.selectedBg = self.itemCopy:Find("Selected");
+    self.titleText = self.itemCopy:Find("TitleText"):GetComponent(typeof(Text));
+    self.icon = self.itemCopy:Find("Icon"):GetComponent(typeof(Image));
+
+    local jButton = self.itemCopy:GetComponent(typeof(JButton));
+    jButton.OnClick = function()
+        self.clickCB(self);
+    end
+
+    self.moduleData = nil;
+    self.clickCB = nil;
+
+end
+
+function PowerBigModuleClickItem:SetClickCB(clickCB)
+    self.clickCB = clickCB;
+end
+
+function PowerBigModuleClickItem:UpdateData(moduleData)
+
+    local isChangeData = moduleData ~= self.moduleData;
+
+    -- 赋值 模块数据
+    self.moduleData = moduleData;
+
+    if self.moduleData == nil then
+        self:Show(false);
+        return;
+    end
+
+    self:Show(true);
+
+    self:UpdateSelected(false);
+
+    -- 如果没有变化, 那就 不需要刷新UI
+    if not isChangeData then
+        return;
+    end
+
+    self:RefreshUI();
+
+end
+
+function PowerBigModuleClickItem:RefreshUI()
+    self.titleText.text = self.moduleData.PowerModuleDataCellCfg.PartName;
+
+    ResourceHelper:LoadAtlasPathIconAsync(self.icon, self.moduleData.PowerModuleDataCellCfg.PartIcon, false)
+
+end
+
+-- 刷新 刷新是否选中
+function PowerBigModuleClickItem:UpdateSelected(isSelected)
+
+    self.selectedBg.gameObject:SetActive(isSelected);
+end
+
+function PowerBigModuleClickItem:Show(b)
+    self.gameObject:SetActive(b);
+end
+
+return PowerBigModuleClickItem

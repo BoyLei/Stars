@@ -1,0 +1,289 @@
+---------------------------------------------------------------------
+-- Stars (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-08-09 19:52:13
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class FriendTipsWidget
+
+FriendTipsWidget = class("FriendTipsWidget", UIPanel)
+
+FriendTipsWidget.BtnStrs = {};      -- 按钮描述文字列表
+FriendTipsWidget.BtnCBs = {};       -- 按钮回调列表
+FriendTipsWidget.JBtnItemList = {}; -- 按钮item列表 缓存
+
+function FriendTipsWidget:Awake()
+	self:Init();
+end
+
+function FriendTipsWidget:Init()
+	self.transform = self.prefab.transform;
+	self.gameObject = self.transform.gameObject;
+
+	local FrameTransForm = self.transform:Find("Cut4Cam90/AssemblyRatio2").transform;
+	-- 关闭按钮
+	local CloseBtn = FrameTransForm:Find("CloseBtn"):GetComponent(typeof(Button));
+	CloseBtn.onClick:RemoveAllListeners();
+	self.CloseBtnFun = function()
+		self.Close();
+	end
+	CloseBtn.onClick:AddListener(self.CloseBtnFun);
+	-- 玩家信息
+	self.PlayerPanel = FrameTransForm:Find("BtnContent/Up").gameObject;
+	-- 头像边框
+	self.HeadFrame = FrameTransForm:Find("BtnContent/Up/HeadFrame"):GetComponent(typeof(Image));
+	-- 头像
+	self.HeadIcon = FrameTransForm:Find("BtnContent/Up/HeadFrame/HeadIcon"):GetComponent(typeof(Image));
+	-- 玩家等级
+	self.Level = FrameTransForm:Find("BtnContent/Up/Level"):GetComponent(typeof(Text));
+	-- 玩家名称
+	self.PlayerName = FrameTransForm:Find("BtnContent/Up/PlayerName"):GetComponent(typeof(Text));
+	-- 玩家称号
+	self.TitleName = FrameTransForm:Find("BtnContent/Up/TitleName"):GetComponent(typeof(Text));
+	-- 冒险团名
+	self.GuildName = FrameTransForm:Find("BtnContent/Up/GuildNameBg/GuildName"):GetComponent(typeof(Text));
+	-- 按钮节点
+	self.BtnContent = FrameTransForm:Find("BtnContent");
+	-- 按钮item
+	self.JBtnItem = FrameTransForm:Find("JBtnItem").gameObject;
+
+
+	self.rect = FrameTransForm:Find("BtnContent"):GetComponent(typeof(RectTransform));
+
+
+	self.UserInfo = nil;
+	self.BtnStrs = {};
+	self.BtnCBs = {};
+	self.JBtnItemList = {};
+end
+
+function FriendTipsWidget:Start()
+
+end
+
+function FriendTipsWidget:OnEnable()
+
+end
+
+function FriendTipsWidget:OnDisable()
+
+end
+
+function FriendTipsWidget:OnDestroy()
+
+end
+
+function FriendTipsWidget:OnOpen(arg)
+	self.IsOpen = true;
+end
+
+function FriendTipsWidget:OnClose(arg)
+	self:CloseWindow();
+end
+
+----------------------------------------------------- 业务逻辑↓↓↓↓ ------------------------------------------
+
+--- 初始化信息
+---- userInfo 用户信息
+---- btnStrs 按钮文本
+---- btnCBs 按钮回调
+function FriendTipsWidget:InitData2(userInfo, btnStrs, btnCBs, aimTr)
+	self.AimTransform = aimTr;
+	self.UserInfo = userInfo;
+	self.BtnStrs = btnStrs;
+	self.BtnCBs = btnCBs;
+
+	if self.UserInfo ~= nil then
+		-- 头像
+		local jobCfg = ConfigDataAccessor.Job[self.UserInfo.JobID];
+		if jobCfg ~= nil then
+			local avatarDataCell = ConfigDataAccessor.Avatar[jobCfg.AvatarID];
+			if avatarDataCell ~= nil then
+				local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID];
+				if headCfg ~= nil then
+					self:GetSpriteByAtlas(headCfg.HeadAtlasName, headCfg.MinHead, function(sp)
+						self.HeadIcon.sprite = sp
+					end);
+					--self.HeadIcon:SetNativeSize()
+				end
+			end
+		end
+		-- 等级
+		--self.Level.text = self.UserInfo.Level .. "级";
+		self.Level.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {self.UserInfo.Level});
+
+		-- 名称
+		self.PlayerName.text = self.UserInfo.UserName;
+		-- 冒险团名
+		local GuildName = LanguageHelp:GetLanguageByKey("Local_Str_Tips19");
+		if self.UserInfo.GuildName ~= "" then
+			GuildName = self.UserInfo.GuildName;
+		end
+		self.GuildName.text = GuildName;
+		self.PlayerPanel:SetActive(true);
+	else
+		self.PlayerPanel:SetActive(false);
+	end
+	self.TitleName.text = "";
+	self:CreateJBtn();
+
+	DOVirtual.DelayedCall(0.01, function()
+		self:RefeshPos();
+	end)
+end
+
+-- 创建按钮
+function FriendTipsWidget:CreateJBtn()
+	local count = #self.BtnStrs;
+	local listCount = #self.JBtnItemList;
+	local maxLength = math.max(count, listCount);
+	for i = 1, maxLength do
+		local data = nil;
+		local cb = nil;
+		if count >= i then
+			data = self.BtnStrs[i];
+			cb = self.BtnCBs[i];
+		end
+		if listCount >= i then
+			local item = self.JBtnItemList[i];
+			-- 设置内容
+			if data == nil then
+				item.gameObject:SetActive(false);
+			else
+				-- 设置数据
+				local Text = item.gameObject.transform:Find("Text"):GetComponent(typeof(Text));
+				Text.text = data;
+				item.OnClick = function()
+					local data = nil;
+					if self.UserInfo ~= nil then
+						data = self.UserInfo.PID
+					end
+					cb(data);
+					self.Close();
+				end;
+				item.gameObject:SetActive(true);
+			end
+		else
+			-- 创建
+			local gob = newObject(self.JBtnItem);
+			gob.transform:SetParent(self.BtnContent);
+			gob.transform.localPosition = Vector3.zero;
+			gob.transform.localScale = Vector3.one;
+			local Text = gob.transform:Find("Text"):GetComponent(typeof(Text));
+			Text.text = data;
+			local item = gob:GetComponent(typeof(JButton));
+			-- 添加点击事件
+			item.OnClick = function()
+				if cb ~= nil then
+					local data = nil;
+					if self.UserInfo ~= nil then
+						data = self.UserInfo.PID
+					end
+					cb(data);
+				end
+				self.Close();
+			end;
+			table.insert(self.JBtnItemList, item);
+		end
+	end
+end
+
+----------------------------------------------------- 初始化一次性数据 【STAR】 -----------------------------------------
+
+----------------------------------------------------- 初始化一次性数据 【END】 ------------------------------------------
+
+
+----------------------------------------------------- 按钮点击事件 【STAR】 ------------------------------------------
+
+----------------------------------------------------- 按钮点击事件 【END】 ------------------------------------------
+
+--刷新面板位置
+function FriendTipsWidget:RefeshPos()
+	if self.AimTransform == nil then
+		self.rect.anchoredPosition = Vector2(0, 0);
+		return;
+	end
+
+
+	self.IsInRight = true;
+
+	local aim = self.AimTransform;
+
+	--local uiCam =UIManager.Instance.M_Canvas.worldCamera;
+
+	--获取tip宽高
+	local tip_w = self.rect.sizeDelta.x / 2;
+	local tip_h = self.rect.sizeDelta.y / 2;
+
+
+	--获取目标的屏幕坐标
+	--local screenPoint = CS.PositionConvert.UIPointToScreenPoint(uiCam, aim.position);
+	local screenPoint = aim.position; -- 通过结果可以知道Screen Space - Overlay模式中UI的transform.position代表的是屏幕位置，而不是所谓的世界位置。
+
+
+	--获取目标宽高
+	local aim_rect = aim:GetComponent(typeof(RectTransform));
+	local aim_w = aim_rect.sizeDelta.x;
+	local aim_h = aim_rect.sizeDelta.y;
+
+
+	--获取屏幕中点
+	local screenCenter = Vector2(CS.UnityEngine.Screen.width / 2, CS.UnityEngine.Screen.height / 2);
+
+	--计算tip偏移
+	local offset = Vector2(0, 0);
+	if screenPoint.x <= screenCenter.x and screenPoint.y >= screenCenter.y then
+		--左上
+		offset.x = tip_w + aim_w / 2;
+		offset.y = -tip_h + aim_h / 2;
+
+
+		self.IsInRight = false;
+	elseif screenPoint.x <= screenCenter.x and screenPoint.y <= screenCenter.y then
+		--左下
+		offset.x = tip_w + aim_w / 2;
+		offset.y = tip_h - aim_h / 2;
+
+		self.IsInRight = false;
+	elseif screenPoint.x >= screenCenter.x and screenPoint.y >= screenCenter.y then
+		--右上
+		offset.x = -tip_w - aim_w / 2;
+		offset.y = -tip_h + aim_h / 2;
+	elseif screenPoint.x >= screenCenter.x and screenPoint.y <= screenCenter.y then
+		--右下
+		offset.x = -tip_w - aim_w / 2;
+		offset.y = tip_h - aim_h / 2;
+	end
+
+	--local parentRect = self.rect.transform.parent:GetComponent(typeof(RectTransform));
+
+
+	--local ap=CS.PositionConvert.ScreenPointToUILocalPoint(uiCam, parentRect, screenPoint) + offset;
+	local ap = CS.PositionConvert.ScreenPointToLocalPointInRectangle(screenPoint) + offset;
+
+	--不能超出屏幕
+	--[[
+	if not(self.IsNeedCheckItemJump) then
+		if ap.y<-70 then
+			ap.y=-70
+		elseif ap.y>70 then
+			ap.y=70
+		end
+	end
+	]]
+
+	self.rect.anchoredPosition = ap;
+end
+
+-- 关闭界面
+function FriendTipsWidget:CloseWindow()
+	self.IsOpen = false;
+	self.UserInfo = nil;
+	self.BtnStrs = {};
+	self.BtnCBs = {};
+end
+
+return FriendTipsWidget

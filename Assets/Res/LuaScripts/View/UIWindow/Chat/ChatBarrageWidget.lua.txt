@@ -1,0 +1,162 @@
+--[[
+*文件名   :   ChatBarrageWidget
+*内  容   :
+*说  明   : 聊天弹幕挂件
+*创建日期 :   "2022/12/06 10:33:06"
+*创建人   :   "quzhenxin"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+ChatBarrageWidget = class("ChatBarrageWidget", UIPanel)
+
+local ItemChatBarrageSp = require("View/UIWindow/Chat/ItemChatBarrage");
+
+ChatBarrageWidget.MaskContent = nil;
+ChatBarrageWidget.ChatBarrage = nil;
+
+ChatBarrageWidget.RandomHeight = 500;
+ChatBarrageWidget.ItemList = {};
+ChatBarrageWidget.IsShow = true;
+
+ChatBarrageWidget.ChannelState = {};
+ChatBarrageWidget.ADDIndex = 1;
+
+function ChatBarrageWidget:Awake()
+    self:Init();
+end
+
+function ChatBarrageWidget:BindModule(m)
+    self.module = m;
+end
+
+function ChatBarrageWidget:Init()
+    self.MaskContent = self:Find("MaskContent");
+    self.ChatBarrage = self:Find("ChatBarrage");
+    local ChatBarrageRect = self.MaskContent:GetComponent(typeof(RectTransform));
+    self.RandomHeight = (ChatBarrageRect.rect.height - 53) / 2;
+end
+
+function ChatBarrageWidget:Start()
+    print("ChatBarrageWidget:Start");
+end
+
+function ChatBarrageWidget:OnEnable()
+
+end
+
+function ChatBarrageWidget:OnDisable()
+
+end
+
+function ChatBarrageWidget:OnDestroy()
+
+end
+
+function ChatBarrageWidget:OnOpen(arg)
+    self:SetShow(true);
+    self.ADDIndex = 1;
+end
+
+function ChatBarrageWidget:OnClose(arg)
+    self:CloseWindow();
+end
+
+function ChatBarrageWidget:CloseWindow()
+    self:SetShow(false);
+end
+
+function ChatBarrageWidget:SetShow(isShow)
+    self.IsShow = isShow;
+
+    self.MaskContent.gameObject:SetActive(isShow);
+end
+
+-----------------------------------------------------------
+-----------------------------------------------------------
+-----------------------------------------------------------
+
+function ChatBarrageWidget:AddMsgs(CMNoticesList)
+    for i = 0, CMNoticesList.Count - 1 do
+        local data = CMNoticesList[i];
+        self:AddMsgItem(data);
+    end
+end
+
+function ChatBarrageWidget:AddMsgItem(data)
+    -- 策划暂定弹幕只支持 队伍和冒险团
+    -- if data.Channel == 6 or data.Channel == 4 then
+    -- end
+    -- Log("弹幕内容=》" .. data.Data);
+    -- if tonumber(data.Channel) ~= E_ChatChannelType.Channel_System then
+    -- if data.Channel ~= CS.ProtoMsg.ChatChannel.ChannelSystem then
+    local Channel = data.Channel;
+    local isOpen = self:GetChannelState(Channel);
+    if isOpen == true then
+        if not ExtraData.IsMsgType(data, CS.ProtoMsg.ChatExtraInfo.Types.EMsg.TeamGather) then
+            if Channel ~= CS.ProtoMsg.ChatChannel.ChannelPrivate then
+                local item = self:GetItem();
+                local index = (#self.ItemList) + self.ADDIndex;
+                local randomY = CS.UnityEngine.Random.Range(-self.RandomHeight, self.RandomHeight);
+                item:SetItem(data, randomY, index);
+
+                self.ADDIndex = self.ADDIndex + 1;
+                if self.ADDIndex > 100000 then
+                    self.ADDIndex = 1;
+                end
+            end
+        end
+    end
+end
+
+function ChatBarrageWidget:GetItem()
+    local item = self:GetIdleItem();
+    if item == nil then
+        local gob = newObject(self.ChatBarrage);
+        gob.transform:SetParent(self.MaskContent);
+        gob.transform.localPosition = Vector3.zero;
+        gob.transform.localScale = Vector3.one;
+        item = ItemChatBarrageSp:New(gob);
+        table.insert(self.ItemList, item);
+    end
+    return item;
+end
+
+function ChatBarrageWidget:GetIdleItem()
+    local item = nil;
+    local count = #self.ItemList;
+    if count <= 0 then
+        return item;
+    end
+
+    for i = 1, count do
+        local child = self.ItemList[i];
+        if child.isUser == false then
+            item = child;
+            break
+        end
+    end
+    return item;
+end
+
+function ChatBarrageWidget:ClearAllChatItem()
+    for i = 1, #self.ItemList do
+		GameObject.Destroy(self.ItemList[i].GameObject);
+	end
+	self.ItemList = {};
+end
+
+
+----------------------------------------------------------
+
+function ChatBarrageWidget:SetChannelState(channel, isOpen)
+    self.ChannelState[channel] = isOpen;
+end
+
+function ChatBarrageWidget:GetChannelState(channel)
+    local isOpen = false;
+    if self.ChannelState[channel] ~= nil then
+        isOpen = self.ChannelState[channel];
+    end
+    return isOpen;
+end
+
+return ChatBarrageWidget;

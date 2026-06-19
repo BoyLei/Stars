@@ -1,0 +1,660 @@
+local TeamWidget = {}
+TeamWidget.__index = TeamWidget
+
+local TeamItem = require("View/UIWindow/TeamWindow/TeamItem")
+local PlayerInfo = require("View/UIWindow/TeamWindow/PlayerInfo")
+
+function TeamWidget:CloseTeamWidget()
+    self.closeWidgetBtn.gameObject:SetActive(false);
+    self.captainGo:SetActive(false);
+    self.normalGo:SetActive(false);
+    self.captainCaptainGo:SetActive(false);
+    self.captainNormalGo:SetActive(false);
+    self.normalCaptainGo:SetActive(false);
+    self.normalNormalGo:SetActive(false);
+    self.normalSelfGo:SetActive(false);
+    self.noTeamGo:SetActive(false);
+end
+
+function TeamWidget:New(teamGo, closeBtn)
+    local self = {};
+    setmetatable(self, TeamWidget);
+
+    self.transform = teamGo.transform;
+    self.gameObject = teamGo;
+
+    self.teamItem = self.transform:Find("TeamMembers/Viewport/Content/TeamItem").gameObject;
+    self.teamBg = self.transform:Find("TeamMembers/ImageBg");
+    self.captainGo = self.transform:Find("Captain").gameObject;
+    self.normalGo = self.transform:Find("Normal").gameObject;
+
+    self.closeWidgetBtn = closeBtn;
+
+    -- noteam
+    self.noTeamGo = self.transform:Find("NoTeam").gameObject;
+    self.noTeamGo:SetActive(true);
+    self.createTeamBtn = self.transform:Find("NoTeam/CreateTeamBtn"):GetComponent(typeof(Button));
+    self.joinTeamBtn = self.transform:Find("NoTeam/JoinTeamBtn"):GetComponent(typeof(Button));
+    self.createTeamBtn.onClick:AddListener(function()
+        -- 创建队伍
+        local createTeamReq = CS.ProtoMsg.CreateTeamReq();
+        createTeamReq.Desc = LanguageHelp:GetLanguageByKey("Local_Str_Team_tips");
+        CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace,
+            createTeamReq, false);
+    end);
+
+    self.joinTeamBtn.onClick:AddListener(function()
+        -- 加入队伍
+        self:SetTeamInfo(nil);
+        local getAllTeamInfoReq = CS.ProtoMsg.GetAllTeamInfoReq();
+        getAllTeamInfoReq.Select = CS.ProtoMsg.SelectTeamType.Null;
+        CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace,
+            getAllTeamInfoReq, false);
+
+        self:ActiveTeamBg(false);
+    end);
+
+    -- captain
+    self.teamBtn = self.transform:Find("Captain/TeamBtn"):GetComponent(typeof(Button));
+    self.targetBtn = self.transform:Find("Captain/TargetBtn"):GetComponent(typeof(Button));
+    self.applyListBtn = self.transform:Find("Captain/ApplyListBtn"):GetComponent(typeof(Button));
+    self.leaveTeamBtn = self.transform:Find("Captain/LeaveTeamBtn"):GetComponent(typeof(Button));
+    -- self.captainCloseBtn = self.transform:Find("Captain/CloseBtn"):GetComponent(typeof(Button));
+    -- self.captainCloseBtn.onClick:AddListener(function()
+    --     self.captainGo:SetActive(false);
+    -- end);
+
+    -- normal
+    self.teamBtn2 = self.transform:Find("Normal/TeamBtn"):GetComponent(typeof(Button));
+    self.leaveTeamBtn2 = self.transform:Find("Normal/LeaveTeamBtn"):GetComponent(typeof(Button));
+    -- self.normalCloseBtn = self.transform:Find("Normal/CloseBtn"):GetComponent(typeof(Button));
+    -- self.normalCloseBtn.onClick:AddListener(function()
+    --     self.normalGo:SetActive(false);
+    -- end);
+
+    self.teamBtn.onClick:AddListener(function()
+        -- 打开队伍界面
+        LuaModuleDispatcher:SendMessage(ModuleDef.TeamModule, "OnOpenTeamWindow", {self.tinfo});
+        self.captainGo:SetActive(false);
+    end);
+
+    self.targetBtn.onClick:AddListener(function()
+        -- 修改目标
+        LuaModuleDispatcher:SendMessage(ModuleDef.TeamModule, "OnOpenTargetWindow");
+        self.captainGo:SetActive(false);
+    end);
+
+    self.applyListBtn.onClick:AddListener(function()
+        -- 打开申请列表
+        LuaModuleDispatcher:SendMessage(ModuleDef.TeamModule, "OnOpenApplyListWindow", {});
+        self.captainGo:SetActive(false);
+    end);
+
+    self.leaveTeamBtn.onClick:AddListener(function()
+        -- 离开队伍
+        self:LeaveTeam();
+    end);
+
+    self.teamBtn2.onClick:AddListener(function()
+        -- 打开队伍界面
+        LuaModuleDispatcher:SendMessage(ModuleDef.TeamModule, "OnOpenTeamWindow", {self.tinfo});
+        self.normalGo:SetActive(false);
+    end);
+    self.leaveTeamBtn2.onClick:AddListener(function()
+        -- 离开队伍
+        self:LeaveTeam();
+        self.normalGo:SetActive(false);
+    end);
+
+    self.captainCaptainGo = self.transform:Find("CaptainCaptain").gameObject;
+    self.captainNormalGo = self.transform:Find("CaptainNormal").gameObject;
+    self.normalCaptainGo = self.transform:Find("NormalCaptain").gameObject;
+    self.normalNormalGo = self.transform:Find("NormalNormal").gameObject;
+    self.normalSelfGo = self.transform:Find("NormalSelf").gameObject;
+
+    -- self.captainCaptainCloseBtn = self.captainCaptainGo.transform:Find("CloseBtn"):GetComponent(typeof(Button));
+    self.captainCaptainGatherBtn = self.captainCaptainGo.transform:Find("Gather"):GetComponent(typeof(Button));
+    self.captainCaptainLeaveBtn = self.captainCaptainGo.transform:Find("Leave"):GetComponent(typeof(Button));
+    self.captainCaptainUpInfo = self.captainCaptainGo.transform:Find("Up").gameObject;
+
+    -- self.captainCaptainCloseBtn.onClick:AddListener(function()
+    --     self.captainCaptainGo:SetActive(false);
+    -- end);
+    self.captainCaptainGatherBtn.onClick:AddListener(function()
+        self:Gather();
+        self.captainCaptainGo:SetActive(false);
+    end);
+    self.captainCaptainLeaveBtn.onClick:AddListener(function()
+        self:LeaveTeam();
+        self.captainCaptainGo:SetActive(false);
+    end);
+
+    self.captainCaptainUp = PlayerInfo:New(self.captainCaptainUpInfo);
+
+    -- self.captainNormalCloseBtn = self.captainNormalGo.transform:Find("CloseBtn"):GetComponent(typeof(Button));
+    self.captainNormalChangeBtn = self.captainNormalGo.transform:Find("ChangeCaptain"):GetComponent(typeof(Button));
+    self.captainNormalGatherBtn = self.captainNormalGo.transform:Find("Gather"):GetComponent(typeof(Button));
+    self.captainNormalPathFindBtn = self.captainNormalGo.transform:Find("PathFind"):GetComponent(typeof(Button));
+    self.captainNormalKickOutBtn = self.captainNormalGo.transform:Find("KickOut"):GetComponent(typeof(Button));
+    self.captainNormalUpInfo = self.captainNormalGo.transform:Find("Up").gameObject;
+
+    self.captainNormalConferenceBtn = self.captainNormalGo.transform:Find("Conference"):GetComponent(typeof(Button));
+    self.captainNormalConferenceBtn.onClick:AddListener(function()
+        -- todo 冒险团相关
+        self:InviteToGuild();
+    end);
+
+    -- self.captainNormalCloseBtn.onClick:AddListener(function()
+    --     self.captainNormalGo:SetActive(false);
+    -- end);
+    self.captainNormalChangeBtn.onClick:AddListener(function()
+        self:ChangeCaptain();
+        self.captainNormalGo:SetActive(false);
+    end);
+    self.captainNormalGatherBtn.onClick:AddListener(function()
+        self:Gather();
+        self.captainNormalGo:SetActive(false);
+    end);
+    self.captainNormalPathFindBtn.onClick:AddListener(function()
+        self:PathFind();
+        self.captainNormalGo:SetActive(false);
+    end);
+    self.captainNormalKickOutBtn.onClick:AddListener(function()
+        self:KickOut();
+        self.captainNormalGo:SetActive(false);
+    end);
+    self.captainNormalUp = PlayerInfo:New(self.captainNormalUpInfo);
+
+    -- self.normalCaptainCloseBtn = self.normalCaptainGo.transform:Find("CloseBtn"):GetComponent(typeof(Button));
+    self.normalCaptainReqBtn = self.normalCaptainGo.transform:Find("ReqCaptain"):GetComponent(typeof(Button));
+    self.normalCaptainPathFindBtn = self.normalCaptainGo.transform:Find("PathFind"):GetComponent(typeof(Button));
+    self.normalCaptainKickOutBtn = self.normalCaptainGo.transform:Find("KickOut"):GetComponent(typeof(Button));
+    self.normalCaptainUpInfo = self.normalCaptainGo.transform:Find("Up").gameObject;
+
+    self.normalCaptainConferenceBtn = self.normalCaptainGo.transform:Find("Conference"):GetComponent(typeof(Button));
+    self.normalCaptainConferenceBtn.onClick:AddListener(function()
+        -- todo 冒险团相关
+        self:InviteToGuild();
+    end);
+
+    -- self.normalCaptainCloseBtn.onClick:AddListener(function()
+    --     self.normalCaptainGo:SetActive(false);
+    -- end);
+    self.normalCaptainReqBtn.onClick:AddListener(function()
+        self:ReqCaptain();
+        self.normalCaptainGo:SetActive(false);
+    end);
+    self.normalCaptainPathFindBtn.onClick:AddListener(function()
+        self:PathFind();
+        self.normalCaptainGo:SetActive(false);
+    end);
+    self.normalCaptainKickOutBtn.onClick:AddListener(function()
+        self:LeaveTeam();
+        self.normalCaptainGo:SetActive(false);
+    end);
+    self.normalCaptainUp = PlayerInfo:New(self.normalCaptainUpInfo);
+
+    -- self.normalNormalCloseBtn = self.normalNormalGo.transform:Find("CloseBtn"):GetComponent(typeof(Button));
+    self.normalNormalGatherBtn = self.normalNormalGo.transform:Find("Gather"):GetComponent(typeof(Button));
+    self.normalNormalLeaveBtn = self.normalNormalGo.transform:Find("Leave"):GetComponent(typeof(Button));
+    self.normalNormalPathFindBtn = self.normalNormalGo.transform:Find("PathFind"):GetComponent(typeof(Button));
+    self.normalNormalUpInfo = self.normalNormalGo.transform:Find("Up").gameObject;
+
+    self.normalNormalConferenceBtn = self.normalNormalGo.transform:Find("Conference"):GetComponent(typeof(Button));
+    self.normalNormalConferenceBtn.onClick:AddListener(function()
+        -- todo 冒险团相关
+        self:InviteToGuild();
+    end);
+
+    -- self.normalNormalCloseBtn.onClick:AddListener(function()
+    --     self.normalNormalGo:SetActive(false);
+    -- end);
+    self.normalNormalGatherBtn.onClick:AddListener(function()
+        self:Gather();
+        self.normalNormalGo:SetActive(false);
+    end);
+    self.normalNormalLeaveBtn.onClick:AddListener(function()
+        self:LeaveTeam();
+        self.normalNormalGo:SetActive(false);
+    end);
+    self.normalNormalPathFindBtn.onClick:AddListener(function()
+        self:PathFind();
+        self.normalNormalGo:SetActive(false);
+    end);
+    self.normalNormalUp = PlayerInfo:New(self.normalNormalUpInfo);
+
+    -- self.normalSelfCloseBtn = self.normalSelfGo.transform:Find("CloseBtn"):GetComponent(typeof(Button));
+    self.normalSelfGatherBtn = self.normalSelfGo.transform:Find("Gather"):GetComponent(typeof(Button));
+    self.normalSelfLeaveBtn = self.normalSelfGo.transform:Find("Leave"):GetComponent(typeof(Button));
+    self.normalSelfUpInfo = self.normalSelfGo.transform:Find("Up").gameObject;
+
+    -- self.normalSelfCloseBtn.onClick:AddListener(function()
+    --     self.normalSelfGo:SetActive(false);
+    -- end);
+    self.normalSelfGatherBtn.onClick:AddListener(function()
+        self:Gather();
+        self.normalSelfGo:SetActive(false);
+    end);
+    self.normalSelfLeaveBtn.onClick:AddListener(function()
+        self:LeaveTeam();
+        self.normalSelfGo:SetActive(false);
+    end);
+    self.normalSelfUp = PlayerInfo:New(self.normalSelfUpInfo);
+
+    self.teamMembers = {}
+    self.memberInfos = nil;
+
+    return self;
+end
+
+function TeamWidget:ChangeCaptain()
+    if self.tinfo == nil then
+        return;
+    end
+    local changeTeamCaptainReq = CS.ProtoMsg.ChangeTeamCaptainReq();
+    changeTeamCaptainReq.TeamID = self.tinfo.TeamID;
+    changeTeamCaptainReq.OldCapEID = GameManager.Instance.mainPlayerId;
+    changeTeamCaptainReq.NewCapEID = self.curSelMem.Eid;
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace,
+        changeTeamCaptainReq, false);
+end
+
+function TeamWidget:Gather()
+    Util.ShowMessage(LanguageHelp:GetLanguageByKey("Team_GatherTips"));
+    local extrainfos = CS.ProtoMsg.ChatExtraInfos();
+    local chatExtraInfo = CS.ProtoMsg.ChatExtraInfo();
+    chatExtraInfo.EType = CS.ProtoMsg.ChatExtraInfo.Types.EMsg.TeamGather;
+    extrainfos.ChatExtraInfo:Add(chatExtraInfo);
+
+    local sendChatMsgReq = CS.ProtoMsg.SendChatMsgReq();
+    local targetID = GameManager.Instance.mainPlayerId;
+    local playerName = GameManager.Instance:GetEntityNameById(targetID);
+    sendChatMsgReq.ChatMsg = playerName;
+    sendChatMsgReq.Channel = CS.ProtoMsg.ChatChannel.ChannelTeam;
+    sendChatMsgReq.ChatTime = TimeUtils.ServerNowStampMilli;
+    sendChatMsgReq.SendData:Add(ExtraData.ToByteString(extrainfos));
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+        sendChatMsgReq, false);
+end
+
+function TeamWidget:KickOut()
+    UIAPI.ShowMsgBox(15, function(EventName)
+        if EventName == "SURE" then
+            if self.tinfo == nil then
+                return;
+            end
+            local kickOutTeamCapReq = CS.ProtoMsg.KickOutTeamCapReq();
+            kickOutTeamCapReq.TeamID = self.tinfo.TeamID;
+            kickOutTeamCapReq.TarID = self.curSelMem.Eid;
+            -- kickOutTeamCapReq.TarName = self.curSelMem.UserName;
+            CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace,
+                kickOutTeamCapReq, false);
+        end
+    end)
+end
+
+-- 判断是是否拥有某项权力
+function TeamWidget:IsHaveGuildPower(powerID)
+
+    --[[
+	1=审批入会
+	2=踢人
+	3=禁言
+	4=任职
+	5=冒险团改名、修改公告、修改宣言、修改标签
+	8=修改招人等级
+	10=邀请入会
+	]]
+
+    -- 没有冒险团
+    if BusinessManager.Instance:GetGuildID() == 0 then
+        return false;
+    end
+
+    local posLevelID = BusinessManager.Instance:GetGuildPosLevel();
+
+    local powerList = ConfigDataAccessor.GuildTitle[posLevelID].Power;
+
+    for k, v in pairs(powerList) do
+        if v == powerID then
+            return true;
+        end
+    end
+
+    return false;
+
+end
+
+function TeamWidget:CheckCanGuildInvite()
+    local canInvite = self:IsHaveGuildPower(10);
+
+    self.normalNormalConferenceBtn.gameObject:SetActive(canInvite);
+    self.normalCaptainConferenceBtn.gameObject:SetActive(canInvite);
+    self.captainNormalConferenceBtn.gameObject:SetActive(canInvite);
+
+end
+
+-- 邀请加入冒险团
+function TeamWidget:InviteToGuild()
+
+    -- 权限相关
+
+    local msg = CS.ProtoMsg.GuildInviteReq();
+    msg.BeInvitePID = self.curSelMem.PID;
+    SendClient2CenterReq(msg);
+
+end
+
+function TeamWidget:ReqCaptain()
+    if self.tinfo == nil then
+        return;
+    end
+    local requestCaptainReq = CS.ProtoMsg.RequestCaptainReq();
+    requestCaptainReq.RequesterID = GameManager.Instance.mainPlayerId;
+    local playerName = GameManager.Instance:GetEntityNameById(GameManager.Instance.mainPlayerId);
+    requestCaptainReq.RequesterName = playerName;
+    requestCaptainReq.TeamID = self.tinfo.TeamID;
+    for i = 0, self.tinfo.UserInfos.Count - 1 do
+        if self.tinfo.UserInfos[i].IsCaptain then
+            requestCaptainReq.BeRequester = self.tinfo.UserInfos[i].Eid;
+            break
+        end
+    end
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace,
+        requestCaptainReq, false);
+    self.captainGo:SetActive(false);
+end
+
+function TeamWidget:PathFind()
+    local selfdata = self:GetSelfData();
+    if selfdata == nil then
+        return;
+    end
+	--公会领地处理
+	if self.curSelMem.MapID == 100 then 
+		Util.ShowMessage(LanguageHelp:GetLanguageByKey("RetMsg_RoomSpaceClientStr2107"));
+		return
+	end
+	
+    if self.curSelMem.SpaceID == selfdata.SpaceID and self.curSelMem.SrvID == selfdata.SrvID  then
+        TaskHelper.FindToDynamicTarget("TeamModule", self.curSelMem.Eid);
+    else
+        local mapChangeReq = CS.ProtoMsg.MapChangeReq();
+        mapChangeReq.MapID = self.curSelMem.MapID;
+        mapChangeReq.ServerID = self.curSelMem.SrvID;
+        mapChangeReq.Reason = CS.ProtoMsg.ChangeReason.ChangeLine;
+        mapChangeReq.SpaceID = self.curSelMem.SpaceID;
+        mapChangeReq.SpType = CS.ProtoMsg.SpaceType.SpaceScene;
+        CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+            mapChangeReq, false);
+
+        LuaModuleDispatcher:SendMessage(ModuleDef.TeamModule, "StartTeamFollowChangeScene", self.curSelMem.Eid);
+    end
+end
+
+function TeamWidget:CreateTeam()
+    local getAllTeamInfoReq = CS.ProtoMsg.GetAllTeamInfoReq();
+    getAllTeamInfoReq.Select = CS.ProtoMsg.SelectTeamType.Null;
+    -- getAllTeamInfoReq.PlayeID = GameManager.Instance.mainPlayerId;
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace,
+        getAllTeamInfoReq, false);
+    self:ActiveTeamBg(false);
+end
+
+function TeamWidget:ActiveTeamBg(active)
+    if self.teamBg ~= nil then
+        self.teamBg.gameObject:SetActive(active);
+    end
+    if self.noTeamGo ~= nil then
+        self.noTeamGo:SetActive(not active);
+    end
+end
+
+function TeamWidget:LeaveTeam()
+    UIAPI.ShowMsgBox(18, function(EventName)
+        if EventName == "SURE" then
+            if self.tinfo == nil then
+                return;
+            end
+            local signOutTeamReq = CS.ProtoMsg.SignOutTeamReq();
+            signOutTeamReq.Eid = GameManager.Instance.mainPlayerId;
+            signOutTeamReq.TeamID = self.tinfo.TeamID;
+            CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace,
+                signOutTeamReq, false);
+            self.captainGo:SetActive(false);
+        end
+    end)
+end
+
+function TeamWidget:OnClickMem(data)
+    local isself = false;
+    local selfData = self:GetSelfData();
+    if selfData == nil then
+        local getTargetTeamInfoReq = CS.ProtoMsg.GetTargetTeamInfoReq();
+        getTargetTeamInfoReq.TargetID = GameManager.Instance.mainPlayerId;
+        CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace,
+            getTargetTeamInfoReq, false);
+        return;
+    end
+    if selfData.Eid == data.Eid then
+        isself = true;
+    end
+    local selfcap = selfData.IsCaptain;
+    local othercap = data.IsCaptain;
+
+    local btnStrs
+    local btnCBs
+
+    if selfcap and isself then
+        btnStrs = {LanguageHelp:GetLanguageByKey("Local_Str_TeamGather"),
+                   LanguageHelp:GetLanguageByKey("Local_Str_LeaveTeam")};
+        btnCBs = {function()
+            self:Gather()
+        end, function()
+            self:LeaveTeam()
+        end}
+
+    elseif selfcap and not othercap then
+        btnStrs = {LanguageHelp:GetLanguageByKey("Local_Str_TransCaptain"),
+                   LanguageHelp:GetLanguageByKey("Local_Str_TeamGather"),
+                   LanguageHelp:GetLanguageByKey("Local_Str_FindPath"),
+                   LanguageHelp:GetLanguageByKey("Local_Str_KickOut")};
+        btnCBs = {function()
+            self:ChangeCaptain()
+        end, function()
+            self:Gather()
+        end, function()
+            self:PathFind()
+        end, function()
+            self:KickOut()
+        end}
+    elseif not selfcap and othercap then
+        btnStrs = {LanguageHelp:GetLanguageByKey("Local_Str_GetCaptain"),
+                   LanguageHelp:GetLanguageByKey("Local_Str_FindPath"),
+                   LanguageHelp:GetLanguageByKey("Local_Str_LeaveTeam")};
+        btnCBs = {function()
+            self:ReqCaptain()
+        end, function()
+            self:PathFind()
+        end, function()
+            self:LeaveTeam()
+        end}
+    elseif not selfcap and not isself and not othercap then
+        btnStrs = {LanguageHelp:GetLanguageByKey("Local_Str_TeamGather"),
+                   LanguageHelp:GetLanguageByKey("Local_Str_FindPath"),
+                   LanguageHelp:GetLanguageByKey("Local_Str_LeaveTeam")};
+        btnCBs = {function()
+            self:Gather()
+        end, function()
+            self:PathFind()
+        end, function()
+            self:LeaveTeam()
+        end}
+    elseif not selfcap and isself then
+        btnStrs = {LanguageHelp:GetLanguageByKey("Local_Str_TeamGather"),
+                   LanguageHelp:GetLanguageByKey("Local_Str_LeaveTeam")};
+        btnCBs = {function()
+            self:Gather()
+        end, function()
+            self:LeaveTeam()
+        end}
+    end
+    -- if not isself then
+    --     table.insert(btnStrs, LanguageHelp:GetLanguageByKey("Local_Str_Player_Info"))
+    --     table.insert(btnCBs, function()
+    --         self:OnPlayerInfo(data.PID)
+    --     end)
+    -- end
+
+    -- if BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.Friend) and not isself then
+    --     table.insert(btnStrs, LanguageHelp:GetLanguageByKey("Local_Str_add_friends"))
+    --     table.insert(btnCBs, function()
+    --         self:AddFriend(data.PID)
+    --     end)
+    -- end
+    -- if BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.Guild) then
+    --     if BusinessManager.Instance:IsHaveGuildPower(3) then
+    --         table.insert(btnStrs, LanguageHelp:GetLanguageByKey("Local_Str_GuildInvite"))
+    --         table.insert(btnCBs, function()
+    --             self:OnGuildInvite(data.PID)
+    --         end)
+    --     end
+    -- end
+
+    -- LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnOpenFriendTipsWidget",
+    --     {nil, btnStrs, btnCBs, self.captainCaptainGo.transform});
+
+    LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnOtherOpenFriendTipsWidget", {data.PID, btnStrs, btnCBs, self.captainCaptainGo.transform, false});
+
+    self.captainCaptainGo:SetActive(false);
+    self.captainNormalGo:SetActive(false);
+    self.normalCaptainGo:SetActive(false);
+    self.normalNormalGo:SetActive(false);
+    self.normalSelfGo:SetActive(false);
+
+    local memCount = self.tinfo.UserInfos.Count;
+    self.captainCaptainUp:Init(data, memCount);
+    self.captainNormalUp:Init(data, memCount);
+    self.normalCaptainUp:Init(data, memCount);
+    self.normalNormalUp:Init(data, memCount);
+    self.normalSelfUp:Init(data, memCount);
+
+    self.curSelMem = data;
+    LuaModuleDispatcher:SendMessage("TeamModule", "OnSyncSelMem", data.SrvID);
+
+    self.closeWidgetBtn.gameObject:SetActive(true);
+
+	if not isself then 
+    	self:CheckCanGuildInvite();
+	end
+end
+
+function TeamWidget:GetSelfData()
+    if self.tinfo == nil then
+        return nil;
+    end
+    local members = self.tinfo.UserInfos;
+    for i = 0, members.Count - 1 do
+        local mem = members[i];
+        if mem.Eid == GameManager.Instance.mainPlayerId then
+            return mem;
+        end
+    end
+    return nil;
+end
+
+function TeamWidget:ShowIsCaptain(isCaptain)
+    self.captainCaptainGo:SetActive(false);
+    self.captainNormalGo:SetActive(false);
+    self.normalCaptainGo:SetActive(false);
+    self.normalNormalGo:SetActive(false);
+    self.normalSelfGo:SetActive(false);
+
+    self.captainGo:SetActive(isCaptain);
+    self.normalGo:SetActive(not isCaptain);
+    self:ActiveTeamBg(true);
+
+    self.closeWidgetBtn.gameObject:SetActive(true);
+
+end
+
+function TeamWidget:SetTeamInfo(data)
+    self.tinfo = data;
+
+    for _, v in pairs(self.teamMembers) do
+        v:UnBind();
+        GameObject.Destroy(v.gameObject);
+    end
+    self.teamMembers = {}
+
+    if data == nil or data.UserInfos == nil then
+        return;
+    end
+
+    local members = data.UserInfos;
+
+    local mmLists = {};
+
+    for i = 0, members.Count - 1 do
+        local mem = members[i];
+        if mem.IsCaptain then
+            table.insert(mmLists, 1, mem);
+            print("[Team] i: " .. i .. " 是组长, 插入 1号位");
+        else
+            table.insert(mmLists, mem);
+            print("[Team] i: " .. i .. " 组员, 插入 " .. #mmLists);
+
+        end
+
+    end
+
+    for i = 1, #mmLists do
+        local mem = mmLists[i];
+
+        local gob = newObject(self.teamItem);
+        gob:SetActive(true);
+        gob.transform:SetParent(self.teamItem.transform.parent);
+        gob.transform.localPosition = Vector3.zero;
+        gob.transform.localScale = Vector3.one;
+
+        local tItem = TeamItem:New(gob, mem, function(cap)
+            self:OnClickMem(cap);
+        end);
+        table.insert(self.teamMembers, tItem);
+    end
+end
+-- 玩家信息
+function TeamWidget:OnPlayerInfo(PID)
+    if PID == nil then
+        return;
+    end
+    LuaModuleDispatcher:SendMessage(ModuleDef.PlayerPreviewModule, "SendGetOtherPlayerNameplateReq", {PID})
+end
+function TeamWidget:AddFriend(PID)
+    if PID == nil then
+        return;
+    end
+    local FriendModule = ModuleManager.Instance:GetModule(ModuleDef.FriendModule);
+    if FriendModule then
+        local luatable = FriendModule:GetLuaTable()
+        local friendRelation = luatable:GetFriendRelation(PID);
+        if friendRelation == 0 then
+            local pids = {PID};
+            local key = "ItemRecommendFriend_" .. PID;
+            LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnSendApplyToAddFriendReq",
+                {pids, key, self.OnApplyToAddFriendRespFun});
+            elseif friendRelation == 1 then
+                Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_PlayerIsFriend"));
+            elseif friendRelation == 2 then
+                Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_friend_request_fail_5"));
+            end
+    end
+end
+
+function TeamWidget:OnGuildInvite(PID)
+    if PID == nil then
+        return;
+    end
+    LuaModuleDispatcher:SendMessage(ModuleDef.GuildModule, "OnInviteToGuild", {PID})
+end
+return TeamWidget

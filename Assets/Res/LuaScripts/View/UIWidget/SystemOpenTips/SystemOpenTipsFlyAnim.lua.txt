@@ -1,0 +1,34 @@
+local SystemOpenTipsFlyAnim = {}
+SystemOpenTipsFlyAnim.__index = SystemOpenTipsFlyAnim
+
+function SystemOpenTipsFlyAnim:New(obj, parent)
+    local self = {};
+    setmetatable(self, SystemOpenTipsFlyAnim);
+
+    self.gameObject = obj;
+    self.transform = obj.transform;
+
+    self.transform:SetParent(parent);
+
+    self.Tail = self.transform:Find("Tail");
+    self.Bao = self.transform:Find("Bao");
+
+    return self;
+end
+
+function SystemOpenTipsFlyAnim:Play(completeCb)
+
+    self.Tail.gameObject:SetActive(true);
+    self.Bao.gameObject:SetActive(false);
+
+    DelayInvoker.CancelInvoke(self);
+    DelayInvoker.DelayInvoke(self, 0.5, function()
+
+        self.Tail.gameObject:SetActive(false);
+        self.Bao.gameObject:SetActive(true);
+
+        completeCb();
+    end, nil)
+end
+
+return SystemOpenTipsFlyAnim

@@ -1,0 +1,134 @@
+--[[
+*文件名   :   LivingWarehouseWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2024/01/16 15:15:05"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+LivingWarehouseWindow=class("LivingWarehouseWindow",UIPanel)
+
+local WareHouseItem= require("View/UIWindow/LivingSkillsWindow/WareHouseItem")
+
+LivingWarehouseWindow.m_Tabs=nil;
+LivingWarehouseWindow.m_CloseBtn=nil;
+LivingWarehouseWindow.m_ScrollView=nil;
+LivingWarehouseWindow.m_ItemGrid=nil;
+LivingWarehouseWindow.BagItemList={}
+LivingWarehouseWindow.BagSlotList={}
+LivingWarehouseWindow.BagDatas={}
+local CloseBtnFunc=nil;
+local pageCount=48;
+function LivingWarehouseWindow:Awake()
+	self.m_Tabs=self:Find("Cut4Cam90/AssemblyRatio2/Root/left/Tabs"):GetComponent(typeof(StarUITabMenu));
+	self.m_CloseBtn=self:Find("Cut4Cam90/AssemblyRatio2/Root/RightTop/CloseBtn"):GetComponent(typeof(JButton));;
+	self.m_ScrollView=self:Find("Cut4Cam90/AssemblyRatio2/Root/Scroll View"):GetComponent(typeof(SuperScrollViewController));;
+	self.m_ItemGrid=self:Find("Cut4Cam90/AssemblyRatio2/Root/ItemGrid").gameObject;
+	
+	self.BagItemList={}
+	self.BagSlotList={}
+	self.m_ScrollView:NewScroll(self.m_ItemGrid, 0, function (tr,idx)
+			self:OnBagItemRefesh(tr,idx);
+		end);
+	
+	CloseBtnFunc=function() self:OnClickCloseBtn(); end;
+end
+
+function LivingWarehouseWindow:OnBagItemRefesh(tr,idx)
+	for i=1,#self.BagItemList do
+		if self.BagItemList[i].transform == tr then
+			self.BagItemList[i]:UpdateContent(self.BagSlotList[idx+1]);--idx是从0开始，如果BagSlotList是lua的table需要idx+1
+			return
+		end
+	end
+	--tr.gameObject:SetActive(true);
+	local bi = WareHouseItem.new(tr.gameObject,self.AtlasPath);
+	bi:UpdateContent(self.BagSlotList[idx+1])
+	tr.gameObject:SetActive(true);
+	--bi:SetItem(self.BagSlotList[idx+1]);--idx是从0开始，如果BagSlotList是lua的table需要idx+1
+	table.insert(self.BagItemList, bi);
+
+
+
+end
+
+function LivingWarehouseWindow:Start()
+	self.m_CloseBtn.OnClick= CloseBtnFunc;
+end
+
+function LivingWarehouseWindow:OnEnable()
+
+end
+
+function LivingWarehouseWindow:OnDisable()
+
+end
+
+function LivingWarehouseWindow:OnDestroy()
+
+end
+
+function LivingWarehouseWindow:OnTabMenuItemClick(index)
+	if self.CurrentJob==index then
+		return
+	end
+	self.m_Tabs:Check(index);
+	self.CurrentJob=index;
+	self:InitItemList();
+end
+
+function LivingWarehouseWindow:OnOpen(arg)
+	
+	self.m_Tabs:Init(1,function (index)
+			self:OnTabMenuItemClick(index);
+		end)
+	self.CurrentJob=1;
+	self:InitItemList();
+	
+end
+
+function LivingWarehouseWindow:InitItemList()
+	self.BagSlotList={}
+	self.BagDatas={}
+	local subType=self.CurrentJob;
+	local items=BusinessManager.Instance:GetItemsByItemSpaceId(23);
+	for k, v in pairs(items) do
+		local id= v.BaseID
+		local config=ConfigDataAccessor.Item[id]
+		if config~=nil then
+			if config.SubType== subType then
+				table.insert(self.BagDatas,v)
+			end
+		end
+	end
+
+	local empytCnt=pageCount;
+	local cnt=#self.BagDatas;
+	if cnt> 0 then
+		empytCnt=empytCnt+cnt%pageCount;
+	end
+
+	self.BagSlotList={}
+	for k, v in pairs(self.BagDatas) do
+		table.insert(self.BagSlotList,{Data=v});
+	end
+
+	for i = 1, empytCnt do
+		table.insert(self.BagSlotList,{Data=nil});
+	end
+
+	self.m_ScrollView:ContinueScroll(#self.BagSlotList);	
+end
+
+
+function LivingWarehouseWindow:OnClickCloseBtn()
+	self.Close();
+end
+
+function LivingWarehouseWindow:OnClose(arg)
+
+end
+
+
+
+return  LivingWarehouseWindow

@@ -1,0 +1,201 @@
+--[[
+*文件名   :   BagModule
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/10/27 14:35:39"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+BagModule = class("BagModule",BaseLuaModule)
+
+local BagWindowPath = "Bag/BagWindow"
+
+
+--LuaModule 消息模块
+BagModule.ModuleMessages=
+{
+	--打开背包
+	--ModuleManager.Instance.SendMessage(ModuleDef.BagModule, "OnOpenBag", new object[] { 1 }); //只要传一个对话ID
+	["OnOpenBag"]=function(...)
+		BagModule:OnOpenBag(...);
+	end,
+
+
+	--刷新背包
+	--ModuleManager.Instance.SendMessage(ModuleDef.BagModule, "OnRefeshBag", new object[] {  }); 
+	["OnRefeshBag"]=function(...)
+		BagModule:OnRefeshBag(...);
+	end,
+
+	--点击到固定Tag页面
+	--ModuleManager.Instance.SendMessage(ModuleDef.BagModule, "OnOpenBagTag", new object[] { 2,1 }); 
+	["OnOpenBagTag"]=function(...)
+		BagModule:OnOpenBagTagMsg(...);
+	end,
+
+}
+
+
+function BagModule:OnOpenBagTagMsg(...)
+
+
+	local tb=...;
+
+	local tag=1;
+	local subTag=0;
+	--列表
+	if type(tb)=="table" then
+		--Lua调用
+		tag=tb[1];
+		subTag=tb[2];
+	else
+		--C#调用
+		tag=tb[0];
+		subTag=tb[1];
+	end
+
+	if self.bagWindowView~=nil and self.bagWindowView.IsOpen then
+		self.bagWindowView.EquipMenuIdx=subTag;
+		self.bagWindowView:OnMenuBtnClick(tag,true);
+	end
+
+end
+
+--监听刷新背包事件
+function BagModule:OnRefeshBag(...)
+
+	if self.bagWindowView~=nil and self.bagWindowView.IsOpen then
+		local items=self:GetItemsByItemSpaceId()
+		self.bagWindowView:RefeshBag(items);
+	end
+	
+end
+
+--监听打开背包事件
+function BagModule:OnOpenBag(...)
+
+	
+	local tb=...
+	
+	--local bagWindowCs =UIManager.Instance:OpenWindow("Bag/BagWindow",nil,CS.StarProjectDef.MainPageCommond.HideBoth,false,true);
+	local bagWindowCs =UIManager.Instance:OpenWindow(BagWindowPath,nil,CS.StarProjectDef.MainPageCommond.HideBoth,false,false);
+	if self.bagWindowView == nil then
+		self.bagWindowView=bagWindowCs:GetLuaPanel().ScriptTable;
+		self.bagWindowView:BindModule(self);
+		self.bagWindowView:InitItems();
+		self.evtOnCloseBox = LuaModuleDispatcher:Event(ModuleDef.BagModule, "OnCloseBoxEvt")
+	end
+	
+
+	--背包ID 0为全部
+	self.SpaceID=0;
+
+	--刷新背包
+	self:OnRefeshBag();
+
+	--self.bagWindowView.currencyBar:OnListener();
+
+
+	--[[
+	for i=1,10 do
+
+		local it={};
+		it.Itemid=300002;
+		it.ItemNum=10+i;
+		LuaModuleDispatcher:SendMessage(ModuleDef.DropInfoListModule, "OnAddDrop",{it});
+
+	end
+
+	]]
+
+
+end
+
+function BagModule:OpenEquip()
+	LuaModuleDispatcher:SendMessage(ModuleDef.EquipModule, "OnOpenEquip", {0});
+end
+
+function BagModule:CloseEquip()
+	
+	LuaModuleDispatcher:SendMessage(ModuleDef.EquipModule, "OnCloseEquip", { });
+end
+
+function BagModule:GetItemsByItemSpaceId()
+	return BusinessManager.Instance:GetItemsByItemSpaceId(self.SpaceID);
+end
+
+
+--关闭背包回调
+function BagModule:OnCloseBoxEvt(arg)
+	self.evtOnCloseBox:Invoke()
+	--self.bagWindowView=nil;
+end
+
+
+--关闭背包
+function BagModule:OnCloseBox()
+
+	--self.bagWindowView.currencyBar:OffListener();
+
+	self:OnCloseBoxEvt();
+
+	--所有的New置空
+	--BusinessManager.Instance:UnNewAllItems();
+
+end
+
+
+--LuaModule 创建
+function BagModule:OnModuleCreate(arg)
+	LuaModuleDispatcher:Register(ModuleDef.BagModule,self)
+	--self.itemManagerModule=GameManager.Instance:GetItemModule();
+end
+
+
+function BagModule:OnItemSpaceListRefesh(data)
+
+	print("OnItemSpaceListRefesh");	
+
+end
+
+function BagModule:OpenItemTips(baseID,entityID,num,tipsType)
+	--print("BagModule:OpenItemTips:"..baseID);
+	
+
+	LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",{ baseID,true ,entityID,self.bagWindowView.tips_anchor,0,nil,nil,nil,tipsType,ModuleDef.BagModule,{}});
+
+	LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnSetUseNum",{ num});
+
+end
+
+function BagModule:CloseItemTips()
+	print("BagModule:CloseItemTips");
+	LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips",{  });
+end
+
+
+--LuaModule 消息处理
+function BagModule:OnModuleMessage(msg,...)
+	self.ModuleMessages[msg](...);
+end
+
+
+--LuaModule显示
+function BagModule:OnModuleShow(arg)
+
+	self:OnOpenBag(arg);
+	
+end
+
+function BagModule:OnModuleHide(arg)
+
+end
+
+--LuaModule 释放
+function BagModule:OnModuleRelease()
+	LuaModuleDispatcher:UnRegister(ModuleDef.BagModule)
+end
+
+
+return  BagModule
+

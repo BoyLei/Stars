@@ -1,0 +1,31 @@
+local EmojiItem = {}
+EmojiItem.__index = EmojiItem
+
+function EmojiItem:New(obj, win)
+    local self = {};
+    setmetatable(self, EmojiItem);
+    
+    self:InitControls(obj, win)
+
+    return self;
+end
+
+function EmojiItem:InitControls(obj, win)
+    self.gameObject = obj;
+    self.transform = obj.transform;
+
+    self.emojiBtn = self.gameObject:GetComponent(typeof(Button));
+    self.img = self.gameObject:GetComponent(typeof(Image));
+
+    self.emojiBtn.onClick:AddListener(function()
+        win:AddEmoji(self.emojiID);
+    end);
+end
+
+function EmojiItem:SetItem(id, sp)
+    self.emojiID = id;
+
+    self.img.sprite = sp;
+end
+
+return EmojiItem

@@ -1,0 +1,80 @@
+--[[
+*文件名   :   GuildEventLogItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local GuildEventLogItem = {}
+
+GuildEventLogItem.__index = GuildEventLogItem
+
+function GuildEventLogItem:New(_go,onApplyClick,onCancelClick) 
+    local self = {};    
+    setmetatable(self, GuildEventLogItem); 
+    
+
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+
+
+    self.Time=self.transform:Find("time"):GetComponent(typeof(Text));
+    self.Desc=self.transform:Find("desc"):GetComponent(typeof(Text));
+
+
+
+    return self;    --返回自身
+end
+
+
+
+function GuildEventLogItem:SetItem(info)
+
+
+    self.Info=info;
+
+
+
+    self.Time.text=GetTimeStamp(info.EventTime);
+    
+    --print(info.EventID)
+    local cfg=ConfigDataAccessor.GuildEvent[info.EventID];
+    local tempStr="";
+
+    if cfg~=nil then
+        tempStr=""..cfg.EventDec;
+        tempStr=string.gsub(tempStr, "{0}", "");
+    end
+
+    local str=string.split(info.EventStr,",");
+
+    --职位变更特判
+    for i=1,#str do
+        if (info.EventID==6 and i== 3) then
+
+			local gt=string.gsub(str[i], "GuildTitleComments", "");
+            local cfg2=ConfigDataAccessor.GuildTitle[tonumber(gt)];
+            if cfg2~=nil then
+                tempStr=string.gsub(tempStr, "{"..(i).."}",cfg2.Comments);
+                --tempStr=string.gsub(tempStr, "{"..(i+1).."}",str[i]);
+            end
+        else
+            tempStr=string.gsub(tempStr, "{"..(i).."}", str[i]);
+        end
+    end
+
+
+
+
+    self.Desc.text=tempStr;
+
+
+
+
+end
+
+
+return GuildEventLogItem;

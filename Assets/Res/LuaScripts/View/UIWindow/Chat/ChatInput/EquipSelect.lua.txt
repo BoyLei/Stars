@@ -1,0 +1,106 @@
+-- 装备选择界面
+local EquipSelect = {}
+EquipSelect.__index = EquipSelect
+
+local EquipItem = require("View/UIWindow/Chat/ChatInput/EquipItem")
+
+function EquipSelect:New(obj, win)
+    local self = {};
+    setmetatable(self, EquipSelect);
+
+    self.window = win;
+    self:InitControls(obj)
+
+    self.items = {}
+
+    return self;
+end
+
+function EquipSelect:HideAll()
+    self.equipSel:SetActive(false);
+    self.amuletSel:SetActive(false);
+    self.gemSel:SetActive(false);
+end
+
+function EquipSelect:InitControls(obj)
+    self.gameObject = obj;
+    self.transform = obj.transform;
+
+    self.equipItemGo = self.transform:Find("ScrollView/Viewport/Content/Item").gameObject;
+    self.equipBtn = self.transform:Find("Equip"):GetComponent(typeof(Button));
+    self.equipSel = self.transform:Find("Equip/Sel").gameObject;
+    self.amuletBtn = self.transform:Find("Amulet"):GetComponent(typeof(Button));
+    self.amuletSel = self.transform:Find("Amulet/Sel").gameObject;
+    self.gemBtn = self.transform:Find("Gem"):GetComponent(typeof(Button));
+    self.gemSel = self.transform:Find("Gem/Sel").gameObject;
+
+    self:HideAll();
+    self.equipSel:SetActive(true);
+
+    self.equipBtn.onClick:AddListener(function()
+        self:HideAll();
+        self.equipSel:SetActive(true);
+        self:Refresh(1);
+    end);
+
+    self.amuletBtn.onClick:AddListener(function()
+        self:HideAll();
+        self.amuletSel:SetActive(true);
+        self:Refresh(2);
+    end);
+
+    self.gemBtn.onClick:AddListener(function()
+        self:HideAll();
+        self.gemSel:SetActive(true);
+        self:Refresh(3);
+    end);
+
+    self.curSel = 1;
+end
+
+function EquipSelect:AddItem(data)
+    local go = newObject(self.equipItemGo);
+    go.transform:SetParent(self.equipItemGo.transform.parent);
+    go.transform.localPosition = Vector3.zero;
+    go.transform.localScale = Vector3.one;
+    go:SetActive(true);
+
+    local equipItem = EquipItem:New(go, self.window);
+    equipItem:SetItem(data);
+
+    table.insert(self.items, equipItem);
+end
+
+function EquipSelect:Refresh(type)
+    for _, v in pairs(self.items) do
+        GameObject.Destroy(v.gameObject);
+    end
+    self.items = {};
+
+    local itemDataList = nil;
+    if type == 1 then
+        itemDataList = BusinessManager.Instance:GetItemsByItemType(2, 0);
+    elseif type == 2 then
+        itemDataList = BusinessManager.Instance:GetItemsByItemType(5, 0);
+    elseif type == 3 then
+        itemDataList = BusinessManager.Instance:GetItemsByItemType(6, 0);
+    end
+
+    if itemDataList ~= nil then
+        for i = 0, itemDataList.Count - 1 do
+            local data = itemDataList[i];
+            self:AddItem(data);
+        end
+    end
+
+    self.curSel = type;
+end
+
+function EquipSelect:Show(show)
+    self.gameObject:SetActive(show);
+    if show then
+        self:Refresh(self.curSel);
+    end
+end
+
+return EquipSelect

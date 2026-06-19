@@ -1,0 +1,636 @@
+--[[
+*文件名   :   BattleTeamWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/12/5 16:30:00"
+*创建人   :   "gopal"
+*版权所有 :   游卡网络科技技术有限公司
+]] MedicineWindow = class("MedicineWindow", UIPanel)
+MedicineWindow.IsOpen = false
+local OnAttributeHandlers = {} -- 属性同步字典
+
+local MedicineShow = require("View/UIWindow/MedicineWindow/MedicineShow")
+
+function MedicineWindow:Awake()
+    self.onCloseDestroy(false)
+end
+
+function MedicineWindow:BindModule(m)
+    self.module = m
+end
+
+function MedicineWindow:Init(e)
+    self.transform = self.prefab.transform
+    self.gameObject = self.transform.gameObject
+
+    self.closeBtn = self.transform:Find("Close"):GetComponent(typeof(Button))
+    self.closeBtn.onClick:AddListener(
+        function()
+            if self.medicineShow.gameObject.activeSelf then
+                self.medicineShow:Show(0, false)
+                self:Refresh()
+            else
+                UIManager.Instance:CloseWindow("Medicine/Prefab/Medicine")
+            end
+        end
+    )
+    self.closeShowBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Close"):GetComponent(typeof(Button))
+    self.closeShowBtn.onClick:AddListener(
+        function()
+            if self.medicineShow.gameObject.activeSelf then
+                self.medicineShow:Show(0, false)
+                self:Refresh()
+            end
+        end
+    )
+
+    -- 非战斗状态
+    local unbattle = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Unbattle")
+    self.closeObj = unbattle:Find("Button/Close").gameObject
+    self.autoCloseBtn = unbattle:Find("Button/Close/Button"):GetComponent(typeof(Button))
+    self.openObj = unbattle:Find("Button/Open").gameObject
+    self.autoOpenBtn = unbattle:Find("Button/Open/Button"):GetComponent(typeof(Button))
+    self.curHPSeletImg = unbattle:Find("Life"):GetComponent(typeof(Image))
+    self.curHPSeletImg.enabled = false
+    self.hpSelectObj = unbattle:Find("Life/Selected").gameObject
+    self.hpSelectObj:SetActive(false)
+
+    self.curHPText = unbattle:Find("Life/Text"):GetComponent(typeof(Text))
+    self.curHPSR = unbattle:Find("Life/Slider"):GetComponent(typeof(Slider))
+    self.addHPBtn = unbattle:Find("Life/Button"):GetComponent(typeof(Button))
+    self.curMPSeletImg = unbattle:Find("Magic"):GetComponent(typeof(Image))
+    self.curMPSeletImg.enabled = false
+    self.mpSelectObj = unbattle:Find("Magic/Selected").gameObject
+    self.mpSelectObj:SetActive(false)
+
+    self.curMPText = unbattle:Find("Magic/Text"):GetComponent(typeof(Text))
+    self.curMPSR = unbattle:Find("Magic/Slider"):GetComponent(typeof(Slider))
+    self.addMPBtn = unbattle:Find("Magic/Button"):GetComponent(typeof(Button))
+
+    self.autoCloseBtn.onClick:AddListener(
+        function()
+            local message = CS.ProtoMsg.UserSettingReq()
+            message.SetTy = CS.ProtoMsg.UserSettingReq.Types.SetType.Open
+            message.SetID = CS.ProtoMsg.UserSettingEnum.SettingReplyInNormal
+            CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message, false)
+
+            self.closeObj:SetActive(false)
+            self.openObj:SetActive(true)
+            self:RefreshRedPoint()
+        end
+    )
+    self.autoOpenBtn.onClick:AddListener(
+        function()
+            local message = CS.ProtoMsg.UserSettingReq()
+            message.SetTy = CS.ProtoMsg.UserSettingReq.Types.SetType.Close
+            message.SetID = CS.ProtoMsg.UserSettingEnum.SettingReplyInNormal
+            CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message, false)
+
+            self.closeObj:SetActive(true)
+            self.openObj:SetActive(false)
+            self:RefreshRedPoint()
+        end
+    )
+    self.addHPBtn.onClick:AddListener(
+        function()
+            local items = BusinessManager.Instance:GetDescendItemsByItemType(3, 4)
+            self.medicineShow:Show(4, true)
+            self.medicineShow:Refesh(items, 4)
+
+            -- self.curHPSeletImg.enabled = true;
+            -- self.curMPSeletImg.enabled = false;
+
+            -- self.hpSelectObj:SetActive(true);
+            -- self.mpSelectObj:SetActive(false);
+        end
+    )
+    self.addMPBtn.onClick:AddListener(
+        function()
+            local items = BusinessManager.Instance:GetDescendItemsByItemType(3, 5)
+            self.medicineShow:Show(5, true)
+            self.medicineShow:Refesh(items, 5)
+
+            -- self.curHPSeletImg.enabled = false;
+            -- self.curMPSeletImg.enabled = true;
+
+            -- self.hpSelectObj:SetActive(false);
+            -- self.mpSelectObj:SetActive(true);
+        end
+    )
+
+    -- 战斗状态
+    local inbattle = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Inbattle")
+    self.closeObj2 = inbattle:Find("Button/Close").gameObject
+    self.autoCloseBtn2 = inbattle:Find("Button/Close/Button"):GetComponent(typeof(Button))
+    self.openObj2 = inbattle:Find("Button/Open").gameObject
+    self.autoOpenBtn2 = inbattle:Find("Button/Open/Button"):GetComponent(typeof(Button))
+    self.reducePercentBtn = inbattle:Find("ReduceBtn"):GetComponent(typeof(Button))
+    self.addPercentBtn = inbattle:Find("AddBtn"):GetComponent(typeof(Button))
+    self.percentSlider = inbattle:Find("Slider"):GetComponent(typeof(Slider))
+    self.percentText = inbattle:Find("PercentText"):GetComponent(typeof(Text))
+
+    self.addPercentBtn.onClick:AddListener(
+        function()
+            self.replyHpPre = self.replyHpPre + 5
+            if self.replyHpPre > 100 then
+                self.replyHpPre = 100
+            end
+            self.forbidValue = self.replyHpPre
+            self:SetReplyHpPre()
+        end
+    )
+
+    self.reducePercentBtn.onClick:AddListener(
+        function()
+            self.replyHpPre = self.replyHpPre - 5
+            if self.replyHpPre < 1 then
+                self.replyHpPre = 1
+            end
+            self.forbidValue = self.replyHpPre
+            self:SetReplyHpPre()
+        end
+    )
+
+    self.medicineItems = {}
+
+    local list = List_GameObject()
+    for i = 1, 5 do
+        local item = inbattle:Find("Medicine/Item" .. i)
+        local medicineItem = {}
+        medicineItem.rare = item:Find("Rare"):GetComponent(typeof(Image)) -- 品质
+        medicineItem.icon = item:Find("Icon"):GetComponent(typeof(Image)) -- 图标
+        medicineItem.jb_icon = item:Find("Icon"):GetComponent(typeof(JButton))
+        medicineItem.changeObj = item:Find("Change").gameObject
+
+        list:Add(medicineItem.icon.gameObject)
+
+        local DragPos = function()
+            local curPos = CommonFunction.ScreenPointToCanvas2()
+            local delta = curPos - medicineItem.startPos
+            medicineItem.icon.transform.localPosition = delta
+        end
+        medicineItem.jb_icon.OnLongPressDown = function()
+            medicineItem.startPos = CommonFunction.ScreenPointToCanvas2()
+            medicineItem.localStartPos = medicineItem.icon.transform.localPosition
+            -- 开始拖拽
+            MonoHelper.AddUpdateListener(DragPos)
+            -- local canvas = medicineItem.icon.gameObject:AddComponent(typeof(Canvas))
+            -- canvas.overrideSorting = true
+            -- canvas.sortingOrder = 10000
+            -- medicineItem.canvas = canvas
+
+            -- 设置可拖拽的item
+            for _, v in pairs(self.medicineItems) do
+                v.changeObj:SetActive(medicineItem ~= v and v.icon.gameObject.activeSelf)
+            end
+        end
+        medicineItem.jb_icon.OnLongPressUp = function()
+            -- 结束拖拽
+            MonoHelper.RemoveUpdateListener(DragPos)
+       --     GameObject.DestroyImmediate(medicineItem.canvas)
+
+            for _, v in pairs(self.medicineItems) do
+                v.changeObj:SetActive(false)
+            end
+
+            medicineItem.icon.transform.localPosition = medicineItem.localStartPos
+            local index = CommonFunction.PointerOverGameObject(list) + 1
+            if index ~= i and index > 0 and index <= #self.drugIDs then
+                local tmp = self.drugIDs[index]
+                self.drugIDs[index] = self.drugIDs[i]
+                self.drugIDs[i] = tmp
+
+                local updateStorageDrugs = CS.ProtoMsg.UpdateStorageDrugsReq()
+                updateStorageDrugs.Info = CS.ProtoMsg.StorageDrugsMd()
+                updateStorageDrugs.Info.Eitemid:Clear()
+                for _, v in pairs(self.drugIDs) do
+                    updateStorageDrugs.Info.Eitemid:Add(v)
+                end
+
+                CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, updateStorageDrugs, false)
+            end
+
+            self:RefreshRedPoint()
+        end
+        medicineItem.jb_icon.OnClick = function()
+            local items = BusinessManager.Instance:GetDescendItemsByItemType(3, 3)
+            self.medicineShow:Show(3, true)
+            self.medicineShow:Refesh(items, 3, self.storageDrugs)
+
+            -- self.curHPSeletImg.enabled = false;
+            -- self.curMPSeletImg.enabled = false;
+
+            -- self.hpSelectObj:SetActive(false);
+            -- self.mpSelectObj:SetActive(false);
+        end
+
+        medicineItem.num = item:Find("NumText"):GetComponent(typeof(Text)) -- 数量
+        medicineItem.sel = item:Find("Change"):GetComponent(typeof(Button)) -- 替换
+        medicineItem.add = item:Find("AddBtn"):GetComponent(typeof(Button)) -- 添加
+        medicineItem.add.onClick:AddListener(
+            function()
+                local items = BusinessManager.Instance:GetDescendItemsByItemType(3, 3)
+                self.medicineShow:Show(3, true)
+                self.medicineShow:Refesh(items, 3, self.storageDrugs)
+
+                -- self.curHPSeletImg.enabled = false;
+                -- self.curMPSeletImg.enabled = false;
+
+                -- self.hpSelectObj:SetActive(false);
+                -- self.mpSelectObj:SetActive(false);
+            end
+        )
+        self.medicineItems[i] = medicineItem
+    end
+    self.oneKeyAddBtn = inbattle:Find("Medicine/Button"):GetComponent(typeof(Button))
+    self.oneKeyAddBtn.onClick:AddListener(
+        function()
+            local items = BusinessManager.Instance:GetDescendItemsByItemType(3, 3)
+
+            local ids = self.storageDrugs.Eitemid
+
+            local drugs = {}
+            for i = 0, ids.Count - 1 do
+                table.insert(drugs, ids[i])
+            end
+
+            for i = 0, items.Count - 1 do
+                local eid = items[i].EntityID
+
+                local exist = false
+                for j = 0, ids.Count - 1 do
+                    local id = ids[j]
+                    if id == items[i].EntityID then
+                        exist = true
+                        break
+                    end
+                end
+
+                if not exist then
+                    table.insert(drugs, items[i].EntityID)
+                end
+            end
+
+            local updateStorageDrugs = CS.ProtoMsg.UpdateStorageDrugsReq()
+            updateStorageDrugs.Info = CS.ProtoMsg.StorageDrugsMd()
+
+            updateStorageDrugs.Info.Eitemid:Clear()
+
+            table.sort(
+                drugs,
+                function(a, b)
+                    local t1 = BusinessManager.Instance:GetItemByItemEntityId(a)
+                    local t2 = BusinessManager.Instance:GetItemByItemEntityId(b)
+                    return t1.BaseID > t2.BaseID
+                end
+            )
+            for _, v in pairs(drugs) do
+                updateStorageDrugs.Info.Eitemid:Add(v)
+            end
+
+            CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, updateStorageDrugs, false)
+        end
+    )
+
+    self.autoCloseBtn2.onClick:AddListener(
+        function()
+            local message = CS.ProtoMsg.UserSettingReq()
+            message.SetTy = CS.ProtoMsg.UserSettingReq.Types.SetType.Open
+            message.SetID = CS.ProtoMsg.UserSettingEnum.SettingReplyInBattle
+            CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message, false)
+
+            self.closeObj2:SetActive(false)
+            self.openObj2:SetActive(true)
+        end
+    )
+    self.autoOpenBtn2.onClick:AddListener(
+        function()
+            local message = CS.ProtoMsg.UserSettingReq()
+            message.SetTy = CS.ProtoMsg.UserSettingReq.Types.SetType.Close
+            message.SetID = CS.ProtoMsg.UserSettingEnum.SettingReplyInBattle
+            CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message, false)
+
+            self.closeObj2:SetActive(true)
+            self.openObj2:SetActive(false)
+        end
+    )
+
+    self.percentSlider.onValueChanged:AddListener(
+        function()
+            local tmp = math.floor(self.percentSlider.value)
+            if self.forbidValue ~= nil and self.forbidValue == tmp then
+                self.forbidValue = nil
+                return
+            end
+
+            if self.replyHpPre ~= tmp then
+                self.replyHpPre = tmp
+                self:SetReplyHpPre()
+            end
+        end
+    )
+
+    -- 属性回调
+    self.M_EntityBase = e
+    self.attrLuaKey = "MedicineWindow_" .. GameManager.Instance.mainPlayerId
+    self:InitAttribute()
+    -- 药品展示
+    local root2 = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root2")
+    self.medicineShow = MedicineShow:New(root2.gameObject, self)
+    self.medicineShow:Show(0, false)
+
+    self:Refresh()
+    self:RefreshSundry()
+end
+
+function MedicineWindow:InitEntityBase(e)
+    -- 属性回调
+
+    self.M_EntityBase = e
+
+    --self:DelAttribute();
+
+    self.attrLuaKey = "MedicineWindow_" .. GameManager.Instance.mainPlayerId
+    self:InitAttribute()
+
+    self:Refresh()
+    self:RefreshSundry()
+end
+
+--打开二级药品界面
+function MedicineWindow:OpenMedicineSecondWindow(itemBaseID)
+    local cfg = ConfigDataAccessor.Item[itemBaseID]
+
+    if cfg ~= nil then
+        local items = BusinessManager.Instance:GetDescendItemsByItemType(3, cfg.SubType)
+        self.medicineShow:Show(cfg.SubType, true)
+
+        if cfg.SubType == 3 then
+            self.medicineShow:Refesh(items, cfg.SubType, self.storageDrugs)
+        else
+            self.medicineShow:Refesh(items, cfg.SubType)
+        end
+    end
+end
+
+function MedicineWindow:RefreshRedPoint()
+    if self.storageHP == nil or self.storageMP == nil then
+        return
+    end
+
+    local isNoShowToDay = false --今日不在显示
+    if LocalCacheManager.Instance:GetDayValue("Medicine2and3") ~= nil then
+        isNoShowToDay = LocalCacheManager.Instance:GetDayValue("Medicine2and3")
+    end
+    RedPointManager.Instance:TriggerConditionTypeBoolValue(RedPointConditionType.Medicine2, self.storageHP <= 0 and self.openObj.activeSelf and not (isNoShowToDay))
+    RedPointManager.Instance:TriggerConditionTypeBoolValue(RedPointConditionType.Medicine3, self.storageMP <= 0 and self.openObj.activeSelf and not (isNoShowToDay))
+
+    local items = BusinessManager.Instance:GetItemsByItemType(3, 3)
+    RedPointManager.Instance:TriggerConditionTypeBoolValue(RedPointConditionType.Medicine1, (self.drugIDs == nil or #self.drugIDs == 0) and items.Count > 0)
+end
+
+function MedicineWindow:InitAttribute()
+    self.M_EntityBase.Data:AddAttributeChangeLuaAction(
+        CS.StarProjectDef.AOIAttrDefine.StorageHP,
+        self.attrLuaKey,
+        function(key, value)
+            if self.storageHP < value then
+                if self.gameObject.activeSelf then
+                    --Util.ShowMessage("添加药品成功，储存生命增加" .. value - self.storageHP)
+                    Util.ShowMessage(StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_269"), {value - self.storageHP}))
+                end
+            end
+            self.storageHP = value
+            self:SetStorageHP()
+            self:RefreshRedPoint()
+        end
+    )
+
+    self.M_EntityBase.Data:AddAttributeChangeLuaAction(
+        CS.StarProjectDef.AOIAttrDefine.StorageMP,
+        self.attrLuaKey,
+        function(key, value)
+            if self.storageMP < value then
+                if self.gameObject.activeSelf then
+                    --Util.ShowMessage("添加药品成功，储存法力增加" .. value - self.storageMP)
+                    Util.ShowMessage(StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_270"), {value - self.storageMP}))
+                end
+            end
+            self.storageMP = value
+            self:SetStorageMP()
+            self:RefreshRedPoint()
+        end
+    )
+
+    -- self.M_EntityBase.Data:AddAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.Flag, self.attrLuaKey ,function(key,value)
+    -- self.flag = value;
+    -- self:SetFlag();
+    -- end
+    -- )
+
+    -- self.M_EntityBase.Data:AddAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.ReplyHpPre, self.attrLuaKey ,function(key,value)
+    ---- if self.replyHpPre ~= value then
+    ---- self.replyHpPre = value;
+    ---- self:SetReplyHpPre();
+    ---- end
+    -- end
+    -- )
+
+    self.M_EntityBase.Data:AddAttributeChangeLuaAction(
+        CS.StarProjectDef.AOIAttrDefine.StorageDrugs,
+        self.attrLuaKey,
+        function(key, value)
+            self.storageDrugs = value
+            self:SetStorageDrugs()
+        end
+    )
+end
+
+function MedicineWindow:DelAttribute()
+    self.M_EntityBase.Data:DelAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.StorageHP, self.attrLuaKey)
+
+    self.M_EntityBase.Data:DelAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.StorageMP, self.attrLuaKey)
+
+    self.M_EntityBase.Data:DelAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.StorageDrugs, self.attrLuaKey)
+end
+
+function MedicineWindow:OnBagChanged()
+    if self.storageDrugs ~= nil and self.medicineShow ~= nil then
+        self.medicineShow:OnBagChanged(self.storageDrugs)
+    end
+end
+
+function MedicineWindow:Refresh()
+    self.curHPSeletImg.enabled = false
+    self.curMPSeletImg.enabled = false
+
+    self.hpSelectObj:SetActive(false)
+    self.mpSelectObj:SetActive(false)
+
+    self.medicineShow:Show(0, false)
+
+    self.storageHP = self.M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Long, CS.StarProjectDef.AOIAttrDefine.StorageHP)
+    self.storageMP = self.M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Long, CS.StarProjectDef.AOIAttrDefine.StorageMP)
+    -- self.flag = self.M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Long,
+    -- CS.StarProjectDef.AOIAttrDefine.Flag);
+    self.replyHpPre = self.M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Int, CS.StarProjectDef.AOIAttrDefine.ReplyHpPre)
+    if self.replyHpPre < 1 then
+        self.replyHpPre = 1
+    end
+    self.storageDrugs = self.M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Proto, CS.StarProjectDef.AOIAttrDefine.StorageDrugs)
+
+    self:SetStorageHP()
+    self:SetStorageMP()
+    -- self:SetFlag();
+    self:SetReplyHpPre()
+    self:SetStorageDrugs()
+
+    -- self:RefreshSundry();
+end
+
+function MedicineWindow:SetStorageHP()
+    local totalHP = ConfigDataAccessor.SystemList[49].Value
+    self.curHPText.text = self.storageHP .. "/" .. totalHP
+    self.curHPSR.normalizedValue = self.storageHP / totalHP
+end
+
+function MedicineWindow:SetStorageMP()
+    local totalMP = ConfigDataAccessor.SystemList[50].Value
+    self.curMPText.text = self.storageMP .. "/" .. totalMP
+    self.curMPSR.normalizedValue = self.storageMP / totalMP
+end
+
+function MedicineWindow:SetReplyHpPre()
+    self.percentSlider.value = self.replyHpPre
+    --self.percentText.text = "生命低于" .. self.replyHpPre .. "%后补充"
+    self.percentText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_MedicineWindow_percentText"), {self.replyHpPre})
+
+    local upReplyHpReq = CS.ProtoMsg.UpReplyHpReq()
+    upReplyHpReq.ReplyHp = self.replyHpPre
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, upReplyHpReq, false)
+end
+
+function MedicineWindow:SetStorageDrugs()
+    for i = 1, 5 do
+        self.medicineItems[i].add.gameObject:SetActive(true)
+        self.medicineItems[i].icon.gameObject:SetActive(false)
+        self.medicineItems[i].rare.gameObject:SetActive(false)
+        self.medicineItems[i].changeObj:SetActive(false)
+        self.medicineItems[i].num.gameObject:SetActive(false)
+    end
+
+    self.drugIDs = {}
+    local ids = self.storageDrugs.Eitemid
+    -- 排序
+    local tb = {}
+    for i = 0, ids.Count - 1 do
+        table.insert(tb, ids[i])
+    end
+
+    -- table.sort(tb, function(a, b)
+    -- local t1 = BusinessManager.Instance:GetItemByItemEntityId(a);
+    -- local t2 = BusinessManager.Instance:GetItemByItemEntityId(b);
+    -- return a > b;
+    -- end);
+
+    local i = 0
+    for _, v in pairs(tb) do
+        local id = v
+        local item = BusinessManager.Instance:GetItemByItemEntityId(id)
+        if item ~= nil then
+            local itemData = ConfigDataAccessor.Item[item.BaseID]
+
+            self.medicineItems[i + 1].add.gameObject:SetActive(false)
+            self.medicineItems[i + 1].num.text = item.Num
+            -- self.medicineItems[i + 1].rare.sprite = AtlasManager.Instance:GetSprite("ui/common/atlas/commonitem","Bag_Grid_sq" .. itemData.Quality);
+            ResourceHelper:LoadIconByAtlasAsync(self.medicineItems[i + 1].rare, ResourceHelper.AtlasPathCommonItem, "Bag_Grid_sq" .. itemData.Quality, false)
+            ResourceHelper:LoadIconAsync(self.medicineItems[i + 1].icon, "", itemData.Icon, false)
+
+            self.medicineItems[i + 1].icon.gameObject:SetActive(true)
+            self.medicineItems[i + 1].rare.gameObject:SetActive(true)
+            self.medicineItems[i + 1].num.gameObject:SetActive(true)
+
+            table.insert(self.drugIDs, id)
+            i = i + 1
+        end
+    end
+
+    if self.medicineShow.curT == 3 then
+        local items = BusinessManager.Instance:GetDescendItemsByItemType(3, 3)
+        self.medicineShow:Refesh(items, 3, self.storageDrugs)
+    end
+
+    BusinessManager.Instance:RefreshMedicineBtn()
+    -- self.medicineItems = {}
+    -- for i = 1, 5 do
+    --     local item = inbattle:Find("Medicine/Item" .. i);
+    --     local medicineItem = {};
+    --     medicineItem.icon = item:Find("Icon"):GetComponent(typeof(Image)); -- 图标
+    --     medicineItem.jb_icon = item:Find("Icon"):GetComponent(typeof(JButton));
+    --     medicineItem.jb_icon.OnLongPressDown = function()
+    --     end
+    --     medicineItem.jb_icon.OnLongPressUp = function()
+    --     end
+
+    --     medicineItem.num = item:Find("Icon/Text"):GetComponent(typeof(Text)); -- 数量
+    --     medicineItem.sel = item:Find("Change"):GetComponent(typeof(Button)); -- 替换
+    --     medicineItem.add = item:Find("AddBtn"):GetComponent(typeof(Button)); -- 添加
+    --     self.medicineItems[i] = medicineItem;
+    -- end
+
+    self:RefreshRedPoint()
+end
+
+function MedicineWindow:RefreshSundry()
+    if self.module.userSundry == nil then
+        return
+    end
+
+    local sundry = self.module.userSundry
+    local l = BusinessManager.Instance:GetUserSundryData(sundry)
+
+    local act1 = l[1]
+    self.closeObj:SetActive(not act1)
+    self.openObj:SetActive(act1)
+
+    local act2 = l[2]
+    self.closeObj2:SetActive(not act2)
+    self.openObj2:SetActive(act2)
+end
+
+function MedicineWindow:Start()
+    print("MedicineWindow:Start")
+end
+
+function MedicineWindow:OnEnable()
+end
+
+function MedicineWindow:OnDisable()
+end
+
+function MedicineWindow:OnDestroy()
+end
+
+function MedicineWindow:OnOpen(arg)
+    self.IsOpen = true
+end
+
+function MedicineWindow:OnClose(arg)
+    LocalCacheManager.Instance:SetDayValue("Medicine2and3", true)
+
+    self:CloseWindow()
+    --self.module.medicineWindowView=nil;
+end
+
+function MedicineWindow:CloseWindow()
+    self.IsOpen = false
+    --self.module.medicineWindowView=nil;
+    --UIManager.Instance.M_Canvas.renderMode = 1; 这里用不到了
+    --UIManager.Instance.M_Canvas.sortingOrder = 0; 这里还原0是可以的
+    if self.M_EntityBase == nil or self.M_EntityBase.Data == nil then
+        return
+    end
+    --self:DelAttribute();
+end
+
+return MedicineWindow

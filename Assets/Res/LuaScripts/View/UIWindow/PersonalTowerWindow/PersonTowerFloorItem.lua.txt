@@ -1,0 +1,78 @@
+---------------------------------------------------------------------
+-- Stars (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-06-06 13:43:49
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class PersonTowerFloorItem
+
+PersonTowerFloorItem = class("PersonTowerFloorItem", UIPanel)
+
+PersonTowerFloorItem.m_IsLock = true;
+
+function PersonTowerFloorItem:ctor(go, parent, atlas, callBack)
+	self.prefab = go;
+	self.AtlasPath = atlas;
+	self.CallBack = callBack;
+
+	self.Btn = go:GetComponent(typeof(JButton));
+	self.BtnFun = function()
+		self:OnClickHandler();
+	end
+	self.Btn.OnClick = self.BtnFun;
+	--self.Icon = self:Find("Scale/Icon"):GetComponent(typeof(Image));
+
+	self.Selected = self:Find("Selected").gameObject;
+
+	self.Floor = self:Find("BossLevel/BossLevelText"):GetComponent(typeof(Text));
+	self.ImgLevel = self:Find("MonsterHead/MonsterHeadImage"):GetComponent(TImage);
+	self.Lock = self:Find("Lock").gameObject;
+end
+
+--点击事件
+function PersonTowerFloorItem:OnClickHandler()
+	----- 现在未解锁的也可以点击
+	--if self.m_IsLock then
+	--return;
+	--end
+	self.CallBack(self.Index);
+	self:OnSelect(true);
+end
+
+-- 设置选中状态
+function PersonTowerFloorItem:OnSelect(select)
+	--self.Selected:SetActive(select);
+	local scale = Vector3.one;
+	if select then
+		scale = scale * 1.1;
+	end
+	self.Selected:SetActive(select); -- 光圈是：选中状态&&已解锁状态
+	--self.Scale.transform.localScale = scale;
+end
+
+--数据更新
+function PersonTowerFloorItem:UpdateContent(data, selectIndex, maxFloor, isLock)
+	self.Index = data;
+	self.m_IsLock = isLock;
+	if data == selectIndex then
+		self:OnClickHandler();
+	else
+		self:OnSelect(false);
+	end
+	self.Lock:SetActive(self.m_IsLock);
+	local imageName = string.empty
+	if self.Index%5 == 0 then
+		imageName = "PersonalTower_icon_02"
+	else
+		imageName = "PersonalTower_icon_01"
+	end
+	ResourceHelper:LoadIconByAtlasAsync(self.ImgLevel,  ResourceHelper.AtlasPathHud , imageName , false)
+	--self.Floor.text =  string.format("第%d层",self.Index)
+    self.Floor.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_limitFloor"), {self.Index});
+
+end
+
+return PersonTowerFloorItem;

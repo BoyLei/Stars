@@ -1,0 +1,141 @@
+local DailyRewardItem = {}
+DailyRewardItem.__index = DailyRewardItem
+
+function DailyRewardItem:New(obj)
+    local self = {};
+    setmetatable(self, DailyRewardItem);
+
+    self:InitControls(obj)
+
+    return self;
+end
+
+function DailyRewardItem:InitControls(obj)
+    self.gameObject = obj;
+    self.transform = obj.transform;
+
+    self.rareImg = self.transform:Find("BgRare"):GetComponent(typeof(Image));
+    self.iconImg = self.transform:Find("Icon"):GetComponent(typeof(Image));
+    self.numText = self.transform:Find("Num"):GetComponent(typeof(Text));
+    self.getObj = self.transform:Find("Get").gameObject;
+    self.buqianBtn = self.transform:Find("BQBtn"):GetComponent(typeof(Button));
+    self.rewardBtn = self.transform:Find("RewardBtn"):GetComponent(typeof(Button));
+    self.tipsBtn = self.transform:Find("TipsBtn"):GetComponent(typeof(Button));
+    self.rewardfx = self.transform:Find("RewardBtn/FX_UI_Com_Icon01").gameObject
+
+    self.rewardBtn.onClick:AddListener(function()
+        local msg = CS.ProtoMsg.CheckInRewardReq();
+        msg.Day = self.curDay;
+        local gameSocket = NetworkManager.Instance.gameSocket;
+        gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, msg, false);
+    end);
+
+    local config=ConfigDataAccessor.Cost[10011];
+    local itemName=ConfigDataAccessor.Item[config.ItemCost[1]].Name;
+    self.buqianBtn.onClick:AddListener(function()
+        UIAPI.ShowMsgBox(
+            53,
+            function(EventName)
+                if EventName == "SURE" then
+                    local msg = CS.ProtoMsg.FixCheckInReq();
+                    msg.Day = self.curDay;
+                    local gameSocket = NetworkManager.Instance.gameSocket;
+                    gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, msg, false);
+                end
+            end,config.ItemNum[1],itemName
+        )        
+    end);
+
+    self.tipsBtn.onClick:AddListener(function()
+        LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",{ self.BaseID,false,0,self.transform,0});     
+    end);
+end
+
+function DailyRewardItem:Init(data, checkinData, rewardData, st,cb)
+    self.BaseID = data.Reward;
+    local itemData = ConfigDataAccessor.Item[data.Reward]
+    local initindex = 0
+    local maxindex = 2
+    local finishedcb = function ()
+        initindex = initindex + 1
+        if initindex >= 2 then 
+        --    self.rareImg.gameObject:SetActive(true)
+            self.iconImg.gameObject:SetActive(true)
+            if cb then 
+                cb()
+            end
+        end
+    end
+ --   self.rareImg.gameObject:SetActive(false)
+    ResourceHelper:LoadIconByAtlasAsync(
+        self.rareImg,
+        ResourceHelper.AtlasPathCommonItem,
+        "Bag_Grid_sq" .. itemData.Quality,
+        false,
+        finishedcb
+    )
+    --itemData.Icon
+   -- local path = "ui/icons/atlas/iconrole1&IconRole_M_49801.png"
+    self.iconImg.gameObject:SetActive(false)
+    ResourceHelper:LoadIconAsync(self.iconImg, "", itemData.Icon, false,finishedcb)
+
+    self.numText.text = data.RewardNum;
+
+    --checkinData 30天签到信息
+    --rewardData 30天领奖信息
+
+    local isgeted = (1<<data.SignNum-1 & rewardData)>0
+    
+    self.getObj:SetActive(isgeted);
+
+    --当前天数>签到天数 item的天数>签到天数
+    local curTime = math.ceil((TimeUtils.DateTimeToStampMilli(TimeUtils.GetServerTime())/1000 - st)/3600/24);
+    if curTime < 0 then
+        curTime = 0;
+    elseif curTime > 30 then
+        curTime = 30;
+    end
+	
+	local isSigned = (checkinData & (1<<(data.SignNum-1))) > 0;
+	
+	local curMaxDay = 0;
+	for i=1, 30, 1 do
+		if ((1<<(i-1)) & checkinData) == 0 then
+			curMaxDay = i;
+			break;
+		end
+	end
+	
+    self.buqianBtn.gameObject:SetActive(curTime>=data.SignNum and not isSigned and data.SignNum==curMaxDay and rewardData ~= 0);
+	
+    self.rewardBtn.gameObject:SetActive(isSigned and (1<<(data.SignNum-1) & rewardData)==0);
+
+    if not isgeted and  (data.SignNum - 2)%7 == 0 then  
+        -- local fxgo = newObject(self.rewardfx)
+        -- fxgo.transform:SetParent(self.transform,false)
+        -- fxgo:SetActive(true)
+        if self.fxgo == nil then 
+            UIRes.LoadPrefabAsync(
+                "Activity/Prefab/SignIn/FX_UI_Com_Icon03",
+                function(go)
+                    if self.fxgo then 
+                        GameObject.Destroy(self.fxgo)
+         --               self.fxgo = nil
+                    end
+                    self.fxgo = go
+                    self.fxgo.transform:SetParent(self.transform,false)
+                    self.fxgo.transform.localPosition = self.fxgo.transform.localPosition + Vector3(0,0,10)
+                    self.fxgo:SetActive(true) 
+                end
+            )
+        end
+    else
+        if self.fxgo then 
+            GameObject.Destroy(self.fxgo)
+            self.fxgo = nil
+        end
+    end
+	self.curDay = data.SignNum;
+end
+
+return DailyRewardItem

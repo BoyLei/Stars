@@ -1,0 +1,418 @@
+--[[
+*文件名   :   PartnerEquipPart
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local PartnerEquipPart = {}
+
+PartnerEquipPart.__index = PartnerEquipPart
+
+local ItemGrid = require("View/Item/ItemGrid")
+local SelectBtn = require("View/Item/SelectBtn")
+local EquipItemSlot = require("View.Item.EquipItemSlot")
+
+function PartnerEquipPart:New(_go, partnerEquipWidget)
+    local self = {}
+    setmetatable(self, PartnerEquipPart)
+
+    self.partnerEquipWidget = partnerEquipWidget
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.tips_anchor = self.transform:Find("TipsAnchor").transform
+
+    --道具列表
+    self.BagLimit = self.transform:Find("Items/BagLimit"):GetComponent(typeof(Text))
+    self.BagItemList = {}
+    --无限列表
+    self.go_BagItem = self.transform:Find("Items/ItemGrid").gameObject
+
+    self.rect_grid = self.transform:Find("Items/Scroll View/Mask/List"):GetComponent(typeof(RectTransform))
+
+    self.tr_ItemRoot = self.transform:Find("Items/Scroll View/Mask/List")
+    self.go_BagItem:SetActive(false)
+    self.go_BagItem.transform:SetParent(self.transform:Find("Items"))
+    self.BagScorllView = self.transform:Find("Items/Scroll View"):GetComponent(typeof(SuperScrollViewController))
+    self.BagScorllView:NewScroll(
+        self.go_BagItem,
+        0,
+        function(tr, idx)
+            self:OnBagItemRefesh(tr, idx)
+        end
+    )
+
+    --装备菜单
+    self.EquipMenuBtns = {}
+    for i = 1, 3 do
+        local btn =
+            SelectBtn:New(self.transform:Find("Items/EquipMenu/Scroll View/Mask/List/EquipTagItem" .. i).gameObject)
+        btn:InitItem(
+            i,
+            function(idx)
+                self:OnEquipMenuBtnClick(idx)
+            end
+        )
+        table.insert(self.EquipMenuBtns, btn)
+    end
+    self.EquipMenuIdx = 1
+
+    --关闭按钮
+    local btnClose = self.transform:Find("LeftTop/CloseBtn"):GetComponent(typeof(JButton))
+    btnClose.OnClick = (function()
+        self:UnNewAllPartnerEquipItem()
+
+        --关闭itemtips
+        LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips", {})
+        self.partnerEquipWidget:SetPartnerInfo()
+    end)
+
+    self.EquipName = self.transform:Find("EquipedName"):GetComponent(typeof(Text))
+
+    --卸载按钮
+    self.btnUnEquip = self.transform:Find("BtnUnEquip"):GetComponent(typeof(JButton))
+    self.btnUnEquip.OnClick = (function()
+        self:OnUnEquipItemClick()
+    end)
+
+    --养成按钮
+    self.BtnUpgrade = self.transform:Find("BtnUpgrade"):GetComponent(typeof(JButton))
+    self.BtnUpgrade.OnClick = (function()
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_70"))
+    end)
+
+    --中间显示的装备
+    local _go = self.transform:Find("EquipGrid1").gameObject
+    self.Equip = EquipItemSlot:New(_go)
+    self.Equip:InitItem(
+        true,
+        function(it, idx)
+            self:OnEquipItemClick(it, idx)
+        end
+    )
+
+    --角色装备标识
+    self.go_EquipedHero = self.transform:Find("EquipedHero").gameObject
+    self.EquipedHeroName = self.transform:Find("EquipedHero/tex"):GetComponent(typeof(Text))
+    self.EquipedHeroHead = self.transform:Find("EquipedHero/head"):GetComponent(typeof(Image))
+
+    self.refeshFunc= function ()
+
+        self:OnEquipMenuBtnClick();
+
+    end
+
+    self.CloseTips=function (data)
+
+        self:CleanAllSelected()
+
+	end
+
+    self.gameObject:SetActive(false)
+
+    return self --返回自身
+end
+
+function PartnerEquipPart:UnNewAllPartnerEquipItem()
+    for i = 0, self.allitems.Count - 1 do
+        self.allitems[i].IsNew = false
+    end
+end
+
+function PartnerEquipPart:Show(b)
+    self.gameObject:SetActive(b)
+    if b then
+        CS.StarProject.GlobalEvent.OnTipsCloseEvent:AddListener(self.CloseTips)
+        CS.StarProject.GlobalEvent.OnRefeshCurrencyBar:AddListener(self.refeshFunc);
+    else
+        CS.StarProject.GlobalEvent.OnTipsCloseEvent:RemoveListener(self.CloseTips)
+        CS.StarProject.GlobalEvent.OnRefeshCurrencyBar:RemoveListener(self.refeshFunc);
+    end
+end
+
+--点击卸载
+function PartnerEquipPart:OnUnEquipItemClick()
+    local takeOffEquipReq = CS.ProtoMsg.TakeOffParEquipReq()
+    takeOffEquipReq.ItemEntityID = self.equipedEquip.EntityID
+    takeOffEquipReq.PartnerID = self.partnerEquipWidget:GetSelectPartner().ID
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(
+        CS.SGF.Network.ServerType.ServerTypeLobby,
+        takeOffEquipReq,
+        false
+    )
+end
+
+--点击中间
+function PartnerEquipPart:OnEquipItemClick(it, idx)
+    --点击已经装备的装备
+end
+
+--设置中间以及右边
+function PartnerEquipPart:SetPartnerEquip(idx)
+    --自动切换页签
+    self:OnEquipMenuBtnClick(idx)
+end
+
+--刷新中间以及右边
+function PartnerEquipPart:RefeshPartnerEquip(idx)
+    if idx ~= nil then
+        self.Idx = idx
+    end
+    self.equipedEquip =
+        BusinessManager.Instance:GetPartnerEquipedEquip(self.partnerEquipWidget:GetSelectPartner().ID, self.Idx)
+
+    self:RefeshEquipedEquip()
+
+    --刷新右侧
+    if self.equipedEquip ~= nil then
+        local cfg = ConfigDataAccessor.Item[self.equipedEquip.BaseID]
+        self.EquipName.text = cfg.Name
+        self.btnUnEquip.gameObject:SetActive(true)
+
+        --暂时关闭
+        --self.BtnUpgrade.gameObject:SetActive(true)
+
+        self:RefeshEquipAttr(self.equipedEquip.BaseID)
+    else
+        self:RefeshEquipAttr(0)
+
+        self.EquipName.text = ""
+        self.btnUnEquip.gameObject:SetActive(false)
+
+        --暂时关闭
+        --self.BtnUpgrade.gameObject:SetActive(false)
+    end
+end
+
+function PartnerEquipPart:RefeshEquipedEquip()
+    if self.equipedEquip ~= nil then
+        self.Equip:SetItem(self.equipedEquip, 0, false)
+        self.Equip.gameObject:SetActive(true)
+
+        self.go_EquipedHero:SetActive(true)
+        --刷新头像
+        local partnerBaseID = self.partnerEquipWidget:GetPartnerBaseIdByEntityID(self.equipedEquip.Heroid)
+        if partnerBaseID > 0 then
+            local config = ConfigDataAccessor.Partner[partnerBaseID]
+            if config ~= nil then
+                local avatarDataCell = ConfigDataAccessor.Avatar[config.AvatarID]
+                if avatarDataCell ~= nil then
+                    local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID]
+                    if headCfg ~= nil then
+                        --self.EquipedHeroHead.sprite = AtlasManager.Instance:GetSprite(headCfg.HeadAtlasName, headCfg.MinHead)
+                        ResourceHelper:LoadIconByAtlasAsync(self.EquipedHeroHead, headCfg.HeadAtlasName, headCfg.MinHead, false)
+                    --self.EquipedHeroHead:SetNativeSize()
+                    end
+                    --self.EquipedHeroName.text = avatarDataCell.Desc .. "已装备"
+                    self.EquipedHeroName.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_PartnerEquipPart_EquipedHeroName"), {avatarDataCell.Desc});
+
+                end
+            end
+        end
+    else
+        local temp = {}
+        temp.BaseID = 0
+        self.Equip:SetItem(temp, 0, false)
+        self.Equip.gameObject:SetActive(false)
+
+        self.go_EquipedHero:SetActive(false)
+    end
+end
+
+--刷新装备属性
+function PartnerEquipPart:RefeshEquipAttr(baseID)
+    self.partnerEquipWidget:RefeshEquipAttr(baseID)
+end
+
+--刷新装备列表
+function PartnerEquipPart:RefeshItems()
+    self:SortItem(self.ItemDataList)
+
+    --背包数量限制
+    local nowNum = #self.ItemDataList
+
+    --追加到100个空格子
+    --for i=#self.ItemDataList+1,self.maxNum do
+    for i = #self.ItemDataList + 1, 100 do
+        local it = {}
+        it.BaseID = 0
+        table.insert(self.ItemDataList, it)
+    end
+
+    self.BagScorllView:ContinueScroll(#self.ItemDataList, false)
+
+    local str = "" .. nowNum
+    if nowNum < 100 and nowNum > 10 then
+        str = "0" .. nowNum
+    elseif nowNum < 10 then
+        str = "00" .. nowNum
+    end
+
+    --self.BagLimit.text="<color=#E38830>"..str.."</color>/"..self.maxNum;
+    self.BagLimit.text = str .. "/" .. self.maxNum
+
+end
+
+function PartnerEquipPart:GetDataByEquipType(equipType)
+    for i = 0, self.allitems.Count - 1 do
+        --local cfg=LocalDataManager.Instance:GetItemDataCell(self.allitems[i].BaseID);
+        local cfg = ConfigDataAccessor.Item[self.allitems[i].BaseID]
+        if cfg.SubType == equipType then
+            local it = {}
+            it.EntityID = self.allitems[i].EntityID
+            it.BaseID = self.allitems[i].BaseID
+            it.Heroid = self.allitems[i].Heroid
+            it.Num = self.allitems[i].Num
+            it.IsNew = self.allitems[i].IsNew
+            it.SortProp = cfg.SortProp
+            it.ItemType = cfg.ItemType
+            table.insert(self.ItemDataList, it)
+        end
+    end
+
+    self:RefeshPartnerEquip(equipType)
+end
+
+function PartnerEquipPart:OnEquipMenuBtnClick(idx, noResetPos)
+    if noResetPos == nil then
+        self.rect_grid.anchoredPosition = Vector2(self.rect_grid.anchoredPosition.x, 0)
+    end
+
+    for i = 1, #self.EquipMenuBtns do
+        self.EquipMenuBtns[i]:MakeSelected(false)
+    end
+
+    if idx == nil then
+        idx = self.EquipMenuIdx
+    end
+
+    self.EquipMenuBtns[idx]:MakeSelected(true)
+
+    --拿到所有的伙伴装备
+    self.allitems = BusinessManager.Instance:GetItemsByItemType(4, 0)
+    self:ClearItemData()
+
+    self.EquipMenuIdx = idx
+
+    local numEquip = ConfigDataAccessor.ItemSpace[2].BagNum
+    self.maxNum = numEquip
+
+    if idx == 1 then
+        --装备槽位1
+        self:GetDataByEquipType(1)
+    elseif idx == 2 then
+        --装备槽位2
+        self:GetDataByEquipType(2)
+    elseif idx == 3 then
+        --装备槽位3
+        self:GetDataByEquipType(3)
+    end
+
+    self:RefeshItems()
+    --关闭道具Tips
+    if GameManager.Instance.IsOpenItemTips then
+        LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips", {})
+    end
+end
+
+function PartnerEquipPart:CleanAllSelected()
+    --无限列表
+    for i = 1, #self.BagItemList do
+        self.BagItemList[i]:MakeSelected(false)
+    end
+end
+
+function PartnerEquipPart:OnBagItemRefesh(tr, idx)
+    for i = 1, #self.BagItemList do
+        if self.BagItemList[i].transform == tr then
+            self.BagItemList[i]:SetItem(self.ItemDataList[idx + 1]) --idx是从0开始，如果ItemDataList是lua的table需要idx+1
+
+            --刷新头像
+            local baseID = self.partnerEquipWidget:GetPartnerBaseIdByEntityID(self.ItemDataList[idx + 1].Heroid)
+            if baseID > 0 then
+                self.BagItemList[i]:SetPartnerHead(baseID)
+            end
+
+            return
+        end
+    end
+
+    --tr.gameObject:SetActive(true);
+    local bi = ItemGrid:New(tr.gameObject, self.tr_ItemRoot)
+    bi:InitItem(
+        true,
+        function(ritem)
+            self:OnItemClick(ritem)
+        end
+    )
+    bi.gameObject:SetActive(true)
+    bi:SetItem(self.ItemDataList[idx + 1]) --idx是从0开始，如果ItemDataList是lua的table需要idx+1
+
+    --刷新头像
+    local baseID = self.partnerEquipWidget:GetPartnerBaseIdByEntityID(self.ItemDataList[idx + 1].Heroid)
+    if baseID > 0 then
+        bi:SetPartnerHead(baseID)
+    end
+
+    table.insert(self.BagItemList, bi)
+end
+
+function PartnerEquipPart:OnItemClick(bitem)
+    self:CleanAllSelected()
+    bitem:MakeSelected(true)
+
+    --设置道具Tips
+    LuaModuleDispatcher:SendMessage(
+        ModuleDef.ItemTipsModule,
+        "OnOpenTips",
+        {
+            bitem.BaseID,
+            true,
+            bitem.EntityID,
+            self.tips_anchor,
+            0,
+            self.partnerEquipWidget:GetSelectPartner().Index,
+            self.partnerEquipWidget:GetSelectPartner().ID,
+            self.partnerEquipWidget:GetSelectPartner().Level
+        }
+    )
+end
+
+function PartnerEquipPart:ClearItemData()
+    if self.ItemDataList == nil then
+        self.ItemDataList = {}
+    else
+        --self.ItemDataList ={}
+        for k, _ in pairs(self.ItemDataList) do
+            self.ItemDataList[k] = nil
+        end
+    end
+end
+
+function PartnerEquipPart:SortItem(tbl)
+    if #tbl > 1 then
+        table.sort(
+            tbl,
+            function(a, b)
+                if a.SortProp < b.SortProp then
+                    -- 按SortProp升序
+                    return true
+                elseif a.SortProp == b.SortProp then
+                    -- 如果SortProp相等，按Type升序
+                    if a.ItemType < b.ItemType then
+                        return true
+                    elseif a.ItemType == b.ItemType then
+                        -- 如果Type相等，按Id升序
+                        return a.BaseID < b.BaseID
+                    end
+                end
+                return false
+            end
+        )
+    end
+end
+
+return PartnerEquipPart

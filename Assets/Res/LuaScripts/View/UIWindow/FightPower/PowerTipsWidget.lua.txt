@@ -1,0 +1,38 @@
+local PowerTipsWidget = class("PowerTipsWidget", UIPanel)
+
+function PowerTipsWidget:Awake(_go)
+
+    self.transform = self.prefab.transform;
+    self.gameObject = self.transform.gameObject;
+
+    self.content = self.transform:Find("Cut4Cam90/AssemblyRatio2");
+
+    self.titleText = self.content:Find("TitleText"):GetComponent(typeof(Text));
+    self.layout = self.content:Find("Image"):GetComponent(typeof(RectTransform));
+
+    self.powerText = self.content:Find("Image/PowerText"):GetComponent(typeof(Text));
+
+    self.titleText.text = LanguageHelp:GetLanguageByKey("Local_Str_Power_Tips");
+end
+
+function PowerTipsWidget:OnOpen(arg)
+    local value = arg;
+
+    self.powerText.text = value;
+    CS.UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(self.layout);
+
+    DelayInvoker.DelayInvoke(self, 1.5, function(...)
+        self:Close();
+    end);
+
+end
+
+function PowerTipsWidget:Show(b)
+    self.gameObject:SetActive(b)
+end
+
+function PowerTipsWidget:Refesh(cfg, EntityID, module)
+
+end
+
+return PowerTipsWidget

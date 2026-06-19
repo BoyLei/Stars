@@ -1,0 +1,88 @@
+--[[
+*文件名   :   ChangeInputFieldWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/10/25 15:57:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+ChangeInputFieldWidget = class("ChangeInputFieldWidget", UIPanel)
+
+function ChangeInputFieldWidget:Awake()
+    self.transform = self.prefab.transform
+    self.gameObject = self.prefab
+
+    self.Placeholder = self:Find("Cut4Cam90/AssemblyRatio2/Content/InputField/Placeholder"):GetComponent(typeof(Text))
+    self.NameField = self:Find("Cut4Cam90/AssemblyRatio2/Content/InputField"):GetComponent(typeof(InputField))
+
+    self.Tips = self:Find("Cut4Cam90/AssemblyRatio2/Content/Tips"):GetComponent(typeof(Text))
+    self.Title = self:Find("Cut4Cam90/AssemblyRatio2/Content/Title"):GetComponent(typeof(Text))
+
+    self.Icon = self:Find("Cut4Cam90/AssemblyRatio2/Content/Icon"):GetComponent(typeof(Image))
+    self.Num = self:Find("Cut4Cam90/AssemblyRatio2/Content/Num"):GetComponent(typeof(Text))
+
+    local BtnOk = self.transform:Find("Cut4Cam90/AssemblyRatio2/Content/BtnOk"):GetComponent(typeof(JButton))
+    BtnOk.OnClick = (function()
+        if self.OnConfirm ~= nil then
+            local isSuccess = self.OnConfirm(self.NameField.text)
+            if isSuccess then
+                self:OnPlayBack()
+            end
+        end
+    end)
+
+    local BtnCancel = self.transform:Find("Cut4Cam90/AssemblyRatio2/Content/BtnCancel"):GetComponent(typeof(JButton))
+    BtnCancel.OnClick = (function()
+        self:OnPlayBack()
+    end)
+end
+
+function ChangeInputFieldWidget:Start()
+end
+
+function ChangeInputFieldWidget:OnEnable()
+end
+
+function ChangeInputFieldWidget:OnDisable()
+end
+
+function ChangeInputFieldWidget:OnDestroy()
+end
+
+function ChangeInputFieldWidget:OnOpen(arg)
+    local data = arg
+
+    self.OnConfirm = data.OnConfirm
+
+    self.BaseID = data.ItemID
+    self.NeedNum = data.NeedNum
+    self.HaveNum = data.HaveNum
+    self.IsItemEnough = data.IsItemEnough
+
+    self.Title.text = data.Title
+    self.Tips.text = data.Tips
+    self.Placeholder.text = data.Placeholder
+
+    if self.BaseID > 0 then
+        local cfg = ConfigDataAccessor.Item[self.BaseID]
+        ResourceHelper:LoadIconAsync(self.Icon, "", cfg.Icon, false)
+        if self.IsItemEnough then
+            self.Num.text = self.HaveNum .. "/" .. self.NeedNum
+        else
+            self.Num.text = "<color=#BF3232>" .. self.HaveNum .. "</color>/" .. self.NeedNum
+        end
+    end
+
+    self.NameField.text = ""
+end
+
+function ChangeInputFieldWidget:OnClose(arg)
+end
+
+function ChangeInputFieldWidget:OnPlayBack()
+    self.OnConfirm = nil
+    self.gameObject:SetActive(false)
+    UIManager.Instance:CloseWidget("Common/ChangeInputFieldWidget", nil, false)
+end
+
+return ChangeInputFieldWidget

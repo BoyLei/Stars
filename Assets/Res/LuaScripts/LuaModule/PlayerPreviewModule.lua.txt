@@ -1,0 +1,203 @@
+--[[
+*文件名   :   PlayerPreviewModule
+*内  容   :
+*说  明   :	  角色信息预览
+*创建日期 :   ""
+*创建人   :   ""
+*版权所有 :   游卡网络科技技术有限公司
+]] PlayerPreviewModule = class("PlayerPreviewModule", BaseLuaModule)
+local PlayerPreviewWindowPath = "PlayerAttrWindow/Prefabs/PlayerPreviewWindow"
+local PartnerPreviewWindowPath = "PlayerAttrWindow/Prefabs/PartnerPreviewWindow"
+local PlayerFuncTipsWindowPath = "PlayerAttrWindow/Prefabs/PlayerFuncTips"
+local IsAlreadySyncAllSecretData = false -- 是否已经全量同步过秘境数据
+-- LuaModule 消息模块
+PlayerPreviewModule.ModuleMessages = {
+    ["OpenPlayerPreviewWindow"] = function(...)
+        PlayerPreviewModule:OpenPlayerPreviewWindow(...)
+    end,
+    ["OpenPartnerPreviewWindow"] = function(...)
+        PlayerPreviewModule:OpenPartnerPreviewWindow(...)
+    end,
+    ["OpenPlayerFuncTips"] = function(...)
+        PlayerPreviewModule:OpenPlayerFuncTips(...)
+    end,
+    ["ClosePlayerFuncTips"] = function(...)
+        PlayerPreviewModule:ClosePlayerFuncTips(...)
+    end,
+    ["ClosePlayerPreviewWindow"] = function(...)
+        PlayerPreviewModule:ClosePlayerPreviewWindow(...)
+    end,
+    ["SendGetOtherPlayerNameplateReq"] = function(...)
+        PlayerPreviewModule:SendGetOtherPlayerNameplateReq(...)
+    end,
+    ["ClosePartnerPreviewWindow"] = function(...)
+        PlayerPreviewModule:ClosePartnerPreviewWindow(...)
+    end
+}
+
+-- LuaModule 创建
+function PlayerPreviewModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.PlayerPreviewModule, self);
+    self.GetOtherPlayerNameplateRetCallback = function(data)
+        self:OnGetOtherPlayerNameplateRet(data)
+    end
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.GetOtherPlayerNameplateRetID,
+        self.GetOtherPlayerNameplateRetCallback, nil)
+end
+function PlayerPreviewModule:InitData()
+
+end
+-- LuaModule 释放
+function PlayerPreviewModule:OnModuleRelease()
+
+end
+
+-- LuaModule显示
+function PlayerPreviewModule:OnModuleShow(arg)
+
+end
+
+-- LuaModule 消息处理
+function PlayerPreviewModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...)
+end
+
+function PlayerPreviewModule:OnDisable(...)
+    IsAlreadySyncAllSecretData = false;
+
+end
+-- 发送玩家信息申请
+function PlayerPreviewModule:OpenPlayerFuncTips(...)
+    ----这里先模拟请求玩家基础数据 并且弹出tips
+    local tb = ...
+    local funcTableTemp = {}
+    local playerID
+    local TargetTrans
+    ----列表
+    if type(tb) == "table" then
+        -- Lua调用
+        funcTableTemp = tb[1]
+        playerID = tb[2]
+        TargetTrans = tb[3]
+    else
+        funcTableTemp = tb[0]
+        playerID = tb[1]
+        TargetTrans = tb[2]
+    end
+    --
+    local data = {
+        funcTable = funcTableTemp,
+        pid = playerID,
+        trans = TargetTrans
+    }
+    local AsyncLoadPlayerFuncTipsWindowCb = function(ui)
+        if ui ~= nil then
+            if self.PlayerFuncTipsWindow == nil or self.PlayerFuncTipsWindow.IsOpen == false then
+                self.PlayerFuncTipsWindow = ui:GetLuaPanel().ScriptTable
+                self.PlayerFuncTipsWindow:BindModule(self)
+            end
+        end
+    end
+    UIManager.Instance:OpenWidgetAsync(PlayerFuncTipsWindowPath, AsyncLoadPlayerFuncTipsWindowCb, data,
+            CS.StarProjectDef.MainPageCommond.HideBoth, true)
+end
+function PlayerPreviewModule:ClosePlayerFuncTips()
+    UIManager.Instance:CloseWidget(PlayerFuncTipsWindowPath, nil, true)
+end
+function PlayerPreviewModule:ClosePlayerPreviewWindow()
+    LuaModuleDispatcher:SendMessage(ModuleDef.RankModule, "RefreshRankModel", nil)
+    UIManager.Instance:CloseWindow(PlayerPreviewWindowPath)
+end
+function PlayerPreviewModule:ClosePartnerPreviewWindow()
+    if self.PlayerPreviewWindow then
+        self.PlayerPreviewWindow:SetModel()
+    end
+    UIManager.Instance:CloseWindow(PartnerPreviewWindowPath)
+end
+-- 打开角色信息界面
+function PlayerPreviewModule:OpenPlayerPreviewWindow()
+    local data = {
+        PassFloor = self.PassFloor,
+        MaxFloor = self.MaxFloor,
+        StageAwardList = self.StageAwardList
+    }
+    local AsyncLoadPlayerPreviewWindowCb = function(ui)
+        if ui ~= nil then
+            if self.PlayerPreviewWindow == nil or self.PlayerPreviewWindow.IsOpen == false then
+                self.PlayerPreviewWindow = ui:GetLuaPanel().ScriptTable
+                self.PlayerPreviewWindow:BindModule(self)
+                self.PlayerPreviewWindow:InitItems() --
+                self.PlayerPreviewWindow:RefeshEquips()
+            end
+        end
+    end
+    UIManager.Instance:OpenWindowAsync(PlayerPreviewWindowPath, AsyncLoadPlayerPreviewWindowCb, data,
+        CS.StarProjectDef.MainPageCommond.HideBoth, true)
+end
+
+-- 请求玩家数据后 展示玩家信息
+function PlayerPreviewModule:OnGetOtherPlayerNameplateRet(data)
+    local playerData = data.data
+    if playerData then
+        playerData = DeepCopyTable(playerData)
+        local AsyncLoadPlayerPreviewWindowCb = function(ui)
+            if ui ~= nil then
+                if self.PlayerPreviewWindow == nil or self.PlayerPreviewWindow.IsOpen == false then
+                    self.PlayerPreviewWindow = ui:GetLuaPanel().ScriptTable
+                    self.PlayerPreviewWindow:BindModule(self)
+                    self.PlayerPreviewWindow:InitItems()
+                    self.PlayerPreviewWindow:RefreshData(playerData)
+                end
+            end
+        end
+        UIManager.Instance:OpenWindowAsync(PlayerPreviewWindowPath, AsyncLoadPlayerPreviewWindowCb, playerData,
+            CS.StarProjectDef.MainPageCommond.HideBoth, true)
+    end
+end
+
+function PlayerPreviewModule:SendGetOtherPlayerNameplateReq(...)
+    local tb = ...
+    local pid = 0
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        pid = tb[1]
+    else
+        -- C#调用
+        pid = tb[0]
+    end
+
+    local msg = CS.ProtoMsg.GetOtherPlayerNameplateReq();
+    msg.Pid = pid
+    SendClient2CenterReq(msg);
+end
+
+function PlayerPreviewModule:OpenPartnerPreviewWindow(...)
+    local tb = ...
+    local data = {}
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        data = tb[1]
+    else
+        -- C#调用
+        data = tb[0]
+    end
+    if self.PlayerPreviewWindow then
+        self.PlayerPreviewWindow:PushDisplayGob()
+    end
+    local AsyncLoadPartnerPreviewWindowCb = function(ui)
+        if ui ~= nil then
+            if self.PartnerPreviewWindow == nil or self.PartnerPreviewWindow.IsOpen == false then
+                self.PartnerPreviewWindow = ui:GetLuaPanel().ScriptTable
+                self.PartnerPreviewWindow:BindModule(self)
+                self.PartnerPreviewWindow:InitItems() --
+                self.PartnerPreviewWindow:RefreshData(data)
+            end
+        end
+    end
+    UIManager.Instance:OpenWindowAsync(PartnerPreviewWindowPath, AsyncLoadPartnerPreviewWindowCb, data,
+        CS.StarProjectDef.MainPageCommond.HideBoth, true)
+end
+------------------------------ 发送协议
+return PlayerPreviewModule

@@ -1,0 +1,245 @@
+--[[
+*文件名   :   PartnerAblutionWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/02/20 14:30:15"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]] PartnerAblutionWidget = class("PartnerAblutionWidget", UIPanel)
+
+local AblutionPart = require("View/UIWindow/PartnerWindow/AblutionPart")
+
+PartnerAblutionWidget.m_CurentPart = nil;
+PartnerAblutionWidget.m_NextPart = nil;
+PartnerAblutionWidget.m_ItemGrid = nil;
+PartnerAblutionWidget.SelectData = nil;
+PartnerAblutionWidget.Current = nil;
+PartnerAblutionWidget.Next = nil;
+PartnerAblutionWidget.m_CanTopped = false;
+PartnerAblutionWidget.m_Close = nil;
+PartnerAblutionWidget.IsHide = true;
+PartnerAblutionWidget.Texture = nil
+PartnerAblutionWidget.RawImage = nil
+PartnerAblutionWidget.Partners = nil
+PartnerAblutionWidget.m_IntroduceBtn = nil;
+PartnerAblutionWidget.Index = 0;
+
+local OnPartnerUpgradeFunc = nil;
+
+local OnPartnerToppedHanderFunc = nil;
+
+function PartnerAblutionWidget:Awake()
+    self.m_CurentPart = self:Find("CurentPart").gameObject;
+    self.m_NextPart = self:Find("NextPart").gameObject;
+    self.m_ItemGrid = self:Find("ItemGrid").gameObject;
+    self.Current = AblutionPart.new(self.m_CurentPart, self.AtlasPath, self.m_ItemGrid, false)
+    self.Next = AblutionPart.new(self.m_NextPart, self.AtlasPath, self.m_ItemGrid, true)
+    self.m_Close = self:Find("Close"):GetComponent(typeof(Button));
+    self.m_IntroduceBtn = self:Find("CurentPart/Has/CostAtr/IntroduceBtn"):GetComponent(typeof(Button));
+    self.RawImage = self:Find("RawImage"):GetComponent(typeof(RawImage));
+    OnPartnerUpgradeFunc = function(index)
+        self:OnPartnerUpgrade(index)
+    end
+    OnPartnerToppedHanderFunc = function(result)
+        self:OnPartnerToppedHander(result)
+    end
+
+    self.m_IntroduceBtn.onClick:AddListener(function()
+        CS.StarProjectDef.UIAPI.ShowGameplayInfo(10301)
+    end);
+end
+
+function PartnerAblutionWidget:Start()
+    -- self.m_Close.onClick:AddListener(function() self:OnClickCloseBtn() end);
+
+end
+
+function PartnerAblutionWidget:SetModel(avatarDataCell, scale, localRotate, localPos, animName)
+    if self.m_avatarDataCell ~= avatarDataCell then
+        ------- 设置模型
+        self:PushDisplayGob();
+        self.m_avatarDataCell = avatarDataCell;
+        ResourceManager.Instance:PopGameObject("Roles/Template/Display_Model", function(go)
+            if go == nil then
+                return;
+            end
+            if self.m_avatarDataCell == nil then
+                ResourceManager.Instance:PushGameObject("Roles/Template/Display_Model", go);
+                return;
+            end
+            UIManager.Instance:SetModel2UI2(go, self.m_avatarDataCell.AvatarID, CS.StarProjectDef.ThreeDModelPos.Raw, scale,
+                Vector3.zero, localRotate, localPos, animName);
+            go:SetActive(true);
+            self.m_ModelViewDisplay = go:GetComponent(typeof(RoleViewDisplay));
+            -- self.m_DisplayRawing:SetModelView(self.m_ModelViewDisplay);
+
+            if self.m_ModelViewDisplay ~= nil then
+                local rotation = Quaternion.Euler(0, 0, 0);
+                self.m_ModelViewDisplay:SetRotation(rotation);
+                -- self.m_DisplayRawing:SetState(true);
+            end
+
+            ------- 设置模型
+            self.RawImage.texture = ResourceManager.Instance.RenderTexture;
+
+        end);
+        ----gob.name="PartnerAblutionWidget"..modelDataCell.Desc
+
+    end
+    if self.m_ModelViewDisplay ~= nil then
+        local rotation = Quaternion.Euler(0, 0, 0);
+        self.m_ModelViewDisplay:SetRotation(rotation);
+        -- self.m_DisplayRawing:SetState(true);
+    end
+end
+
+function PartnerAblutionWidget:OnClickTopped()
+
+    if self.m_CanTopped then
+        -- GetCurrencyNum
+        local config = ConfigDataAccessor.Partner[self.SelectData.Index];
+        if config ~= nil then
+            local qualificate = ConfigDataAccessor.Qualifications[config.QualificationID][self.SelectData
+                                    .AptitudeBreakStep]
+            if qualificate ~= nil then
+                if self.SelectData.CurStar < qualificate.Star then
+                    print(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_214"))
+                    Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_214"));
+
+                    return
+                end
+
+                local money = BusinessManager.Instance:GetCurrencyNum(qualificate.Money[1])
+                if money < qualificate.Money[2] then
+                    local itemName = ConfigDataAccessor.Item[qualificate.Money[1]]
+                    if itemName ~= nil then
+                        --Util.ShowMessage(itemName.Name .. "不足");
+						Util.ShowMessage(StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_ShopItem_buyErrorMsg"), {itemName.Name}))
+
+                    end
+                    return
+                end
+
+                local itemSuit = true;
+                for i = 1, #qualificate.Item_id do
+                    local temp = BusinessManager.Instance:GetCurrencyNum(qualificate.Item_id[i])
+                    if temp < qualificate.Item_num[i] then
+                        itemSuit = false;
+                        break
+                    end
+                end
+
+                if itemSuit then
+                    LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OnPartnerLimitBreakReq",
+                        self.SelectData.Index);
+                else
+                    print(LanguageHelp:GetLanguageByKey("Local_Str_No_Item"))
+                    Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_No_Item"));
+                end
+            end
+        end
+
+    end
+end
+
+function PartnerAblutionWidget:GetSelectPartner()
+    if self.Partners == nil then
+        return nil
+    end
+
+    for _k, _v in pairs(self.Partners) do
+        if _v.Index == self.Index then
+            return _v
+        end
+    end
+end
+
+---突破成功
+function PartnerAblutionWidget:OnPartnerToppedHander(result)
+    if result and not self.IsHide then
+        self.SelectData = self:GetSelectPartner()
+        LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OnOpenCertificationToppedWidget", self.SelectData);
+        self:SetPartnerInfo();
+    end
+end
+
+function PartnerAblutionWidget:OnPartnerUpgrade(index)
+    if self.Index == index and not self.IsHide then
+        self:SetPartnerInfo();
+    end
+end
+
+function PartnerAblutionWidget:SetPartnerInfo()
+    self.SelectData = self:GetSelectPartner()
+
+    self.m_CanTopped = true;
+    local config = ConfigDataAccessor.Partner[self.SelectData.Index];
+    if config ~= nil then
+        local qualificate = ConfigDataAccessor.Qualifications[config.QualificationID][self.SelectData.AptitudeBreakStep]
+        if qualificate ~= nil then
+            for i = 1, #qualificate.QualiFications do
+                local AoiAttr = LocalDataManager.Instance:GetAttrPropByAttrIdx(qualificate.QualiFications[i])
+                if AoiAttr ~= nil then
+                    local t = self.SelectData.AMD.Aptitudes[qualificate.QualiFications[i]]
+                    local v = 0;
+                    if t ~= nil then
+                        v = t.BaseValue
+                    end
+                    if qualificate.Value_max[i] > v then
+                        self.m_CanTopped = false;
+                    end
+                end
+            end
+        end
+
+        local avatarDataCell = ConfigDataAccessor.Avatar[config.AvatarID];
+        if avatarDataCell ~= nil then
+            self:SetModel(avatarDataCell, String2Vector3(config.ModelScale), String2Vector3(config.ModelRot),
+                String2Vector3(config.ModelPos), config.ModelAnima);
+        end
+
+    end
+
+    self.Current:OnOpen(self.SelectData, self.m_CanTopped);
+    self.Next:OnOpen(self.SelectData, false);
+    self.prefab:SetActive(true);
+end
+
+function PartnerAblutionWidget:PushDisplayGob()
+    if self.m_ModelViewDisplay ~= nil then
+        ResourceManager.Instance:PushGameObject("Roles/Template/Display_Model", self.m_ModelViewDisplay.gameObject);
+        -- GameObject.DestroyImmediate(self.m_ModelViewDisplay.gameObject);
+        self.m_ModelViewDisplay = nil;
+        -- self.m_DisplayRawing:SetModelView(self.m_ModelViewDisplay);
+    end
+end
+
+function PartnerAblutionWidget:OnClose(arg)
+    self:PushDisplayGob();
+    self.m_avatarDataCell = nil;
+end
+
+function PartnerAblutionWidget:OnOpen(arg)
+    self.Index = arg.index;
+    self.Partners = arg.partners;
+    self:SetPartnerInfo();
+end
+
+function PartnerAblutionWidget:OnEnable()
+    UIManager.Instance:SetRawCamrea(true);
+    LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OnCloseWindowMenu");
+    self.IsHide = false;
+    CS.StarProject.GlobalEvent.OnPartnerUpgrade:AddListener(OnPartnerUpgradeFunc);
+    CS.StarProject.GlobalEvent.OnPartnerTopped:AddListener(OnPartnerToppedHanderFunc);
+end
+
+function PartnerAblutionWidget:OnDisable()
+    self:PushDisplayGob();
+    UIManager.Instance:SetRawCamrea(false);
+    LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OnOpenWindowMenu");
+    self.IsHide = true;
+    CS.StarProject.GlobalEvent.OnPartnerUpgrade:RemoveListener(OnPartnerUpgradeFunc);
+    CS.StarProject.GlobalEvent.OnPartnerTopped:RemoveListener(OnPartnerToppedHanderFunc);
+end
+
+return PartnerAblutionWidget

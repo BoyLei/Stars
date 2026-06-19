@@ -1,0 +1,126 @@
+--[[
+*文件名   :   ChestSelectItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/09 11:09:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local ChestSelectItem = {}
+
+ChestSelectItem.__index = ChestSelectItem
+
+function ChestSelectItem:New(_go) 
+    local self = {};    
+    setmetatable(self, ChestSelectItem); 
+    
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+    self.Name=self.transform:Find("Have/Name"):GetComponent(typeof(Text));
+
+    self.Num=self.transform:Find("Have/Num"):GetComponent(typeof(Text));
+
+    self.Bg=self.transform:Find("Have/BgRare"):GetComponent(typeof(Image));
+
+    self.Icon=self.transform:Find("Have/Icon"):GetComponent(typeof(Image));
+
+
+    self.go_Selected=self.transform:Find("Have/Selected").gameObject;
+    self.go_Selected:SetActive(false);
+
+
+
+    self.IsUsed=false;
+
+    --点击事件
+	local btnClick=self.transform:GetComponent(typeof(JButton));
+	btnClick.OnClick=(function() 
+
+        if self.IsUsed then
+            self.OnClick(self); 
+        end
+
+	end);
+
+    --点击事件
+	local btnClick2=self.transform:Find("Have/BgRare"):GetComponent(typeof(JButton));
+	btnClick2.OnLongPressDown=(function() 
+
+        LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",{ self.BaseID, false, 0, btnClick2.transform, 0});
+	end);
+	btnClick2.OnClick=(function() 
+        if self.IsUsed then
+            self.OnClick(self); 
+        end
+	end);
+
+    return self;    --返回自身
+end
+
+
+
+
+--初始化Item
+function ChestSelectItem:InitItem(OnClick)
+
+    self.OnClick=OnClick;
+
+    self:SetUse(false);
+end
+
+
+
+function ChestSelectItem:SetUse(b)
+    self.IsUsed=b;
+    self.gameObject:SetActive(b);
+end
+
+
+--设置Item
+function ChestSelectItem:SetItem(fixAwardID)
+    
+
+    local cfg=ConfigDataAccessor.FixAward[fixAwardID];
+    self.FixAwardID=fixAwardID;
+
+
+    --local itid=cfg.ItemIDs[2];
+    local itid=GetShowItemIDByJob(cfg.ItemIDs);
+    
+
+    if itid~= nil and itid>0 then
+
+        self.BaseID=itid;
+
+        local itcfg = ConfigDataAccessor.Item[itid];
+
+        self.Name.text=itcfg.Name;
+        self.Num.text=cfg.Count;
+
+        local quality=itcfg.Quality; 
+        if quality==99 then
+            quality=1;
+        end
+		ResourceHelper:LoadIconByAtlasAsync(self.Bg, ResourceHelper.AtlasPathCommonItem, "Bag_Grid_sq".. quality, false);
+    
+        --ICON
+		ResourceHelper:LoadIconAsync(self.Icon, "", itcfg.Icon, false);
+
+        self:SetUse(true);
+        self:MakeSelected(false);
+    end
+
+
+
+end
+
+--是否被选中
+function ChestSelectItem:MakeSelected(b)
+    self.IsSelected=b;
+    self.go_Selected:SetActive(b)
+end
+
+
+return ChestSelectItem;

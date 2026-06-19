@@ -1,0 +1,53 @@
+-- 技能说明
+local SkillDes = {}
+SkillDes.__index = SkillDes
+
+function SkillDes:New(obj)
+    local self = {};
+    setmetatable(self, SkillDes);
+
+    self:InitControls(obj)
+
+    return self;
+end
+
+function SkillDes:InitControls(obj)
+    self.gameObject = obj;
+    self.transform = obj.transform;
+
+    self.skillName = self.transform:Find("SkillName"):GetComponent(typeof(Text));
+    self.skillIcon = self.transform:Find("SkillIcon"):GetComponent(typeof(Image));
+    self.skillDesc = self.transform:Find("SkillDes"):GetComponent(typeof(Text));
+    self.talentName = self.transform:Find("TalentName"):GetComponent(typeof(Text));
+    self.talentIcon = self.transform:Find("TalentIcon"):GetComponent(typeof(Image));
+    self.talentDes = self.transform:Find("TalentDes"):GetComponent(typeof(Text));
+    self.closeBtn =  self.transform:Find("Close"):GetComponent(typeof(Button));
+
+    self.closeBtn.onClick:AddListener(function()
+        self:Show(false);
+    end);
+
+    self:Show(false);
+end
+
+function SkillDes:Init(skillID)
+    for _, v in pairs(ConfigDataAccessor.TalentList) do
+        if v.BelongSkill == skillID then
+            self.skillName.text = v.SkillName;
+            ResourceHelper:LoadIconAsync(self.skillIcon, ResourceHelper.AtlasPathSkill, v.SkillIcon, false)
+
+            self.skillDesc.text = v.SkillDesc;
+            
+            self.talentName.text = v.Name;
+            self.talentIcon.gameObject:SetActive(false);
+            self.talentDes.gameObject:SetActive(false);
+            break
+        end
+    end
+end
+
+function SkillDes:Show(b)
+    self.gameObject:SetActive(b);
+end
+
+return SkillDes

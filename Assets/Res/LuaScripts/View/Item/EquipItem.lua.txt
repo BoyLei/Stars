@@ -1,0 +1,223 @@
+--[[
+*文件名   :   EquipItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/18 16:55:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local EquipItem = {}
+
+EquipItem.__index = EquipItem
+
+function EquipItem:New(_go)
+    local self = {}
+    setmetatable(self, EquipItem)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.Level = self.transform:Find("Have/Num"):GetComponent(typeof(Text)) --等级
+
+    --暂时先隐藏
+    --self.transform:Find("Have/Num").gameObject:SetActive(false);
+    --self.transform:Find("Have/NumBg").gameObject:SetActive(false);
+
+    self.Icon = self.transform:Find("Have/mask/Icon"):GetComponent(typeof(Image))
+    self.Rare = self.transform:Find("Have/BgRare"):GetComponent(typeof(Image))
+
+    if self.transform:Find("SysLock") ~= nil then
+        self.go_sysLock = self.transform:Find("SysLock").gameObject
+    end
+
+    self.go_Selected = self.transform:Find("Selected").gameObject
+    self.go_Selected:SetActive(false)
+
+    self.go_Lock = self.transform:Find("Have/Lock").gameObject
+    self.go_Lock:SetActive(false)
+
+    if self.transform:Find("Have/Equip") ~= nil then
+        self.go_Equip = self.transform:Find("Have/Equip").gameObject
+        self.go_Equip:SetActive(false)
+    end
+
+    self.go_New = self.transform:Find("Have/New").gameObject
+    self.go_New:SetActive(false)
+
+    self.go_Have = self.transform:Find("Have").gameObject
+    self.go_Have:SetActive(false)
+
+    --红点
+    if self.transform:Find("red_point") ~= nil then
+        self.go_redPoint = self.transform:Find("red_point").gameObject
+        self.go_redPoint:SetActive(false)
+    end
+
+    self.go_Null = self.transform:Find("Null").gameObject
+    self.go_Null:SetActive(true)
+
+    self.IsUsed = false
+
+    --点击事件
+    self.btnClick = self.transform:GetComponent(typeof(JButton))
+    self.btnClick.OnClick = (function()
+        if self.OnItemCkick ~= nil then
+            if self.go_sysLock ~= nil and self.go_sysLock.activeSelf then
+                Util.ShowMessage(self.sysLockMsg)
+            else
+                if self.IsUsed then
+                    self.OnItemCkick(self, self.Idx, self.mdData, self.gemTable)
+                else
+                    self.OnItemCkick(nil, self.Idx, self.mdData, self.gemTable)
+                end
+            end
+        end
+    end)
+
+    --长按事件
+    self.btnClick.OnLongPressDown = (function()
+        if self.OnItemLongPress ~= nil then
+            if self.IsUsed then
+                self.OnItemLongPress(self)
+            end
+        end
+    end)
+
+    return self --返回自身
+end
+
+function EquipItem:SetSysLock(b, msg)
+    if self.go_sysLock ~= nil then
+        self.sysLockMsg = msg
+        self.go_sysLock:SetActive(b)
+    end
+end
+
+--初始化Item
+function EquipItem:InitItem(isHaveBoard, onItemCkick, onItemLongPress)
+    self.isHaveBoard = isHaveBoard
+
+    self.OnItemLongPress = onItemLongPress
+    self.OnItemCkick = onItemCkick
+    self:SetUse(false)
+end
+
+function EquipItem:SetUse(b)
+    self.IsUsed = b
+    self.go_Have:SetActive(b)
+    self.go_Null:SetActive(not (b))
+
+    --如果没有有底板就隐藏
+    if not self.isHaveBoard then
+        self.gameObject:SetActive(b)
+    end
+end
+
+--设置Item
+function EquipItem:SetItem(item, idx, isShowPerfect, isCircle, isAmulet, mdData, gemTable)
+    if self.go_Equip ~= nil then
+        self.go_Equip:SetActive(false)
+    end
+
+    self.Idx = idx
+    self.mdData = mdData
+    self.gemTable = gemTable
+    --装备的宝石
+    --背包特判
+    if item.BaseID == 0 then
+        self:SetUse(false)
+        self:MakeSelected(false)
+    else
+        self:SetUse(true)
+
+        self.EntityID = item.EntityID
+        self.BaseID = item.BaseID
+
+        --稀有度底板
+        local cfg = ConfigDataAccessor.Item[self.BaseID]
+        local quality = cfg.Quality
+        if quality == 99 then
+            quality = 1
+        end
+        if isCircle then
+            --self.Rare.sprite = AtlasManager.Instance:GetSprite("ui/common/atlas/commonitem", "Bag_Grid_sql" .. quality)
+            ResourceHelper:LoadIconByAtlasAsync(self.Rare, ResourceHelper.AtlasPathCommonItem, "Bag_Grid_sql" .. quality, false)
+        else
+            --self.Rare.sprite = AtlasManager.Instance:GetSprite("ui/common/atlas/commonitem", "Bag_Grid_sq" .. quality)
+            ResourceHelper:LoadIconByAtlasAsync(self.Rare, ResourceHelper.AtlasPathCommonItem, "Bag_Grid_sq" .. quality, false)
+        end
+
+        --LoadIcon(self.Icon,cfg.Icon);
+        ResourceHelper:LoadIconAsync(self.Icon, "", cfg.Icon, false)
+
+        if not (isAmulet) then
+            --是否显示完美度
+            if isShowPerfect == 1 then
+                --计算完美度
+                local perfectAllValue = 0
+                local eCfg = ConfigDataAccessor.Equip[self.BaseID]
+                --主属性
+                local itemData = BusinessManager.Instance:GetItemByItemEntityId(self.EntityID)
+                local MainProps = itemData.EquipProps.MainPropList
+                for i = 0, MainProps.Count - 1 do
+                    local maxAttr = eCfg.NumMax[i + 1]
+                    perfectAllValue = perfectAllValue + (MainProps[i].Value / maxAttr)
+                end
+
+                --这里要计算平均完美度（不完美的话上面就变成false）
+                local Perfection = math.floor(perfectAllValue / MainProps.Count * 100)
+                self.Level.text = "" .. Perfection
+
+                self.transform:Find("Have/Num").gameObject:SetActive(true)
+                if self.transform:Find("Have/NumBg") ~= nil then
+                    self.transform:Find("Have/NumBg").gameObject:SetActive(true)
+                end
+            else
+                --计算装备槽强度
+                local equipSlotData = GameManager.Instance:GetEquipSlotData(self.Idx)
+                if equipSlotData == nil or equipSlotData.UpLv == 0 then
+                    self.transform:Find("Have/Num").gameObject:SetActive(false)
+                    if self.transform:Find("Have/NumBg") ~= nil then
+                        self.transform:Find("Have/NumBg").gameObject:SetActive(false)
+                    end
+                else
+                    self.transform:Find("Have/Num").gameObject:SetActive(true)
+                    if self.transform:Find("Have/NumBg") ~= nil then
+                        self.transform:Find("Have/NumBg").gameObject:SetActive(true)
+                    end
+                    self.Level.text = "+" .. equipSlotData.UpLv
+                end
+            end
+        else
+            self.Level.text = ""
+        end
+
+        --是否显示已装备
+        if self.EntityID ~= nil and cfg.ItemType == 4 and item.Heroid > 0 then
+            if self.go_Equip ~= nil then
+                self.go_Equip:SetActive(true)
+            end
+        end
+
+        if isCircle then
+            --不显示+几
+            if self.transform:Find("Have/Num") ~= nil then
+                self.transform:Find("Have/Num").gameObject:SetActive(false)
+            end
+        end
+    end
+    --self:MakeSelected(false);
+end
+
+--是否被选中
+function EquipItem:MakeSelected(b)
+    self.go_Selected:SetActive(b)
+end
+
+function EquipItem:ShowRedPoint(b)
+    if self.go_redPoint ~= nil then
+        self.go_redPoint:SetActive(b)
+    end
+end
+
+return EquipItem

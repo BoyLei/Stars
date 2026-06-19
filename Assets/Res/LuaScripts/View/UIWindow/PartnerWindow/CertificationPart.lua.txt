@@ -1,0 +1,268 @@
+---------------------------------------------------------------------
+-- Star (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2022-12-16 18:26:56
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class CertificationPart
+
+CertificationPart = class("CertificationPart",UIPanel)
+CertificationPart.m_ItemGrid=nil;
+CertificationPart.m_PropScrollView=nil;
+CertificationPart.m_WishBtn=nil;
+CertificationPart.Props={};
+CertificationPart.PropPartnerItems={};
+
+CertificationPart.m_ToppedBtn=nil;
+CertificationPart.m_ToppedCost=nil;
+CertificationPart.m_CostIcon=nil;
+CertificationPart.m_CanTopped=false;
+CertificationPart.m_Topped=nil;
+
+CertificationPart.m_ItemPreview=nil;
+CertificationPart.m_ItemPreviewGo=nil;
+CertificationPart.CostItems={}
+
+CertificationPart.ParterData=nil;
+CertificationPart.m_CertificationToppedPartRoot=nil;
+
+
+CertificationPart.BaseRoot=nil;
+CertificationPart.Texture=nil;
+CertificationPart.IsHide=true;
+
+--topped
+function CertificationPart:ctor(go,parent,atlas,callBack)
+	self.prefab=go;
+	self.AtlasPath=atlas;
+	self.CallBack=callBack;
+	self.m_ItemGrid=self:Find("ItemGrid").gameObject;
+	self.BaseRoot=self:Find("BaseRoot").gameObject;
+	self.m_PropScrollView=self:Find("BaseRoot/PropScrollView"):GetComponent(typeof(SuperScrollViewController));
+	self.m_WishBtn=self:Find("BaseRoot/WishBtn"):GetComponent(typeof(Button));
+	self.m_ToppedBtn=self:Find("BaseRoot/ToptButton"):GetComponent(typeof(Button));
+	self.m_CostIcon=self:Find("BaseRoot/ToptButton/Image"):GetComponent(typeof(Image));
+	self.m_Topped=self:Find("BaseRoot/Tooped").gameObject;
+	self.m_ToppedCost=self:Find("BaseRoot/ToptButton/CostNum"):GetComponent(typeof(Text));
+	self.m_ItemPreviewGo=self:Find("BaseRoot/Tooped/ItemPreview").gameObject
+
+	self.m_WishBtn.onClick:AddListener(function() self:OnClickWishBtn() end);
+	self.m_PropScrollView:NewScroll(self.m_ItemGrid, 0, function (tr,idx)
+			self:OnPropItemRefesh(tr,idx);
+		end);
+
+	self.m_ToppedBtn.onClick:AddListener(function() self:OnClickToppedBtn() end);
+
+
+
+	self.m_ItemPreview=StructAccessor.ItemPreview.new(self.m_ItemPreviewGo);
+
+
+end
+
+function CertificationPart:OnShowBaseRoot()
+	self.BaseRoot:SetActive(true)
+end
+---突破成功
+function CertificationPart:OnPartnerToppedHander(result)
+	if result and not self.IsHide then
+		local module= LuaModuleDispatcher:GetModule(ModuleDef.BattleTeamModule);
+		if module~=nil then
+			local data=module:GetPartnerByIndex(self.ParterData.Index)
+			if data~=nil then
+				self:OnShow(data,false)
+			end
+		end
+		LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OnOpenCertificationToppedWidget",self.ParterData);
+	end
+end
+
+
+function CertificationPart:OnFresh(data,tr)
+	local PropName=tr.transform:Find("PropName"):GetComponent(typeof(Text));
+	PropName.text=data.PropName;
+
+	local slider=tr.transform:Find("Slider"):GetComponent(typeof(Slider));
+	slider.value=data.PropValue/data.PropMax
+
+	local PropValue=tr.transform:Find("PropValue"):GetComponent(typeof(Text));
+	PropValue.text="<color=#11ff11>"..data.PropValue.."</color>".."/<color=#CCCCCC>"..data.PropMax.."</color>"
+end
+
+function CertificationPart:OnPropItemRefesh(tr,idx)
+	if self.PropPartnerItems==nil then
+		return;
+	end
+	for i=1,#self.PropPartnerItems do
+		if self.PropPartnerItems[i].transform == tr then
+			local data=self.Props[idx+1];
+			self:OnFresh(data,tr);
+
+			return
+		end
+	end
+
+	tr.gameObject:SetActive(true);
+	local data=self.Props[idx+1];
+	self:OnFresh(data,tr);
+	table.insert(self.PropPartnerItems, tr);
+end
+
+--数据更新
+function CertificationPart:OnShow(data,upgrade)
+	self.Index=data.Index;
+	self.ParterData=data;
+	self.m_CanTopped=true;
+	self.IsHide=false;
+	local config=ConfigDataAccessor.Partner[data.Index];
+	if config~=nil then
+		local qualificate=ConfigDataAccessor.Qualifications[config.QualificationID][data.AptitudeBreakStep]
+		if qualificate~=nil then
+
+			self.Props={}
+			for i = 1, #qualificate.QualiFications do
+				local AoiAttr= ConfigDataAccessor.ParConversion[qualificate.QualiFications[i]]
+				if AoiAttr~=nil then
+					local t=data.AMD.Aptitudes[qualificate.QualiFications[i]]
+					local v=0;
+					if t~=nil then
+						v=t.BaseValue
+					end
+					if qualificate.Value_max[i] >v then
+						self.m_CanTopped=false;
+					end
+					table.insert(self.Props,{id=qualificate.QualiFications[i],PropName=AoiAttr.Name,PropValue=v,PropMax=qualificate.Value_max[i]})
+				end
+			end
+			self:SetTopped(qualificate.Money,qualificate.Item_id,qualificate.Item_num)
+		end
+		table.sort(self.Props,function (p1,p2)
+				return p1.id<p2.id;
+			end);
+
+
+		self.m_PropScrollView:ContinueScroll(#self.Props);
+
+	end
+
+	self.BaseRoot:SetActive(true)
+	self.prefab:SetActive(true)
+	CS.StarProject.GlobalEvent.OnPartnerTopped:AddListener(function (result)
+			self:OnPartnerToppedHander(result)
+		end);
+end
+
+function CertificationPart:OnDestroy()
+	if self.PropPartnerItems==nil then
+		self.PropPartnerItems ={}
+	else
+		for k,_ in pairs(self.PropPartnerItems) do self.PropPartnerItems[k] = nil end
+		--self.ItemDataList ={}
+	end
+	self.m_ItemPreview:OnDestroy();
+	self.m_ItemPreview=nil;
+end
+
+
+function CertificationPart:SetTopped(money,itemids,itemNums)
+	self.CostItems={}
+	if self.m_CanTopped then
+		self.m_Topped.gameObject:SetActive(true)
+		self.m_ToppedBtn.gameObject:SetActive(true)
+		self.m_WishBtn.gameObject:SetActive(false)
+
+		for i = 1, 	#itemids do
+			local c=BusinessManager.Instance:GetCurrencyNum(itemids[i])
+			local text=c.."/"..itemNums[i]
+			if c< itemNums[i] then
+				text= "<color=#FF0000>".. c.."/"..itemNums[i].."</color>"
+			end
+			table.insert(self.CostItems,{ItemID=itemids[i],ItemNum=text})
+			
+			--table.insert(self.CostItems,{ItemID=itemids[i],ItemNum=itemNums[i]})
+		end
+	else
+		self.m_Topped.gameObject:SetActive(false)
+		self.m_ToppedBtn.gameObject:SetActive(false)
+		self.m_WishBtn.gameObject:SetActive(true)
+	end
+	local itemcfg= ConfigDataAccessor.Item[money[1]];
+	if itemcfg~=nil then
+		ResourceHelper:LoadIconAsync(self.m_CostIcon, "", itemcfg.Icon, false)
+		-- ResourceManager.Instance:LoadSpriteAsync(itemcfg.Icon,function (sp)
+		-- 		if sp~=nil and self.m_CostIcon~=nil then
+		-- 			self.m_CostIcon.sprite=sp;
+		-- 		end
+		-- 	end)
+	end
+	self.m_ToppedCost.text=tostring(money[2])
+	self.m_ItemPreview:SetItems(self.CostItems);
+end
+
+
+function CertificationPart:OnHide()
+	self.IsHide=true;
+	CS.StarProject.GlobalEvent.OnPartnerTopped:RemoveListener(function (result)
+			self:OnPartnerToppedHander(result)
+		end);
+	self.prefab:SetActive(false)
+end
+
+function CertificationPart:OnClickWishBtn()
+	if not self.m_CanTopped then
+		LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OnPartnerAblutionWidget",self.ParterData.Index);
+	end
+end
+
+function CertificationPart:OnClickToppedBtn()
+
+	if self.m_CanTopped then
+		--GetCurrencyNum
+		local config=ConfigDataAccessor.Partner[self.ParterData.Index];
+		if config~=nil then
+			local qualificate=ConfigDataAccessor.Qualifications[config.QualificationID][self.ParterData.AptitudeBreakStep]
+			if qualificate~=nil then
+				if self.ParterData.CurStar< qualificate.Star then
+					Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_214"));
+					print(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_214"))
+					return
+				end
+
+				local money=	BusinessManager.Instance:GetCurrencyNum(qualificate.Money[1])
+				if money< qualificate.Money[2] then
+					--金币不足
+					local itemName=ConfigDataAccessor.Item[qualificate.Money[1]]
+					if itemName~=nil then
+						--Util.ShowMessage(itemName.Name.."不足");
+						Util.ShowMessage(StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_ShopItem_buyErrorMsg"), {itemName.Name}))
+
+					end
+
+					return
+				end
+
+				local itemSuit=true;
+				for i = 1, #qualificate.Item_id do
+					local temp=BusinessManager.Instance:GetCurrencyNum(qualificate.Item_id[i])
+					if temp< qualificate.Item_num[i] then
+						itemSuit=false;
+						break;
+					end
+				end
+
+				if itemSuit then
+					LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OnPartnerLimitBreakReq",self.Index);
+				else
+					print(LanguageHelp:GetLanguageByKey("Local_Str_No_Item"))
+					Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_No_Item"));
+				end
+			end
+		end
+
+	end
+end
+
+return  CertificationPart

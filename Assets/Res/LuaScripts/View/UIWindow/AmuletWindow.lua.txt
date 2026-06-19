@@ -1,0 +1,265 @@
+--[[
+*文件名   :   AmuletWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/02/03 13:09:51"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+AmuletWindow=class("AmuletWindow",UIPanel)
+AmuletWindow.IsOpen=false;
+
+
+local SelectBtn= require("View/Item/SelectBtn")
+local CurrencyBar =require("View/Item/CurrencyBar")
+
+local DefAmulet=require("View/Uiwindow/Amulet/DefAmulet")
+local PolishAmulet=require("View/Uiwindow/Amulet/PolishAmulet")
+local EmblemMenu=require("View/Uiwindow/Amulet/EmblemMenu")
+local ExtractAmulet=require("View/Uiwindow/Amulet/ExtractAmulet")
+local EmblemSkillInfo=require("View/Uiwindow/Amulet/EmblemSkillInfo")
+
+function AmuletWindow:Awake()
+
+end
+
+function AmuletWindow:BindModule(m)
+	self.module=m;
+end
+
+function AmuletWindow:InitItems()
+	self.transform =self.prefab.transform;
+	self.gameObject=self.transform.gameObject;
+
+	self.idxNow=-1;
+
+	--关闭信息
+	local btnCloseInfo=self.transform:Find("BackGround"):GetComponent(typeof(JButton));
+	btnCloseInfo.OnClick=(function()
+		self:OnCloseInfoClick();
+	end);
+
+
+	--菜单按钮
+	self.MenuBtns={};
+
+	local btn1=SelectBtn:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Menu/Root/BtnAmulet").gameObject);
+	btn1:InitItem(1,function (idx)
+		self:OnMenuBtnClick(idx);
+	end);
+	table.insert(self.MenuBtns,btn1);
+
+	local btn2=SelectBtn:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Menu/Root/BtnEmb").gameObject);
+	btn2:InitItem(2,function (idx)
+		self:OnMenuBtnClick(idx);
+	end);
+	table.insert( self.MenuBtns,btn2);
+
+	local btn3=SelectBtn:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Menu/Root/BtnPolish").gameObject);
+	btn3:InitItem(3,function (idx)
+		self:OnMenuBtnClick(idx);
+	end);
+	table.insert( self.MenuBtns,btn3);
+
+	local btn4=SelectBtn:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Menu/Root/BtnExact").gameObject);
+	btn4:InitItem(4,function (idx)
+		self:OnMenuBtnClick(idx);
+	end);
+	table.insert( self.MenuBtns,btn4);
+
+	--[[
+
+	local btn5=SelectBtn:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Menu/BtnOther2").gameObject);
+	btn5:InitItem(5,function (idx)
+		self:OnMenuBtnClick(idx);
+	end);
+	table.insert( self.MenuBtns,btn5);
+
+	]]
+
+	self.defAmulet= DefAmulet:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/DefAmulet").gameObject);
+	self.emblemMenu=EmblemMenu:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/EmblemMenu").gameObject,self);
+	self.polishAmulet= PolishAmulet:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/PolishAmulet").gameObject);
+	self.extractAmulet=ExtractAmulet:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/ExtractAmulet").gameObject);
+	self.emblemSkillInfo=EmblemSkillInfo:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/EmblemSkillInfo").gameObject);
+
+	--显示资源栏
+	self.currencyBar=CurrencyBar:New(nil,self.transform:Find("Cut4Cam90/AssemblyRatio2/CurrencyAhchor"));
+
+	self.m_CloseBtn=self:Find("Cut4Cam90/AssemblyRatio2/LeftTop/CloseBtn"):GetComponent(typeof(Button));
+	self.m_CloseBtn.onClick:AddListener(function() self:OnClickCloseBtn() end);
+
+	self.emblemMenu:OnMessage();
+
+end
+
+
+function AmuletWindow:ShowEmblemSkillInfo(sid)
+	self.emblemSkillInfo:Show(true,sid);
+end
+
+
+function AmuletWindow:PlayEmblemMenuCombineAnim()
+	self.ForcePlayAnimation("AmuletWindowAnim_002", function ()
+
+	end)
+end
+
+function AmuletWindow:PlayEmblemMenuRandHeraldryAnim()
+	self.ForcePlayAnimation("AmuletWindowAnim_0021", function ()
+
+	end)
+end
+
+function AmuletWindow:OpenAmulet(idx,eid)
+
+	self.PlayAnimation("AmuletWindowAnim_Open", function ()
+
+	end)
+
+	self:OnMenuBtnClick(idx,eid);
+
+end
+
+
+function AmuletWindow:RefeshAmuletUpgrade()
+
+	--刷新货币
+	local coins={4,3,2,1}
+	self.currencyBar:RefeshBar(coins);
+
+	self.defAmulet:Refesh();
+	--self.polishAmulet:Refesh();
+	--self.emblemMenu:Refesh();
+end
+
+
+function AmuletWindow:OnMenuBtnClick(idx,eid)
+
+	if self.idxNow==idx then
+		return;
+	end
+
+	if idx==1 then
+		self.defAmulet:Show(true);
+		self.polishAmulet:Show(false);
+		self.emblemMenu:Show(false);
+		self.extractAmulet:Show(false);
+	elseif idx==2 then
+		self.defAmulet:Show(false);
+		self.polishAmulet:Show(false);
+		self.emblemMenu:Show(true);
+		self.extractAmulet:Show(false);
+	elseif idx==3 then
+		self.defAmulet:Show(false);
+		self.polishAmulet:Show(true,eid);
+		self.emblemMenu:Show(false);
+		self.extractAmulet:Show(false);
+	elseif idx==4 then
+		self.defAmulet:Show(false);
+		self.polishAmulet:Show(false);
+		self.emblemMenu:Show(false);
+		self.extractAmulet:Show(true);
+	elseif idx==5 then
+
+		--临时关闭
+		--LuaModuleDispatcher:SendMessage(ModuleDef.AmuletModule, "OnCloseAmulet",{  });
+		--LuaModuleDispatcher:SendMessage(ModuleDef.BattleSkillModule, "OnOpenBattleSkill",{  });
+
+		Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_70"));
+		return;
+	end
+
+
+	self.idxNow=idx;
+	self:RefeshAmuletUpgrade();
+
+	for i=1,#self.MenuBtns do
+		self.MenuBtns[i]:MakeSelected(false);
+	end
+	self.MenuBtns[idx]:MakeSelected(true);
+
+
+	--关闭道具Tips
+	if GameManager.Instance.IsOpenItemTips then
+		self.module:CloseItemTips();
+	end
+end
+
+
+function AmuletWindow:Start()
+	print("AmuletWindow:Start")
+
+end
+
+function AmuletWindow:OnEnable()
+	
+end
+
+function AmuletWindow:OnDisable()
+	
+end
+
+function AmuletWindow:OnDestroy()
+	self.module.AmuletWindowView = nil;
+end
+
+function AmuletWindow:OnOpen(arg)
+	self.IsOpen=true;
+end
+
+function AmuletWindow:OnClose(arg)
+	--self:CloseWindow();
+	self.defAmulet:Show(false);
+	self.polishAmulet:Show(false);
+	self.emblemMenu:Show(false);
+	self.extractAmulet:Show(false);
+
+	self.emblemMenu:OffMessage();
+
+	self.module:OnCloseAmulet();
+
+end
+
+function AmuletWindow:OnCloseInfoClick()
+	--关闭道具Tips
+	if self.module.IsOpenTips then
+		self.module.IsOpenTips=false;
+		self.module:CloseItemTips();
+	else
+		--UIManager.Instance:CloseWindow("Item/AmuletWindow");
+	end
+end
+
+
+function AmuletWindow:OnClickCloseBtn()
+
+	if self.module.IsOpenTips then
+		self.module.IsOpenTips=false;
+		self.module:CloseItemTips();
+
+		self:CleanAllSelected();
+	end
+	self.idxNow=-1;
+	self.IsOpen=false;
+
+	self.Close();
+
+
+	--[[
+	self.PlayAnimation("AmuletWindowAnim_Close", function ()
+		self.idxNow=-1;
+		self.IsOpen=false;
+		self.module:OnCloseAmulet();
+
+		self.Close();
+	end)
+	]]
+
+
+
+end
+
+
+
+return  AmuletWindow

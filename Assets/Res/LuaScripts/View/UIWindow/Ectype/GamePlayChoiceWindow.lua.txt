@@ -1,0 +1,1047 @@
+-- 副本选择界面
+GamePlayChoiceWindow = class("GamePlayChoiceWindow", UIPanel)
+
+local DailyActRoot = require("View/UIWindow/DailyActWindow/DailyActRoot")
+
+local RingTaskWindowPath = "RingTask/RingTaskWindow"
+local WorldExpTipsWidgetPath = "Ectype/Prefab/WorldExpTipsWidget"
+local GamePlayChoiceTag = require("View/Uiwindow/Ectype/GamePlayChoiceTag")
+
+GamePlayChoiceWindow.AttrDeclareWidgetPath = "PlayerAttrWindow/Prefabs/AttrDeclareWidget"
+
+GamePlayChoiceWindow.IsOpen = false
+GamePlayChoiceWindow.PageIndex = 1
+GamePlayChoiceWindow.Pages = {}
+local MaxPage = 2
+local LockColor = Color(0.4, 0.4, 0.4, 1)
+local WhiteColor = Color(1, 1, 1, 1)
+
+function GamePlayChoiceWindow:Awake()
+end
+
+function GamePlayChoiceWindow:BindModule(m)
+    GamePlayChoiceWindow.module = m
+end
+
+--时序残响 单人本
+function GamePlayChoiceWindow:OpenDailyCopy()
+    -- 检测等级是否满足最小等级
+
+    local config = ConfigDataAccessor.PlayOpenConditions[6]
+    if not (CheckSysOpen(6, true)) then
+        return
+    end
+
+    local cb = function()
+        local mapID = config.MapID
+        local npcID = config.NPCID
+        local mete = GameManager.Instance:IsConditionMete(config.IndexChangeCondition)
+        if mete then
+            mapID = config.MapID2
+            npcID = config.NPCID2
+        end
+
+        TaskHelper.FindPathByNpc(
+            mapID,
+            npcID,
+            1,
+            function(result)
+                if result then
+                    LuaModuleDispatcher:SendMessage(ModuleDef.EctypeEntranceModule, "OnOpenEctypeEntrance", {})
+                --LuaModuleDispatcher:SendMessage(ModuleDef.EctypePopModule, "OnOpenEctypePop", {});
+                --LuaModuleDispatcher:SendMessage(ModuleDef.RingTaskModule, "OnCkeckAndOpenRingTaskWindow",{});
+                end
+            end
+        )
+        if GamePlayChoiceWindow.IsOpen then
+            self.starAnima:Play("Selected")
+        end
+    end
+
+    local closeCb = function()
+        if GamePlayChoiceWindow.IsOpen then
+            self.starAnima:Play("Selected")
+        end
+    end
+    self.starAnima:Play(
+        "UnSelected",
+        function()
+            LuaModuleDispatcher:SendMessage(ModuleDef.DailyTeamModule, "OpenDailyTeamOpenTipsWidget", {6, cb, "", closeCb})
+        end
+    )
+
+    --LuaModuleDispatcher:SendMessage(ModuleDef.EctypePopModule, "OnOpenEctypePop", {});
+end
+
+--研究手册  环任务
+function GamePlayChoiceWindow:OpenRingTask()
+    local allRingTasks = BusinessManager.Instance:GetAllRingTaskIDs()
+    -- 领取了第一个环任务
+    if allRingTasks ~= nil and allRingTasks.Count > 0 then
+        local isContain = TaskHelper.ContainTask(allRingTasks[0])
+        local isFinish = TaskHelper.IsTaskFinsh(allRingTasks[0])
+
+        if (TaskHelper.ContainTask(allRingTasks[0]) or TaskHelper.IsTaskFinsh(allRingTasks[0])) then
+            local closeCb = function()
+                self.starAnima_1:Play("Selected")
+            end
+            self.starAnima_1:Play(
+                "UnSelected",
+                function()
+                    -- 打开UI
+                    UIManager.Instance:CloseAllLoadedWindowNWidget()
+                    --UIManager.Instance:OpenWindowAsync(RingTaskWindowPath, nil, nil)
+                    LuaModuleDispatcher:SendMessage(ModuleDef.RingTaskModule, "OnCkeckAndOpenRingTaskWindow", {})
+                end
+            )
+        else
+            --LuaModuleDispatcher:SendMessage(ModuleDef.SecretAreaModule, "OpenSecretAreaOpenTipsWidget", {});
+            local config = ConfigDataAccessor.PlayOpenConditions[5]
+            if not (CheckSysOpen(5, true)) then
+                return
+            end
+
+            local cb = function()
+                local mapID = config.MapID
+                local npcID = config.NPCID
+                local mete = GameManager.Instance:IsConditionMete(config.IndexChangeCondition)
+                if mete then
+                    mapID = config.MapID2
+                    npcID = config.NPCID2
+                end
+
+                TaskHelper.FindPathByNpc(
+                    mapID,
+                    npcID,
+                    1,
+                    function(result)
+                        if result then
+                            LuaModuleDispatcher:SendMessage(ModuleDef.RingTaskModule, "OnCkeckAndOpenRingTaskWindow", {})
+                        end
+                    end
+                )
+                if GamePlayChoiceWindow.IsOpen then
+                    self.starAnima_1:Play("Selected")
+                end
+            end
+
+            local closeCb = function()
+                self.starAnima_1:Play("Selected")
+            end
+            self.starAnima_1:Play(
+                "UnSelected",
+                function()
+                    LuaModuleDispatcher:SendMessage(ModuleDef.DailyTeamModule, "OpenDailyTeamOpenTipsWidget", {5, cb, "", closeCb})
+                end
+            )
+        end
+    else
+        local config = ConfigDataAccessor.PlayOpenConditions[5]
+        if not (CheckSysOpen(5, true)) then
+            return
+        end
+    end
+end
+
+--拟态梦境  个人秘境
+function GamePlayChoiceWindow:OpenPersonSecret()
+    local config = ConfigDataAccessor.PlayOpenConditions[1]
+    if not (CheckSysOpen(1, true)) then
+        return
+    end
+
+    local cb = function()
+        local mapID = config.MapID
+        local npcID = config.NPCID
+        local mete = GameManager.Instance:IsConditionMete(config.IndexChangeCondition)
+        if mete then
+            mapID = config.MapID2
+            npcID = config.NPCID2
+        end
+        TaskHelper.FindPathByNpc(
+            mapID,
+            npcID,
+            1,
+            function(result)
+                if result then
+                    LuaModuleDispatcher:SendMessage(ModuleDef.SecretAreaModule, "OpenSecretAreaWindow", {})
+                end
+            end
+        )
+        if GamePlayChoiceWindow.IsOpen then
+            self.starAnima_2:Play("Selected")
+        end
+    end
+
+    local closeCb = function()
+        self.starAnima_2:Play("Selected")
+    end
+    self.starAnima_2:Play(
+        "UnSelected",
+        function()
+            LuaModuleDispatcher:SendMessage(ModuleDef.DailyTeamModule, "OpenDailyTeamOpenTipsWidget", {1, cb, "", closeCb})
+        end
+    )
+
+    --LuaModuleDispatcher:SendMessage(ModuleDef.SecretAreaModule, "OpenSecretAreaOpenTipsWidget", {});
+end
+
+--蚀梦之影 组队日常本
+function GamePlayChoiceWindow:OpenDailyTeam()
+    local config = ConfigDataAccessor.PlayOpenConditions[2]
+    if not (CheckSysOpen(2, true)) then
+        return
+    end
+
+    local cb = function()
+        local mapID = config.MapID
+        local npcID = config.NPCID
+        local mete = GameManager.Instance:IsConditionMete(config.IndexChangeCondition)
+        if mete then
+            mapID = config.MapID2
+            npcID = config.NPCID2
+        end
+        TaskHelper.FindPathByNpc(
+            mapID,
+            npcID,
+            1,
+            function(result)
+                if result then
+                    LuaModuleDispatcher:SendMessage(ModuleDef.DailyTeamModule, "OnDailyTeamWindow", {})
+                end
+            end
+        )
+        if GamePlayChoiceWindow.IsOpen then
+            self.starAnima_3:Play("Selected")
+        end
+    end
+
+    local closeCb = function()
+        self.starAnima_3:Play("Selected")
+    end
+    self.starAnima_3:Play(
+        "UnSelected",
+        function()
+            LuaModuleDispatcher:SendMessage(ModuleDef.DailyTeamModule, "OpenDailyTeamOpenTipsWidget", {2, cb, "", closeCb})
+        end
+    )
+end
+
+--侵蚀裂隙 通缉任务
+function GamePlayChoiceWindow:OpenWantedCopy()
+    local config = ConfigDataAccessor.PlayOpenConditions[3]
+    if not (CheckSysOpen(3, true)) then
+        return
+    end
+
+    -- 判断是否接取了通缉任务
+    local str = LanguageHelp:GetLanguageByKey("Local_Str_Go")
+    local isReceiveTask = false
+    local info = GameManager.Instance:GetMainPlayerWantTaskMD()
+    if info ~= nil then
+        isReceiveTask = info.IsAcc
+    end
+    if isReceiveTask then
+        str = LanguageHelp:GetLanguageByKey("Local_Str_examine")
+    end
+
+    local cb = function()
+        if isReceiveTask then
+            -- 打开通缉界面
+            LuaModuleDispatcher:SendMessage(ModuleDef.WantedModule, "OnOpenWantedWindow", {})
+        else
+            local mapID = config.MapID
+            local npcID = config.NPCID
+            local mete = GameManager.Instance:IsConditionMete(config.IndexChangeCondition)
+            if mete then
+                mapID = config.MapID2
+                npcID = config.NPCID2
+            end
+
+            TaskHelper.FindPathByNpc(
+                mapID,
+                npcID,
+                1,
+                function(result)
+                    if result then
+                    -- 打开通缉界面
+                    --LuaModuleDispatcher:SendMessage(ModuleDef.WantedModule, "OnOpenWantedWindow", {})
+                    end
+                end
+            )
+        end
+        if GamePlayChoiceWindow.IsOpen then
+            self.starAnima_4:Play("Selected")
+        end
+    end
+
+    local closeCb = function()
+        self.starAnima_4:Play("Selected")
+    end
+    self.starAnima_4:Play(
+        "UnSelected",
+        function()
+            --LuaModuleDispatcher:SendMessage(ModuleDef.WantedModule, "OnOpenWantedTipsWidget", {});
+            LuaModuleDispatcher:SendMessage(ModuleDef.DailyTeamModule, "OpenDailyTeamOpenTipsWidget", {3, cb, str, closeCb})
+        end
+    )
+end
+
+--协会募集 冒险团捐献
+function GamePlayChoiceWindow:OpenDonate()
+    local config = ConfigDataAccessor.PlayOpenConditions[7]
+
+    if not (CheckSysOpen(7, true)) then
+        return
+    end
+
+    if BusinessManager.Instance:GetGuildID() <= 0 then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_262"))
+        return
+    end
+
+    local cb = function()
+        local mapID = config.MapID
+        local npcID = config.NPCID
+        local mete = GameManager.Instance:IsConditionMete(config.IndexChangeCondition)
+        if mete then
+            mapID = config.MapID2
+            npcID = config.NPCID2
+        end
+
+        TaskHelper.FindPathByNpc(
+            mapID,
+            npcID,
+            1,
+            function(result)
+                if result then
+                    LuaModuleDispatcher:SendMessage(ModuleDef.DonateModule, "OnOpenDonate", {})
+                end
+            end
+        )
+        if GamePlayChoiceWindow.IsOpen then
+            self.starAnima_6:Play("Selected")
+        end
+    end
+
+    local closeCb = function()
+        self.starAnima_6:Play("Selected")
+    end
+    self.starAnima_6:Play(
+        "UnSelected",
+        function()
+            LuaModuleDispatcher:SendMessage(ModuleDef.DailyTeamModule, "OpenDailyTeamOpenTipsWidget", {7, cb, "", closeCb})
+        end
+    )
+end
+
+--胜者为王 异步竞技场
+function GamePlayChoiceWindow:OpenArena()
+    if not (CheckSysOpen(4, true)) then
+        return
+    end
+
+    local cb = function()
+        -- LogError("SendMessage(ModuleDef.ArenaModule, OnOpenArenaWindow, {});")
+        LuaModuleDispatcher:SendMessage(ModuleDef.ArenaModule, "OnOpenArenaWindow", {})
+    end
+    local closeCb = function()
+    end
+    LuaModuleDispatcher:SendMessage(ModuleDef.DailyTeamModule, "OpenDailyTeamOpenTipsWidget", {4, cb, LanguageHelp:GetLanguageByKey("Local_Str_challenge"), closeCb})
+end
+
+--空想之环 个人爬塔
+function GamePlayChoiceWindow:OpenPersonalTower()
+    if not CheckSysOpen(8, true) then
+        return
+    end
+
+    local cb = function()
+        LuaModuleDispatcher:SendMessage(ModuleDef.PersonalTowerModule, "OpenPersonalTowerWindow", {})
+    end
+    local closeCb = function()
+    end
+    LuaModuleDispatcher:SendMessage(ModuleDef.DailyTeamModule, "OpenDailyTeamOpenTipsWidget", {8, cb, LanguageHelp:GetLanguageByKey("Local_Str_challenge"), closeCb})
+end
+
+function GamePlayChoiceWindow:InitControls()
+    self.transform = self.prefab.transform
+    self.gameObject = self.transform.gameObject
+    self.PageIndex = 1
+    self.Pages = {}
+    local page1 = self:Find("bg/Group1").gameObject
+    local page2 = self:Find("bg/Group2").gameObject
+    table.insert(self.Pages, page1)
+    table.insert(self.Pages, page2)
+    --[[local enterBtn = self.transform:Find("DailyCopy"):GetComponent(typeof(Button));
+	enterBtn.onClick:AddListener(function()
+	local content = "该玩法今日剩余可参与".."1".."次，是否确认前往？";
+	CS.StarProjectDef.UIAPI.ShowMsgBox(12,function (str)
+	if str == "SURE" then
+	print("GamePlayChoiceWindow:OnBtnEnterClicked")
+	--导航到npc位置
+
+	end
+	end, content)
+	end);]]
+    self.starAnima = self.transform:Find("bg/Group1/DailyCopy"):GetComponent(typeof(StarAnimEvent))
+    self.starAnima_1 = self.transform:Find("bg/Group1/WeekCopy"):GetComponent(typeof(StarAnimEvent))
+    self.starAnima_2 = self.transform:Find("bg/Group1/PersonSecretCopy"):GetComponent(typeof(StarAnimEvent))
+    self.starAnima_3 = self.transform:Find("bg/Group1/DailyTeam"):GetComponent(typeof(StarAnimEvent))
+    self.starAnima_4 = self.transform:Find("bg/Group1/WantedCopy"):GetComponent(typeof(StarAnimEvent))
+    self.starAnima_6 = self.transform:Find("bg/Group2/Donate"):GetComponent(typeof(StarAnimEvent))
+    self.starAnima_5 = self.transform:Find("bg/Group2/Arena"):GetComponent(typeof(StarAnimEvent))
+    self.starAnima_8 = self.transform:Find("bg/Group2/PersonalTower"):GetComponent(typeof(StarAnimEvent))
+
+    --时序残响 有次数
+    self.go_finish_DailyCopy = self.transform:Find("bg/Group1/DailyCopy/di/di/finish").gameObject
+    self.tag_DailyCopy = GamePlayChoiceTag:New(self.transform:Find("bg/Group1/DailyCopy/Image/tags").gameObject, 6)
+    self.go_finish_DailyCopy:SetActive(false)
+
+    --研究手册 有次数
+    self.go_finish_WeekCopy = self.transform:Find("bg/Group1/WeekCopy/di/di/finish").gameObject
+    self.tag_WeekCopy = GamePlayChoiceTag:New(self.transform:Find("bg/Group1/WeekCopy/Image/tags").gameObject, 5)
+    self.go_finish_WeekCopy:SetActive(false)
+
+    --拟态梦境
+    self.go_finish_PersonSecretCopy = self.transform:Find("bg/Group1/PersonSecretCopy/di/di/finish").gameObject
+    self.tag_PersonSecretCopy = GamePlayChoiceTag:New(self.transform:Find("bg/Group1/PersonSecretCopy/Image/tags").gameObject, 1)
+    self.go_finish_PersonSecretCopy:SetActive(false)
+
+    --蚀梦之影 有次数
+    self.go_finish_DailyTeam = self.transform:Find("bg/Group1/DailyTeam/di/di/finish").gameObject
+    self.tag_DailyTeam = GamePlayChoiceTag:New(self.transform:Find("bg/Group1/DailyTeam/Image/tags").gameObject, 2)
+    self.go_finish_DailyTeam:SetActive(false)
+
+    --侵蚀裂隙 有次数
+    self.go_finish_WantedCopy = self.transform:Find("bg/Group1/WantedCopy/di/di/finish").gameObject
+    self.tag_WantedCopy = GamePlayChoiceTag:New(self.transform:Find("bg/Group1/WantedCopy/Image/tags").gameObject, 3)
+    self.go_finish_WantedCopy:SetActive(false)
+
+    --协会募集 有次数
+    self.go_finish_Donate = self.transform:Find("bg/Group2/Donate/di/di/finish").gameObject
+    self.tag_Donate = GamePlayChoiceTag:New(self.transform:Find("bg/Group2/Donate/Image/tags").gameObject, 7)
+    self.go_finish_Donate:SetActive(false)
+
+    --胜者为王 有次数
+    self.go_finish_Arena = self.transform:Find("bg/Group2/Arena/di/di/finish").gameObject
+    self.tag_Arena = GamePlayChoiceTag:New(self.transform:Find("bg/Group2/Arena/Image/tags").gameObject, 4)
+    self.go_finish_Arena:SetActive(false)
+
+    --空想之环
+    self.go_finish_PersonalTower = self.transform:Find("bg/Group2/PersonalTower/di/di/finish").gameObject
+    self.tag_PersonalTower = GamePlayChoiceTag:New(self.transform:Find("bg/Group2/PersonalTower/Image/tags").gameObject, 8)
+    self.go_finish_PersonalTower:SetActive(false)
+
+    --玩家经验
+    self.MainPlayerExpNum = self.transform:Find("EXP/ExpNum"):GetComponent(typeof(Text))
+    self.MainPlayerExpProgress = self.transform:Find("EXP/ExpProgress"):GetComponent(typeof(Slider))
+    self.JBtnExp = self.transform:Find("EXP/JBtnExp"):GetComponent(typeof(JButton))
+    self.JBtnExpFun = function()
+        self:OnClickExpFunJBtn()
+    end
+    self.JBtnExp.OnClick = self.JBtnExpFun
+
+    self.ExpTipsRoot = self.transform:Find("TipsRoot").transform
+    self.JBtnExpTipsRoot = self.transform:Find("TipsRoot"):GetComponent(typeof(JButton))
+    self.JBtnExpTipsRootFun = function()
+        self:OnClickExpTipsRootJBtn()
+    end
+    self.JBtnExpTipsRoot.OnClick = self.JBtnExpTipsRootFun
+
+    --打开周常活动页面
+    local WeekCopyBtn = self.transform:Find("Buttons/WeekCopyBtn"):GetComponent(typeof(Button))
+    WeekCopyBtn.onClick:AddListener(
+        function()
+            --UIManager.Instance:CloseWindow("Ectype/Prefab/GamePlayChoiceWindow")
+            UIManager.Instance:CloseAllLoadedWindowNWidget()
+            LuaModuleDispatcher:SendMessage(ModuleDef.EventModule, "OnOpenEvent", {})
+        end
+    )
+
+    self.dailyrp = self.transform:Find("Buttons/DailyCopyBtn/Sel/playRedPoint").gameObject
+    self.weekrp = self.transform:Find("Buttons/WeekCopyBtn/Nomal/playRedPoint").gameObject
+
+    -- ***********************时序残响 --单人本
+    local dailyCopyBtn = self.transform:Find("bg/Group1/DailyCopy"):GetComponent(typeof(Button))
+    dailyCopyBtn.onClick:AddListener(
+        function()
+            self:OpenDailyCopy()
+        end
+    )
+    self.leftTimes = self.transform:Find("bg/Group1/DailyCopy/Times/LeftTimes"):GetComponent(typeof(Text))
+    self.m_DailyCopybg = self.transform:Find("bg/Group1/DailyCopy/di/di"):GetComponent(typeof(Image))
+    self:FreshDailyCopyleftTime()
+
+    -- ***********************研究手册-- 环任务
+    self.leftTimes2 = self.transform:Find("bg/Group1/WeekCopy/Image01/LeftTimes"):GetComponent(typeof(Text))
+    self.m_WeekCopybg = self.transform:Find("bg/Group1/WeekCopy/di/di"):GetComponent(typeof(Image))
+    self:SetRingTaskInfo()
+    local weekCopyBtn = self.transform:Find("bg/Group1/WeekCopy"):GetComponent(typeof(Button))
+    weekCopyBtn.onClick:AddListener(
+        function()
+            self:OpenRingTask()
+        end
+    )
+
+    -- *******************拟态梦境 -- 个人秘境***************
+    local PersonSecretBtn = self.transform:Find("bg/Group1/PersonSecretCopy"):GetComponent(typeof(Button))
+    PersonSecretBtn.onClick:AddListener(
+        function()
+            self:OpenPersonSecret()
+        end
+    )
+    self.PersonSecretleftTimes = self.transform:Find("bg/Group1/PersonSecretCopy/Times/LeftTimes"):GetComponent(typeof(Text))
+    self.m_PersonSecretCopybg = self.transform:Find("bg/Group1/PersonSecretCopy/di/di"):GetComponent(typeof(Image))
+    self:FreshPersonSecretleftTime()
+
+    -- *******************蚀梦之影 --组队日常本***************
+    local DailyTeamBtn = self.transform:Find("bg/Group1/DailyTeam"):GetComponent(typeof(Button))
+    DailyTeamBtn.onClick:AddListener(
+        function()
+            self:OpenDailyTeam()
+        end
+    )
+    self.DailyTeamleftTimes = self.transform:Find("bg/Group1/DailyTeam/Times/LeftTimes"):GetComponent(typeof(Text))
+    self.m_DailyTeambg = self.transform:Find("bg/Group1/DailyTeam/di/di"):GetComponent(typeof(Image))
+    self:FreshDailyTeamleftTime()
+    -- *****************************************
+
+    -- *******************侵蚀裂隙 --通缉任务***************
+    local WantedCopyBtn = self.transform:Find("bg/Group1/WantedCopy"):GetComponent(typeof(Button))
+
+    WantedCopyBtn.onClick:AddListener(
+        function()
+            self:OpenWantedCopy()
+        end
+    )
+    self.WantedGetRewardTimes = self.transform:Find("bg/Group1/WantedCopy/Times/GetRewardTimes"):GetComponent(typeof(Text))
+    self.m_WantedCopybg = self.transform:Find("bg/Group1/WantedCopy/di/di"):GetComponent(typeof(Image))
+    self:FreshWantedGetRewardTime()
+    -- *****************************************
+
+    -- *************第二页
+
+    -- *******************协会募集 --冒险团捐献***************
+    local DonateBtn = self.transform:Find("bg/Group2/Donate"):GetComponent(typeof(Button))
+    DonateBtn.onClick:AddListener(
+        function()
+            self:OpenDonate()
+        end
+    )
+    self.DonateleftTimes = self.transform:Find("bg/Group2/Donate/Image01/LeftTimes"):GetComponent(typeof(Text))
+    self.m_Donatebg = self.transform:Find("bg/Group2/Donate/di/di"):GetComponent(typeof(Image))
+    self:FreshDonateleftTime()
+    -- *****************************************
+
+    -- *******************胜者为王 --异步竞技场***************
+    self.ArenaleftTimesText = self.transform:Find("bg/Group2/Arena/Times/LeftTimes"):GetComponent(typeof(Text))
+    self.m_Arenabg = self.transform:Find("bg/Group2/Arena/di/di"):GetComponent(typeof(Image))
+    local ArenaBtn = self.transform:Find("bg/Group2/Arena"):GetComponent(typeof(Button))
+    ArenaBtn.onClick:AddListener(
+        function()
+            self:OpenArena()
+        end
+    )
+    self:FreshArenaleftTime()
+    -- *****************************************
+
+    -- *******************空想之环 --个人爬塔***************
+    local PersonalTowerBtn = self.transform:Find("bg/Group2/PersonalTower"):GetComponent(typeof(Button))
+    PersonalTowerBtn.onClick:AddListener(
+        function()
+            self:OpenPersonalTower()
+        end
+    )
+    self.PersonTowerTimes = self.transform:Find("bg/Group2/PersonalTower/Times/LeftTimes"):GetComponent(typeof(Text))
+    self.m_PersonalTowerbg = self.transform:Find("bg/Group2/PersonalTower/di/di"):GetComponent(typeof(Image))
+    self:FreshPersonTower()
+    -- *****************************************
+
+    self.rightBtn = self:Find("rightBtn"):GetComponent(typeof(JButton))
+    self.rightBtn.OnClick = function()
+        self.PageIndex = self.PageIndex + 1
+        self:OnPageChange()
+    end
+
+    self.leftBtn = self:Find("leftBtn"):GetComponent(typeof(JButton))
+    self.leftBtn.OnClick = function()
+        self.PageIndex = self.PageIndex - 1
+        self:OnPageChange()
+    end
+
+    self.PageIndex = 1
+    if self.leftBtn ~= nil then
+        self.leftBtn.gameObject:SetActive(self.PageIndex > 1)
+    end
+
+    if self.rightBtn ~= nil then
+        self.rightBtn.gameObject:SetActive(self.PageIndex < MaxPage)
+    end
+
+    local go = self.transform:Find("DailyActRoot").gameObject
+    self.dailyActRoot = DailyActRoot.new(go)
+end
+
+function GamePlayChoiceWindow:OnPageChange()
+    if self.PageIndex < 1 then
+        self.PageIndex = 1
+    end
+
+    if self.PageIndex > MaxPage then
+        self.PageIndex = MaxPage
+    end
+
+    for i = 1, #self.Pages do
+        local page = self.Pages[i]
+        if page ~= nil then
+            page:SetActive(i == self.PageIndex)
+        end
+    end
+
+    if self.leftBtn ~= nil then
+        self.leftBtn.gameObject:SetActive(self.PageIndex > 1)
+    end
+
+    if self.rightBtn ~= nil then
+        self.rightBtn.gameObject:SetActive(self.PageIndex < MaxPage)
+    end
+
+    if self.PageIndex == 1 then
+        self.PlayAnimation(
+            "GamePlayChoiceWindow_QieHuan_Anim01",
+            function()
+                --self.PlayAnimation("GamePlayChoiceWindow_Loop_Anim")
+            end
+        )
+    elseif self.PageIndex == 2 then
+        self.PlayAnimation(
+            "GamePlayChoiceWindow_QieHuan_Anim",
+            function()
+                --self.PlayAnimation("GamePlayChoiceWindow_Loop02_Anim")
+            end
+        )
+    end
+end
+
+function GamePlayChoiceWindow:FreshDailyCopyleftTime()
+    -- self.PersonSecretleftTimes
+    local config = ConfigDataAccessor.PlayOpenConditions[6]
+
+    if not (CheckSysOpen(6)) then
+        self.m_DailyCopybg.color = LockColor
+        self.leftTimes.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips3")
+        --self.leftTimes.transform.parent.gameObject:SetActive(false)
+        return
+    end
+
+    --self.leftTimes.transform.parent.gameObject:SetActive(true)
+
+    local info = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.ComCount):GetData(8)
+    if info == nil then
+        return
+    end
+    --self.leftTimes.text = "今日剩余次数：" .. info.RemainCount .. "/" .. info.AddCount;
+
+    local isHaveLeft = (info.RemainCount > 0)
+    if isHaveLeft then
+        self.go_finish_DailyCopy:SetActive(false)
+        self.m_DailyCopybg.color = WhiteColor
+        self.leftTimes.text = LanguageHelp:GetLanguageByKey("Local_Str_EctypeEntranceWindow_leftTimes2") .. "：" .. info.RemainCount .. "/" .. info.AddCount
+    else
+        self.go_finish_DailyCopy:SetActive(true)
+        self.m_DailyCopybg.color = LockColor
+        self.leftTimes.text = LanguageHelp:GetLanguageByKey("RingTaskWindow_12")
+    end
+end
+
+function GamePlayChoiceWindow:FreshPersonSecretleftTime()
+    -- self.PersonSecretleftTimes
+    local config = ConfigDataAccessor.PlayOpenConditions[1]
+
+    if not (CheckSysOpen(1)) then
+        self.m_PersonSecretCopybg.color = LockColor
+        self.PersonSecretleftTimes.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips3")
+        self.PersonSecretleftTimes.transform.parent.gameObject:SetActive(true)
+        return
+    end
+    self.m_PersonSecretCopybg.color = WhiteColor
+    self.PersonSecretleftTimes.transform.parent.gameObject:SetActive(false)
+end
+
+function GamePlayChoiceWindow:FreshDailyTeamleftTime()
+    self.DailyTeamleftTimes.transform.parent.gameObject:SetActive(true)
+    ---self.DailyTeamleftTimes
+    local config = ConfigDataAccessor.PlayOpenConditions[2]
+    if not (CheckSysOpen(2)) then
+        self.m_DailyTeambg.color = LockColor
+        self.DailyTeamleftTimes.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips3")
+        return
+    end
+
+    local info = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.ComCount):GetData(11)
+    if info == nil then
+        return
+    end
+    --self.DailyTeamleftTimes.text = "今日剩余次数：" .. info.RemainCount .. "/" .. info.AddCount;
+
+    if info.RemainCount > 0 then
+        self.go_finish_DailyTeam:SetActive(false)
+        self.m_DailyTeambg.color = WhiteColor
+        self.DailyTeamleftTimes.text = LanguageHelp:GetLanguageByKey("Local_Str_EctypeEntranceWindow_leftTimes2") .. "：" .. info.RemainCount .. "/" .. info.AddCount
+    else
+        self.go_finish_DailyTeam:SetActive(true)
+        self.m_DailyTeambg.color = LockColor
+        self.DailyTeamleftTimes.text = LanguageHelp:GetLanguageByKey("RingTaskWindow_12")
+    end
+end
+
+function GamePlayChoiceWindow:FreshArenaleftTime()
+    self.ArenaleftTimesText.transform.parent.gameObject:SetActive(true)
+    local config = ConfigDataAccessor.PlayOpenConditions[4]
+    if not (CheckSysOpen(4)) then
+        self.m_Arenabg.color = LockColor
+        self.ArenaleftTimesText.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips3")
+        return
+    end
+    self.m_Arenabg.color = WhiteColor
+    local info = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.ComCount):GetData(17)
+    if info == nil then
+        return
+    end
+    --self.ArenaleftTimesText.text = "今日剩余次数：" .. info.RemainCount .. "/" .. info.AddCount;
+
+    if info.RemainCount > 0 then
+        self.go_finish_Arena:SetActive(false)
+        self.m_Arenabg.color = WhiteColor
+        self.ArenaleftTimesText.text = LanguageHelp:GetLanguageByKey("Local_Str_EctypeEntranceWindow_leftTimes2") .. " " .. info.RemainCount .. "/" .. info.AddCount
+    else
+        self.go_finish_Arena:SetActive(true)
+        self.m_Arenabg.color = LockColor
+        self.ArenaleftTimesText.text = LanguageHelp:GetLanguageByKey("RingTaskWindow_12")
+    end
+end
+
+function GamePlayChoiceWindow:FreshDonateleftTime()
+    self.DonateleftTimes.transform.parent.gameObject:SetActive(true)
+    local config = ConfigDataAccessor.PlayOpenConditions[7]
+
+    if not (CheckSysOpen(7)) then
+        self.m_Donatebg.color = LockColor
+        self.DonateleftTimes.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips3")
+        return
+    end
+
+    local guildDonateMD = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.GuildDonate):GetGuildDonateMD()
+
+    if guildDonateMD ~= nil then
+        local orderList = guildDonateMD.OrderList.OrderList -- 订单列表
+
+        local GetNum = 0
+        for i = 0, orderList.Count - 1 do
+            if orderList[i].IsSubmited then
+                GetNum = GetNum + 1
+            end
+        end
+
+        local leftCount = 9 - GetNum
+        --self.DonateleftTimes.text = "剩余委托数：" .. leftCount .. "/9";
+
+        if leftCount > 0 then
+            self.go_finish_Donate:SetActive(false)
+            self.m_Donatebg.color = WhiteColor
+            self.DonateleftTimes.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_DonateleftTimes"), {leftCount, 9})
+        else
+            self.go_finish_Donate:SetActive(true)
+            self.m_Donatebg.color = LockColor
+            self.DonateleftTimes.text = LanguageHelp:GetLanguageByKey("RingTaskWindow_12")
+        end
+    end
+end
+function GamePlayChoiceWindow:FreshPersonTower()
+    self.PersonTowerTimes.transform.parent.gameObject:SetActive(true)
+    if not (CheckSysOpen(8)) then
+        self.m_PersonalTowerbg.color = LockColor
+        self.PersonTowerTimes.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips3")
+        return
+    end
+
+    self.m_PersonalTowerbg.color = WhiteColor
+    local personTowerMD = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.PersonTower):GetMD()
+
+    if personTowerMD ~= nil then
+        local curFloor = personTowerMD.CurTowerFloor -- 订单列表
+        if curFloor == 0 then
+            self.PersonTowerTimes.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips11")
+        else
+            --self.PersonTowerTimes.text = string.format("当前第%d层",curFloor)
+            self.PersonTowerTimes.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_PersonTowerTimes"), {curFloor})
+        end
+    end
+end
+function GamePlayChoiceWindow:FreshWantedGetRewardTime()
+    self.WantedGetRewardTimes.transform.parent.gameObject:SetActive(true)
+    local config = ConfigDataAccessor.PlayOpenConditions[3]
+    if not (CheckSysOpen(3)) then
+        self.m_WantedCopybg.color = LockColor
+        self.WantedGetRewardTimes.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips3")
+        return
+    end
+
+    local starTime = 0
+    local info = GameManager.Instance:GetMainPlayerWantTaskMD()
+    if info ~= nil then
+        starTime = info.RewNum
+    end
+    local count = SystemConstConfigs.TeamWantedAwardLimits
+    local haveTime = count - starTime
+    --self.WantedGetRewardTimes.text = "今日领奖次数：" .. haveTime .. "/" .. count;
+
+    if haveTime > 0 then
+        self.go_finish_WantedCopy:SetActive(false)
+        self.m_WantedCopybg.color = WhiteColor
+        self.WantedGetRewardTimes.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_WantedGetRewardTimes"), {haveTime, count})
+    else
+        self.go_finish_WantedCopy:SetActive(true)
+        self.m_WantedCopybg.color = LockColor
+        self.WantedGetRewardTimes.text = LanguageHelp:GetLanguageByKey("RingTaskWindow_12")
+    end
+end
+
+function GamePlayChoiceWindow:FreshView(openGamePlayChoiceID)
+    self:InitMainPlayerExp()
+    self:SetRingTaskInfo()
+    self:FreshPersonSecretleftTime()
+    self:FreshDailyCopyleftTime()
+    self:FreshDailyTeamleftTime()
+    self:FreshWantedGetRewardTime()
+    self:FreshDonateleftTime()
+    self:FreshArenaleftTime()
+    self.dailyActRoot:OnOpen()
+
+    -- local rp = self.dailyActRoot:IsRedPoint();
+    -- self.dailyrp:SetActive(rp);
+    -- self.weekrp:SetActive(rp);
+
+    if openGamePlayChoiceID > 0 then
+        if openGamePlayChoiceID == 1 then
+            --时序残响 单人本
+            self:OpenDailyCopy()
+        elseif openGamePlayChoiceID == 2 then
+            --研究手册  环任务
+            self:OpenRingTask()
+        elseif openGamePlayChoiceID == 3 then
+            --拟态梦境  个人秘境
+            self:OpenPersonSecret()
+        elseif openGamePlayChoiceID == 4 then
+            --蚀梦之影 组队日常本
+            self:OpenDailyTeam()
+        elseif openGamePlayChoiceID == 5 then
+            --侵蚀裂隙 通缉任务
+            self:OpenWantedCopy()
+        elseif openGamePlayChoiceID == 6 then
+            --协会募集 冒险团捐献
+
+            --切换页签
+            self.PageIndex = self.PageIndex + 1
+            self:OnPageChange()
+            self:OpenDonate()
+        elseif openGamePlayChoiceID == 7 then
+            --胜者为王 异步竞技场
+            self.PageIndex = self.PageIndex + 1
+            self:OnPageChange()
+            self:OpenArena()
+        elseif openGamePlayChoiceID == 8 then
+            --空想之环 个人爬塔
+            self.PageIndex = self.PageIndex + 1
+            self:OnPageChange()
+            self:OpenPersonalTower()
+        elseif openGamePlayChoiceID == 999 then
+            --额外打开 活跃度
+            LuaModuleDispatcher:SendMessage(ModuleDef.DailyActModule, "OpenDailyActWindow", {})
+        end
+    end
+end
+
+function GamePlayChoiceWindow:InitData()
+    if self.dailyActRoot ~= nil then
+        self.dailyActRoot:OnOpen()
+    end
+end
+
+function GamePlayChoiceWindow:InitMainPlayerExp()
+    local mainPlayerAllExp = GameManager.Instance:GetMainPlayerAllExp_GetAddCount()
+    local levelLimitID = GameManager.Instance:GetLevelLimitID_CommonCount()
+
+    local cfg = ConfigDataAccessor.LevelLimit[levelLimitID]
+    if cfg == nil then
+        return
+    end
+    self.MainPlayerExpNum.text = mainPlayerAllExp .. "/" .. cfg.ExpDailyLimit
+    local ratio = 0
+    if cfg.ExpDailyLimit > 0 then
+        ratio = mainPlayerAllExp / cfg.ExpDailyLimit
+        if ratio > 1 then
+            ratio = 1
+        end
+    end
+    self.MainPlayerExpProgress.value = ratio
+end
+
+function GamePlayChoiceWindow:OnClickExpFunJBtn()
+    local levelLimitID = GameManager.Instance:GetLevelLimitID_CommonCount()
+    local cfg = ConfigDataAccessor.LevelLimit[levelLimitID]
+    if cfg == nil then
+        return
+    end
+    self.AsyncLoadWorldExpTipsWidgetCb = function(ui)
+        if ui ~= nil then
+            self.ExpTipsRoot.gameObject:SetActive(true)
+        end
+        self.AsyncLoadWorldExpTipsWidgetCb = nil
+    end
+    --UIManager.Instance:OpenWidgetAsync(WorldExpTipsWidgetPath, self.AsyncLoadWorldExpTipsWidgetCb, true, cfg, self.ExpTipsRoot, CS.StarProjectDef.MainPageCommond.HideNone, false, false)
+    UIManager.Instance:OpenWidgetAsync(WorldExpTipsWidgetPath, nil, true,
+    cfg, nil, CS.StarProjectDef.MainPageCommond.HideNone)
+end
+
+function GamePlayChoiceWindow:OnClickExpTipsRootJBtn()
+    -- UIManager.Instance:CloseWidget(WorldExpTipsWidgetPath, self.ExpTipsRoot, false)
+    -- self.ExpTipsRoot.gameObject:SetActive(false)
+    UIManager.Instance:CloseWidget(WorldExpTipsWidgetPath);
+
+end
+
+function GamePlayChoiceWindow:SetRingTaskInfo()
+    local config = ConfigDataAccessor.PlayOpenConditions[5]
+    if not (CheckSysOpen(5)) then
+        self.m_WeekCopybg.color = LockColor
+        self.leftTimes2.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips3")
+        return
+    end
+
+    local allRingTasks = BusinessManager.Instance:GetAllRingTaskIDs()
+    -- 领取了第一个环任务
+    if allRingTasks ~= nil and allRingTasks.Count > 0 then
+        local finishNum = 0
+        local allTaskNum = allRingTasks.Count - 1
+        for i = 0, allRingTasks.Count - 2 do
+            local isfinish = self:CheckRingTaskFinish(allRingTasks[i])
+            if isfinish then
+                finishNum = finishNum + 1
+            end
+        end
+
+        --self.leftTimes2.text = "已完成：" .. finishNum .. "/" .. allTaskNum;
+
+        if finishNum >= allTaskNum then
+            self.go_finish_WeekCopy:SetActive(true)
+            self.m_WeekCopybg.color = LockColor
+            self.leftTimes2.text = LanguageHelp:GetLanguageByKey("RingTaskWindow_12")
+        else
+            --self.leftTimes2.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_leftTimes2"), {finishNum, allTaskNum})
+            self.go_finish_WeekCopy:SetActive(false)
+            self.m_WeekCopybg.color = WhiteColor
+
+            self.leftTimes2.text = LanguageHelp:GetLanguageByKey("Local_Str_EctypeEntranceWindow_leftTimes2") .. " " .. (allTaskNum - finishNum) .. "/" .. allTaskNum
+        end
+    else
+        self.m_WeekCopybg.color = LockColor
+        self.leftTimes2.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips3")
+    end
+end
+
+function GamePlayChoiceWindow:CheckRingTaskFinish(id)
+    local isFinish = false
+
+    if id ~= nil and id > 0 then
+        local idNow = id
+        local isLast = false
+        local configNow = TaskHelper.GetTaskConfig(idNow)
+        local baseNow = nil
+        if configNow ~= nil then
+            baseNow = configNow.Base
+        else
+            isLast = true
+        end
+
+        while not (isLast) do
+            -- 任务状态
+            if TaskHelper.ContainTask(idNow) then
+                -- 正在进行
+                isLast = true
+            elseif TaskHelper.IsTaskFinsh(idNow) then
+                if baseNow.NextTaskID == 0 then
+                    -- 已经完成
+                    isLast = true
+                    isFinish = true
+                else
+                    -- 继续往下查
+                    configNow = TaskHelper.GetTaskConfig(baseNow.NextTaskID)
+                    if configNow ~= nil then
+                        idNow = baseNow.NextTaskID
+                        baseNow = configNow.Base
+                    else
+                        -- 结束
+                        baseNow = nil
+                        isLast = true
+                        print("任务ID：" .. baseNow.NextTaskID .. "不存在")
+                    end
+                end
+            else
+                isLast = true
+            end
+        end
+    end
+
+    return isFinish
+end
+
+function GamePlayChoiceWindow:Start()
+    print("EctypeSelectWindow:Start")
+end
+
+function GamePlayChoiceWindow:OnEnable()
+    self.PlayAnimation(
+        "GamePlayChoiceWindow_Anim",
+        function()
+            --self.PlayAnimation("GamePlayChoiceWindow_Loop02_Anim")
+        end
+    )
+end
+
+function GamePlayChoiceWindow:OnDisable()
+end
+
+function GamePlayChoiceWindow:OnDestroy()
+    if self.dailyActRoot ~= nil then
+        self.dailyActRoot:OnDestroy()
+    end
+end
+
+function GamePlayChoiceWindow:OnOpen(arg)
+    GamePlayChoiceWindow.IsOpen = true
+
+    self.PageIndex = 1
+
+    if self.leftBtn ~= nil then
+        self.leftBtn.gameObject:SetActive(self.PageIndex > 1)
+    end
+
+    if self.rightBtn ~= nil then
+        self.rightBtn.gameObject:SetActive(self.PageIndex < MaxPage)
+    end
+end
+
+function GamePlayChoiceWindow:OnClose(arg)
+    GamePlayChoiceWindow:CloseWindow()
+    self.module.gamePlayChoiceWindow = nil
+    ModuleManager.Instance:HideModule(ModuleDef.GamePlayChoiceModule)
+end
+
+function GamePlayChoiceWindow:CloseWindow()
+    GamePlayChoiceWindow.IsOpen = false
+    self.module.gamePlayChoiceWindow = nil
+end
+
+return GamePlayChoiceWindow

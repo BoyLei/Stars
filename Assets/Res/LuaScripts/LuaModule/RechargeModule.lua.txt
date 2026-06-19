@@ -1,0 +1,861 @@
+--[[
+*文件名   :   RechargeModule
+*内  容   :
+*说  明   :	  交易的 模块
+*创建日期 :   ""
+*创建人   :   ""
+*版权所有 :   游卡网络科技技术有限公司
+]] RechargeModule = class("RechargeModule", BaseLuaModule)
+
+local RechargeWindowPath = "Recharge/Prefab/RechargeWindow"
+
+-- 活动的 数据信息 , 里面会 记录 服务器返回的 AuctionItemNtf 和 返回的时间点(用来做开关 后 倒计时读秒)
+RechargeModule.DataMap = {}
+
+-- 其它类型 的数据信息, 目前 先加的 是冒险团仓库的数据信息
+RechargeModule.OtherDataMap = {}
+
+-- 活动的 数据,主要是 活动的类型/ 结束时间等
+RechargeModule.ActivitysData = {}
+
+-- LuaModule 消息模块
+RechargeModule.ModuleMessages = {
+    ["OnOpen"] = function(...)
+        RechargeModule:OnOpen(...)
+    end,
+    ["OnClose"] = function(...)
+        RechargeModule:OnClose(...)
+    end,
+    -- uiwindow 关闭时 回调 module 的接口
+    ["OnWindowClose"] = function(...)
+        RechargeModule:OnWindowClose(...)
+    end
+}
+
+-- LuaModule 创建
+function RechargeModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.RechargeModule, self)
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.AuctionStartNtfID, function(data)
+        self:OnAuctionStartNtf(data)
+    end, self)
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.AuctionItemNtfID, function(data)
+        self:OnAuctionItemNtf(data)
+    end, self)
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.AuctionBidRetID, function(data)
+        self:OnAuctionBidRet(data)
+    end, self)
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.AuctionGuildRetID, function(data)
+        self:OnAuctionGuildRet(data)
+    end, self)
+
+    -- 刷新红点 数据
+    print("[竞拍] " .. " module 创建 , 刷新 红点数据 ")
+
+    self:RefreshRedPointData()
+end
+
+-- LuaModule 释放
+function RechargeModule:OnModuleRelease()
+    NetworkManager.Instance:OffTargetMessage(self)
+    LuaModuleDispatcher:UnRegister(ModuleDef.RechargeModule)
+end
+
+-- LuaModule显示
+function RechargeModule:OnModuleShow(arg)
+    TaskRoot = arg
+end
+
+-- LuaModule 消息处理
+function RechargeModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...)
+end
+
+-- 打开界面
+function RechargeModule:OnOpen(...)
+    local tb = ...
+    local data = {}
+    local itemBaseID = 0 -- 需要查询的道具id
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        data.AuctionType = tb[1]
+        data.OtherType = tb[2]
+        if #tb > 2 then
+            itemBaseID = tb[3]
+        end
+    else
+        -- C#调用
+        data.AuctionType = tb[0]
+        data.OtherType = tb[1]
+        if tb.Length > 2 then
+            itemBaseID = tb[2]
+        end
+    end
+
+    if data.AuctionType == nil then
+        data.AuctionType = self:GetCurEntryType();
+    end
+
+    if data.OtherType == nil then
+        data.OtherType = AuctionOtherSelectType.None
+    end
+
+    -- 如果没有指定 打开的拍卖活动类型, 那就 走默认类型， 根据当前是否有竞拍活动开启来决定开启什么类型
+    if data.AuctionType == nil then
+        -- 如果一个活动类型 都没有, 那就 走 默认的类型
+        if not self:HasOpenType() then
+            data.AuctionType = CS.ProtoMsg.AuctionType.AtDefault
+        end
+    end
+
+    -- local rechargeWindow = UIManager.Instance:OpenWindow(RechargeWindowPath, nil,
+    --     CS.StarProjectDef.MainPageCommond.HideBoth);
+
+    -- -- 记录一个 uiwindow 的引用,
+    -- if self.rechargeWindow == nil then
+    --     self.rechargeWindow = rechargeWindow:GetLuaPanel().ScriptTable;
+    --     self.rechargeWindow:BindModule(self);
+    -- end
+    -- self.rechargeWindow:OnShow(data);
+
+    self.AsyncLoadRechargeWindowCb = function(ui)
+        if ui ~= nil then
+            if self.rechargeWindow == nil then
+                self.rechargeWindow = ui:GetLuaPanel().ScriptTable
+                self.rechargeWindow:BindModule(self)
+            end
+            self.rechargeWindow:OnShow(data)
+
+            if itemBaseID > 0 then
+                local searchTex = ConfigDataAccessor.Item[itemBaseID].Name
+                LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule, "OnFuzzySearch", {searchTex})
+                -- LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule,"OnBankItemListReq",{self.ItemID})
+            end
+        end
+        self.AsyncLoadRechargeWindowCb = nil
+    end
+    UIManager.Instance:OpenWindowAsync(RechargeWindowPath, self.AsyncLoadRechargeWindowCb, nil,
+        CS.StarProjectDef.MainPageCommond.HideBoth)
+end
+
+function RechargeModule:GetCurEntryType()
+
+    -- 如果一个活动类型 都没有, 那就 走 默认的类型
+    if not self:HasOpenType() then
+        return CS.ProtoMsg.AuctionType.AtDefault;
+    end
+
+    -- 返回当前 开放的 竞拍类型
+    return self:GetCurDefaultAuctionType();
+
+end
+
+-- 关闭界面
+function RechargeModule:OnClose()
+    if self.rechargeWindow ~= nil then
+        self.rechargeWindow:Close()
+    end
+end
+
+-- 关闭界面后 module执行的回调
+function RechargeModule:OnWindowClose(...)
+    self.rechargeWindow = nil
+end
+
+------------------------------ 协议回调
+
+-- message AuctionStartNtf {
+--     optional AuctionType Type = 1;
+--     optional int64 EndTime = 2;
+-- }
+-- 活动 开启 服务器的通知, 登录或者 活动开启时 服务器广播
+function RechargeModule:OnAuctionStartNtf(data)
+    if data == nil or data.data == nil then
+        return
+    end
+
+    local pb = data.data
+    local type = pb.Type
+
+    local activeityData = {}
+    -- 服务器同步过来的 当前活动类型
+    activeityData.Type = type
+    -- 活动结束的时间
+    activeityData.EndTime = pb.EndTime * 1000
+
+    self.ActivitysData[pb.Type] = activeityData
+
+    print("[竞拍] " .. " AuctionStartNtf : " .. activeityData.Type:ToString() .. "活动结束时间: " ..
+              MillsSecToFullString(activeityData.EndTime))
+
+    -- 如果收到活动开启协议通知的时候， 并且 这个活动界面也是开启的, 那就拉取这个活动的数据，显示这个活动信息
+    if self.rechargeWindow ~= nil and self:IsTypeActive(type) then
+        self.rechargeWindow:OnSelectAuction(true, true)
+    end
+
+    -- TODO DL
+    -- emit 发送 活动 是否开启的 通知
+
+    -- 服务器通知 客户端(登录时) 活动的开启/ 结束
+    -- local serverNowTime = GameManager.Instance:GetServerTimeStamp()
+
+    -- 活动 是否 开启 通过 结束时间 来判断
+    -- local isCurActive = serverNowTime <= pb.EndTime * 1000;
+
+    -- emit(pb.Type,isCurActive)
+
+    -- self:SetTimeClose();
+
+    self:RefreshRedPointData()
+end
+
+-- message AuctionItemNtf {
+-- 	optional AuctionType Type = 1;
+-- 	// 所有拍卖道具信息
+-- 	repeated AuctionItem AuctionItems = 2;
+-- 	// 自己竞拍的道具价格
+-- 	map<int64, int32> AuctionInfo = 3;
+-- }
+
+-- 服务器 回复 的 活动信息数据
+function RechargeModule:OnAuctionItemNtf(data)
+    if data == nil or data.data == nil then
+        return
+    end
+
+    local pb = data.data
+
+    -- 设置 服务器 同步的 活动数据
+    local info = {}
+    info.pb = pb
+    info.type = pb.Type
+
+    info.otherType = AuctionOtherSelectType.None
+
+    -- 收到服务器 回复的 的 时间
+    info.time = CS.SGF.Time.TimeUtils.ClientNowStampMilli
+
+    -- 根据 itemData 生成的 goodsInfo 数组
+    info.goodsInfo = {}
+    -- 根据 uniID 生成 uniID ---> goodsInfo 的映射
+    info.goodsInfoMap = {}
+
+    for i = 0, pb.AuctionItems.Count - 1, 1 do
+        local v = pb.AuctionItems[i]
+
+        local goodsItemInfo = {}
+
+        local itemData = v.ItemInfo
+
+        local uniID = v.EItemID
+        goodsItemInfo.UniID = uniID
+        Log("收到商品 UniID : [" .. uniID .. "] ")
+
+        goodsItemInfo.ItemID = itemData.BaseID
+        goodsItemInfo.count = itemData.Num
+        goodsItemInfo.curPrice = v.Curprise
+        goodsItemInfo.cfg = ConfigDataAccessor.Item[itemData.BaseID]
+        goodsItemInfo.itemData = itemData
+
+        -- 每个商品的 分红，0 的时候 表示没有， 2 表示 price/2
+        goodsItemInfo.DivvyCount = v.DivvyCount
+
+        -- 服务器同步过来的 商品 拍卖的 玩家 ID
+        goodsItemInfo.PID = v.PID
+
+        table.insert(info.goodsInfo, goodsItemInfo)
+
+        -- 生成 uniID ----> goodsItemInfo 的 映射, 采用对象的引用, 所以 直接 改 goodsItemInfo  就可以 同步修改 data.goodsInfos 的数据
+        info.goodsInfoMap[uniID] = goodsItemInfo
+    end
+
+    info.priceInfoMap = {}
+
+    -- 刷新 自己竞拍 道具的 价格数据
+    for k, v in pairs(pb.AuctionInfo) do
+        info.priceInfoMap[k] = v
+    end
+
+    local endTime = 0;
+    if pb.EndTime ~= 0 then
+
+        endTime = pb.EndTime*1000;
+    else
+        endTime = self:GetTypeEndTime(pb.Type);
+    end
+
+    info.EndTime = endTime;
+
+    self.DataMap[pb.Type] = info
+
+    local serverNowTime = GameManager.Instance:GetServerTimeStamp()
+
+    -- 同步 活动 数据
+    local activeityData = {}
+    -- 服务器同步过来的 当前活动类型
+    activeityData.Type = pb.Type
+    -- 活动结束的时间
+    activeityData.EndTime = endTime;
+
+    self.ActivitysData[pb.Type] = activeityData
+
+    print("[竞拍] " .. " AuctionItemNtf : " .. activeityData.Type:ToString() .. "活动结束时间: " ..
+              MillsSecToFullString(activeityData.EndTime))
+
+    if self.rechargeWindow ~= nil then
+        self.rechargeWindow:UpdateData(info)
+    end
+
+    self:UpdateDivvyCount()
+
+    self:RefreshRedPointData()
+end
+
+-- 服务器 竞价的 回复
+function RechargeModule:OnAuctionBidRet(data)
+    if data == nil or data.data == nil then
+        return
+    end
+
+    local pb = data.data
+
+    local resultEnum = CS.ProtoMsg.AuctionBidRet.Types.Result
+    -- 失败了, 应该弹个 tips
+    if pb.Ret ~= resultEnum.Ok then
+        if pb.Ret == resultEnum.FailureNoItem then
+            CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(
+                LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_32"))
+            return
+        end
+
+        if pb.Ret == resultEnum.FailureEnd then
+            CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(
+                LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_31"))
+            return
+        end
+
+        if pb.Ret == resultEnum.FailurePrice then
+            CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(
+                LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_30"))
+            return
+        end
+
+        if pb.Ret == resultEnum.FailureNoFind then
+            CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(
+                LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_29"))
+            return
+        end
+        return
+    end
+
+    -- 刷新 单个 道具的信息
+    self:UpdateAuctionItemInfo(pb.Type, pb.EItemId, pb.Price, pb.OwnerPid)
+    print("[竞拍] " .. " 商品的 OwnerPid: " .. tostring(pb.OwnerPid) .. " userPID: " ..
+              tostring(BusinessManager.Instance:GetUserPID()))
+    -- 出价成功的 提示
+    if pb.OwnerPid == BusinessManager.Instance:GetUserPID() then
+        CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(StringFormat(
+            LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_28"), {pb.Price}))
+    else
+        CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(
+            LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_27"))
+    end
+end
+------------------------------ 协议回调
+
+------------------------------ 发送协议
+
+-- 发送 获取个人信息 的亲求
+function RechargeModule:SendAuctionReq(type)
+    local battleSocket = NetworkManager.Instance.gameSocket
+    local message = CS.ProtoMsg.AuctionReq()
+    message.Type = type
+    battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message, false)
+end
+
+-- 发送 竞价请求
+function RechargeModule:SendAuctionBidReq(Type, EItemId, Price)
+    local battleSocket = NetworkManager.Instance.gameSocket
+    local message = CS.ProtoMsg.AuctionBidReq()
+
+    message.Type = Type
+    message.EItemId = EItemId
+    message.Price = Price
+
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message,
+        false)
+end
+------------------------------ 发送协议 end-------------
+
+-- 刷新 单个 竞拍 商品的 信息
+function RechargeModule:UpdateAuctionItemInfo(type, eItemId, price, ownerPid)
+    -- 刷新 了 一个 没有数据 类型的 数据, 除非服务器 逆天发了神秘数据过来
+    if self.DataMap[type] == nil then
+        Log("[UpdateAuctionItemInfo] 服务器逆天了 !!! type: " .. tostring(type) .. "  不存在这个数据")
+        return
+    end
+
+    local data = self.DataMap[type]
+
+    if data.goodsInfoMap[eItemId] == nil then
+        Log("[UpdateAuctionItemInfo] 服务器逆天了 !!! type: " .. tostring(type) .. " eItemId: " .. eItemId ..
+                "  不存在这个数据")
+        return
+    end
+
+    Log("[UpdateAuctionItemInfo] 更新服务器数据 type: " .. tostring(type) .. " eItemId: " .. eItemId ..
+            " price: " .. price)
+
+    -- 更新 goodsInfoMap 中的 goodsInfo
+    data.goodsInfoMap[eItemId].curPrice = price
+
+    -- 更新商品竞拍者的 拥有者 pid
+    data.goodsInfoMap[eItemId].PID = ownerPid
+
+    -- 更新 购买的 价格信息 记录
+    data.priceInfoMap[eItemId] = price
+
+    -- 如果存在 这个 UI的时候, 刷新 这个 UI 的 单个数据,  此处 根据 type 区分 活动类型
+    if self.rechargeWindow ~= nil then
+        self.rechargeWindow:UpdateItemData(type, data.goodsInfoMap[eItemId], true)
+    end
+
+    self:UpdateDivvyCount()
+end
+
+function RechargeModule:GetDivvyCount(type)
+    if self.DataMap[type] == nil then
+        return 0
+    end
+
+    local goodsInfo = self.DataMap[type].goodsInfo
+
+    local price = 0
+    for i, v in ipairs(goodsInfo) do
+        if v.DivvyCount ~= 0 then
+            price = price + math.floor(v.curPrice / v.DivvyCount)
+        end
+    end
+
+    return price
+end
+
+-- 刷新分红
+function RechargeModule:UpdateDivvyCount()
+    if self.rechargeWindow ~= nil then
+        self.rechargeWindow:UpdateDivvyCount()
+    end
+end
+
+-- 得到当前 默认 的 活动类型, 如果 所有活动都没开启, 那就默认 冒险团类型,否则 就是 服务器 通知的 类型
+function RechargeModule:GetCurDefaultAuctionType()
+    local serverNowTime = GameManager.Instance:GetServerTimeStamp()
+
+    -- 找到一个 开启的 活动类型
+    for i, v in pairs(self.ActivitysData) do
+        -- 如果找到了 这个 开启的活动类型, 那就使用这个类型
+        if self:IsTypeActive(i) then
+            return i
+        end
+    end
+
+    -- 找不到开启的活动类型, 就用默认的 活动类型
+    return CS.ProtoMsg.AuctionType.Group
+end
+
+-- 是否 购买了 某个 竞拍的 商品
+function RechargeModule:IsBoughtAuctionGoods(type, goodsUnid)
+    local typeData = self.DataMap[type]
+    if typeData == nil then
+        return false
+    end
+
+    local goodsInfo = typeData.goodsInfoMap[goodsUnid]
+    -- 如果 商品 购买信息 中 没有这个 道具
+    if goodsInfo == nil then
+        return false
+    end
+
+    -- 看是自己竞拍成功还是其他人竞拍成功
+    local isSelf = goodsInfo.PID == BusinessManager.Instance:GetUserPID()
+
+    return isSelf
+end
+
+-- 是否有对应类型的 数据
+function RechargeModule:HasTypeData(type)
+    return self.DataMap[type] ~= nil
+end
+
+-- 得到 type 类型活动结束的时间
+function RechargeModule:GetTypeEndTime(type)
+    -- 如果没有这个活动数据, 那这个活动就没开启
+    if self.ActivitysData[type] == nil then
+        return 0
+    end
+
+    local endTime = self.ActivitysData[type].EndTime
+
+    -- 如果活动结束时间 为0, 说明活动未开启
+    return endTime
+end
+
+--- 获得 AuctionType 类型 等待期 的结束时间
+---@param type "AuctionType 类型 等待期 的结束时间"
+function RechargeModule:GetTypeWaitEndTime(type)
+    local endTime = 0
+
+    -- 如果是 冒险团拍卖类型, 那就返回 冒险团活动的 等待期结束时间
+    if type == CS.ProtoMsg.AuctionType.Group or type == CS.ProtoMsg.AuctionType.World then
+        -- 先获取 冒险团拍卖的 结束时间
+        local activeEndTime = self:GetTypeEndTime(type)
+
+        -- 如果 冒险团活动都没开启, 那就直接返回 0
+        if activeEndTime == 0 then
+            return 0
+        end
+
+        local typeTime = 0
+        if type == CS.ProtoMsg.AuctionType.Group then
+            typeTime = ConfigDataAccessor.SystemList[69].Value * 1000
+        end
+
+        if type == CS.ProtoMsg.AuctionType.World then
+            typeTime = ConfigDataAccessor.SystemList[70].Value * 1000
+        end
+
+        -- 冒险团拍卖活动的持续时间
+        local AuctionStartDelay = typeTime
+
+        -- 冒险团仓库的 等待时间 =  冒险团活动的结束时间 - 冒险团活动的持续时间
+        endTime = activeEndTime - AuctionStartDelay
+
+        local serverNowTime = GameManager.Instance:GetServerTimeStamp()
+
+        -- print("[竞拍] ".." type : 冒险团活动结束时间: " .. MillsSecToFullString(activeEndTime) ..
+        --           " 等待期的结束时间: " .. MillsSecToFullString(endTime) .. "serverNowTime: " ..
+        --           MillsSecToFullString(serverNowTime));
+        return endTime
+    end
+
+    return endTime
+end
+
+-- 得到其它类型(非AutinType类型) 是否结束
+function RechargeModule:GetOtherTypeEndTime(otherType)
+    -- 如果 是 仓库类型, 那就 通过冒险团活动 去计算 冒险团仓库的 结束时间
+    if otherType == AuctionOtherSelectType.UnionWarehouse then
+        -- 冒险团仓库 对应的 活动类型 就是 冒险团拍卖活动类型
+        local activeType = CS.ProtoMsg.AuctionType.Group
+
+        -- 冒险团仓库的 等待时间 =  冒险团活动的结束时间 - 冒险团活动的持续时间
+        local endTime = self:GetTypeWaitEndTime(activeType)
+
+        return endTime
+    end
+    print("[竞拍] " .. " 获取 其它类型的 otherType: " .. otherType .. " 没有处理逻辑")
+
+    return 0
+end
+
+--- 检查是否有 开启的 拍卖活动. 如果一个活动 在等待期， 那这个活动 也是开启的.
+function RechargeModule:HasOpenType()
+    -- 冒险团拍卖 和 世界拍卖只要有一个 活动 开启， 就认为有 拍卖开启
+    if self:IsTypeActive(CS.ProtoMsg.AuctionType.Group) or self:IsTypeActive(CS.ProtoMsg.AuctionType.World) then
+        return true
+    end
+
+    return false
+end
+
+--- 是否存在 正在等待期的活动. 目前 服务器把活动分为 等待期+拍卖期，
+--- 对于客户端来说，只有一个活动的最终 结束endTime.
+--- 客户端需要根据 endTime 去计算 是在 等待期还是拍卖期
+--- 另外，对于冒险团拍卖来说，它的等待期 还有个待拍商店的显示.
+--- 所以对 客户端来说， 各个活动的 等待期判断就有点繁琐
+function RechargeModule:HasWaitingType()
+    -- 冒险团拍卖或者世界拍卖只要有一个 在待拍期，就认为 当前是 待拍期
+    if self:IsTypeInWaiting(CS.ProtoMsg.AuctionType.Group) or self:IsTypeInWaiting(CS.ProtoMsg.AuctionType.World) then
+        return true
+    end
+
+    return false
+end
+
+--- 得到当前 活动中 的等待期结束时间
+function RechargeModule:GetWaitingEndTime()
+    local serverNowTime = GameManager.Instance:GetServerTimeStamp()
+
+    -- 冒险团拍卖或者世界拍卖只要有一个 在待拍期，就认为 当前是 待拍期
+    local endTime = self:GetTypeWaitEndTime(CS.ProtoMsg.AuctionType.Group)
+
+    if serverNowTime < endTime then
+        return endTime
+    end
+
+    local endTime = self:GetTypeWaitEndTime(CS.ProtoMsg.AuctionType.World)
+    if serverNowTime < endTime then
+        return endTime
+    end
+
+    return 0
+end
+
+-- 对应的活动类型 是否正在进行
+function RechargeModule:IsTypeActive(type)
+    -- 如果没有这个活动数据, 那这个活动就没开启
+    if self.ActivitysData[type] == nil then
+        return false
+    end
+
+    local endTime = self.ActivitysData[type].EndTime
+
+    -- 如果活动结束时间 为0, 说明活动未开启
+    if endTime == 0 then
+        return false
+    end
+
+    local serverNowTime = GameManager.Instance:GetServerTimeStamp()
+
+    -- 活动 是否 开启 通过 结束时间 来判断
+    return serverNowTime <= endTime
+end
+
+-- 待拍商品 由待拍期改为 仅判断待拍商品 是否存在就显示
+function RechargeModule:IsTypeInWaiting(type)
+    -- 如果活动都没有开启, 那就 不在等待期
+    if not self:IsTypeActive(type) then
+        return false
+    end
+
+    -- 得到 这个类型的 等待期 结束时间
+    local endTime = self:GetTypeWaitEndTime(type)
+
+    -- 如果活动结束时间 为0, 说明活动未开启
+    if endTime == 0 then
+        return false
+    end
+
+    local serverNowTime = GameManager.Instance:GetServerTimeStamp()
+    -- 活动 是否 开启 通过 结束时间 来判断
+    return serverNowTime <= endTime
+end
+
+----------------------------- 冒险团拍卖行 仓库------------------------------------
+-- 发送 请求冒险团拍卖仓库信息 (仓库只有冒险团拍卖行有)
+function RechargeModule:SendAuctionGuildReq()
+    local battleSocket = NetworkManager.Instance.gameSocket
+    local message = CS.ProtoMsg.AuctionGuildReq()
+
+    print("[竞拍] " .. " 发送 请求仓库信息")
+
+    battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message, false)
+end
+
+-- 收到的 冒险团拍卖行 仓库 的道具信息
+function RechargeModule:OnAuctionGuildRet(data)
+    local pb = data.data
+
+    local info = {}
+    info.goodsInfo = {}
+    for i = 0, pb.AuctionItems.Count - 1, 1 do
+        local v = pb.AuctionItems[i]
+
+        local goodsItemInfo = {}
+
+        local itemData = v.ItemInfo
+
+        goodsItemInfo.ItemInfo = itemData
+        goodsItemInfo.UniID = v.EItemID
+        goodsItemInfo.ItemID = itemData.BaseID
+        goodsItemInfo.count = itemData.Num
+        goodsItemInfo.curPrice = v.Curprise
+        goodsItemInfo.cfg = ConfigDataAccessor.Item[itemData.BaseID]
+        goodsItemInfo.itemData = itemData
+
+        -- 每个商品的 分红，0 的时候 表示没有， 2 表示 price/2
+        goodsItemInfo.DivvyCount = v.DivvyCount
+
+        -- 服务器同步过来的 商品 拍卖的 玩家 ID
+        goodsItemInfo.PID = v.PID
+
+        table.insert(info.goodsInfo, goodsItemInfo)
+    end
+
+    info.type = CS.ProtoMsg.AuctionType.AtDefault
+    info.otherType = AuctionOtherSelectType.UnionWarehouse
+
+    self.OtherDataMap[AuctionOtherSelectType.UnionWarehouse] = info
+
+    print("[竞拍] " .. " 冒险团拍卖仓库: AuctionGuildRet : " .. #info.goodsInfo)
+
+    if self.rechargeWindow ~= nil then
+        self.rechargeWindow:UpdateData(info)
+    end
+end
+
+-- 是否有其它类型(非AutinType类型) 的数据
+function RechargeModule:HasOtherTypeData(otherType)
+    return self.OtherDataMap[otherType] ~= nil and #self.OtherDataMap[otherType].goodsInfo > 0
+end
+
+-- 获得其它类型 的数据信息
+function RechargeModule:GetOtherTypeData(otherType)
+    return self.OtherDataMap[otherType]
+end
+
+-- 对应的活动类型 是否正在进行
+function RechargeModule:IsOtherTypeActive(otherType)
+    -- 如果没有这个类型的数据, 返回 false
+    if self.OtherDataMap[otherType] == nil then
+        return false
+    end
+
+    -- 等待期 的时间
+    --     跟海星确认, 冒险团/世界拍卖活动的声明周期都是: 等待期+拍卖活动持续时间.
+    --     只不过 对于世界拍卖来说, 不想冒险团活动一样, 存在 一个冒险团仓库
+    local endTime = self:GetOtherTypeEndTime(otherType)
+
+    -- 如果活动结束时间 为0, 说明活动未开启
+    if endTime == 0 then
+        return false
+    end
+
+    local serverNowTime = GameManager.Instance:GetServerTimeStamp()
+
+    -- 活动 是否 开启 通过 结束时间 来判断
+    return serverNowTime <= endTime
+end
+
+-- 发送其它类型信息数据的请求
+function RechargeModule:SendOtherTypeReq(otherType)
+    -- 如果 请求的 是冒险团仓库的数据信息, 那就发送冒险团仓库信息的 请求
+    if otherType == AuctionOtherSelectType.UnionWarehouse then
+        self:SendAuctionGuildReq()
+    end
+end
+
+-------------------------------------------------------------------------------
+-- 设置一个时间 关闭
+function RechargeModule:SetTimeClose(time, type)
+    -- TODO DL
+    -- 到了指定时间 关闭 对应类型的panel
+end
+
+-- 刷新红点数据
+function RechargeModule:RefreshRedPointData()
+    -- 1.如果当前 不存在 开启的活动类型, 那关闭所有 红点;
+
+    -- 2.存在 开启的活动类型:
+    --   a.未开启的红点类型 关闭;
+    --   b.开启的红点类型: 检查 这个类型的缓存 end时间是否一致， 一致表明存在缓存，检查是否存在点击事件，存在 表明已经点过，关闭;否则开启
+
+    -- 刷新时机:
+    -- 1. 收到活动那个开启 协议 的时候 刷新
+    -- 2. 活动结束的 时候 刷新数据;
+    -- 3. 点击按钮之后 刷新
+
+    -- 工会拍卖红点数量
+    local unionRedPointCount = self:GetActiveiyTypeRedPointCount(CS.ProtoMsg.AuctionType.Group)
+    -- 世界拍卖红点数量
+    local worldRedPointCount = self:GetActiveiyTypeRedPointCount(CS.ProtoMsg.AuctionType.World)
+
+    -- 待拍仓库红点数量
+    local newRedPointCount = 0
+    print("[竞拍] " .. " 刷新红点数量:  Group : " .. unionRedPointCount)
+    print("[竞拍] " .. " 刷新红点数量:  World : " .. worldRedPointCount)
+    RedPointManager.Instance:RefreshRedPointCount(RedPointType.Auction_Union, unionRedPointCount)
+    RedPointManager.Instance:RefreshRedPointCount(RedPointType.Auction_World, worldRedPointCount)
+    RedPointManager.Instance:RefreshRedPointCount(RedPointType.Auction_New, newRedPointCount)
+end
+
+-- 计算 活动类型 的红点数 : activityType: CS.ProtoMsg.AuctionType.Group
+function RechargeModule:GetActiveiyTypeRedPointCount(activityType)
+    -- 如果活动开启,首先看 哪一种活动开启. 目前策划和 服务器的约定是 同时只存在一种开启 的拍卖活动.
+    -- 所以 一种活动开启, 就会 关闭所有的 其它 活动红点.
+
+    local isTypeActive = self:IsTypeActive(activityType)
+
+    local redPointCount = 0
+
+    -- 如果工会活动开启, 检查 是否存在这个类型的 活动数据, 如果不存在/ 活动的 endTime(目前根据 endTime 去区分活动是否是同一个) 不一致, 则表明没点击过这个红点
+    if isTypeActive then
+        local endTime = self:GetTypeEndTime(activityType)
+
+        local key = "Auction_" .. tostring(activityType)
+
+        local isHad = LocalCacheManager.Instance:Has(key, CacheType.Normal)
+
+        -- 如果不存在这个活动类型的 红点点击记录, 那就 需要显示红点
+        if not isHad then
+            redPointCount = 1
+        else
+            -- cache 的结构为: {endTime: xxxx };
+            local auctionCacheEndTime = LocalCacheManager.Instance:Get(key, CacheType.Normal)
+
+            -- 存在这个 活动数据, 并且 是一个活动, 那就 表示已经点过这个 活动的红点, 那就不显示这个红点
+            if auctionCacheEndTime ~= nil and auctionCacheEndTime == endTime then
+                redPointCount = 0
+            else
+                redPointCount = 1
+            end
+        end
+    else
+        redPointCount = 0
+    end
+
+    return redPointCount
+end
+
+-- 表示 点击了 某种类型活动的红点
+function RechargeModule:MarkClickActivityTypeRedPoint(activityType)
+    local endTime = self:GetTypeEndTime(activityType)
+
+    if endTime == 0 then
+        return
+    end
+
+    -- 如果 endTime 不为0 , 那就把这个 活动类型的 数据存入 本地缓存
+
+    local key = "Auction_" .. tostring(activityType)
+    print("[竞拍] " .. " 点击活动类型: " .. tostring(activityType) .. "endTime: " .. endTime)
+
+    -- 将 值 存入本地缓存.
+    LocalCacheManager.Instance:SetValueType(key, endTime, CacheType.Normal)
+
+    -- 刷新 对应的红点数据
+    self:RefreshRedPointData()
+end
+
+-- function RechargeModule:Post(activityType)
+--     local endTime = self:GetTypeEndTime(activityType)
+
+--     if endTime == 0 then
+--         return
+--     end
+
+--     -- 如果 endTime 不为0 , 那就把这个 活动类型的 数据存入 本地缓存
+
+--     local key = "Auction_" .. tostring(activityType)
+--     print("[竞拍] " .. " 点击活动类型: " .. tostring(activityType) .. "endTime: " .. endTime)
+
+--     -- 将 值 存入本地缓存.
+--     LocalCacheManager.Instance:SetValueType(key, endTime, CacheType.Normal)
+
+--     -- 刷新 对应的红点数据
+--     self:RefreshRedPointData()
+-- end
+
+-- LuaModule显示
+function RechargeModule:OnModuleShow(arg)
+    self:OnOpen(arg)
+end
+
+function RechargeModule:OnModuleHide(arg)
+end
+
+return RechargeModule

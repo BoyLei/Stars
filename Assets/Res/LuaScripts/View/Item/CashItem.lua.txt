@@ -1,0 +1,134 @@
+--[[
+*文件名   :   CashItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/25 18:01:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local CashItem = {}
+
+CashItem.__index = CashItem
+
+function CashItem:New(_go) 
+    local self = {};    
+    setmetatable(self, CashItem); 
+    
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+
+    --点击事件
+	local btnClick=self.transform:GetComponent(typeof(JButton));
+	btnClick.OnClick=(function() 
+        if self.OnItemClick ~= nil then			
+		    self.OnItemClick(self); 
+        end
+	end);
+
+
+    self.Name=self.transform:Find("Have/Name"):GetComponent(typeof(Text));
+    self.Rare=self.transform:Find("Have/frame"):GetComponent(typeof(Image));
+
+    self.Price=self.transform:Find("Have/Price"):GetComponent(typeof(Text));
+    self.Icon=self.transform:Find("Have/Icon"):GetComponent(typeof(Image));
+    self.Icon2=self.transform:Find("Have/Icon2"):GetComponent(typeof(Image));
+
+    self.go_First=self.transform:Find("Have/First").gameObject;
+    self.go_First:SetActive(false);
+    self.m_First=self.transform:Find("Have/First/sale"):GetComponent(typeof(Text));
+    self.Icon_First=self.transform:Find("Have/First/root/Icon"):GetComponent(typeof(Image));
+
+
+    self.m_Add=self.transform:Find("Have/Add/sale"):GetComponent(typeof(Text));
+    self.Icon_Add=self.transform:Find("Have/Add/root/Icon"):GetComponent(typeof(Image));
+    self.go_Add=self.transform:Find("Have/Add").gameObject;
+    self.go_Add:SetActive(false);
+
+    self.IsUsed=false;
+    self.gameObject:SetActive(false);
+
+    return self;    --返回自身
+end
+
+function CashItem:SetUse(b)
+    self.IsUsed=b;
+    self.gameObject:SetActive(b);
+end
+
+function CashItem:InitItem(onItemClick)
+
+    self.OnItemClick=onItemClick;
+    self:SetUse(false);
+end
+
+
+function CashItem:SetItem(item)
+    self:SetUse(true);
+
+    local cfg=item.cfg;
+
+
+    --商品id
+    local itemID=cfg.ItemID[1];
+
+    --底板
+    local itemCfg = ConfigDataAccessor.Item[itemID];
+
+    local quality=itemCfg.Quality; 
+
+    --self.Rare.sprite=AtlasManager.Instance:GetSprite("ui/shop/atlas/shop","Shop_frame_0"..(quality+1));
+    ResourceHelper:LoadIconByAtlasAsync(
+        self.Rare,
+        ResourceHelper.AtlasPathShop,
+        "Shop_frame_0"..(quality+1),
+        false
+    )
+
+    self.GoodsId=cfg.ID;
+    
+    self.Name.text=""..cfg.ItemNum[1]..itemCfg.Name;
+    
+    --ICON
+    --LoadIcon(self.Icon,itemCfg.Icon);
+    ResourceHelper:LoadIconAsync(self.Icon, "", itemCfg.Icon, false)
+    ResourceHelper:LoadIconAsync(self.Icon2, "", itemCfg.Icon, false)
+    ResourceHelper:LoadIconAsync(self.Icon_First, "", itemCfg.Icon, false)
+    ResourceHelper:LoadIconAsync(self.Icon_Add, "", itemCfg.Icon, false)
+   
+
+
+    --首充
+	if item.isFirst then
+		self.go_First:SetActive(true);
+		--self.m_First.text="首充加赠"..cfg.ItemNum[1];
+		self.m_First.text=StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_First"), {cfg.ItemNum[1]});
+
+	else
+		self.go_First:SetActive(false);
+	end
+
+
+
+	local itemPriceCfg = ConfigDataAccessor.Item[priceBuyID];
+	
+
+
+    --self.Price.text=""..cfg.Price.."元";
+    self.Price.text=StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Price"), {cfg.Price});
+
+
+    self.go_Add:SetActive(cfg.ItemNum[2]>0);
+    --self.m_Add.text="赠"..cfg.ItemNum[2];
+    self.m_Add.text=StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Add"), {cfg.ItemNum[2]});
+
+
+
+
+end
+
+
+
+
+return CashItem;

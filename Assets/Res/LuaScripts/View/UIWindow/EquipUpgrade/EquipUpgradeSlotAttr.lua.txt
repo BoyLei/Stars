@@ -1,0 +1,112 @@
+--[[
+*文件名   :   EquipUpgradeSlotAttr
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local EquipUpgradeSlotAttr = {}
+
+EquipUpgradeSlotAttr.__index = EquipUpgradeSlotAttr
+
+function EquipUpgradeSlotAttr:New(_go)
+    local self = {}
+    setmetatable(self, EquipUpgradeSlotAttr)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.Name = self.transform:Find("name"):GetComponent(typeof(Text))
+    self.Add = self.transform:Find("add"):GetComponent(typeof(Text))
+    self.Aim = self.transform:Find("aim"):GetComponent(typeof(Text))
+
+    if self.transform:Find("icon") ~= nil then
+        self.icon = self.transform:Find("icon"):GetComponent(typeof(Image))
+    end
+    self.go_Up = self.transform:Find("up").gameObject
+    self.go_Down = self.transform:Find("down").gameObject
+    self.go_Arrow = self.transform:Find("img").gameObject
+
+    if self.transform:Find("Fx_UI_TransJobFinishWindow02") ~= nil then
+        self.go_ps = self.transform:Find("Fx_UI_TransJobFinishWindow02").gameObject
+    end
+    return self --返回自身
+end
+
+function EquipUpgradeSlotAttr:ShowPs()
+    self.go_ps:SetActive(false)
+    self.go_ps:SetActive(true)
+end
+
+--设置Item
+function EquipUpgradeSlotAttr:RefeshAttrProb(id, addNum, addNum2, needHideRight)
+    if self.go_ps ~= nil then
+        self.go_ps:SetActive(false)
+    end
+    local config1 = ConfigDataAccessor.GetAttrByID(id)
+    local attrName1 = ""
+    if config1 ~= nil then
+        attrName1 = config1.Name
+    end
+
+    if self.icon ~= nil then
+        self:GetSpriteByAtlas(
+            "UI/Icons/Atlas/IconAttribute",
+            "Attribute_" .. id,
+            function(sp)
+                self.icon.sprite = sp
+            end
+        )
+    end
+
+    local name = attrName1
+    local add = addNum
+    local aim = addNum2
+
+    --决定颜色
+    --local quality = data.Quality;
+    --self.Name.text=GetQualityColor(quality)..name.."</color>";
+    --self.Add.text=GetQualityColor(quality).."+"..add.."</color>";
+    self.Name.text = name
+    self.Add.text = "+" .. add
+    self.Aim.text = "+" .. aim
+
+    if needHideRight then
+        self.Aim.gameObject:SetActive(false)
+        self.go_Up:SetActive(false)
+        self.go_Arrow:SetActive(false)
+    else
+        self.Aim.gameObject:SetActive(true)
+        self.go_Arrow:SetActive(true)
+
+        if addNum2 > addNum then
+            self.go_Up:SetActive(true)
+            self.go_Down:SetActive(false)
+        elseif addNum2 < addNum then
+            self.go_Up:SetActive(false)
+            self.go_Down:SetActive(true)
+        else
+            self.go_Up:SetActive(false)
+            self.go_Down:SetActive(false)
+        end
+    end
+end
+
+function EquipUpgradeSlotAttr:ShowArrow()
+    self.go_Up:SetActive(true)
+end
+
+function EquipUpgradeSlotAttr:GetSpriteByAtlas(AtlasPath, name, cb)
+    AtlasManager.Instance:GetSpriteAsync(
+        AtlasPath,
+        name,
+        function(sprite)
+            if cb ~= nil then
+                cb(sprite)
+            end
+        end
+    )
+end
+
+return EquipUpgradeSlotAttr

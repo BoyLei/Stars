@@ -1,0 +1,187 @@
+--[[
+*文件名   :   EquipUpgradeEquipMenu
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local EquipUpgradeEquipMenu = {}
+
+EquipUpgradeEquipMenu.__index = EquipUpgradeEquipMenu
+
+
+local EquipItem = require("View.Item.EquipItemSlot");
+
+function EquipUpgradeEquipMenu:New(_go,onClose) 
+    local self = {};    
+    setmetatable(self, EquipUpgradeEquipMenu); 
+    
+
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+	self.tips_anchor=self.transform:Find("LeftMenu/TipsAnchor").transform;
+
+	self.equips={};
+
+	self.redPoints={};
+	--for i=1,10 do
+	for i=1,8 do
+		local _go=self.transform:Find("LeftMenu/EquipGrid"..i);
+		local equip=EquipItem:New(_go);
+
+		equip:InitItem(true,function(it,idx)
+			self:OnItemClick(it,idx);
+		end,function (it)
+			self:OpenItemTips(it.BaseID,it.EntityID);
+		end)
+
+		table.insert( self.equips, equip );
+
+
+		local _go2=self.transform:Find("LeftMenu/RedPoints/RedPoint"..i).gameObject;
+		table.insert( self.redPoints, _go2 );
+	end
+
+	self.IsShowPerfect=0;
+
+
+
+
+    return self;    --返回自身
+end
+
+
+
+
+--隐藏所有红点
+function EquipUpgradeEquipMenu:HideAllRedpoints()
+	for i=1,#self.redPoints do
+		self.redPoints[i]:SetActive(false);
+	end
+end
+
+--显示红点
+function EquipUpgradeEquipMenu:CheckRedpoints()
+
+	if self.IsShowPerfect==0 then
+		for i=1,#self.redPoints do
+			local data=BusinessManager.Instance:GetHeroEquipedEquip(i);
+			if data== nil then
+				self.redPoints[i]:SetActive(false);
+			else
+	
+				self.redPoints[i]:SetActive(CheckEquipSlotUpgradeRedPoint(i));
+			end
+		end
+	else
+
+		for i=1,#self.redPoints do
+			local data=BusinessManager.Instance:GetHeroEquipedEquip(i);
+			if data== nil then
+				self.redPoints[i]:SetActive(false);
+			else
+
+				self.redPoints[i]:SetActive(CheckEquipRefineRedPoint(i));
+			end
+		end
+
+	end
+
+
+
+
+end
+
+
+function EquipUpgradeEquipMenu:OpenItemTips(baseID,entityID)
+	LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",{ baseID,false ,entityID,self.tips_anchor});
+end
+
+function EquipUpgradeEquipMenu:SetIsShowPerfect(num)
+	self.IsShowPerfect=num;
+	self:RefeshEquips();
+end
+
+function EquipUpgradeEquipMenu:RefeshEquips()
+
+	--另外两个饰品暂时没有用
+	for i=1,#self.equips do
+		local data=BusinessManager.Instance:GetHeroEquipedEquip(i);
+		if data== nil then
+			local temp={};
+			temp.BaseID=0;
+			self.equips[i]:SetItem(temp,i,false);
+		else
+			data.IsNew=false;
+			self.equips[i]:SetItem(data,i,false);
+		end
+	end
+	self:CheckRedpoints(self.IsShowPerfect);
+
+end
+
+
+
+function EquipUpgradeEquipMenu:SelectEquipByEntityID(eid)
+	if eid==0 or eid==nil then
+		for j=1,#self.equips do
+			self.equips[j]:MakeSelected(false);
+		end
+		return;
+	end
+
+	--另外两个饰品暂时没有用
+	for i=1,#self.equips do
+		local data=BusinessManager.Instance:GetHeroEquipedEquip(i);
+		if data~= nil then
+			if eid== data.EntityID then
+				for j=1,#self.equips do
+					self.equips[j]:MakeSelected(false);
+				end
+				self.equips[i]:MakeSelected(true);
+				break;
+			end
+		end
+	end
+end
+
+
+
+function EquipUpgradeEquipMenu:SelectEquipByIdx(idx)
+	for j=1,#self.equips do
+		self.equips[j]:MakeSelected(false);
+	end
+	self.equips[idx]:MakeSelected(true);
+end
+
+
+function EquipUpgradeEquipMenu:OnItemClick(ritem,idx)
+	if ritem==nil then
+		--装备升级界面不跳转
+        for i=1,#self.equips do
+            self.equips[i]:MakeSelected(false);
+        end
+        LuaModuleDispatcher:SendMessage(ModuleDef.EquipUpgradeModule,"OnRefeshEquipUpgrade",{nil,idx});
+
+	else
+		--装备升级界面不跳转
+        for i=1,#self.equips do
+            self.equips[i]:MakeSelected(false);
+        end
+        ritem:MakeSelected(true);
+
+        LuaModuleDispatcher:SendMessage(ModuleDef.EquipUpgradeModule,"OnRefeshEquipUpgrade",{ritem.EntityID,ritem.Idx});
+	end
+
+end
+
+function EquipUpgradeEquipMenu:Show(b)
+
+	self.gameObject:SetActive(b);
+	
+end
+
+return EquipUpgradeEquipMenu;

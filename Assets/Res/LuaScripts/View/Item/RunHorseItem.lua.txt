@@ -1,0 +1,110 @@
+--[[
+*文件名   :   RunHorseItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/12/5 15:09:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local RunHorseItem = {}
+
+RunHorseItem.__index = RunHorseItem
+
+function RunHorseItem:New(_go)
+    local self = {}
+    setmetatable(self, RunHorseItem)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.Message = self.transform:GetComponent(typeof(Text))
+
+    self.gameObject:SetActive(false)
+    self.IsUsed = false
+    self.tw = nil
+    self.tw2 = nil
+
+    self.rect = self.transform:GetComponent(typeof(RectTransform))
+
+    self.speed = SystemConstConfigs.MarqueeDuration
+    self.nextOffset = 810
+    self.startPosX = 425
+    self.startPosY = -0.1
+    self.maskWidth = 820
+
+    return self --返回自身
+end
+
+function RunHorseItem:SetItem(item, onPlayNext, onFinish)
+    --设置坐标
+    self.rect.anchoredPosition = Vector2(self.startPosX, self.startPosY)
+
+    self.IsUsed = true
+    self.gameObject:SetActive(true)
+
+    self.Message.text = item.Message
+
+    DOVirtual.DelayedCall(
+        0.05,
+        function()
+            local width = self.rect.sizeDelta.x
+
+            if self.tw ~= nil then
+                self.tw:Kill()
+            end
+            --播放下一条
+            self.tw =
+                self.rect:DOAnchorPosX(self.startPosX - width - self.nextOffset, self.speed):SetSpeedBased():SetEase(Ease.Linear):OnComplete(
+                function()
+                    if onPlayNext ~= nil then
+                        onPlayNext()
+                    end
+                end
+            )
+
+            --全部播放完
+            if self.tw2 ~= nil then
+                self.tw2:Kill()
+            end
+            self.tw2 =
+                self.rect:DOAnchorPosX(self.startPosX - width - self.maskWidth, self.speed):SetSpeedBased():SetEase(Ease.Linear):OnComplete(
+                function()
+                    self.IsUsed = false
+                    self.gameObject:SetActive(false)
+
+                    if onFinish ~= nil then
+                        onFinish()
+                    end
+                end
+            )
+            --[[
+                        self.tw =
+                self.rect:DOAnchorPosX(self.startPosX - width - self.nextOffset, self.speed):SetSpeedBased():SetEase(Ease.Linear):OnComplete(
+                function()
+                    --播放下一条
+                    if onPlayNext ~= nil then
+                        onPlayNext()
+                    end
+                    --全部播放完
+                    if self.tw2 ~= nil then
+                        self.tw2:Kill()
+                    end
+                    self.tw2 =
+                        self.rect:DOAnchorPosX(self.startPosX - width - self.nextOffset - self.maskWidth, self.speed):SetSpeedBased():SetEase(Ease.Linear):OnComplete(
+                        function()
+                            self.IsUsed = false
+                            self.gameObject:SetActive(false)
+
+                            if onFinish ~= nil then
+                                onFinish()
+                            end
+                        end
+                    )
+                end
+            )
+            ]]
+        end
+    )
+end
+
+return RunHorseItem

@@ -1,0 +1,99 @@
+---------------------------------------------------------------------
+-- Stars (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-09-19 14:20:43
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class WantedRankWidget
+WantedRankWidget = class("WantedRankWidget", UIPanel)
+
+local ItemWantedRank = require("View/UIWindow/Wanted/ItemWantedRank")
+WantedRankWidget.IsOpen = false
+
+function WantedRankWidget:Awake()
+    self.transform = self.prefab.transform
+    self.gameObject = self.transform.gameObject
+
+    -- 三个阶段的目标数据
+    self.m_ItemList = {}
+    for i = 1, 3 do
+        self.m_ItemList[i] = ItemWantedRank:New(self:Find("AnimRoot/Layout/Rank" .. i)
+            .gameObject)
+    end
+
+    --------------------------- 初始化一次性的数据
+    self.onCloseDestroy(false)
+
+    --------------------------- 初始化一次性的数据
+end
+
+function WantedRankWidget:Start()
+end
+
+function WantedRankWidget:OnEnable()
+end
+
+function WantedRankWidget:OnDisable()
+end
+
+function WantedRankWidget:OnDestroy()
+end
+
+function WantedRankWidget:OnOpen(arg)
+    self.IsOpen = true
+    --self:InitData(arg)
+end
+
+function WantedRankWidget:OnClose(arg)
+    self:CloseWindow()
+end
+
+----------------------------------------------------- 业务逻辑↓↓↓↓ ------------------------------------------
+
+function WantedRankWidget:InitData(arg)
+    local hurtInfos = arg;
+
+    -- 先计算总伤害
+    local HurtSum = 0; -- 所有队伍对怪物照成的总伤害
+    if hurtInfos ~= nil then
+        for i = 0, hurtInfos.Count - 1, 1 do
+            local item = hurtInfos[i]
+            if item ~= nil then
+                HurtSum = HurtSum + item.Hurt
+            end
+        end
+    end
+    -- 再遍历给item
+    for i = 1, #self.m_ItemList, 1 do
+        local child = self.m_ItemList[i]
+        local item = nil
+        if hurtInfos ~= nil and hurtInfos.Count >= i then
+            item = hurtInfos[i - 1]
+        end
+        if child ~= nil then
+            child:SetItem(item, HurtSum)
+        end
+    end
+end
+
+----------------------------------------------------- 无限列表 【STAR】 ------------------------------------------
+
+----------------------------------------------------- 无限列表 【END】 ------------------------------------------
+
+----------------------------------------------------- 初始化一次性数据 【STAR】 ------------------------------------------
+
+----------------------------------------------------- 初始化一次性数据 【END】 ------------------------------------------
+
+----------------------------------------------------- 按钮点击事件 【STAR】 ------------------------------------------
+
+----------------------------------------------------- 按钮点击事件 【END】 ------------------------------------------
+
+-- 关闭界面
+function WantedRankWidget:CloseWindow()
+    self.IsOpen = false
+end
+
+return WantedRankWidget

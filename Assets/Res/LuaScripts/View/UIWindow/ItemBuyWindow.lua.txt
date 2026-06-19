@@ -1,0 +1,354 @@
+--[[
+*文件名   :   ItemBuyWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/30 17:09:51"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+ItemBuyWindow = class("ItemBuyWindow", UIPanel)
+ItemBuyWindow.IsOpen = false
+
+local ItemGrid = require("View/Item/ItemGrid")
+local EquipAttrItem = require("View/Item/EquipAttrItem")
+local EquipSubAttrItem = require("View/Item/EquipSubAttrItem")
+
+function ItemBuyWindow:Awake()
+end
+
+function ItemBuyWindow:BindModule(m)
+    self.module = m
+end
+
+function ItemBuyWindow:InitItems()
+    self.transform = self.prefab.transform
+    self.gameObject = self.transform.gameObject
+
+    local btnCloseInfo = self.transform:Find("Background"):GetComponent(typeof(Button))
+    btnCloseInfo.onClick:AddListener(
+        function()
+            self:OnCloseInfoClick()
+        end
+    )
+
+    local btnClose = self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnCancel"):GetComponent(typeof(Button))
+    btnClose.onClick:AddListener(
+        function()
+            self:OnCloseInfoClick()
+        end
+    )
+
+    local btnClose2 = self.transform:Find("Cut4Cam90/AssemblyRatio2/CloseBtn"):GetComponent(typeof(Button))
+    btnClose2.onClick:AddListener(
+        function()
+            self:OnCloseInfoClick()
+        end
+    )
+
+    local btnMin = self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnMin"):GetComponent(typeof(Button))
+    btnMin.onClick:AddListener(
+        function()
+            self:OnBtnMinClick()
+        end
+    )
+
+    local btnMax = self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnMax"):GetComponent(typeof(Button))
+    btnMax.onClick:AddListener(
+        function()
+            self:OnBtnMaxClick()
+        end
+    )
+
+    local btnAdd = self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnAdd"):GetComponent(typeof(Button))
+    btnAdd.onClick:AddListener(
+        function()
+            self:OnBtnAddClick()
+        end
+    )
+
+    local btnSub = self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnSub"):GetComponent(typeof(Button))
+    btnSub.onClick:AddListener(
+        function()
+            self:OnBtnSubClick()
+        end
+    )
+
+    local btnConfirm = self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnConfirm"):GetComponent(typeof(Button))
+    btnConfirm.onClick:AddListener(
+        function()
+            self:OnBtnConfirmClick()
+        end
+    )
+
+    self.Title = self.transform:Find("Cut4Cam90/AssemblyRatio2/Title"):GetComponent(typeof(Text))
+
+    self.Name = self.transform:Find("Cut4Cam90/AssemblyRatio2/Name"):GetComponent(typeof(Text))
+    self.HaveNum = self.transform:Find("Cut4Cam90/AssemblyRatio2/HaveNum"):GetComponent(typeof(Text))
+    self.Desc = self.transform:Find("Cut4Cam90/AssemblyRatio2/Desc"):GetComponent(typeof(Text))
+
+    self.BuyLimit = self.transform:Find("Cut4Cam90/AssemblyRatio2/BuyLimit"):GetComponent(typeof(Text))
+
+    self.BuyNum = self.transform:Find("Cut4Cam90/AssemblyRatio2/BuyNum"):GetComponent(typeof(InputField))
+    self.BuyNum.onValueChanged:AddListener(
+        function()
+            self:OnInputFieldValChanged()
+        end
+    )
+
+    self.buyNameTex = nil
+
+    self.UseOneNum = self.transform:Find("Cut4Cam90/AssemblyRatio2/UseOne/UseNum"):GetComponent(typeof(Text))
+    self.UseAllNum = self.transform:Find("Cut4Cam90/AssemblyRatio2/UseAll/UseNum"):GetComponent(typeof(Text))
+    self.rect_UseOneNum = self.UseOneNum:GetComponent(typeof(RectTransform))
+    self.UseOneIcon = self.transform:Find("Cut4Cam90/AssemblyRatio2/UseOne/Icon"):GetComponent(typeof(Image))
+    self.UseAllIcon = self.transform:Find("Cut4Cam90/AssemblyRatio2/UseAll/Icon"):GetComponent(typeof(Image))
+
+    self.go_OldPrice = self.transform:Find("Cut4Cam90/AssemblyRatio2/UseOne/OldPrice").gameObject
+    self.OldPrice = self.transform:Find("Cut4Cam90/AssemblyRatio2/UseOne/OldPrice/UseNum"):GetComponent(typeof(Text))
+    self.OldPriceOff = self.transform:Find("Cut4Cam90/AssemblyRatio2/UseOne/OldPrice/off"):GetComponent(typeof(Text))
+
+    self.BuyNumNow = 1
+
+    self.ItemIcon = self.transform:Find("Cut4Cam90/AssemblyRatio2/GameObject/ItemIcon"):GetComponent(typeof(Image))
+    self.IconBg = self.transform:Find("Cut4Cam90/AssemblyRatio2/GameObject/frame"):GetComponent(typeof(Image))
+    self.ItemNum = self.transform:Find("Cut4Cam90/AssemblyRatio2/GameObject/Num"):GetComponent(typeof(Text))
+end
+
+function ItemBuyWindow:RefeshItem(item)
+    self.transform:SetAsLastSibling()
+
+    self.BuyCount = item.BuyCount
+    self.GoodsId = item.GoodsId
+
+    self.BuyNumNow = 1 --至少买一个
+
+    local goodsCfg = ConfigDataAccessor.Goods[self.GoodsId]
+    local item_id = goodsCfg.Item_id
+    local itemcfg = ConfigDataAccessor.Item[item_id]
+
+    self.SubShopID = goodsCfg.Sub_shopid
+
+    self.buyNameTex = itemcfg.Name
+    self.Name.text = itemcfg.Name .. " <color=#76F1BD><size=28>【" .. ConfigDataAccessor.ItemType[GetSubItemID(tonumber(itemcfg.ItemType), tonumber(itemcfg.SubType))].Name .. "】</size></color>"
+
+    self.Desc.gameObject:SetActive(true)
+
+    self.Desc.text = itemcfg.Desc
+    self.ItemNum.text = goodsCfg.Item_num
+
+    local itemNum = BusinessManager.Instance:GetCurrencyNum(item_id)
+    --self.HaveNum.text="已拥有:"..itemNum;
+    self.HaveNum.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_HaveNum"), {itemNum})
+
+    if goodsCfg.Buy_type == 1 then
+        self.BuyLimit.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_BuyLimit1"), {self.BuyCount, goodsCfg.Buy_num})
+    elseif goodsCfg.Buy_type == 2 then
+        self.BuyLimit.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_BuyLimit2"), {self.BuyCount, goodsCfg.Buy_num})
+    elseif goodsCfg.Buy_type == 3 then
+        self.BuyLimit.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_ShopItem_BuyLimit3"), {self.BuyCount, goodsCfg.Buy_num})
+    else
+        self.BuyLimit.text = LanguageHelp:GetLanguageByKey("Local_Str_BuyLimit3")
+    end
+
+    --local Price = goodsCfg.Price
+    local priceCfg = ConfigDataAccessor.Item[goodsCfg.CurrencyID]
+    --LoadIcon(self.UseOneIcon,priceCfg.Icon);
+    ResourceHelper:LoadIconAsync(self.UseOneIcon, "", priceCfg.Icon, false)
+
+    --self.UseAllIcon.sprite=self.UseOneIcon.sprite;
+    ResourceHelper:LoadIconAsync(self.UseAllIcon, "", priceCfg.Icon, false)
+
+    self.PerPrice = goodsCfg.CurrentPrice
+    self.UseOneNum.text = "" .. self.PerPrice
+
+    --打折
+    if goodsCfg.Discount > 0 then
+        self.go_OldPrice:SetActive(true)
+        --self.OldPrice.text=""..math.floor(self.PerPrice/(100-goodsCfg.Discount)*100) ;
+        --self.OldPriceOff.text="-"..goodsCfg.Discount.."%";
+
+        --self.OldPrice.text=""..math.floor(self.PerPrice/goodsCfg.Discount*100) ;
+        self.OldPrice.text = "" .. goodsCfg.OriginalPrice
+        self.OldPriceOff.text = "-" .. (100 - goodsCfg.Discount) .. "%"
+
+        self.rect_UseOneNum.anchoredPosition = Vector2(168.2, -7.1)
+    else
+        self.go_OldPrice:SetActive(false)
+        self.rect_UseOneNum.anchoredPosition = Vector2(168.2, 0)
+    end
+
+    --刷新格子信息
+    --local it={};
+    --it.BaseID=item_id;
+    --self.ItemGrid:SetItem(it);
+
+    --加载图标
+    --LoadIcon(self.ItemIcon,itemcfg.Icon);
+    ResourceHelper:LoadIconAsync(self.ItemIcon, "", itemcfg.Icon, false)
+
+    --self.IconBg.sprite=AtlasManager.Instance:GetSprite("ui/shop/atlas/shop","Shop_frame_0"..(itemcfg.Quality+1));
+    ResourceHelper:LoadIconByAtlasAsync(self.IconBg, ResourceHelper.AtlasPathCommonItem, "Bag_Grid_sq" .. itemcfg.Quality, false)
+
+    --计算所能购买的最大数量
+    self.MaxNum = 0
+
+    self.PriceHaveNum = BusinessManager.Instance:GetCurrencyNum(goodsCfg.CurrencyID)
+
+    --一个也买不起
+    if self.PriceHaveNum < self.PerPrice then
+        self.UseAllNum.text = "<color=#ff0000>" .. self.PerPrice .. "</color>"
+    else
+        --默认一个的单价
+        self.UseAllNum.text = "" .. self.PerPrice
+
+        --计算最大数量
+        self.MaxNum = math.floor(self.PriceHaveNum / self.PerPrice)
+
+        --计算限购数量
+        local leftNum = 0
+        if goodsCfg.Buy_num > 0 then
+            leftNum = goodsCfg.Buy_num - self.BuyCount
+        end
+
+        if leftNum > 0 then
+            --不能超过最大剩余购买数量
+
+            if leftNum < self.MaxNum then
+                self.MaxNum = leftNum
+            end
+        end
+    end
+
+    self:RefeshBuyNumTex()
+end
+
+function ItemBuyWindow:RefeshBuyNumTex()
+    self.BuyNum.text = self.BuyNumNow
+
+    if self.MaxNum == 0 then
+        self.UseAllNum.text = "<color=#ff0000>" .. (self.PerPrice * self.BuyNumNow) .. "</color>"
+    else
+        self.UseAllNum.text = "" .. (self.PerPrice * self.BuyNumNow)
+    end
+end
+
+function ItemBuyWindow:OnInputFieldValChanged()
+    if self.MaxNum == 0 then
+        self.BuyNum.text = "1"
+        return
+    end
+
+    local val = tonumber(self.BuyNum.text)
+
+    if val < 1 then
+        val = 1
+    elseif val > self.MaxNum then
+        val = self.MaxNum
+    end
+
+    self.BuyNumNow = val
+    self:RefeshBuyNumTex()
+end
+
+function ItemBuyWindow:OnBtnMinClick()
+    if self.MaxNum == 0 then
+        return
+    end
+
+    self.BuyNumNow = 1
+    self:RefeshBuyNumTex()
+end
+
+function ItemBuyWindow:OnBtnMaxClick()
+    if self.MaxNum == 0 then
+        return
+    end
+
+    self.BuyNumNow = self.MaxNum
+    self:RefeshBuyNumTex()
+end
+
+function ItemBuyWindow:OnBtnAddClick()
+    if self.MaxNum == 0 then
+        return
+    end
+
+    if self.BuyNumNow < self.MaxNum then
+        self.BuyNumNow = self.BuyNumNow + 1
+        self:RefeshBuyNumTex()
+    end
+end
+
+function ItemBuyWindow:OnBtnSubClick()
+    if self.MaxNum == 0 then
+        return
+    end
+
+    if self.BuyNumNow > 1 then
+        self.BuyNumNow = self.BuyNumNow - 1
+        self:RefeshBuyNumTex()
+    end
+end
+
+function ItemBuyWindow:OnBtnConfirmClick()
+    if self.MaxNum == 0 then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_No_Item"))
+        return
+    end
+
+    --发送购买物品消息
+    self.module:BuyItem(self.SubShopID, self.GoodsId, self.BuyNumNow)
+
+    UIManager.Instance:CloseWindow("Item/ItemBuyWindow")
+    --全部关闭
+end
+
+function ItemBuyWindow:OnItemClick(bitem)
+    --设置道具Tips
+    self.module.IsOpenTips = true
+    self.module:OpenItemTips(bitem.BaseID, bitem.EntityID, self.ItemGrid.transform)
+    --关闭回调
+end
+
+function ItemBuyWindow:Start()
+    print("ItemBuyWindow:Start")
+end
+
+function ItemBuyWindow:OnEnable()
+end
+
+function ItemBuyWindow:OnDisable()
+end
+
+function ItemBuyWindow:OnDestroy()
+end
+
+function ItemBuyWindow:OnOpen(arg)
+    self.IsOpen = true
+end
+
+function ItemBuyWindow:OnClose(arg)
+    self:CloseWindow()
+end
+
+function ItemBuyWindow:OnCloseInfoClick()
+    --关闭道具Tips
+    if self.module.IsOpenTips then
+        self.module.IsOpenTips = false
+        self.module:CloseItemTips()
+    else
+        UIManager.Instance:CloseWindow("Item/ItemBuyWindow")
+    end
+end
+
+function ItemBuyWindow:CloseWindow()
+    if self.module.IsOpenTips then
+        self.module.IsOpenTips = false
+        self.module:CloseItemTips()
+    end
+
+    self.IsOpen = false
+    self.module:OnCloseItemBuy()
+end
+
+return ItemBuyWindow

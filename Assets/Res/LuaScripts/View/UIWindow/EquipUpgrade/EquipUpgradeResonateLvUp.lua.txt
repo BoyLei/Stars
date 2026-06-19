@@ -1,0 +1,132 @@
+--[[
+*文件名   :   EquipUpgradeResonateLvUp
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local EquipUpgradeResonateLvUp = {}
+
+EquipUpgradeResonateLvUp.__index = EquipUpgradeResonateLvUp
+
+local ResonateItem = require("View/Uiwindow/EquipUpgrade/ResonateItem")
+local EquipUpgradeSlotAttr = require("View/Uiwindow/EquipUpgrade/EquipUpgradeSlotAttr")
+local ObjectPool = require("Common/Helper/ObjectPool")
+
+function EquipUpgradeResonateLvUp:New(_go, equipUpgradeSlotUpgrade)
+    local self = {}
+    setmetatable(self, EquipUpgradeResonateLvUp)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.EquipUpgradeSlotUpgrade = equipUpgradeSlotUpgrade
+    --关闭信息
+    local btnClose = self.transform:Find("BtnClose"):GetComponent(typeof(JButton))
+    btnClose.OnClick = (function()
+        self.EquipUpgradeSlotUpgrade:PlayResonateCloseAnim()
+
+        DOVirtual.DelayedCall(
+            0.1,
+            function()
+                self:Show(false)
+            end
+        )
+    end)
+
+    self.Data = {}
+
+    --当前等级
+    self.ScoreNow = self.transform:Find("Data1/Score/score"):GetComponent(typeof(Text))
+    self.ScoreNext = self.transform:Find("Data1/Score/score2"):GetComponent(typeof(Text))
+
+    self.LvNow = self.transform:Find("Data1/Btn/tex"):GetComponent(typeof(Text))
+    self.LockNow = self.transform:Find("Data1/Btn/lock").gameObject
+    self.InfoNow = self.transform:Find("Data1/Btn/info"):GetComponent(typeof(Text))
+    self.IconNow = self.transform:Find("Data1/Btn/bg"):GetComponent(typeof(Image))
+    --属性列表
+    self.attrs1 = {}
+    for i = 1, 5 do
+        local eai = EquipUpgradeSlotAttr:New(self.transform:Find("Data1/Info/Attr" .. i).gameObject)
+        table.insert(self.attrs1, eai)
+    end
+
+    self:Show(false)
+
+    return self --返回自身
+end
+
+function EquipUpgradeResonateLvUp:Refesh()
+    --刷新【当前】
+    local ritem = self.Data
+
+    local esrNow = ritem.Esr
+    --self.LvNow.text="强化共鸣 "..esrNow.ResonanceLv;
+    self.LvNow.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_EquipUpgradeResonate_LvNow"), {esrNow.ResonanceLv})
+    self.ScoreNext.text = esrNow.Power
+
+    self.InfoNow.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_EquipUpgradeResonate_InfoNow"), {8, esrNow.Level, 8, 8})
+    --加载图标图片
+    ResourceHelper:LoadIconAsync(
+        self.IconNow,
+        "",
+        esrNow.Icon,
+        false,
+        function()
+        end
+    )
+
+    local playerJob = GameManager.Instance:GetPlayJobBaseID()
+    local esrPrev = ConfigDataAccessor.GetEquipSlotResonance(ritem.Idx - 1, playerJob)
+
+    --显示属性
+    for i = 1, #self.attrs1 do
+        self.attrs1[i].gameObject:SetActive(false)
+    end
+    for i = 1, #esrNow.Nature do
+        self.attrs1[i].gameObject:SetActive(true)
+        if esrPrev == nil then
+            --0级
+            self.attrs1[i]:RefeshAttrProb(esrNow.Nature[i], 0, esrNow.Value[i], false)
+            self.ScoreNow.text = 0
+        else
+            self.attrs1[i]:RefeshAttrProb(esrNow.Nature[i], esrPrev.Value[i], esrNow.Value[i], false)
+            self.ScoreNow.text = esrPrev.Power
+        end
+    end
+    self.LockNow:SetActive(false)
+end
+
+function EquipUpgradeResonateLvUp:Show(b)
+    self.gameObject:SetActive(b)
+    if b then
+        local playerJob = GameManager.Instance:GetPlayJobBaseID()
+        local maxResonateLv = ConfigDataAccessor.GetMaxEquipSlotResonanceLv(playerJob)
+
+        self.MaxNum = maxResonateLv
+
+        local isMax = false
+
+        local rlevel = GameManager.Instance:GetEquipSlotResonateLv() --共鸣等级的最低等级
+
+        for i = 1, maxResonateLv do
+            local esr = ConfigDataAccessor.GetEquipSlotResonance(i, playerJob)
+            if rlevel >= esr.Level then
+                self.Data.Idx = i
+                self.Data.Esr = esr
+                self.Data.IsLock = false
+
+                if i == maxResonateLv then
+                    isMax = true
+                end
+            end
+        end
+
+        self.IsMax = isMax
+
+        self:Refesh()
+    end
+end
+
+return EquipUpgradeResonateLvUp

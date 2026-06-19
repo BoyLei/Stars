@@ -1,0 +1,115 @@
+--抽卡详情：概率，历史记录
+DetailInfoWindow = class("DetailInfoWindow", UIPanel)
+
+local RateInfo = require("View/UIWindow/DrawCard/RateInfo");
+local RecordInfo = require("View/UIWindow/DrawCard/RecordInfo");
+
+function DetailInfoWindow:Awake()
+end
+
+
+function DetailInfoWindow:BindModule(m)
+	DetailInfoWindow.module = m;
+end
+
+
+function DetailInfoWindow:InitControls()
+	self.transform = self.prefab.transform;
+	self.gameObject = self.transform.gameObject;
+
+	self.heroInfo = self.transform:Find("Cut4Cam90/AssemblyRatio2/HeroRate");
+	self.hisRecord = self.transform:Find("Cut4Cam90/AssemblyRatio2/HistoryRecord");
+
+	self.rateInfo = RateInfo:New(self.heroInfo.gameObject);
+	self.recordInfo = RecordInfo:New(self.hisRecord.gameObject, self.module);
+
+	self.rateBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/RateBtn"):GetComponent(typeof(Button));
+	self.rateBtn.onClick:AddListener(function()
+		--显示概率
+		self:ShowType(1);
+	end);
+
+	self.bg1 = self.rateBtn.transform:Find("Bg").gameObject;
+	self.icon1 = self.rateBtn.transform:Find("Image").gameObject;
+	self.rateText1 = self.rateBtn.transform:Find("Text1").gameObject;
+	self.rateText2 = self.rateBtn.transform:Find("Text2").gameObject;
+
+	self.recordBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/RecordBtn"):GetComponent(typeof(Button));
+	self.recordBtn.onClick:AddListener(function()
+		--显示历史
+		self.recordInfo.curPage = 1;
+		self.module:RequestCardList(1, self.recordInfo.curPoolType);
+	end);
+
+	self.bg2 = self.recordBtn.transform:Find("Bg").gameObject;
+	self.icon2 = self.recordBtn.transform:Find("Image").gameObject;
+	self.recordText1 = self.recordBtn.transform:Find("Text1").gameObject;
+	self.recordText2 = self.recordBtn.transform:Find("Text2").gameObject;
+end
+
+function DetailInfoWindow:ShowType(t)
+	self.heroInfo.gameObject:SetActive(t == 1);
+	self.hisRecord.gameObject:SetActive(t == 2);
+
+	self.bg1:SetActive(t == 1);
+	self.icon1:SetActive(t == 1);
+
+	self.bg2:SetActive(t == 2);
+	self.icon2:SetActive(t == 2);
+
+	self.rateText1:SetActive(t == 1);
+	self.rateText2:SetActive(t == 2);
+
+	self.recordText1:SetActive(t == 2);
+	self.recordText2:SetActive(t == 1);
+end
+
+function DetailInfoWindow:Init(poolid)
+	self.curPoolId = poolid;
+	self.rateInfo:InitData(poolid);
+	self:ShowType(1);
+	
+	local t = ConfigDataAccessor.CardPool[poolid].CardPoolType;
+	self.recordInfo:InitData(t);
+end
+
+function DetailInfoWindow:SetRecords(data)
+	self:ShowType(2);
+	
+	self.recordInfo:SetRecords(data);
+end
+
+function DetailInfoWindow:OnShow()
+end
+
+function DetailInfoWindow:Start()
+
+end
+
+function DetailInfoWindow:OnEnable()
+
+end
+
+function DetailInfoWindow:OnDisable()
+
+end
+
+function DetailInfoWindow:OnDestroy()
+
+end
+
+function DetailInfoWindow:OnOpen(arg)
+	self.IsOpen = true;
+end
+
+function DetailInfoWindow:OnClose(arg)
+	self:CloseWindow();
+	self.module.detailInfoWindow=nil;
+end
+
+function DetailInfoWindow:CloseWindow()
+	self.IsOpen = false;
+	self.module.detailInfoWindow=nil;
+end
+
+return DetailInfoWindow

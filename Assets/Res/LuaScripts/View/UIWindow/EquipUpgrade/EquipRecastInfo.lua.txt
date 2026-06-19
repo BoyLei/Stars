@@ -1,0 +1,581 @@
+--[[
+*文件名   :   EquipRecastInfo
+*内  容   :	  装备熔铸信息
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local EquipRecastInfo = {}
+
+EquipRecastInfo.__index = EquipRecastInfo
+
+local EquipRecastAttrItem = require("View/Uiwindow/EquipUpgrade/EquipRecastAttrItem")
+local ItemGrid = require("View/Item/ItemGrid")
+local EquipRecastEquipItem = require("View/Uiwindow/EquipUpgrade/EquipRecastEquipItem")
+local SelectBtn = require("View/Item/SelectBtn")
+
+function EquipRecastInfo:New(_go, equipRecast)
+    local self = {}
+    setmetatable(self, EquipRecastInfo)
+
+    self.EquipRecast = equipRecast
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    --装备菜单
+    self.EquipMenuBtns = {}
+    for i = 1, 2 do
+        local btn = SelectBtn:New(self.transform:Find("Cut4Cam90/Right/Tag/Scroll View/Mask/List/TagItem" .. i).gameObject)
+        btn:InitItem(
+            i,
+            function(idx)
+                self:OnEquipMenuBtnClick(idx)
+            end
+        )
+        table.insert(self.EquipMenuBtns, btn)
+    end
+    self.EquipMenuIdx = 1
+
+    --有两个按钮
+    self.go_Tag = self.transform:Find("Cut4Cam90/Right/Tag").gameObject
+
+    --只有一个时候的按钮
+    self.go_SingleTag = self.transform:Find("Cut4Cam90/Right/SingleTag").gameObject
+
+    self.Name = self.transform:Find("Cut4Cam90/Right/Info/Mask/List/info/Name"):GetComponent(typeof(Text))
+    self.tex_Quality = self.transform:Find("Cut4Cam90/Right/Info/Mask/List/info/Quality"):GetComponent(typeof(Text))
+    self.tex_Lv = self.transform:Find("Cut4Cam90/Right/Info/Mask/List/info/Lv"):GetComponent(typeof(Text))
+    self.tex_Job = self.transform:Find("Cut4Cam90/Right/Info/Mask/List/info/Job"):GetComponent(typeof(Text))
+
+    self.go_Right = self.transform:Find("Cut4Cam90/Right").gameObject
+    self.go_RightNull = self.transform:Find("Cut4Cam90/Null").gameObject
+
+    --下拉列表
+    self.scrollView = self.transform:Find("Cut4Cam90/Right/Info"):GetComponent(typeof(ScrollRect))
+    self.go_arrow = self.transform:Find("Cut4Cam90/Right/Next").gameObject
+    -- update事件
+    self.UpdateFun = function()
+        self:UpdatePos()
+    end
+
+    --副属性
+    self.subattrs1 = {}
+    self.subattrs2 = {}
+    for i = 1, 6 do
+        local eai = EquipRecastAttrItem:New(self.transform:Find("Cut4Cam90/Right/Info/Mask/List/attr1_" .. i).gameObject)
+        table.insert(self.subattrs1, eai)
+
+        local eai2 = EquipRecastAttrItem:New(self.transform:Find("Cut4Cam90/Right/Info/Mask/List/attr2_" .. i).gameObject)
+        table.insert(self.subattrs2, eai2)
+    end
+
+    self.go_Mat1 = self.transform:Find("Cut4Cam90/Right/Info/Mask/List/tt1").gameObject
+    self.go_Mat2 = self.transform:Find("Cut4Cam90/Right/Info/Mask/List/tt2").gameObject
+
+    --中间部分
+
+    self.go_CenterFull = self.transform:Find("Center/Full").gameObject
+    self.go_CenterNotFull = self.transform:Find("Center/NotFull").gameObject
+
+    self.tex_CenterNotFull = self.transform:Find("Center/NotFull/tt1"):GetComponent(typeof(Text))
+
+    self.Item1 = ItemGrid:New(self.transform:Find("Center/Full/ItemGrid1").gameObject)
+    self.Item2 = ItemGrid:New(self.transform:Find("Center/Full/ItemGrid2").gameObject)
+
+    self.rect_item1 = self.Item1.transform:GetComponent(typeof(RectTransform))
+
+    --正中间部分
+    self.go_Have = self.transform.parent:Find("EquipCenter").gameObject
+    self.go_None = self.transform.parent:Find("None").gameObject
+
+    --空白的两个按钮
+    self.go_None.transform:Find("Null1"):GetComponent(typeof(JButton)).OnClick = (function()
+        --点击道具
+    end)
+
+    --空白的两个按钮
+    self.go_None.transform:Find("Null2"):GetComponent(typeof(JButton)).OnClick = (function()
+        --点击道具
+    end)
+
+    self.EquipItem1 = EquipRecastEquipItem:New(self.transform.parent:Find("EquipCenter/EquipGrid1").gameObject)
+    self.EquipItem1:InitItem(
+        true,
+        function(it)
+            --点击道具
+            LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", {it.BaseID, true, it.EntityID, it.transform, 0})
+        end,
+        function()
+            --点击删除
+            self.EquipRecast.SelectedEntityID[1] = self.EquipRecast.SelectedEntityID[2]
+            self.EquipRecast.SelectedEntityID[2] = -1
+            self.EquipRecast:Refesh()
+            self.EquipRecast.equipRecastEquip:Refesh()
+        end
+    )
+
+    self.EquipItem2 = EquipRecastEquipItem:New(self.transform.parent:Find("EquipCenter/EquipGrid2").gameObject)
+    self.EquipItem2:InitItem(
+        true,
+        function(it)
+            --点击道具
+            LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", {it.BaseID, true, it.EntityID, it.transform, 0})
+        end,
+        function()
+            --点击删除
+            self.EquipRecast.SelectedEntityID[2] = -1
+            self.EquipRecast:Refesh()
+            self.EquipRecast.equipRecastEquip:Refesh()
+        end
+    )
+
+    --重铸价格
+    self.priceIcon = self.transform:Find("Cut4Cam90/Right/Money/Icon"):GetComponent(typeof(Image))
+    self.priceNum = self.transform:Find("Cut4Cam90/Right/Money/Num"):GetComponent(typeof(Text))
+    self.IsMoneyEnough = false
+
+    --重构按钮的颜色
+    self.img_Remake = self.transform:Find("Cut4Cam90/Right/BtnConfirm/bg"):GetComponent(typeof(Image))
+
+    self:Show(false)
+
+    return self --返回自身
+end
+
+function EquipRecastInfo:UpdatePos()
+    self.go_arrow:SetActive(self.scrollView.verticalNormalizedPosition > 0.95)
+end
+
+function EquipRecastInfo:Show(b)
+    self.gameObject:SetActive(b)
+    if b then
+        self:OnEquipMenuBtnClick(1)
+        MonoHelper.AddUpdateListener(self.UpdateFun)
+    else
+        MonoHelper.RemoveUpdateListener(self.UpdateFun)
+    end
+end
+
+function EquipRecastInfo:OnEquipMenuBtnClick(idx)
+    local canClickIdx2 = true
+    for i = 1, #self.EquipRecast.SelectedEntityID do
+        if self.EquipRecast.SelectedEntityID[i] == -1 then
+            canClickIdx2 = false
+            break
+        end
+    end
+
+    if idx == 2 and not (canClickIdx2) then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_164"))
+        return
+    end
+
+    if self.IsJustOne and idx == 2 then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_165"))
+        return
+    end
+
+    for i = 1, #self.EquipMenuBtns do
+        self.EquipMenuBtns[i]:MakeSelected(false)
+    end
+
+    if idx == nil then
+        idx = self.EquipMenuIdx
+    end
+    self.EquipMenuIdx = idx
+    self.EquipMenuBtns[idx]:MakeSelected(true)
+
+    self:Refesh()
+end
+
+function EquipRecastInfo:Refesh()
+    local selectedSubType = 0
+
+    local lv1 = 0
+    local lv2 = 0
+
+    local quality1 = 0
+    local quality2 = 0
+
+    local baseID1 = 0
+    local baseID2 = 0
+
+    local job1 = 0
+    local job2 = 0
+
+    local subType1 = 0
+    local subType2 = 0
+
+    local haveNone = true
+
+    self.img_Remake.color = Color(1, 1, 1)
+
+    if self.EquipRecast.SelectedEntityID[1] > -1 then
+        local itemData1 = BusinessManager.Instance:GetItemByItemEntityId(self.EquipRecast.SelectedEntityID[1])
+
+        if itemData1 ~= nil then
+            --id变了找不到
+            local cfg = ConfigDataAccessor.Item[itemData1.BaseID]
+            local equipType = ConfigDataAccessor.ItemType[GetSubItemID(tonumber(cfg.ItemType), tonumber(cfg.SubType))]
+            subType1 = cfg.SubType
+            local JobType = ConfigDataAccessor.Equip[cfg.Id].JobBaseType
+            job1 = JobType
+            quality1 = ConfigDataAccessor.Equip[cfg.Id].Quality
+            lv1 = ConfigDataAccessor.Equip[cfg.Id].Level
+
+            if self.EquipMenuIdx == 1 then
+                selectedSubType = cfg.SubType
+                self.Name.text = LanguageHelp:GetLanguageByKey("Local_Str_EquipRecastInfo_New_Part") .. equipType.Name
+                if JobType == 0 then
+                    self.tex_Job.text = LanguageHelp:GetLanguageByKey("Local_Str_EquipRecastInfo_New_Job") .. LanguageHelp:GetLanguageByKey("Local_Str_EquipRecastInfo_New_AllJob")
+                else
+                    local JobName = ConfigDataAccessor.Job[JobType].Name
+                    self.tex_Job.text = LanguageHelp:GetLanguageByKey("Local_Str_EquipRecastInfo_New_Job") .. JobName
+                end
+
+                self.tex_Lv.text = LanguageHelp:GetLanguageByKey("Local_Str_Level") .. "：" .. lv1
+            end
+
+            self.EquipItem1:SetItem(itemData1, 1)
+
+            baseID1 = itemData1.BaseID
+
+            haveNone = false
+        else
+            self.EquipRecast.SelectedEntityID[1] = -1
+            self.EquipItem1:SetItem(nil, 1)
+            if self.EquipMenuIdx == 1 then
+                self.Name.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips12")
+            end
+            if self.EquipMenuIdx == 2 then
+                self:OnEquipMenuBtnClick(1)
+            end
+            self.tex_CenterNotFull.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips13")
+        end
+    else
+        self.EquipItem1:SetItem(nil, 1)
+        if self.EquipMenuIdx == 1 then
+            self.Name.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips12")
+        end
+        if self.EquipMenuIdx == 2 then
+            self:OnEquipMenuBtnClick(1)
+        end
+        self.tex_CenterNotFull.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips13")
+    end
+
+    if self.EquipRecast.SelectedEntityID[2] > -1 then
+        local itemData2 = BusinessManager.Instance:GetItemByItemEntityId(self.EquipRecast.SelectedEntityID[2])
+        local cfg = ConfigDataAccessor.Item[itemData2.BaseID]
+        local equipType = ConfigDataAccessor.ItemType[GetSubItemID(tonumber(cfg.ItemType), tonumber(cfg.SubType))]
+        subType2 = cfg.SubType
+        local JobType = ConfigDataAccessor.Equip[cfg.Id].JobBaseType
+        job2 = JobType
+        quality2 = ConfigDataAccessor.Equip[cfg.Id].Quality
+        lv2 = ConfigDataAccessor.Equip[cfg.Id].Level
+        if self.EquipMenuIdx == 2 then
+            selectedSubType = cfg.SubType
+
+            self.Name.text = LanguageHelp:GetLanguageByKey("Local_Str_EquipRecastInfo_New_Part") .. equipType.Name
+            if JobType == 0 then
+                self.tex_Job.text = LanguageHelp:GetLanguageByKey("Local_Str_EquipRecastInfo_New_Job") .. LanguageHelp:GetLanguageByKey("Local_Str_EquipRecastInfo_New_AllJob")
+            else
+                local JobName = ConfigDataAccessor.Job[JobType].Name
+                self.tex_Job.text = LanguageHelp:GetLanguageByKey("Local_Str_EquipRecastInfo_New_Job") .. JobName
+            end
+
+            self.tex_Lv.text = LanguageHelp:GetLanguageByKey("Local_Str_Level") .. "：" .. lv2
+        end
+
+        self.EquipItem2:SetItem(itemData2, 2)
+
+        baseID2 = itemData2.BaseID
+
+        haveNone = false
+    else
+        self.EquipItem2:SetItem(nil, 2)
+
+        if self.EquipMenuIdx == 2 then
+            self.Name.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips12")
+            self:OnEquipMenuBtnClick(1)
+        end
+        self.tex_CenterNotFull.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips14")
+    end
+
+    if haveNone then
+        self.tex_CenterNotFull.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips15")
+    end
+
+    if self.EquipRecast.SelectedEntityID[1] > -1 and self.EquipRecast.SelectedEntityID[2] > -1 then
+        self.CanRemake = true
+    else
+        self.CanRemake = false
+        self.img_Remake.color = Color(0.6, 0.6, 0.6)
+    end
+
+    if self.EquipRecast.SelectedEntityID[1] == -1 and self.EquipRecast.SelectedEntityID[2] == -1 then
+        self.go_Have:SetActive(false)
+        self.go_None:SetActive(true)
+        self.gameObject:SetActive(false)
+    else
+        --判断钱是否足够
+
+        local RebuildItem = ConfigDataAccessor.SystemList[102].Value --重铸消耗道具
+        local RebuildItemNum = ConfigDataAccessor.SystemList[103].Value --重铸消耗道具数量
+
+        self.IsMoneyEnough = true
+        --道具消耗（货币）
+        local cfgM = ConfigDataAccessor.Item[RebuildItem]
+        --LoadIcon(self.priceIcon,cfgM.Icon);
+        ResourceHelper:LoadIconAsync(self.priceIcon, "", cfgM.Icon, false)
+
+        local haveMoneyNum = BusinessManager.Instance:GetCurrencyNum(RebuildItem)
+        if haveMoneyNum >= (RebuildItemNum) then
+            --self.priceNum.text=""..haveMoneyNum.."/"..RebuildItemNum;
+            self.priceNum.text = RebuildItemNum
+        else
+            self.IsMoneyEnough = false
+            self.priceNum.text = "<color=#ff0000>" .. (RebuildItemNum) .. "</color>"
+
+            self.img_Remake.color = Color(0.6, 0.6, 0.6)
+        end
+
+        self.go_Have:SetActive(true)
+        self.go_None:SetActive(false)
+        self.gameObject:SetActive(true)
+
+        --中间部分
+        if self.EquipRecast.SelectedEntityID[1] > -1 and self.EquipRecast.SelectedEntityID[2] > -1 then
+            self.go_Right:SetActive(true)
+            self.go_RightNull:SetActive(false)
+
+            self.EquipRecast.EquipUpgradeWindow.anim:Play("02Loop")
+
+            self.go_CenterFull:SetActive(true)
+            self.go_CenterNotFull:SetActive(false)
+
+            local canSingle = true
+
+            if quality1 == quality2 then
+                --self.tex_Quality.text="品质："..GetQualityColor(quality1)..GetQualityName(quality1).."</color>";
+                self.tex_Quality.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_EquipRecastInfo_Quality"), {GetQualityColor(quality1), GetQualityName(quality1)})
+            else
+                local midQuality = (quality1 + quality2) / 2
+                local q1 = math.floor(midQuality)
+                local q2 = math.ceil(midQuality)
+
+                midQuality = math.floor(midQuality)
+
+                if q1 == q2 then
+                    --self.tex_Quality.text="品质："..GetQualityColor(midQuality)..GetQualityName(midQuality).."</color>";
+                    self.tex_Quality.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_EquipRecastInfo_Quality"), {GetQualityColor(midQuality), GetQualityName(midQuality)})
+                else
+                    self.go_Tag:SetActive(true)
+                    self.go_SingleTag:SetActive(false)
+
+                    --canSingle=false;
+                    if quality1 > quality2 then
+                        --self.tex_Quality.text="品质："..GetQualityColor(q2)..GetQualityName(q2).."</color>/"..GetQualityColor(q1)..GetQualityName(q1).."</color>";
+                        self.tex_Quality.text =
+                            StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_EquipRecastInfo_Quality2"), {GetQualityColor(q2), GetQualityName(q2), GetQualityColor(q1), GetQualityName(q1)})
+                    else
+                        --self.tex_Quality.text="品质："..GetQualityColor(q1)..GetQualityName(q1).."</color>/"..GetQualityColor(q2)..GetQualityName(q2).."</color>";
+                        self.tex_Quality.text =
+                            StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_EquipRecastInfo_Quality2"), {GetQualityColor(q1), GetQualityName(q1), GetQualityColor(q2), GetQualityName(q2)})
+                    end
+                end
+            end
+
+            --[[
+                       if lv1 == lv2 then
+                --self.tex_Lv.text="等级："..lv1;
+                self.tex_Lv.text = LanguageHelp:GetLanguageByKey("Local_Str_Level") .. "：" .. lv1
+            else
+                if lv1 < 10 then
+                    lv1 = 0
+                end
+
+                if lv2 < 10 then
+                    lv2 = 0
+                end
+
+                local midLv = (lv1 + lv2) / 10 / 2
+                local l1 = math.floor(midLv)
+                local l2 = math.ceil(midLv)
+
+                midLv = math.floor(midLv * 10)
+
+                if l1 == 0 then
+                    l1 = 1
+                end
+
+                if l2 == 0 then
+                    l2 = 1
+                end
+
+                l1 = l1 * 10
+                l2 = l2 * 10
+
+                if l1 == l2 then
+                    --self.tex_Lv.text="等级："..midLv;
+                    self.tex_Lv.text = LanguageHelp:GetLanguageByKey("Local_Str_Level") .. "：" .. midLv
+                else
+                    --canSingle=false;
+                    if lv1 > lv2 then
+                        --self.tex_Lv.text="等级："..l2.."/"..l1;
+                        self.tex_Lv.text = LanguageHelp:GetLanguageByKey("Local_Str_Level") .. ": " .. l2 .. "/" .. l1
+                    else
+                        --self.tex_Lv.text="等级："..l1.."/"..l2;
+                        self.tex_Lv.text = LanguageHelp:GetLanguageByKey("Local_Str_Level") .. ": " .. l1 .. "/" .. l2
+                    end
+                end
+            end
+
+            
+            ]]
+            self.Item1:SetItemNum(baseID1, 0)
+            self.Item2:SetItemNum(baseID2, 0)
+
+            local isNeedHideItem2 = false
+            if subType1 == subType2 and job1 == job2 and job1 ~= 0 and canSingle then
+                isNeedHideItem2 = true
+            end
+
+            if isNeedHideItem2 then
+                self.rect_item1.anchoredPosition = Vector2(0, 0)
+                self.Item2.gameObject:SetActive(false)
+            else
+                self.rect_item1.anchoredPosition = Vector2(-102, -5.4)
+                self.Item2.gameObject:SetActive(true)
+            end
+
+            self.IsJustOne = isNeedHideItem2
+
+            self.go_Tag:SetActive(not (self.IsJustOne))
+            self.go_SingleTag:SetActive(self.IsJustOne)
+        else
+            self.go_Right:SetActive(false)
+            self.go_RightNull:SetActive(true)
+
+            --[[
+			            if self.EquipRecast.SelectedEntityID[1] > -1 then
+                self.EquipRecast.EquipUpgradeWindow.anim:Play("Recast_01")
+            elseif self.EquipRecast.SelectedEntityID[2] > -1 then
+                self.EquipRecast.EquipUpgradeWindow.anim:Play("Recast_02")
+            end
+
+            self.go_Tag:SetActive(false)
+            self.go_SingleTag:SetActive(true)
+			]]
+            self.go_CenterFull:SetActive(false)
+            self.go_CenterNotFull:SetActive(true)
+        end
+    end
+
+    --副属性1
+    if self.EquipRecast.SelectedEntityID[1] > -1 then
+        self.go_Mat1:SetActive(true)
+
+        for i = 1, #self.subattrs1 do
+            self.subattrs1[i].gameObject:SetActive(false)
+        end
+
+        local itemData1 = BusinessManager.Instance:GetItemByItemEntityId(self.EquipRecast.SelectedEntityID[1])
+
+        local SubProps1 = {}
+        for i = 0, itemData1.EquipProps.SubPropList.Count - 1 do
+            --判断是否可以用
+            --品质
+            local data = self:MakeAttrData(itemData1.EquipProps.SubPropList[i], selectedSubType)
+
+            table.insert(SubProps1, data)
+        end
+
+        self:SortItem(SubProps1)
+
+        for i = 1, #SubProps1 do
+            self.subattrs1[i].gameObject:SetActive(true)
+            self.subattrs1[i]:RefeshAttrProb(SubProps1[i], selectedSubType)
+        end
+    else
+        self.go_Mat1:SetActive(false)
+    end
+
+    --副属性2
+    if self.EquipRecast.SelectedEntityID[2] > -1 then
+        self.go_Mat2:SetActive(true)
+
+        for i = 1, #self.subattrs2 do
+            self.subattrs2[i].gameObject:SetActive(false)
+        end
+
+        local itemData2 = BusinessManager.Instance:GetItemByItemEntityId(self.EquipRecast.SelectedEntityID[2])
+
+        local SubProps2 = {}
+        for i = 0, itemData2.EquipProps.SubPropList.Count - 1 do
+            --判断是否可以用
+            --品质
+            local data = self:MakeAttrData(itemData2.EquipProps.SubPropList[i], selectedSubType)
+            table.insert(SubProps2, data)
+        end
+
+        self:SortItem(SubProps2)
+
+        for i = 1, #SubProps2 do
+            self.subattrs2[i].gameObject:SetActive(true)
+            self.subattrs2[i]:RefeshAttrProb(SubProps2[i], selectedSubType)
+        end
+    else
+        self.go_Mat2:SetActive(false)
+        for i = 1, #self.subattrs2 do
+            self.subattrs2[i].gameObject:SetActive(false)
+        end
+    end
+end
+
+function EquipRecastInfo:MakeAttrData(data, selectedSubType)
+    local info = {}
+    info.Quality = data.Quality
+    local type = data.PropType
+
+    info.Data = data
+
+    info.CantUse = 1
+
+    --如果没装满就不判断
+    if self.EquipRecast.SelectedEntityID[1] > -1 and self.EquipRecast.SelectedEntityID[2] > -1 then
+        --判断是否可用
+        if type == 3 or type == 4 or selectedSubType == 7 or selectedSubType == 8 then
+            info.CantUse = 0
+        elseif type == 1 and (selectedSubType == 1 or selectedSubType == 2) then
+            info.CantUse = 0
+        elseif type == 2 and (selectedSubType == 3 or selectedSubType == 4 or selectedSubType == 5 or selectedSubType == 6) then
+            info.CantUse = 0
+        end
+    else
+        info.CantUse = 0
+    end
+
+    return info
+end
+
+function EquipRecastInfo:SortItem(tbl)
+    if #tbl > 1 then
+        table.sort(
+            tbl,
+            function(a, b)
+                if a.CantUse < b.CantUse then
+                    -- 按是否可用降序
+                    return true
+                elseif a.CantUse == b.CantUse then
+                    -- 如果是否装备相等，按Quality升序
+                    return a.Quality > b.Quality
+                end
+                return false
+            end
+        )
+    end
+end
+
+return EquipRecastInfo

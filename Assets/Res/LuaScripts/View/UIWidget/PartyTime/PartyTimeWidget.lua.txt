@@ -1,0 +1,190 @@
+--[[
+*文件名   :   PartyTimeWidget
+*内  容   :   午间GVE的小面板
+*说  明   :
+*创建日期 :   "2022/12/02 14:19:07"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+PartyTimeWidget = class("PartyTimeWidget", UIPanel)
+
+function PartyTimeWidget:Awake()
+    self.m_RootTween = self:Find("Root"):GetComponent(typeof(EasyTweenPosition))
+    self.m_RootBtn = self:Find("Root"):GetComponent(typeof(Button))
+
+    self.m_Title = self:Find("Root/Title"):GetComponent(typeof(Text)) --标题
+    self.m_Time = self:Find("Root/time"):GetComponent(typeof(Text)) --活动倒计时
+
+    self.go = self:Find("Root/go").gameObject --点击前往
+    self.info = self:Find("Root/info").gameObject --全部信息
+
+    self.isend = self:Find("Root/isend").gameObject --已结束
+    self.inplaying = self:Find("Root/inplaying").gameObject --进行中
+
+    self.Select = self:Find("Root/go/Selected").gameObject --选中前往
+    self.Select:SetActive(false)
+
+    self.allTimes = self:Find("Root/info/Points"):GetComponent(typeof(Text)) --以获得次数 n/n
+    self.getTime = self:Find("Root/info/GetTime"):GetComponent(typeof(Text)) --下一次可以获取的倒计时
+
+    self.slider = self:Find("Root/info/slider"):GetComponent(typeof(Image)) --下次可以获取的倒计时活动条
+
+    self:Reset()
+
+    self.m_RootBtn.onClick:AddListener(
+        function()
+            self:OnClickRootBtn()
+        end
+    )
+
+    --活动倒计时
+    --刷新时间
+    self.NeedRefesh = false
+    MonoHelper.AddUpdateListener(
+        function()
+            self:RefeshLeftTime()
+        end
+    )
+end
+
+function PartyTimeWidget:Start()
+    self:OnActiveSelf(false)
+end
+
+--重置UI
+function PartyTimeWidget:Reset()
+    self.AllLeftTime = ConfigDataAccessor.SystemList[233].Value + ConfigDataAccessor.SystemList[234].Value --总的挂机时间
+
+    self.canGetAllNum = ConfigDataAccessor.SystemList[228].Value --派对时刻挂机奖励领取次数（对应通用次数表ID）
+
+    self.canGetDuration = ConfigDataAccessor.SystemList[226].Value --派对时刻挂机奖励间隔(秒)
+
+    self.HaveTimes = 0
+
+    local leftTime = self.AllLeftTime --拿配置表
+    --self.m_Time.text="剩余时间："..SecToStringColon2(leftTime);
+    self.m_Time.text = SecToStringColon2(leftTime)
+
+    self.NeedRefesh = false
+
+    self.IsInArea = false
+end
+
+--根据是否在活动区域内刷新右边
+function PartyTimeWidget:SetIsInArea(isIn)
+    self.go:SetActive(not (isIn))
+    self.info:SetActive(isIn)
+
+    self.IsInArea = isIn
+
+    if isIn then
+        self:SetNextGetTime()
+    end
+end
+
+--刷新次数，设置下一获得奖励时间
+function PartyTimeWidget:SetNextGetTime()
+    if self.m_RootTween.gameObject.activeSelf then
+        --通用次数
+        local info = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.ComCount):GetData(20)
+        --派对时刻挂机奖励上限
+        if info ~= nil then
+            local RemainCount = info.RemainCount
+            self.InAreaEndTime = GameManager.Instance:GetServerTimeStamp()
+            self.HaveTimes = self.canGetAllNum - RemainCount
+            self.allTimes.text = "" .. self.HaveTimes .. "/" .. self.canGetAllNum
+        end
+    end
+end
+
+--开始倒计时
+function PartyTimeWidget:Refesh()
+    self.NeedRefesh = true
+end
+
+--开关隐藏自己
+function PartyTimeWidget:OnActiveSelf(active)
+    self.m_RootTween.gameObject:SetActive(active)
+    --self.prefab.transform.gameObject:SetActive(active);
+end
+
+--判断是否出现正在进行中
+function PartyTimeWidget:SetIfShowIsPlaying(isplaying)
+    self.isend:SetActive(not (isplaying))
+    self.inplaying:SetActive(isplaying)
+end
+
+--活动倒计时,以及挂机倒计时
+function PartyTimeWidget:RefeshLeftTime()
+    if self.NeedRefesh then
+        local serverNowTime = math.floor(GameManager.Instance:GetServerTimeStamp() / 1000)
+        local serverCloseTime = self.module.EventEndTime / 1000
+        local leftTime = serverCloseTime - serverNowTime
+
+        if leftTime > 0 then
+            self.m_Time.text = SecToStringColon2(leftTime)
+        else
+            --活动结束
+            self.NeedRefesh = false
+            self:OnActiveSelf(false)
+        end
+
+        --在区域内才执行挂机奖励
+        if self.IsInArea then
+            if self.HaveTimes < self.canGetAllNum then
+                local serverCloseTime2 = math.floor(self.module.InAreaEndTime / 1000)
+                local leftTime2 = serverCloseTime2 - serverNowTime
+
+                if leftTime2 > 0 then
+                    self.getTime.text = SecToStringColon2(leftTime2)
+                else
+                    self.getTime.text = SecToStringColon2(0) --时间到了等下一车
+                end
+            else
+                self.getTime.text = LanguageHelp:GetLanguageByKey("Local_Str_PartyTime_GetAll") --最大奖励次数
+            end
+        end
+    end
+end
+
+function PartyTimeWidget:BindModule(m)
+    self.module = m
+end
+
+function PartyTimeWidget:OnEnable()
+end
+
+function PartyTimeWidget:OnDisable()
+end
+
+function PartyTimeWidget:OnDestroy()
+end
+
+function PartyTimeWidget:OnOpen(arg)
+end
+
+function PartyTimeWidget:OnClose(arg)
+    self.module.PartyTimeWidget = nil
+end
+
+--点击前往目标点
+function PartyTimeWidget:OnClickRootBtn()
+    --[[
+    local isFind=BusinessManager.Instance:FindPath(Vector3(115,3.78,50),function() 
+        self.Select:SetActive(false)
+    end);
+    ]]
+    local isFind =
+        TaskHelper.FindPathByArea(
+        100,
+        3,
+        1,
+        function()
+            self.Select:SetActive(false)
+        end
+    )
+
+    self.Select:SetActive(isFind)
+end
+
+return PartyTimeWidget

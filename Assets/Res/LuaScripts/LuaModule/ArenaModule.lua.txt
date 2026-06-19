@@ -1,0 +1,479 @@
+--[[
+*文件名   :   ArenaModule
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/11/28 14:35:39"
+*创建人   :   "caojie"
+*版权所有 :   游卡网络科技技术有限公司
+]] ArenaModule = class("ArenaModule", BaseLuaModule)
+
+local ArenaBattleRecordWidgetPath = "Arena/Prefab/ArenaBattleRecordWidget"
+local ArenaSettleWindowPath = "Arena/Prefab/ArenaSettleWindow"
+local ArenaWindowPath = "Arena/Prefab/ArenaWindow"
+
+-- LuaModule 消息模块
+ArenaModule.ModuleMessages = {
+    -- 打开异步竞技场界面
+    ["OnOpenArenaWindow"] = function(...)
+        ArenaModule:OnOpenArenaWindow(...)
+    end,
+    ["OnCustomEnterEctype"] = function(...)
+        ArenaModule:OnCustomEnterEctype(...)
+    end,
+    ["OnCustomLevelEctype"] = function(...)
+        ArenaModule:OnCustomLevelEctype(...)
+    end,
+    ["OnDisable"] = function(...)
+        ArenaModule:OnDisable(...);
+    end
+}
+
+ArenaModule.ArenaWindowView = nil
+-- 当日免费可打次数(读策划配置)
+ArenaModule.FreeChallengeCount = 0
+-- 当日可购买总次数(读策划配置)
+ArenaModule.CanBuyMaxChallengeCount = 0
+-- 当日可挑战总次数(读策划配置)
+ArenaModule.AllChallengeCount = 0
+-- 玩家当前排名数据
+ArenaModule.MyRankInfoData = {}
+-- 挑战列表数据
+ArenaModule.ChallengePlayerDataList = {}
+-- 购买次数消耗数据
+ArenaModule.BuyChallengeCountCostData = {}
+-- 排行奖励预览数据
+ArenaModule.RankRewardData = {}
+-- 对战记录数据
+ArenaModule.BattleRecordData = {}
+
+-- 获取当前剩余挑战次数
+function ArenaModule:GetCurrentChallengeCount()
+    local info = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.ComCount):GetData(17)
+
+    return info.RemainCount
+end
+
+-- 获取剩余购买次数
+function ArenaModule:GetCanBuyChallengeCount()
+    local info = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.ComCount):GetData(17)
+
+    return self.AllChallengeCount - info.AddCount
+end
+
+-- 获取已购买次数
+function ArenaModule:GetBoughtChallengeCount()
+    local info = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.ComCount):GetData(17)
+    return info.AddCount - self.FreeChallengeCount
+end
+
+-- 初始化配表相关数据
+function ArenaModule:InitConfigData()
+    local configData = ConfigDataAccessor.CommonCount[17]
+    if configData ~= nil then
+        self.FreeChallengeCount = configData.Max_count
+        self.AllChallengeCount = configData.Total_max_count
+        self.CanBuyMaxChallengeCount = self.AllChallengeCount - self.FreeChallengeCount
+    end
+
+    self:BuildBuyChallengeCountCostData()
+    self:BuildRankRewardData()
+end
+
+-- 设置当前排名数据
+function ArenaModule:SetMyRankInfo(rankNum)
+    self.MyRankInfoData.PlayerName = GameManager.Instance:GetPlayerName()
+    self.MyRankInfoData.Level = GameManager.Instance:GetPlayerLevel()
+    self.MyRankInfoData.JobId = GameManager.Instance:GetPlayerJob();
+    self.MyRankInfoData.Rank = rankNum <= 0 and 3001 or rankNum
+end
+
+-- 设置挑战列表数据
+function ArenaModule:SetPlayerListData(data)
+    self.ChallengePlayerDataList = {}
+
+    for i = 0, data.RankList.Count - 1 do
+        local v = data.RankList[i]
+        local tempData = {}
+        tempData.PlayerName = v.RoleName
+        tempData.RoleId = v.RoleId
+        tempData.Level = v.RoleLevel
+        tempData.JobId = v.RoleJobId
+        tempData.Rank = v.RankNum
+        tempData.FightPower = v.FightPower
+        tempData.IsTopTen = tempData.Rank <= 10
+        tempData.CanChallenge = v.CanFight
+        tempData.IsHigherRank = tempData.Rank < self.MyRankInfoData.Rank
+
+        table.insert(self.ChallengePlayerDataList, tempData)
+    end
+end
+
+-- 构建购买次数消耗代币数据
+function ArenaModule:BuildBuyChallengeCountCostData()
+    local configData = ConfigDataAccessor.ArenaBuy
+    if configData == nil or type(configData) ~= "table" then
+        printError("Arena.xlsx ArenaBuy sheet config error")
+        return
+    end
+
+    local copyConfigData = {}
+    table.apply(configData,function(k,v)
+        copyConfigData[k] = v
+    end)
+
+    table.sort(copyConfigData, function(a, b)
+        return a.BuyLimit < b.BuyLimit;
+    end)
+
+    for i = 1, #copyConfigData do
+        local data = copyConfigData[i]
+        if data.BuyLimit == 1 then
+            self.BuyChallengeCountCostData[data.BuyLimit] = data.CostNum
+        elseif data.BuyLimit > 1 then
+            self.BuyChallengeCountCostData[data.BuyLimit] = self.BuyChallengeCountCostData[data.BuyLimit - 1] +
+                                                                data.CostNum
+        end
+    end
+
+    -- table.print(self.BuyChallengeCountCostData)
+end
+
+-- 构建排行奖励预览数据
+function ArenaModule:BuildRankRewardData()
+    local configData = ConfigDataAccessor.ArenaRankAward
+    if configData == nil or type(configData) ~= "table" then
+        printError("Arena.xlsx ArenaRankAward sheet config error")
+        return
+    end
+
+    local copyConfigData = {}
+    table.apply(configData,function(k,v)
+        copyConfigData[k] = v
+    end)
+
+    for i = 1, #copyConfigData do
+        local cfg = copyConfigData[i]
+        local data = {};
+
+        data.rank = cfg.RankBegin
+        data.rankEnd = cfg.RankEnd
+        local nextRank = copyConfigData[i + 1];
+        if cfg.RankBegin == cfg.RankEnd then
+            data.rankTex = tostring(cfg.RankBegin)
+        else
+            data.rankTex = "" .. cfg.RankBegin .. "~" .. (cfg.RankEnd);
+        end
+        data.reward = cfg.Reward1;
+        data.num = cfg.Reward1Num;
+
+        table.insert(self.RankRewardData, data)
+    end
+    -- table.print(self.RankRewardData)
+end
+
+-- 对战记录数据
+function ArenaModule:BuildBattleRecordData(rsp)
+    local data = rsp.data
+    self.BattleRecordData = {}
+    for i = 0, data.LogList.Count - 1 do
+        local v = data.LogList[i]
+        local tempData = {}
+        tempData.IsWin = v.IsWin
+        tempData.BeChallenged = v.BeChallenged
+        tempData.PlayerName = v.TargetRoleName
+        tempData.BattleTime = v.LogTime
+        tempData.ResultRank = v.MyNewRankNum
+        tempData.ChangeRank = v.MyOldRankNum - v.MyNewRankNum
+        table.insert(self.BattleRecordData, tempData)
+    end
+end
+
+-- 根据购买次数获取当前要消耗的数量
+function ArenaModule:GetCostCurrencyNum(buyCount)
+    if buyCount == 0 then
+        return 0
+    end
+    -- 购买次数查询不允许数组越界
+    local boughtCount = self:GetBoughtChallengeCount()
+    if boughtCount + buyCount > #self.BuyChallengeCountCostData then
+        return 0
+    end
+
+    if boughtCount == 0 then
+        return self.BuyChallengeCountCostData[buyCount]
+    else
+        return self.BuyChallengeCountCostData[buyCount + boughtCount] - self.BuyChallengeCountCostData[boughtCount]
+    end
+end
+
+function ArenaModule:OnOpenArenaWindow(...)
+    self:ArenaGetMyBaseInfoReq()
+end
+
+function ArenaModule:AddProtocalListeners()
+    -- 打开界面请求协议
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.ArenaGetMyBaseInfoRetID, function(data)
+        self:ArenaGetMyBaseInfoRet(data)
+    end, nil);
+
+    -- 请求对战记录协议
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.ArenaGetMyFightLogRetID, function(data)
+        self:ArenaGetMyFightLogRet(data)
+    end, nil);
+
+    -- 请求刷新挑战列表协议
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.ArenaGetFightListRetID, function(data)
+        self:ArenaGetFightListRet(data)
+    end, nil);
+
+    -- 挑战结算通知
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.ArenaChallengeTargetGameEndNtfID, function(data)
+        self:ArenaChallengeTargetGameEndNtf(data)
+    end, nil);
+
+    -- 添加一条挑战日志的通知
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.ArenaAddFightLogNtfID, function(data)
+        self:ArenaAddFightLogNtf(data)
+    end, nil);
+
+    -- 开始挑战了
+    CS.SGF.Network.MsgRetManager.Instance:OnMessageEnum(function(data)
+        self:OnArenaChallengeTargetRet(data)
+    end, CS.MsgIDEnum.ArenaChallengeTargetReqID)
+
+    FixMessageManager.Instance:OnMessage(FixUpdateDef.ComCount, function(data)
+        self:OnComCountMessage(data)
+    end, nil);
+end
+
+function ArenaModule:OnArenaChallengeTargetRet(args)
+    local RetMsgID = args.MsgRet.RetMsgID -- 对应的消息号(这个可以判断是哪个协议)
+
+    local RetCode = args.MsgRet.RetCode
+    if RetCode == 0 then
+        -- 成功
+        if self.ArenaWindowView ~= nil and self.ArenaWindowView.prefab.activeSelf then
+            self.ArenaWindowView:Close()
+        end
+
+        UIManager.Instance:CloseWindow(ArenaSettleWindowPath)
+    end
+end
+
+-- 刷新挑战列表请求
+function ArenaModule:ArenaGetFightListReq()
+    local message = CS.ProtoMsg.ArenaGetFightListReq()
+    NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message, false)
+end
+
+function ArenaModule:ArenaGetFightListRet(rsp)
+    if rsp == nil or rsp.data == nil or rsp.data.RankList.Count == 0 then
+        return
+    end
+
+    self:SetPlayerListData(rsp.data)
+    if self.ArenaWindowView ~= nil and self.ArenaWindowView.prefab.activeSelf then
+        self.ArenaWindowView:OnFreshPlayerList()
+    end
+end
+
+-- 挑战日志数据req
+function ArenaModule:ArenaGetMyFightLogReq()
+    local message = CS.ProtoMsg.ArenaGetMyFightLogReq()
+    NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message, false)
+end
+
+-- 挑战日志数据ret
+function ArenaModule:ArenaGetMyFightLogRet(rsp)
+    if rsp == nil or rsp.data == nil then
+        return
+    end
+
+    self:BuildBattleRecordData(rsp)
+    -- UIManager.Instance:OpenWidget(ArenaBattleRecordWidgetPath, false, self.BattleRecordData, nil,
+    --             CS.StarProjectDef.MainPageCommond.HideNone, true, false);
+
+    UIManager.Instance:OpenWidgetAsync(ArenaBattleRecordWidgetPath, nil, false, self.BattleRecordData, nil,
+        CS.StarProjectDef.MainPageCommond.HideNone, true, false);
+end
+
+-- 购买次数req
+function ArenaModule:ArenaBuyChallengeTimesReq(buyCount)
+    local message = CS.ProtoMsg.ArenaBuyChallengeTimesReq()
+    message.BuyNum = buyCount
+    NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message, false)
+end
+
+-- 挑战结算通知ntf
+function ArenaModule:ArenaChallengeTargetGameEndNtf(rsp)
+    if rsp == nil or rsp.data == nil then
+        return
+    end
+
+    local data = {}
+    data.IsWin = rsp.data.IsWin
+    data.TargetName = rsp.data.TargetInfo.RoleName
+    data.TargetJobId = rsp.data.TargetInfo.RoleJobId
+    data.TargetLevel = rsp.data.TargetInfo.RoleLevel
+    data.TargetRank = rsp.data.TargetInfo.RankNum
+    data.IsRankChanged = rsp.data.IsRankChanged
+    data.MyName = GameManager.Instance:GetPlayerName()
+    data.MyJobId = GameManager.Instance:GetPlayerJob();
+    data.MyLevel = GameManager.Instance:GetPlayerLevel()
+    data.MyRank = rsp.data.MyNewRank
+    data.HasReward = rsp.data.FinalDrop ~= nil and rsp.data.FinalDrop.Count > 0
+    data.FinalDrop = rsp.data.FinalDrop
+    data.RemainCount = self:GetCurrentChallengeCount()
+
+    -- printError("ArenaChallengeTargetGameEndNtf")
+    -- table.print(data)
+
+    -- UIManager.Instance:OpenWindow(ArenaSettleWindowPath, data, CS.StarProjectDef.MainPageCommond.HideNone)
+    UIManager.Instance:OpenWindowAsync(ArenaSettleWindowPath, nil, data, CS.StarProjectDef.MainPageCommond.HideNone)
+
+end
+
+-- local strWin = "你挑战了<color=#3973B5>%s</color>,获得胜利"
+-- local strLose = "你挑战了<color=#3973B5>%s</color>,并未成功"
+-- local strPassiveWin = "<color=#3973B5>%s</color>挑战了你,你获胜了"
+-- local strPassiveLose = "<color=#3973B5>%s</color>挑战了你,你失败了"
+-- 挑战日志的通知
+function ArenaModule:ArenaAddFightLogNtf(rsp)
+    if rsp == nil or rsp.data == nil then
+        return
+    end
+    -- printError("ArenaAddFightLogNtf")
+    local fightLogData = rsp.data.OneLog
+
+    local strRecord = nil
+    -- if fightLogData.BeChallenged then
+    --     strRecord = fightLogData.IsWin and strPassiveWin or strPassiveLose
+    -- else
+    --     strRecord = fightLogData.IsWin and strWin or strLose
+    -- end
+    -- self:SendNormalChatMsg(string.format(strRecord, fightLogData.TargetRoleName), CS.ProtoMsg.ChatChannel.ChannelSystem)
+
+    if fightLogData.BeChallenged then
+        strRecord = fightLogData.IsWin and LanguageHelp:GetLanguageByKey("Local_Str_strPassiveWin") or
+                        LanguageHelp:GetLanguageByKey("Local_Str_strPassiveLose")
+    else
+        strRecord = fightLogData.IsWin and LanguageHelp:GetLanguageByKey("Local_Str_strWin") or
+                        LanguageHelp:GetLanguageByKey("Local_Str_strLose")
+    end
+    self:SendNormalChatMsg(StringFormat(strRecord, {"<color=#3973B5>" .. fightLogData.TargetRoleName .. "</color>"}),
+        CS.ProtoMsg.ChatChannel.ChannelSystem)
+
+    self:SetMyRankInfo(fightLogData.MyNewRankNum)
+    if self.ArenaWindowView ~= nil and self.ArenaWindowView.prefab.activeSelf then
+        self.ArenaWindowView:RenderMyRankInfo()
+    end
+end
+
+function ArenaModule:SendNormalChatMsg(str, chanelType)
+    local msgList = {};
+    local chatMsgNotice = CS.ProtoMsg.ChatMsgNotice();
+    chatMsgNotice.EID = 0;
+    chatMsgNotice.PID = 0;
+    chatMsgNotice.Data = str;
+    chatMsgNotice.Channel = chanelType;
+    chatMsgNotice.ChatTime = TimeUtils.ServerNowStampMilli;
+
+    table.insert(msgList, chatMsgNotice);
+    LuaModuleDispatcher:SendMessage(ModuleDef.ChatModule, "OnAnalogReceptionChatMsg", {msgList});
+end
+
+function ArenaModule:OnComCountMessage(rsp)
+    if self.ArenaWindowView ~= nil and self.ArenaWindowView.prefab.activeSelf then
+        self.ArenaWindowView:RenderChallengeAndRewardCount()
+    end
+end
+
+-- 打开界面请求列表数据+我的数据+我的赛季奖励
+function ArenaModule:ArenaGetMyBaseInfoReq()
+    local message = CS.ProtoMsg.ArenaGetMyBaseInfoReq()
+    NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message, false)
+end
+
+function ArenaModule:ArenaGetMyBaseInfoRet(rsp)
+    if rsp == nil or rsp.data == nil or rsp.data.RankList == nil then
+        return
+    end
+
+    self:SetMyRankInfo(rsp.data.MyRankNum)
+    self:SetPlayerListData(rsp.data)
+
+    -- local windowCs = UIManager.Instance:OpenWindow(ArenaWindowPath, nil, CS.StarProjectDef.MainPageCommond.HideNone)
+    -- if windowCs ~= nil then
+    -- 	self.ArenaWindowView = windowCs:GetLuaPanel().ScriptTable;	
+    -- 	if self.ArenaWindowView ~= nil then
+    -- 		self.ArenaWindowView.InstPanel = windowCs
+    -- 		self.ArenaWindowView:BindModule(self)
+    -- 		self.ArenaWindowView:RenderAllView(true)
+    -- 		self.ArenaWindowView:RenderRankRewardPart(rsp.data)
+    -- 	end
+    -- end
+
+    -- self.ArenaWindowView.currencyBar:OnListener()
+
+    self.AsyncLoadArenaWindowCb = function(ui)
+        if ui ~= nil then
+            self.ArenaWindowView = ui:GetLuaPanel().ScriptTable;
+            if self.ArenaWindowView ~= nil then
+                self.ArenaWindowView.InstPanel = ui
+                self.ArenaWindowView:BindModule(self)
+                self.ArenaWindowView:RenderAllView(true)
+                self.ArenaWindowView:RenderRankRewardPart(rsp.data)
+            end
+
+            self.ArenaWindowView.currencyBar:OnListener()
+        end
+        self.AsyncLoadArenaWindowCb = nil;
+    end
+    UIManager.Instance:OpenWindowAsync(ArenaWindowPath, self.AsyncLoadArenaWindowCb, nil,
+        CS.StarProjectDef.MainPageCommond.HideNone)
+
+end
+
+-- LuaModule 创建
+function ArenaModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.ArenaModule, self)
+
+    self:InitConfigData()
+    self:AddProtocalListeners()
+end
+
+-- LuaModule 消息处理
+function ArenaModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...);
+end
+
+-- LuaModule显示
+function ArenaModule:OnModuleShow(arg)
+
+end
+
+function ArenaModule:OnClose(arg)
+    self.ArenaWindowView.currencyBar:OffListener()
+    self.ArenaWindowView = nil
+end
+
+-- LuaModule 释放
+function ArenaModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.ArenaModule)
+    self.ArenaWindowView = nil
+end
+
+function ArenaModule:OnCustomLevelEctype(...)
+    CS.StarProject.GlobalEvent.OnEntityEctype:Invoke(false);
+end
+
+function ArenaModule:OnCustomEnterEctype(...)
+    CS.StarProject.GlobalEvent.OnEntityEctype:Invoke(true);
+end
+
+function ArenaModule:OnDisable(...)
+
+end
+
+return ArenaModule
+

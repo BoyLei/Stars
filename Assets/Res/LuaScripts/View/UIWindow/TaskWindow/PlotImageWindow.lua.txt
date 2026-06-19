@@ -1,0 +1,71 @@
+--[[
+*文件名   :   PlotImageWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/16 16:26:06"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+PlotImageWindow=class("PlotImageWindow",UIPanel)
+PlotImageWindow.m_RawImage=nil;
+PlotImageWindow.m_AutoAlpha=nil;
+PlotImageWindow.EffectID=0;
+
+function PlotImageWindow:Awake()
+	self.m_RawImage=self:Find("RawImage"):GetComponent(typeof(RawImage));
+	self.m_AutoAlpha=self:Find("RawImage"):GetComponent(typeof(AutoAlpha));
+
+end
+
+function PlotImageWindow:Start()
+
+end
+
+function PlotImageWindow:OnEnable()
+	
+end
+
+function PlotImageWindow:OnDisable()
+	
+end
+
+function PlotImageWindow:OnDestroy()
+
+end
+
+function PlotImageWindow:OnOpen(arg)
+	local config=arg[1]
+	local EffectID=arg[2]
+	self.EffectID=EffectID;
+	if config==nil then
+		self:OnEnd();
+	else
+		ResourceHelper:LoadRawIconAsync(self.m_RawImage, config.Path, true, function ()
+			self.m_AutoAlpha.Play(function ()
+				self:OnEnd();
+			end)
+		end)
+
+		-- ResourceManager.Instance:LoadAssetAsync(config.Path,function (texture)
+		-- 		self.m_RawImage.texture=texture;
+		-- 		self.m_RawImage:SetNativeSize();
+		-- 		self.m_AutoAlpha.Play(function ()
+		-- 			self:OnEnd();
+		-- 		end)
+		-- end)
+		
+	end
+end
+
+function PlotImageWindow:OnEnd()
+	CS.StarProject.GlobalEvent.OnEffectEnd:Invoke(self.EffectID)
+	self:Close();
+end
+
+function PlotImageWindow:OnClose(arg)
+
+end
+
+
+
+return  PlotImageWindow

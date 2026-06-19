@@ -1,0 +1,223 @@
+--[[
+*文件名   :   AuctionGoodsItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/09 09:44:49"
+*创建人   :   "DL"
+*版权所有 :   游卡网络科技技术有限公司
+]] local AuctionGoodsItem = {}
+
+local ItemGrid = require("View/Item/ItemGrid");
+AuctionGoodsItem.__index = AuctionGoodsItem
+
+function AuctionGoodsItem:New(_go, _parent)
+    local self = {};
+    setmetatable(self, AuctionGoodsItem);
+
+    self.gameObject = _go;
+    self.transform = _go.transform;
+
+    if _parent ~= nil then
+        self.transform:SetParent(_parent, false);
+        self.transform.localPosition = Vector3.zero
+        self.transform.localScale = Vector3.one
+    end
+
+    self.AnimRoot = self.transform:Find("AnimRoot");
+
+    self.ItemGridRoot = self.AnimRoot:Find("ItemGridRoot");
+
+    if self.itemGrid == nil then
+        local itemGridNode = ItemGrid:New(self.AnimRoot:Find("ItemGridRoot/ItemGrid").gameObject);
+        itemGridNode:InitItem(false, function(ritem)
+            self:OnItemClick33(ritem);
+        end)
+        itemGridNode.transform.localPosition = Vector3.zero;
+        self.itemGrid = itemGridNode;
+    end
+
+    self.NameText = self.AnimRoot:Find("Name"):GetComponent(typeof(Text));
+    self.PriceStateText = self.AnimRoot:Find("State"):GetComponent(typeof(Text));
+    self.PriceText = self.AnimRoot:Find("Price"):GetComponent(typeof(Text));
+    self.PriceIcon = self.AnimRoot:Find("PriceIcon"):GetComponent(typeof(Image));
+
+    self.BuyJBtn = self.AnimRoot:Find("Buy"):GetComponent(typeof(JButton));
+    self.BuyTextNode = self.AnimRoot:Find("Buy/BuyText");
+    self.BoughtTextNode = self.AnimRoot:Find("Buy/BoughtText");
+    self.NotOpen = self.AnimRoot:Find("Buy/NotOpen").gameObject;
+
+    self.TimeText = self.AnimRoot:Find("Time"):GetComponent(typeof(Text));
+
+    -- 点击事件
+    self.BuyJBtn.OnClick = (function()
+        self:OnBuyClick();
+    end);
+
+    self.canvasGroup = self.transform:GetComponent(typeof(CanvasGroup));
+    self.animator = self.AnimRoot:GetComponent(typeof(Animator));
+
+    return self; -- 返回自身
+end
+
+function AuctionGoodsItem:SetClickCb(clickCB)
+    self.onClick = clickCB;
+end
+
+--- ui的刷新 接口
+
+-- 全局 节点
+-- self.ItemGridRoot
+-- self.NameText
+
+-- self.PriceStateText 价格状态 : 当前竞价中/当前最高价
+-- self.PriceIcon
+-- self.PriceText
+
+-- self.BuyJBtn
+-- self.BuyTextNode
+-- self.BoughtTextNode
+
+-- self.TimeText  -- 倒计时lab
+
+-- 全局变量
+-- self.itemCfg 
+-- self.priceItemCfg
+-- self.time
+
+-- self.isBuy        -- 是否购买
+
+--- 刷新 拍卖道具信息的 接口
+---@param goodsItemInfo "单个 拍卖道具信息 "
+---@param isBuy "是否已经购买"
+---@param isOpen "拍卖是否已经开始"
+function AuctionGoodsItem:Refresh(goodsItemInfo, isBuy, isOpen)
+
+    self.goodsItemInfo = goodsItemInfo;
+
+    local itemID = goodsItemInfo.ItemID;
+    local count = goodsItemInfo.count;
+    local price = goodsItemInfo.curPrice;
+
+    -- 道具 的 活动类型, 冒险团拍卖/世界拍卖
+    local AuctionType = goodsItemInfo.auctionType;
+
+    self.itemCfg = goodsItemInfo.cfg;
+
+    local priceCount = 0;
+
+    -- 如果有 价格, 就用服务器价格
+    if price ~= 0 then
+        priceCount = price;
+    else
+        -- 如果没有,就根据 道具是 冒险团还是 世界 的 类型 取 道具表中 配置的 价格
+        if AuctionType == CS.ProtoMsg.AuctionType.Group then
+            priceCount = self.itemCfg.WorldAuctionPrice;
+        elseif AuctionType == CS.ProtoMsg.AuctionType.World then
+            priceCount = self.itemCfg.GuildAuctionPrice;
+        end
+
+    end
+
+    -- 先默认使用 金币作为 消耗的道具类型
+    local priceItemID = 2;
+    self.priceItemCfg = ConfigDataAccessor.Item[priceItemID];
+
+    self.priceItemID = priceItemID;
+    self.priceCount = priceCount;
+
+    self:RefreshItem(itemID, count);
+    self:RefreshPrice(priceItemID, priceCount);
+    self:RefreshIsBuy(isBuy, isOpen);
+
+end
+
+-- 刷新道具Item (道具id/count)
+function AuctionGoodsItem:RefreshItem(itemID, count)
+
+    -- -- 稀有度底板
+    -- local quality = self.cfg.Quality;
+    -- self.IconBg.sprite = AtlasManager.Instance:GetSprite("ui/common/atlas/commonitem", "Bag_Grid_sq" .. quality);
+
+    self.itemGrid:SetItemNum(itemID, count);
+
+    -- 道具名字
+    self.NameText.text = self.itemCfg.Name;
+
+    self.NameText.color = GetAuctionQualityColorRGB(self.itemCfg.Quality);
+
+end
+
+function AuctionGoodsItem:OnItemClick33(ritem)
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",
+        {ritem.BaseID, false, 0, self.ItemGridRoot, 0})
+end
+
+-- 刷新 竞价 数据 (道具可能不仅仅是 金币,所以 此处 有个 资源的 id + 价格)
+function AuctionGoodsItem:RefreshPrice(priceItemID, price)
+
+    -- 资源数量
+    self.PriceText.text = price;
+
+    -- 资源ICON
+    -- LoadIcon(self.PriceIcon, self.priceItemCfg.Icon);
+    ResourceHelper:LoadIconAsync(self.PriceIcon, "", self.priceItemCfg.Icon, false)
+
+end
+
+-- 刷新 是否 购买信息 
+function AuctionGoodsItem:RefreshIsBuy(isBuy, isOpen)
+
+    self.isBuy = isBuy and isOpen;
+
+    -- 刷新 购买 按钮 的 显示
+    self.BuyTextNode.gameObject:SetActive(not isBuy and isOpen);
+    self.BoughtTextNode.gameObject:SetActive(isBuy);
+    self.NotOpen:SetActive(not isOpen);
+
+    -- 刷新 价格的状态
+    if isBuy then
+        self.PriceStateText.text = LanguageHelp:GetLanguageByKey("Local_Str_Yet_MaxPrice");
+    else
+        if isOpen then
+            self.PriceStateText.text = LanguageHelp:GetLanguageByKey("Local_Str_Current_auction");
+        else
+            self.PriceStateText.text = LanguageHelp:GetLanguageByKey("Local_Str_Auction_not_commenced");
+        end
+    end
+
+end
+
+-- 刷新 倒计时 接口，倒计时 目前来说 是统一的, 没必要放在每个 竞品中单独 刷新, 
+-- 可以放在 上层统一刷新 倒计时.
+function AuctionGoodsItem:RefreshTimer(second)
+    self.TimeText.text = SecToStringColon3(second);
+end
+
+-- 按钮点击触发的逻辑,  
+-- buyType : 1. 竞价购买按钮类型 ; 2. 已经购买的再次购买类型
+function AuctionGoodsItem:OnBuyClick(buyType)
+    local buyType = self.isBuy and 2 or 1;
+    self.onClick(buyType, self);
+end
+
+function AuctionGoodsItem:ShowDefault()
+    self.animator.playbackTime = 0;
+    self.animator.enabled = false;
+    self.canvasGroup.alpha = 1;
+    DelayInvoker.CancelInvoke(self);
+end
+
+function AuctionGoodsItem:PlayAnim(delayTime)
+    self.animator.playbackTime = 0;
+    self.animator.enabled = false;
+    self.canvasGroup.alpha = 0;
+    DelayInvoker.CancelInvoke(self);
+    DelayInvoker.DelayInvoke(self, delayTime, function()
+        self.canvasGroup.alpha = 1;
+        self.animator.enabled = true;
+
+        self.animator.playbackTime = 0;
+    end);
+end
+
+return AuctionGoodsItem;

@@ -1,0 +1,398 @@
+--[[
+*文件名   :   ChatChannelWindow
+*内  容   :
+*说  明   : 聊天界面
+*创建日期 :   "2022/12/06 10:33:06"
+*创建人   :   "quzhenxin"
+*版权所有 :   游卡网络科技技术有限公司
+]] ChatChannelWindow =
+    class("ChatChannelWindow", UIPanel)
+
+local ChatChannelWorld = require("View/UIWindow/Chat/ChatChannel/ChatChannelWorld")
+local SelectBtn = require("View/Item/SelectBtn")
+
+ChatChannelWindow.IsOpen = false
+ChatChannelWindow.IsShow = false
+
+ChatChannelWindow.AttrMenuJBtns = {}
+ChatChannelWindow.ContentList = {}
+ChatChannelWindow.CurrentChannel = nil
+-------- 模板
+ChatChannelWindow.OtherMsgItem = nil
+ChatChannelWindow.SelfMsgItem = nil
+ChatChannelWindow.SystemMsgItem = nil
+ChatChannelWindow.ChatTimeItem = nil
+
+function ChatChannelWindow:Awake()
+    self:Init()
+    self.onCloseDestroy(false)
+end
+
+function ChatChannelWindow:BindModule(m)
+    self.module = m
+end
+
+function ChatChannelWindow:Init()
+    self.transform = self.prefab.transform
+    self.gameObject = self.transform.gameObject
+    -- self.Panel = self.transform:Find("Cut4Cam90/AssemblyRatio2/Panel").gameObject;
+    self.PanelCanvasGroup = self.transform:Find("Cut4Cam90/AssemblyRatio2/Panel"):GetComponent(typeof(CanvasGroup))
+
+    -- 绑定关闭按钮
+    -- self.Root = self.transform:Find("Cut4Cam90/AssemblyRatio2/Panel/Root").gameObject;
+    self.CloseBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/Panel/CloseBtn"):GetComponent(typeof(Button))
+    self.CloseBtn.onClick:RemoveAllListeners()
+    self.CloseBtnFun = function()
+        self:SetShow(false, true)
+    end
+    self.CloseBtn.onClick:AddListener(self.CloseBtnFun)
+    local CloseBtn2 = self.transform:Find("Cut4Cam90/AssemblyRatio2/Panel/Root/CloseBtn2"):GetComponent(typeof(Button))
+    CloseBtn2.onClick:RemoveAllListeners()
+    CloseBtn2.onClick:AddListener(self.CloseBtnFun)
+    -- 绑定表情按钮
+    self.emojiBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/Panel/Root/Bottom/InputField/EmojiBtn"):GetComponent(typeof(Button))
+    self.emojiBtn.onClick:RemoveAllListeners()
+    self.emojiBtnFun = function()
+        LuaModuleDispatcher:SendMessage(ModuleDef.ChatModule, "OnOpenChatInput", {self.inputField, 0, self.inputField.text})
+    end
+    self.emojiBtn.onClick:AddListener(self.emojiBtnFun)
+    -- 绑定发送按钮
+    self.sendBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/Panel/Root/Bottom/SendBtn"):GetComponent(typeof(JButton))
+    self.sendBtnFun = function()
+        self:SendCurChatChannelData()
+    end
+    self.sendBtn.OnClick = self.sendBtnFun
+    ----
+    self.Bottom = self.transform:Find("Cut4Cam90/AssemblyRatio2/Panel/Root/Bottom").gameObject -- 文本输入框
+    self.inputField = self.transform:Find("Cut4Cam90/AssemblyRatio2/Panel/Root/Bottom/InputField"):GetComponent(typeof(InputField)) -- 文本输入框
+    -- 模板
+    self.OtherMsgItem = self.transform:Find("Cut4Cam90/AssemblyRatio2/Panel/Root/OtherMsgItem").gameObject
+    self.SelfMsgItem = self.transform:Find("Cut4Cam90/AssemblyRatio2/Panel/Root/SelfMsgItem").gameObject
+    self.SystemMsgItem = self.transform:Find("Cut4Cam90/AssemblyRatio2/Panel/Root/SystemMsgItem").gameObject
+    self.ChatTimeItem = self.transform:Find("Cut4Cam90/AssemblyRatio2/Panel/Root/ItemChatTime").gameObject
+
+    -------------------------------------- 页签点击事件
+    self.TabBtnClickFun = function(idx)
+        self:OnAttrMenuJBtnClick(idx)
+    end
+
+    self:InitTabJbtn()
+    self:InitContent()
+    -- 默认选中基础属性
+    self:OnAttrMenuJBtnClick(CS.ProtoMsg.ChatChannel.ChannelWorld)
+end
+
+function ChatChannelWindow:InitTabJbtn()
+    self.AttrMenuJBtns = {}
+
+    -- 页签[系统]
+    local btn7 = SelectBtn:New(self:Find("Cut4Cam90/AssemblyRatio2/Panel/Root/TabScrollView/Viewport/Content/TabJBtnSystem").gameObject)
+    btn7:InitItem(CS.ProtoMsg.ChatChannel.ChannelSystem, self.TabBtnClickFun)
+    table.insert(self.AttrMenuJBtns, btn7)
+
+    -- 页签[当前]
+    local btn6 = SelectBtn:New(self:Find("Cut4Cam90/AssemblyRatio2/Panel/Root/TabScrollView/Viewport/Content/TabJBtnCurrent").gameObject)
+    btn6:InitItem(CS.ProtoMsg.ChatChannel.ChannelSpace, self.TabBtnClickFun)
+    table.insert(self.AttrMenuJBtns, btn6)
+
+    -- 页签[世界]
+    local btn1 = SelectBtn:New(self:Find("Cut4Cam90/AssemblyRatio2/Panel/Root/TabScrollView/Viewport/Content/TabJBtnWorld").gameObject)
+    btn1:InitItem(CS.ProtoMsg.ChatChannel.ChannelWorld, self.TabBtnClickFun)
+    table.insert(self.AttrMenuJBtns, btn1)
+
+    -- 页签[冒险团]
+    local btn2 = SelectBtn:New(self:Find("Cut4Cam90/AssemblyRatio2/Panel/Root/TabScrollView/Viewport/Content/TabJBtnAssociation").gameObject)
+    btn2:InitItem(CS.ProtoMsg.ChatChannel.ChannelUnion, self.TabBtnClickFun)
+    table.insert(self.AttrMenuJBtns, btn2)
+
+    -- 页签[职业]
+    -- local btn4 = SelectBtn:New(
+    -- self:Find("Cut4Cam90/AssemblyRatio2/Panel/Root/TabScrollView/Viewport/Content/TabJBtnJob").gameObject);
+    -- btn4:InitItem(CS.ProtoMsg.ChatChannel.ChannelJob, self.TabBtnClickFun);
+    -- table.insert(self.AttrMenuJBtns, btn4);
+
+    -- 页签[队伍]
+    local btn3 = SelectBtn:New(self:Find("Cut4Cam90/AssemblyRatio2/Panel/Root/TabScrollView/Viewport/Content/TabJBtnTeam").gameObject)
+    btn3:InitItem(CS.ProtoMsg.ChatChannel.ChannelTeam, self.TabBtnClickFun)
+    table.insert(self.AttrMenuJBtns, btn3)
+
+    -- 页签[招募]
+    local btn5 = SelectBtn:New(self:Find("Cut4Cam90/AssemblyRatio2/Panel/Root/TabScrollView/Viewport/Content/TabJBtnRecruit").gameObject)
+    btn5:InitItem(CS.ProtoMsg.ChatChannel.ChannelCall, self.TabBtnClickFun)
+    table.insert(self.AttrMenuJBtns, btn5)
+
+    -- 页签[私聊]【上次策划说，聊天界面不显示了】
+    -- local btn8 = SelectBtn:New(self:Find(
+    -- "Cut4Cam90/AssemblyRatio2/Panel/Root/TabScrollView/Viewport/Content/TabJBtnPrivateChat").gameObject);
+    -- btn8:InitItem(CS.ProtoMsg.ChatChannel.ChannelPrivate, self.TabBtnClickFun);
+    -- table.insert(self.AttrMenuJBtns, btn8);
+end
+
+function ChatChannelWindow:InitContent()
+    self.ContentList = {}
+
+    -- 内容[系统]
+    local ContentSystem = ChatChannelWorld:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Panel/Root/ContentList/ContentSystem"), CS.ProtoMsg.ChatChannel.ChannelSystem)
+    table.insert(self.ContentList, ContentSystem)
+    ContentSystem:BindParent(self)
+
+    -- 内容[当前]
+    local ContentCurrent = ChatChannelWorld:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Panel/Root/ContentList/ContentCurrent"), CS.ProtoMsg.ChatChannel.ChannelSpace)
+    table.insert(self.ContentList, ContentCurrent)
+    ContentCurrent:BindParent(self)
+
+    -- 内容[世界]
+    local ContentWorld = ChatChannelWorld:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Panel/Root/ContentList/ContentWorld"), CS.ProtoMsg.ChatChannel.ChannelWorld)
+    table.insert(self.ContentList, ContentWorld)
+    ContentWorld:BindParent(self)
+
+    -- 内容[冒险团]
+    local ContentAssociation = ChatChannelWorld:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Panel/Root/ContentList/ContentAssociation"), CS.ProtoMsg.ChatChannel.ChannelUnion)
+    table.insert(self.ContentList, ContentAssociation)
+    ContentAssociation:BindParent(self)
+
+    -- 内容[职业]
+    -- local ContentJob = ChatChannelWorld:New(self.transform:Find(
+    -- "Cut4Cam90/AssemblyRatio2/Panel/Root/ContentList/ContentJob"), CS.ProtoMsg.ChatChannel.ChannelJob);
+    -- table.insert(self.ContentList, ContentJob);
+    -- ContentJob:BindParent(self);
+
+    -- 内容[队伍]
+    local ContentTeam = ChatChannelWorld:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Panel/Root/ContentList/ContentTeam"), CS.ProtoMsg.ChatChannel.ChannelTeam)
+    table.insert(self.ContentList, ContentTeam)
+    ContentTeam:BindParent(self)
+
+    -- 内容[招募]
+    local ContentRecruit = ChatChannelWorld:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Panel/Root/ContentList/ContentRecruit"), CS.ProtoMsg.ChatChannel.ChannelCall)
+    table.insert(self.ContentList, ContentRecruit)
+    ContentRecruit:BindParent(self)
+
+    ---- 内容[私聊]【上次策划说，聊天界面不显示了】
+    -- local ContentPrivateChat = ChatChannelWorld:New(self.transform:Find(
+    -- "Cut4Cam90/AssemblyRatio2/Panel/Root/ContentList/ContentPrivateChat"), CS.ProtoMsg.ChatChannel.ChannelPrivate);
+    -- table.insert(self.ContentList, ContentPrivateChat);
+    -- ContentPrivateChat:BindParent(self);
+end
+
+function ChatChannelWindow:OnAttrMenuJBtnClick(channel)
+    self.CurrentChannel = channel
+    for i = 1, #self.AttrMenuJBtns do
+        local child = self.AttrMenuJBtns[i]
+        local child2 = self.ContentList[i]
+        if child ~= nil and child2 ~= nil then
+            local isShow = child2.Channel == self.CurrentChannel
+            child:MakeSelected(isShow)
+            child2:MakeSelected(isShow)
+            if isShow then
+                self.CurrentContent = child2
+            end
+        end
+    end
+
+    -- local isShowInput = self.CurrentChannel == CS.ProtoMsg.ChatChannel.ChannelSystem or self.CurrentChannel == CS.ProtoMsg.ChatChannel.ChannelCall or self.CurrentChannel == CS.ProtoMsg.ChatChannel.ChannelPrivate;
+    local isShowInput = true
+    if self.CurrentContent ~= nil then
+        if self.CurrentContent.chatCfg ~= nil then
+            isShowInput = self.CurrentContent.chatCfg.AllowInput
+        end
+    end
+
+    self:CheckCurChannelIsCanSend()
+    self.Bottom:SetActive(isShowInput)
+end
+
+-- 检查频道是否可以发送
+function ChatChannelWindow:CheckCurChannelIsCanSend()
+    local isCanSend = true
+    if self.CurrentChannel == CS.ProtoMsg.ChatChannel.ChannelUnion then
+        -- 如果是冒险团频道，检查是否有冒险团
+        isCanSend = BusinessManager.Instance:GetGuildID() ~= 0
+    elseif self.CurrentChannel == CS.ProtoMsg.ChatChannel.ChannelTeam then
+        -- 如果是队伍频道，检查是否有队伍
+        local module = ModuleManager.Instance:GetModule(ModuleDef.TeamModule)
+        local luatable = module:GetLuaTable()
+        local teamInfo = luatable:GetTeamInfo()
+        local hasTeam = false -- 是否有队伍
+        if teamInfo ~= nil and teamInfo.TeamID ~= 0 and teamInfo.UserInfos.Count > 0 then
+            hasTeam = true
+        end
+        isCanSend = hasTeam
+    end
+    self.sendBtn.UnClick = (not isCanSend)
+end
+
+-- 判断是否被冒险团禁言
+function ChatChannelWindow:CheckIsSilenceInGuild()
+    if self.CurrentChannel == CS.ProtoMsg.ChatChannel.ChannelUnion then
+        local serverTime = GameManager.Instance:GetServerTimeStamp() / 1000
+        local GuildProhibEndTime = BusinessManager.Instance:GetGuildProhibEndTime()
+        local leftTime = GuildProhibEndTime - serverTime
+        if leftTime > 0 then
+            local timeStr = SecToStringColon2(leftTime)
+            -- Util.ShowMessage("您已经被禁言， " .. timeStr .. " 后才可在冒险团发言");
+            Util.ShowMessage(StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_IsSilenceInGuild"), {timeStr}))
+            return true
+        end
+    end
+    return false
+end
+
+-- 发送消息
+function ChatChannelWindow:SendCurChatChannelData()
+    if self.inputField.text == "" then
+        return
+    end
+    -- 判断冒险团能否发送消息
+    if self:CheckIsSilenceInGuild() then
+        return
+    end
+    -- 检查频道是否能发送消息
+    local isSend = self:CheckCurChannelIsSend()
+
+    if isSend then
+        self.inputField:SendData(self.CurrentChannel)
+    end
+end
+
+-- 发送【输入框中的】消息
+function ChatChannelWindow:SendDataByChatInput(ip)
+    if ip == nil then
+        return
+    end
+
+    -- 判断冒险团能否发送消息
+    if self:CheckIsSilenceInGuild() then
+        return
+    end
+    -- 检查频道是否能发送消息
+    local isSend = self:CheckCurChannelIsSend()
+
+    if isSend then
+        local pid = -1;
+        if self.module ~= nil then
+            pid = self.module.selectPlayerId;
+        end
+        ip:SendData(self.CurrentChannel, pid)
+    --self.inputField:Clear();
+    end
+end
+
+-- 检查频道是否能发送消息
+function ChatChannelWindow:CheckCurChannelIsSend()
+    local isSend = true
+    if self.CurrentContent ~= nil then
+        isSend = self.CurrentContent:GetIsSend()
+    end
+    return isSend
+end
+
+-- 清空当前输入框信息
+function ChatChannelWindow:ClearInput(lastTime)
+    self.inputField:Clear()
+    if self.CurrentContent ~= nil then
+        self.CurrentContent:UpdateEndTime(lastTime)
+    end
+end
+
+function ChatChannelWindow:SetShow(isShow, isPlayAnim)
+    self.IsShow = isShow
+
+    local alpha = 0
+    if self.IsShow == true then
+        alpha = 1
+    end
+
+    if isPlayAnim then
+        if isShow then
+            self:CheckCurChannelIsCanSend()
+            self.PlayAnimation(
+                "Open",
+                function()
+                    self.PanelCanvasGroup.alpha = alpha
+                end
+            )
+        else
+            self.PlayAnimation(
+                "Out",
+                function()
+                    self.PanelCanvasGroup.alpha = alpha
+                end
+            )
+        end
+    else
+        self.PanelCanvasGroup.alpha = alpha
+    end
+
+    self.PanelCanvasGroup.blocksRaycasts = isShow
+
+    self.transform:SetAsLastSibling()
+
+    UIManager.Instance:SetShowChatWindow(self.IsShow)
+end
+
+function ChatChannelWindow:AddMsgItem(chatMsgNotice)
+    if ExtraData.IsMsgType(chatMsgNotice, CS.ProtoMsg.ChatExtraInfo.Types.EMsg.TeamGather) then
+        return
+    end
+
+    for i = 1, #self.ContentList do
+        self.ContentList[i]:AddItem(chatMsgNotice)
+    end
+end
+
+function ChatChannelWindow:ClearAllChatItem()
+    for i = 1, #self.ContentList do
+        self.ContentList[i]:ClearAllItem()
+    end
+end
+
+function ChatChannelWindow:SyncInput(ip)
+    self.inputField:Sync(ip)
+end
+
+function ChatChannelWindow:SetBarrageChannelState(channel, isOpen)
+    if self.module ~= nil then
+        self.module:SetBarrageChannelState(channel, isOpen)
+    end
+end
+
+function ChatChannelWindow:Start()
+    self:SetShow(false, false)
+end
+
+function ChatChannelWindow:OnEnable()
+end
+
+function ChatChannelWindow:OnDisable()
+    --print("ChatChannelWindow:OnDisable")
+    -- self.IsShow = false;
+    -- self.PlayAnimation("Out", function()
+    --     self.PanelCanvasGroup.alpha = 0;
+    -- end);
+    -- self.PanelCanvasGroup.blocksRaycasts = self.IsShow;
+    -- UIManager.Instance:SetShowChatWindow(self.IsShow);
+end
+
+function ChatChannelWindow:OnDestroy()
+end
+
+function ChatChannelWindow:OnOpen(arg)
+    self.IsOpen = true
+end
+
+function ChatChannelWindow:OnClose(arg)
+    self:CloseWindow()
+    if self.module ~= nil then
+        self.module.chatChannelWindowCS = nil
+    end
+end
+
+function ChatChannelWindow:CloseWindow()
+    self.IsOpen = false
+    if self.module ~= nil then
+        self.module.chatChannelWindowCS = nil
+    end
+    self:ClearAllChatItem()
+end
+
+return ChatChannelWindow

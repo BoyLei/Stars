@@ -1,0 +1,116 @@
+--[[
+*文件名   :   EquipRecastEquipItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/18 16:55:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local EquipRecastEquipItem = {}
+
+EquipRecastEquipItem.__index = EquipRecastEquipItem
+
+function EquipRecastEquipItem:New(_go)
+    local self = {}
+    setmetatable(self, EquipRecastEquipItem)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.Icon = self.transform:Find("Have/mask/Icon"):GetComponent(typeof(Image))
+    self.Rare = self.transform:Find("Have/BgRare"):GetComponent(typeof(Image))
+
+    self.Num = self.transform:Find("Have/Num"):GetComponent(typeof(Text))
+
+    self.go_Have = self.transform:Find("Have").gameObject
+    self.go_Have:SetActive(false)
+
+    self.go_Null = self.transform:Find("Null").gameObject
+    self.go_Null:SetActive(true)
+
+    self.IsUsed = false
+
+    --点击删除
+    self.transform:Find("Have/Del"):GetComponent(typeof(JButton)).OnClick = (function()
+        if self.OnDelCkick ~= nil then
+            self.OnDelCkick(self, self.Idx)
+        end
+    end)
+
+    --点击事件
+    self.btnClick = self.transform:GetComponent(typeof(JButton))
+    self.btnClick.OnClick = (function()
+        if self.OnItemCkick ~= nil then
+            if self.IsUsed then
+                self.OnItemCkick(self)
+            else
+                self.OnItemCkick(nil)
+            end
+        end
+    end)
+
+    --长按事件
+    self.btnClick.OnLongPressDown = (function()
+        if self.OnItemLongPress ~= nil then
+            if self.IsUsed then
+                self.OnItemLongPress(self)
+            end
+        end
+    end)
+
+    return self --返回自身
+end
+
+--初始化Item
+function EquipRecastEquipItem:InitItem(isHaveBoard, onItemCkick, onDelCkick, onItemLongPress)
+    self.isHaveBoard = isHaveBoard
+
+    self.OnItemLongPress = onItemLongPress
+    self.OnItemCkick = onItemCkick
+    self.OnDelCkick = onDelCkick
+    self:SetUse(false)
+end
+
+function EquipRecastEquipItem:SetUse(b)
+    self.IsUsed = b
+    self.go_Have:SetActive(b)
+    self.go_Null:SetActive(not (b))
+
+    --如果没有有底板就隐藏
+    if not self.isHaveBoard then
+        self.gameObject:SetActive(b)
+    end
+end
+
+--设置Item
+function EquipRecastEquipItem:SetItem(item, idx)
+    self.Idx = idx
+
+    if item == nil then
+        self:SetUse(false)
+    else
+        --self:MakeSelected(false);
+        --背包特判
+        if item.BaseID == 0 then
+            self:SetUse(false)
+            self:MakeSelected(false)
+        else
+            self:SetUse(true)
+
+            self.EntityID = item.EntityID
+            self.BaseID = item.BaseID
+
+            --稀有度底板
+            local cfg = ConfigDataAccessor.Item[self.BaseID]
+            local quality = cfg.Quality
+            local equipCfg = ConfigDataAccessor.Equip[self.BaseID]
+            self.Num.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {equipCfg.Level})
+            ResourceHelper:LoadIconByAtlasAsync(self.Rare, ResourceHelper.AtlasPathCommonItem, "Bag_Grid_sq" .. quality, false)
+
+            --LoadIcon(self.Icon,cfg.Icon);
+            ResourceHelper:LoadIconAsync(self.Icon, "", cfg.Icon, false)
+        end
+    end
+end
+
+return EquipRecastEquipItem

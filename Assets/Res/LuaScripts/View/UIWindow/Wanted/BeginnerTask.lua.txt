@@ -1,0 +1,52 @@
+--@class BeginnerTask
+BeginnerTask = class("BeginnerTask", UIPanel)
+
+
+local ItemGrid = require("View/Item/ItemGrid")
+BeginnerTask.m_TargetItemList = {}
+
+function BeginnerTask:ctor(go, atlas)
+    self.prefab = go;
+    self.AtlasPath = atlas;
+
+    self.Btn = go.transform:GetComponent(typeof(JButton));
+    self.BtnFun = function()
+        self:OnClickHandler();
+    end
+    self.Btn.OnClick = self.BtnFun;
+
+    self.TxtTaskName = self:Find("Info/TxtTaskName"):GetComponent(typeof(Text))
+    self.TxtDes = self:Find("Info/TxtDes"):GetComponent(typeof(Text))
+    self.TxtProcess = self:Find("Progress/ObjUnfinished/TxtProcess"):GetComponent(typeof(Text))
+    self.ObjUnfinished = self:Find("Progress/ObjUnfinished").gameObject
+    self.ObjFinished = self:Find("Progress/ObjFinished").gameObject
+
+    self.ObjItem = ItemGrid:New(self:Find("ItemGrid").gameObject)
+    self.ObjItem:InitItem(
+            false,
+            function(ritem)
+
+            end
+    )
+end
+
+--点击事件
+function BeginnerTask:OnClickHandler()
+    SDKManager.Instance:PostEventCustom(E_SDK_PreEvent.CLICK_SIGNINWINDOW, nil);
+    LuaModuleDispatcher:SendMessage(ModuleDef.ActivityModule, "OnShowSignInWindow", {TabIndex = 6})
+end
+function BeginnerTask:Refresh(data)
+    self.TxtDes.text = data.GroupName
+    self.TxtProcess.text =   data.CurProcess.."/"..data.MaxProcess
+    if data.CurProcess >= data.MaxProcess or data.RedPoint then
+        self.ObjFinished:SetActive(true)
+        self.ObjUnfinished:SetActive(false)
+    else
+        self.ObjFinished:SetActive(false)
+        self.ObjUnfinished:SetActive(true)
+    end
+    if self.ObjItem then
+        self.ObjItem:SetItemNum(data.CommonAward[1], data.CommonAwardNum[1]);
+    end
+end
+return BeginnerTask;

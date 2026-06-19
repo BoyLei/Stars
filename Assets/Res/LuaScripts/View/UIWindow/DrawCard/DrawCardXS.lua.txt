@@ -1,0 +1,50 @@
+local DrawCardXS = {}
+DrawCardXS.__index = DrawCardXS
+
+function DrawCardXS:New(obj)
+    local self = {};
+    setmetatable(self, DrawCardXS);
+
+    self:InitControls(obj)
+
+    return self;
+end
+
+function DrawCardXS:InitControls(obj)
+    self.gameObject = obj;
+    self.transform = obj.transform;
+
+    self.limitTimes = self.transform:Find("LimitTimes"):GetComponent(typeof(Text));
+    self.leftTimes = self.transform:Find("SSRLeft/Times1"):GetComponent(typeof(Text));
+    self.descText = self.transform:Find("Desc"):GetComponent(typeof(Text));
+    self.poolName = self.transform:Find("name"):GetComponent(typeof(Text));
+
+    self.descText.text = ConfigDataAccessor.CardPool[3].CardPoolDesc;
+	
+	self.ssrLeft = self.transform:Find("Times1").gameObject;
+	self.di = self.transform:Find("di").gameObject;
+    self.poolName.text = ConfigDataAccessor.CardPool[3].CardPoolName;
+
+    self.curTimes = 0;
+end
+
+function DrawCardXS:RefreshSsrTimes(t, ft)
+    self.leftTimes.text = tostring(ft);
+	
+	if self.totalTimes - self.curTimes < t then
+		self.ssrLeft:SetActive(false);
+		self.di:SetActive(false);
+	else
+		self.ssrLeft:SetActive(true);
+		self.di:SetActive(true);
+	end
+end
+
+function DrawCardXS:RefreshLimitTimes(t,total)
+    self.limitTimes.text = t.."/"..total;
+
+	self.curTimes = t;
+	self.totalTimes = total;
+end
+
+return DrawCardXS

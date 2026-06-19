@@ -1,0 +1,415 @@
+--[[
+*文件名   :   ItemBuff
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/06 15:34:41"
+*创建人   :   "quzhenxin"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local ItemBuff = {}
+
+ItemBuff.__index = ItemBuff
+
+function ItemBuff:New(_go, onItemClick)
+    local self = {}
+    setmetatable(self, ItemBuff)
+
+    self.Transform = _go.transform
+
+    self.IconBg = self.Transform:GetComponent(typeof(Image))
+    self.Icon = self.Transform:Find("Icon"):GetComponent(typeof(Image))
+    self.Bar = self.Transform:Find("Bar"):GetComponent(typeof(Image))
+    self.Layer = self.Transform:Find("Layer"):GetComponent(typeof(Text))
+    self.More = self.Transform:Find("More")
+    self.MoreIcon = self.More:GetComponent(typeof(Image))
+    self.More.gameObject:SetActive(false)
+    self.BuffSumBg = self.More:Find("BuffSumBg"):GetComponent(typeof(Image))
+    self.BuffSum = self.More:Find("BuffSumBg/BuffSum"):GetComponent(typeof(Text))
+
+    self.IsUsed = false
+
+    --点击事件
+    local btnClick = self.Transform:GetComponent(typeof(Button))
+    self.BtnClickFun = function()
+        if onItemClick ~= nil then
+            if self.IsUsed then
+                onItemClick(self)
+            end
+        end
+    end
+    btnClick.onClick:AddListener(self.BtnClickFun)
+
+    self.BuffEntity = nil
+    self.BuffCount = 0
+    self.IsUsed = false
+
+    self.Countdown = 0
+    self.MaxTime = 0
+    self.StartTime = 0
+
+    self.cb = nil
+    self.Index = 0
+
+    self.EnterFrameIndex = 0
+
+    self.IsDeBuff = false
+    self.RunTimeId = 0
+    self.BuffId = 0
+    self.LiveTime = 0
+    self.StackCount = 0
+
+    self.buffSumBgPath = ""
+    self.moreIconPath = ""
+
+    self.iconBgPath = ""
+    self.barPath = ""
+    self.buffIconPath = ""
+    self.IsTimeShow = true
+
+    self.UpdateFun = function()
+        self:UpdateData()
+    end
+
+    return self
+end
+
+function ItemBuff:SetCallBack(cb)
+    self.cb = cb
+end
+
+function ItemBuff:SetBuffCout(buffCount, index)
+    self.BuffCount = buffCount
+    self.Index = index
+    self.BuffSum.text = tostring(self.BuffCount)
+    self.More.gameObject:SetActive(self.Index >= 5)
+    self.Icon.gameObject:SetActive(self.Index < 5)
+    if self.Index >= 5 then
+        self.Bar.fillAmount = 1
+
+        local buffSumBgPath = "Hud_Buff_More02"
+        if self.IsDeBuff then
+            buffSumBgPath = "Hud_Debuff_More02"
+        end
+        ResourceHelper:LoadIconByAtlasAsync(self.BuffSumBg, ResourceHelper.AtlasPathBuff, buffSumBgPath, false)
+
+        local moreIconPath = "Hud_Buff_More"
+        if self.IsDeBuff then
+            moreIconPath = "Hud_Debuff_More"
+        end
+        ResourceHelper:LoadIconByAtlasAsync(self.MoreIcon, ResourceHelper.AtlasPathBuff, moreIconPath, false)
+    end
+    self:UpdateSiblingIndex()
+end
+
+function ItemBuff:UpdateSiblingIndex()
+    if self.Transform ~= nil then
+        self.Transform:SetSiblingIndex(self.Index)
+    end
+end
+
+function ItemBuff:SetIndex(index)
+    self.Index = index
+    if self.Index > 5 then
+        self.Transform.gameObject:SetActive(false)
+    else
+        self.Transform.gameObject:SetActive(true)
+    end
+end
+
+function ItemBuff:SetItem(item)
+    if item == nil then
+        self:SetUse(false)
+        return
+    end
+    self.IsDeBuff = false
+    self.EnterFrameIndex = 0
+    self.BuffEntity = item
+    self.Transform.name = tostring(self.BuffEntity.RuntimeID)
+
+    if self.BuffEntity.BuffInfo ~= nil then
+        -- 获取技能的显示状态
+        local state = self.BuffEntity.BuffInfo:GetBUFFUIShowState(E_BUFFUIShowPosEnum.HUDHpUp)
+        -- 显示层数
+        local isShowFloor = (state & E_BuffUIShowDetailsEnum.ShowFloor) == E_BuffUIShowDetailsEnum.ShowFloor
+        local layer = tonumber(self.BuffEntity.StackCount)
+        if layer > 1 and isShowFloor then
+            self.Layer.text = tostring(self.BuffEntity.StackCount)
+        else
+            self.Layer.text = ""
+        end
+        -- 判断BUFF是否需要显示倒计时
+        --self.IsTimeShow = self.BuffEntity.IsTimeShow;
+        self.IsTimeShow = (state & E_BuffUIShowDetailsEnum.ShowCountdown) == E_BuffUIShowDetailsEnum.ShowCountdown
+        if self.IsTimeShow then
+            self.MaxTime = self.BuffEntity.LiveTime / 1000
+            self.Countdown = self.BuffEntity:GetEndime() / 1000
+        else
+            self.MaxTime = 0
+            self.Countdown = 0
+            self.Bar.fillAmount = 1
+        end
+
+        if self.BuffEntity.BuffInfo.Cfg ~= nil then
+            self.IsDeBuff = self.BuffEntity.BuffInfo.Cfg.IsDebuff
+        end
+        self.RunTimeId = self.BuffEntity.RuntimeID
+        self.BuffId = self.BuffEntity.BuffID
+        self.LiveTime = self.BuffEntity.LiveTime
+        self.StackCount = self.BuffEntity.StackCount
+        -- BUFF背景图片
+        local iconBgPath = "Hud_Buffbg_01"
+        if self.IsDeBuff then
+            iconBgPath = "Hud_Debuffbg_01"
+        end
+        ResourceHelper:LoadIconByAtlasAsync(self.IconBg, ResourceHelper.AtlasPathBuff, iconBgPath, false)
+
+        -- 倒计时图片
+        local barPath = "Hud_Buff_Countdown"
+        if self.IsDeBuff then
+            barPath = "Hud_Debuff_Countdown"
+        end
+        ResourceHelper:LoadIconByAtlasAsync(self.Bar, ResourceHelper.AtlasPathBuff, barPath, false)
+
+        local isShowIcon = (state & E_BuffUIShowDetailsEnum.ShowIcon) == E_BuffUIShowDetailsEnum.ShowIcon
+        if isShowIcon then
+            -- BUFF图片
+            -- 拿取配置表里面的icon路径
+            local buffIconPath = self.BuffEntity:GetBuffIconPath()
+            if buffIconPath ~= "" and buffIconPath ~= nil then
+                ResourceHelper:LoadIconByAtlasAsync(self.Icon, ResourceHelper.AtlasPathBuff, buffIconPath, false)
+            end
+        end
+        self.Icon.enabled = isShowIcon
+
+        --Log("霸服 设置 ItemBuff:SetItem runtimeid=",self.BuffEntity.RuntimeID,"倒计时=",self.Countdown,"最大=",self.MaxTime,"开始=",self.BuffEntity.StartTime,"当前时间=",TimeUtils.ServerNowStampMilli);
+    end
+
+    self:SetUse(true)
+end
+
+function ItemBuff:BuffUpdate(item)
+    if item == nil then
+        self:SetUse(false)
+        return
+    end
+
+    self.BuffEntity = item
+
+    if self.BuffEntity.BuffInfo ~= nil then
+        -- 获取技能的显示状态
+        local state = self.BuffEntity.BuffInfo:GetBUFFUIShowState(E_BUFFUIShowPosEnum.HUDHpUp)
+        local isShowFloor = (state & E_BuffUIShowDetailsEnum.ShowFloor) == E_BuffUIShowDetailsEnum.ShowFloor
+        local layer = tonumber(self.BuffEntity.StackCount)
+        if layer > 1 and isShowFloor then
+            self.Layer.text = tostring(self.BuffEntity.StackCount)
+        else
+            self.Layer.text = ""
+        end
+        -- 判断BUFF是否需要显示倒计时
+        --self.IsTimeShow = self.BuffEntity.IsTimeShow;
+        self.IsTimeShow = (state & E_BuffUIShowDetailsEnum.ShowCountdown) == E_BuffUIShowDetailsEnum.ShowCountdown
+        if self.IsTimeShow then
+            self.MaxTime = self.BuffEntity.LiveTime / 1000
+            self.Countdown = self.BuffEntity:GetEndime() / 1000
+        else
+            self.MaxTime = 0
+            self.Countdown = 0
+            self.Bar.fillAmount = 1
+        end
+
+        --local IsDeBuff = false;
+        --if self.BuffEntity.BuffInfo.Cfg ~= nil then
+        --IsDeBuff = self.BuffEntity.BuffInfo.Cfg.IsDebuff;
+        --end
+
+        self.RunTimeId = self.BuffEntity.RuntimeID
+        self.BuffId = self.BuffEntity.BuffID
+        self.LiveTime = self.BuffEntity.LiveTime
+        self.StackCount = self.BuffEntity.StackCount
+
+        --if self.IsDeBuff ~= IsDeBuff then
+        self.IsDeBuff = self.BuffEntity.BuffInfo.Cfg.IsDebuff
+        -- BUFF背景图片
+        local iconBgPath = "Hud_Buffbg_01"
+        if self.IsDeBuff then
+            iconBgPath = "Hud_Debuffbg_01"
+        end
+        ResourceHelper:LoadIconByAtlasAsync(self.IconBg, ResourceHelper.AtlasPathBuff, iconBgPath, false)
+
+        -- 倒计时图片
+        local barPath = "Hud_Buff_Countdown"
+        if self.IsDeBuff then
+            barPath = "Hud_Debuff_Countdown"
+        end
+        ResourceHelper:LoadIconByAtlasAsync(self.Bar, ResourceHelper.AtlasPathBuff, barPath, false)
+
+        --end
+
+        -- BUFF图片
+        -- 拿取配置表里面的icon路径
+        local isShowIcon = (state & E_BuffUIShowDetailsEnum.ShowIcon) == E_BuffUIShowDetailsEnum.ShowIcon
+        if isShowIcon then
+            local buffIconPath = self.BuffEntity:GetBuffIconPath()
+            if buffIconPath ~= "" and buffIconPath ~= nil then
+                ResourceHelper:LoadIconByAtlasAsync(self.Icon, ResourceHelper.AtlasPathBuff, buffIconPath, false)
+            end
+        end
+        self.Icon.enabled = isShowIcon
+
+        --Log("霸服 更新 ItemBuff:SetItem runtimeid=",self.BuffEntity.RuntimeID,"倒计时=",self.Countdown,"最大=",self.MaxTime,"开始=",self.BuffEntity.StartTime,"当前时间=",TimeUtils.ServerNowStampMilli);
+        self:SetUse(true)
+    end
+end
+
+function ItemBuff:SetBuffItem(buffEntity)
+    self:Reset()
+
+    if buffEntity == nil then
+        self.Transform.gameObject:SetActive(false)
+        return
+    end
+
+    self:SetBuffData(buffEntity, true)
+end
+
+function ItemBuff:SetBuffData(item, isFirst)
+    self.IsDeBuff = false
+    self.EnterFrameIndex = 0
+    self.BuffEntity = item
+    self.Transform.name = tostring(self.BuffEntity.RuntimeID)
+
+    if self.BuffEntity ~= nil and self.BuffEntity.BuffInfo ~= nil then
+        -- 获取技能的显示状态
+        local state = self.BuffEntity.BuffInfo:GetBUFFUIShowState(E_BUFFUIShowPosEnum.HUDHpUp)
+        local isShowFloor = (state & E_BuffUIShowDetailsEnum.ShowFloor) == E_BuffUIShowDetailsEnum.ShowFloor
+        local layer = tonumber(self.BuffEntity.StackCount)
+        if layer > 1 and isShowFloor then
+            self.Layer.text = tostring(self.BuffEntity.StackCount)
+        else
+            self.Layer.text = ""
+        end
+        -- 判断BUFF是否需要显示倒计时
+        self.IsTimeShow = (state & E_BuffUIShowDetailsEnum.ShowCountdown) == E_BuffUIShowDetailsEnum.ShowCountdown
+        if self.IsTimeShow then
+            self.MaxTime = self.BuffEntity.LiveTime / 1000
+            self.Countdown = self.BuffEntity:GetEndime() / 1000
+        else
+            self.MaxTime = 0
+            self.Countdown = 0
+            self.Bar.fillAmount = 1
+            isFirst = false;
+        end
+
+        --local IsDeBuff = false;
+        --if self.BuffEntity.BuffInfo.Cfg ~= nil then
+        --IsDeBuff = self.BuffEntity.BuffInfo.Cfg.IsDebuff;
+        --end
+
+        self.RunTimeId = self.BuffEntity.RuntimeID
+        self.BuffId = self.BuffEntity.BuffID
+        self.LiveTime = self.BuffEntity.LiveTime
+        self.StackCount = self.BuffEntity.StackCount
+
+        --if self.IsDeBuff ~= IsDeBuff then
+        self.IsDeBuff = self.BuffEntity.BuffInfo.Cfg.IsDebuff
+        -- BUFF背景图片
+        local iconBgPath = "Hud_Buffbg_01"
+        if self.IsDeBuff then
+            iconBgPath = "Hud_Debuffbg_01"
+        end
+        ResourceHelper:LoadIconByAtlasAsync(self.IconBg, ResourceHelper.AtlasPathBuff, iconBgPath, false)
+
+        -- 倒计时图片
+        local barPath = "Hud_Buff_Countdown"
+        if self.IsDeBuff then
+            barPath = "Hud_Debuff_Countdown"
+        end
+        ResourceHelper:LoadIconByAtlasAsync(self.Bar, ResourceHelper.AtlasPathBuff, barPath, false)
+
+        --end
+        -- BUFF图片
+        -- 拿取配置表里面的icon路径
+        local isShowIcon = (state & E_BuffUIShowDetailsEnum.ShowIcon) == E_BuffUIShowDetailsEnum.ShowIcon
+        if isShowIcon then
+            local buffIconPath = self.BuffEntity:GetBuffIconPath()
+            if buffIconPath ~= "" and buffIconPath ~= nil then
+                ResourceHelper:LoadIconByAtlasAsync(self.Icon, ResourceHelper.AtlasPathBuff, buffIconPath, false)
+            end
+        end
+        self.Icon.enabled = isShowIcon
+        self:SetUse(true)
+        if isFirst then
+            self.Transform:SetAsFirstSibling()
+        end
+        --Log("霸服 更新 ItemBuff:SetItem runtimeid=",self.BuffEntity.RuntimeID,"倒计时=",self.Countdown,"最大=",self.MaxTime,"开始=",self.BuffEntity.StartTime,"当前时间=",TimeUtils.ServerNowStampMilli);
+    end
+end
+
+function ItemBuff:SetUse(isUsed)
+    self.IsUsed = isUsed
+    MonoHelper.RemoveUpdateListener(self.UpdateFun)
+    if self.IsUsed and self.IsTimeShow then
+        --Log("霸服 【开始】 ItemBuff:SetItem runtimeid=",self.BuffEntity.RuntimeID,"倒计时=",self.Countdown,"最大=",self.MaxTime,"开始=",self.BuffEntity.StartTime,"当前时间=",TimeUtils.ServerNowStampMilli);
+        MonoHelper.AddUpdateListener(self.UpdateFun)
+    elseif self.IsUsed == false then
+        --MonoHelper.RemoveUpdateListener(self.UpdateFun);
+        --Log("霸服 【结束】 ItemBuff:SetItem runtimeid=",self.BuffEntity.RuntimeID,"倒计时=",self.Countdown,"最大=",self.MaxTime,"开始=",self.BuffEntity.StartTime,"当前时间=",TimeUtils.ServerNowStampMilli);
+        self:Reset()
+    end
+
+    self.Transform.gameObject:SetActive(isUsed)
+end
+
+function ItemBuff:Reset()
+    self.Layer.text = ""
+
+    self.EnterFrameIndex = 0
+
+    self.IsUsed = false
+    self.Index = 0
+    self.BuffEntity = nil
+    self.RunTimeId = 0
+    self.BuffId = 0
+    self.IsDeBuff = false
+    self.BuffCount = 0
+    self.StackCount = 0
+    self.LiveTime = 0
+    self.Countdown = 0
+    self.MaxTime = 0
+    self.StartTime = 0
+    --self.cb = nil
+end
+
+function ItemBuff:UpdateData()
+    if self.IsUsed and self.Countdown > 0 then
+        self.EnterFrameIndex = self.EnterFrameIndex + 1
+        --local fixedDeltaTime = tonumber(CS.TimeUtils.FixedDeltaTime);
+        local fixedDeltaTime = Time.deltaTime
+        self.Countdown = self.Countdown - fixedDeltaTime
+
+        if self.Index < 5 and self.MaxTime > 0 then
+            --self.StartTime = TimeUtils.ServerNowStampMilli / 1000;	-- 当前时间
+            local ratio = self.Countdown / self.MaxTime
+            self.Bar.fillAmount = ratio
+        end
+        --Log("霸服 ItemBuff:UpdateData runtimeid=",self.BuffEntity.RuntimeID,"---EnterFrameIndex=",self.EnterFrameIndex,"差值=",fixedDeltaTime,"倒计时=",self.Countdown);
+        if self.Countdown <= 0 then
+            -- 删除BUFF
+            --Log("霸服 ItemBuff:UpdateData 倒计时自己关闭 runtimeid=",self.BuffEntity.RuntimeID);
+            self:ExecuteCallBack()
+            self.EnterFrameIndex = 0
+        end
+    end
+end
+
+function ItemBuff:ExecuteCallBack()
+    if self.cb ~= nil then
+        self.cb(self)
+    end
+end
+
+function ItemBuff:ForceExecuteCallBack()
+    self:ExecuteCallBack()
+end
+
+return ItemBuff

@@ -1,0 +1,170 @@
+---------------------------------------------------------------------
+-- Stars (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-06-05 18:08:52
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class TransJobFinishWindow
+
+TransJobFinishWindow = class("TransJobFinishWindow", UIPanel)
+
+local ItemTransJobSkill = require("View/UIWindow/TransJob/ItemTransJobSkill");
+local ItemTransJobAttr = require("View/UIWindow/TransJob/ItemTransJobAttr");
+
+TransJobFinishWindow.IsOpen = false
+
+TransJobFinishWindow.m_InitTaskCount = 0;    -- 任务数量
+TransJobFinishWindow.m_TransferJobCfg = nil; -- 转职配置
+
+
+function TransJobFinishWindow:Awake()
+    self:Init()
+end
+
+function TransJobFinishWindow:Init()
+    self.transform = self.prefab.transform
+    self.gameObject = self.transform.gameObject
+
+    local FrameTransForm = self.transform:Find("Cut4Cam90/AssemblyRatio2").transform
+    -- 关闭按钮
+    local CloseBtn = FrameTransForm:Find("CloseBtn"):GetComponent(typeof(JButton))
+    self.CloseBtnFun = function()
+        self.Close()
+    end
+    CloseBtn.OnClick = self.CloseBtnFun;
+    -- 职业背景
+    --self.JobIconBg = FrameTransForm:Find("JobIconBg"):GetComponent(typeof(Image))
+    -- 职业图标
+    --self.JobIcon = FrameTransForm:Find("JobIconBg/JobIcon"):GetComponent(typeof(Image))
+    -- 职业名称
+    self.JobName = FrameTransForm:Find("di/JobIconBg/JobName"):GetComponent(typeof(Text))
+    -- 职业描述
+    self.JobDes = FrameTransForm:Find("di/JobIconBg/JobDes"):GetComponent(typeof(Text))
+    -- 技能
+    self.SkillScrollView = FrameTransForm:Find("SkillScrollView/Viewport/Content")
+    self.ToggleSkillItem = FrameTransForm:Find("SkillScrollView/ToggleSkillItem").gameObject;
+    self.UnlockGob = FrameTransForm:Find("SkillScrollView/UnlockGob").gameObject;
+
+    -- 属性
+    self.AttrLayout = FrameTransForm:Find("AttrLayout")
+    self.AttrItem = FrameTransForm:Find("AttrItem").gameObject;
+
+    --------------------------- 注册事件
+
+    --------------------------- 注册事件
+
+    --------------------------- 初始化一次性的数据
+
+    --------------------------- 初始化一次性的数据
+end
+
+function TransJobFinishWindow:Start()
+end
+
+function TransJobFinishWindow:OnEnable()
+end
+
+function TransJobFinishWindow:OnDisable()
+end
+
+function TransJobFinishWindow:OnDestroy()
+end
+
+function TransJobFinishWindow:OnOpen(arg)
+    self.IsOpen = true;
+    self:InitData(arg)
+end
+
+function TransJobFinishWindow:OnClose(arg)
+    self:CloseWindow()
+end
+
+-- 初始化界面信息
+function TransJobFinishWindow:InitData(arg)
+    local job = arg;
+    self.m_TransferJobCfg = ConfigDataAccessor.Job[job];
+    if self.m_TransferJobCfg == nil then
+        return;
+    end
+    self.JobName.text = self.m_TransferJobCfg.Name;
+    self.JobDes.text = self.m_TransferJobCfg.TransferDesc;
+    self:SetAttrData();
+    self:SetTransJobData();
+
+    self.PlayAnimation("TransJobFinishWindow_Go_Anim", nil);
+end
+
+-- 设置属性信息
+function TransJobFinishWindow:SetAttrData()
+    for i = 1, #self.m_TransferJobCfg.AttrID, 1 do
+        local attrID = self.m_TransferJobCfg.AttrID[i];
+        local cfg = ConfigDataAccessor.GetAttrByID(attrID);
+        local attrName = "";
+        if cfg ~= nil then
+            attrName = cfg.Name;
+        end
+        local attrVal = self.m_TransferJobCfg.AttrValue[i];
+        local gob = newObject(self.AttrItem);
+        gob.transform:SetParent(self.AttrLayout);
+        gob:SetActive(true);
+        gob.transform.localPosition = Vector3.zero;
+        gob.transform.localScale = Vector3.one;
+        local ItemAttr = ItemTransJobAttr:New(gob);
+        ItemAttr:SetAttr(attrName, attrVal);
+    end
+end
+
+---设置转职信息
+function TransJobFinishWindow:SetTransJobData()
+    local index = 1;
+    -- 先把大招加在最前面
+    -- 技能
+    local gobBornJobSkills = newObject(self.ToggleSkillItem);
+    gobBornJobSkills.transform:SetParent(self.SkillScrollView);
+    gobBornJobSkills:SetActive(true);
+    gobBornJobSkills.transform.localPosition = Vector3.zero;
+    gobBornJobSkills.transform.localScale = Vector3.one;
+    local itemBornJobSkills = ItemTransJobSkill:New(gobBornJobSkills, nil);
+    itemBornJobSkills:OnUpdateContent(self.m_TransferJobCfg.UltimateJobSkills, index);
+    index = index + 1;
+    for key, value in pairs(self.m_TransferJobCfg.TransferJobSkills) do
+        -- 技能
+        local gob2 = newObject(self.ToggleSkillItem);
+        gob2.transform:SetParent(self.SkillScrollView);
+        gob2:SetActive(true);
+        gob2.transform.localPosition = Vector3.zero;
+        gob2.transform.localScale = Vector3.one;
+        local item = ItemTransJobSkill:New(gob2, nil);
+        item:OnUpdateContent(value, index);
+        index = index + 1;
+    end
+    
+    self.UnlockGob.transform:SetParent(self.SkillScrollView);
+    self.UnlockGob:SetActive(true);
+end
+
+----------------------------------------------------- 无限列表 【STAR】 ------------------------------------------
+
+----------------------------------------------------- 无限列表 【END】 ------------------------------------------
+
+----------------------------------------------------- 注册事件 【STAR】 ------------------------------------------
+
+----------------------------------------------------- 注册事件 【END】 ------------------------------------------
+
+----------------------------------------------------- 初始化一次性数据 【STAR】 ------------------------------------------
+
+----------------------------------------------------- 初始化一次性数据 【END】 ------------------------------------------
+
+----------------------------------------------------- 按钮点击事件 【STAR】 ------------------------------------------
+
+----------------------------------------------------- 按钮点击事件 【END】 ------------------------------------------
+
+-- 关闭界面
+function TransJobFinishWindow:CloseWindow()
+    self.IsOpen = false
+end
+
+return TransJobFinishWindow

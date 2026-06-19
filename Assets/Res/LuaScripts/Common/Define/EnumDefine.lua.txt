@@ -1,0 +1,208 @@
+TaskScrollType = {
+    None = 0,        -- 0 无效数据
+    TaskType = 1,    -- 任务类型名称
+    TaskChapter = 2, -- 章节名称
+    Task = 3         -- 具体任务名称
+}
+
+EctypeTargetType = {
+
+    KillMonster = 1, -- 杀怪
+    InterAction = 2, ---交互物
+    NPCDialoge = 3,  -- NPC对话
+    FindPath = 4     -- 目标点移动
+}
+
+
+-- -- 属性所属模块类型
+-- E_AttrOwnModuleType = {
+--     [0] = "基础属性",
+--     [1] = "攻击属性",
+--     [2] = "生存属性",
+--     [3] = "控制增强",
+--     [4] = "控制削弱"
+-- }
+-- 属性所属模块类型
+E_AttrOwnModuleType = {
+    [0] = LanguageHelp:GetLanguageByKey("PlayerAttrWindow_5"),
+    [1] = LanguageHelp:GetLanguageByKey("PlayerAttrWindow_13"),
+    [2] = LanguageHelp:GetLanguageByKey("PlayerAttrWindow_14"),
+    [3] = LanguageHelp:GetLanguageByKey("PlayerAttrWindow_15"),
+    [4] = LanguageHelp:GetLanguageByKey("PlayerAttrWindow_16")
+}
+
+-- E_ChatChannelStrType = {
+--     [0] = "",
+--     [1] = "系统",
+--     [2] = "当前",
+--     [3] = "世界",
+--     [4] = "冒险团",
+--     [5] = "职业",
+--     [6] = "队伍",
+--     [7] = "招募",
+--     [8] = "私聊",
+--     [100] = "自定义"
+-- }
+
+E_ChatChannelStrType = {
+    [0] = "",
+    [1] = LanguageHelp:GetLanguageByKey("ChatChannelName1"),
+    [2] = LanguageHelp:GetLanguageByKey("ChatChannelName2"),
+    [3] = LanguageHelp:GetLanguageByKey("ChatChannelName3"),
+    [4] = LanguageHelp:GetLanguageByKey("ChatChannelName4"),
+    [5] = LanguageHelp:GetLanguageByKey("ChatChannelName5"),
+    [6] = LanguageHelp:GetLanguageByKey("ChatChannelName6"),
+    [7] = LanguageHelp:GetLanguageByKey("ChatChannelName7"),
+    [8] = LanguageHelp:GetLanguageByKey("ChatChannelName8"),
+    [100] = LanguageHelp:GetLanguageByKey("ChatChannelName100")
+}
+
+-- 属性所属模块类型
+E_ChatChannelType = {
+    Channel_Null = 0,     -- 空频道
+    Channel_System = 1,   -- 系统频道
+    Channel_Space = 2,    -- 当前频道-同线同场景
+    Channel_World = 3,    -- 世界频道
+    Channel_Union = 4,    -- 冒险团频道
+    Channel_Job = 5,      -- 职业频道
+    Channel_Team = 6,     -- 队伍频道
+    Channel_Call = 7,     -- 招募频道-目前不做对应实现，仅做枚举
+    Channel_Private = 8,  -- 私聊频道
+    Channel_Setting = 100 -- 自定义
+}
+
+-- 秘境任务阶段类型
+E_SecretTaskStageType = {
+    Task0 = 0,
+    Task1 = 1,      -- 获取秘境BUFF
+    Task2 = 2,      -- 击杀怪物进度
+    Task3 = 3,      -- 击败BOSS
+    Task4 = 4,      -- 开起宝箱
+    Task5 = 5,      -- 走进传送门
+}
+
+-- BuffUI显示详情类型[C#技能配置枚举改了，这里也要改]
+E_BuffUIShowDetailsEnum = {
+    -- None = 0,   			-- 都不显示
+    ShowFloor = 1 << 0,     -- 1 显示层数
+    ShowCountdown = 1 << 1, -- 2 显示倒计时
+    ShowIcon = 1 << 2       -- 4 显示图标
+    -- ALL = ShowFloor | ShowCountdown | ShowIcon   // 全部显示
+}
+
+-- BuffUI显示位置[C#技能配置枚举改了，这里也要改]
+E_BUFFUIShowPosEnum = {
+    HUDHpUp = 1,    -- HUD血条上方
+    ThreeDHPUp = 2, -- 3D血条上方
+    SecretBUFF = 11 -- 秘境BUFF
+}
+
+-- BuffUI 通用表现标签[C#技能配置枚举改了，这里也要改]
+E_GlobalShowTypeEnum = {
+    BUFF_SpecialBUFFUI = 0,           --特殊BUFFUI显示
+    BUFF_ShaderChange = 1,            --修改Shader
+    BUFF_ShadowFollow = 2,            --附影
+    BUFF_ChangeAnim = 3,              --状态动作修改
+    BUFF_Paralysis = 4,               --动作暂停
+    BUFF_Knock = 5,                   --击倒
+    BUFF_Hide = 6,                    --隐身
+    BUFF_HideUI = 7,                  --隐藏UI
+    BUFF_ClickUseSkill = 9,           --点击屏幕释放技能
+    BUFF_ChangeColorShader = 10,      --修改整体颜色Shader
+    BUFF_PlayEffectLineRenderer = 11, --与主人连线
+    BUFF_SpTimeShow = 12,             --特殊时间展示
+    Global_CameraMove = 1001,         --摄像机移动
+    Global_SpectralSkill = 1002,      --量谱图切换
+}
+
+-- 特殊展示类型[C#技能配置枚举改了，这里也要改]
+E_SpTimeShowTypeEnum =
+{
+    OverheadClock = 1,     --头顶时钟
+    ProgressBelowHead = 2, --头顶血条下方读条
+    MuYTreat = 11,         --牧夜治疗
+    MuYAttack = 12,        --牧夜强攻
+}
+
+-- 好友本地缓存的key + PID (PID自己拼接)
+E_FriendLocalCacheKey = {
+    RecentlyPIDs = "RecentlyPIDs_",  -- 最近的PID列表 + 自己的PID(拼接)
+    FriendChatKey = "FriendChatKey_" -- 好友聊天key + 自己的PID(拼接) + FriendPID(拼接)
+
+}
+
+-- 好友请求返回
+E_FriendReqErrCodeType = {
+	BlockedByPeer            = 12009, 	-- 被对方拉黑
+	BlockedUser              = 12010, 	-- 拉黑了对方
+    FromFriendCountExceeded = 13001,    -- 好友数量已达上限
+    ToFriendCountExceeded   = 13002,    -- 对方好友数量已达上限  
+    FromFriendReqCountExceeded = 13003, -- 好友申请数量已达上限
+    ToFriendReqCountExceeded   = 13004, -- 对方好友申请数量已达上限
+
+    BlackCountExceeded   = 14001, -- 黑名单数量已达上限
+}
+
+-- 本地实体类型[C#技能配置枚举改了，这里也要改]
+E_LocalEntityType = {
+    None = 0,
+    TreasureBox = 1, -- 宝箱
+    Gateway = 2,     -- 传送门
+    WantedEnity = 3  -- 通缉实体
+}
+
+-- 本地实体创建来源[C#技能配置枚举改了，这里也要改]
+E_LocalEntitySource = {
+    None = "None",
+    SecretArea = "SecretArea",           -- 秘境副本
+    DailyEctype = "DailyEctype",         -- 每日副本
+    DailyTeamEctype = "DailyTeamEctype", -- 每日组队副本
+    WantedGameplay = "WantedGameplay",   -- 通缉玩法
+    WildBoss = "WildBoss"                -- 野外BOSS
+}
+
+-- 组队玩法[配置表枚举改了，这里也要改]
+E_TeamPlayType = {
+    --无玩法
+    PLAY_NULL  = 0,
+    --GVE玩法
+    PLAY_GVE   = 2001,
+    --午间冒险团玩法
+    PLAY_GNG   = 2002,
+    --10v10
+    PLAY_10V10 = 2003,
+    --通缉玩法
+    PLAY_WTASK = 1001,
+}
+
+-- SkillWindow UI 类型,不同的类型 布局会不太一样
+E_SkillWindowWidgtType = {
+    Default = 0,     -- 默认进入的状态;
+    HadJobSkill = 1, -- 拥有转职技能状态
+    SelectSkill = 2, -- 选中 技能ID
+    SelectTalent = 3 -- 选中 天赋
+}
+
+-- 竞拍界面 其它的选择类型. 普通类型是 AuctionType 对应的枚举类型, 其它类型是 策划需要显示的 如冒险团竞拍 这种 非AutinType类型
+AuctionOtherSelectType = {
+    None = 1,
+    UnionWarehouse = 2 -- 冒险团仓库类型
+}
+ItemQualityType = {
+    White = 1,
+    Green = 2,
+    Blue = 3,
+    Purple = 4,
+    Orange = 5,
+    Currency = 99
+}
+
+E_PlayerPreviewType =
+{
+    PlayerInfo = 1,
+    AddFriend = 2,
+    TeamInvite = 3,
+    GuildInvite = 4,
+    BanChat = 5,
+    RecoveryChat = 6,
+}

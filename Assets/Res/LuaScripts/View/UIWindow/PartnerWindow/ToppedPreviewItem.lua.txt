@@ -1,0 +1,52 @@
+---------------------------------------------------------------------
+-- StarsPublish (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-02-22 16:49:51
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class ToppedPreviewItem
+ToppedPreviewItem = class("ToppedPreviewItem",UIPanel)
+ToppedPreviewItem.Select=nil;
+ToppedPreviewItem.Icon=nil;
+ToppedPreviewItem.Stage=nil;
+ToppedPreviewItem.Lock=nil;
+ToppedPreviewItem.CallBack=nil;
+ToppedPreviewItem.Index=-1;
+function ToppedPreviewItem:ctor(go,atlas,cb)
+	self.prefab=go;
+	self.AtlasPath=atlas;
+	self.CallBack=cb;
+	self.Select=self:Find("select").gameObject
+	self.Icon=self:Find("Icon"):GetComponent(typeof(Button));
+	self.Stage=self:Find("Stage"):GetComponent(typeof(Text));
+	self.Lock=self:Find("Lock").gameObject
+	self.Icon.onClick:AddListener(function() self:OnClickHandler() end);
+end
+
+function ToppedPreviewItem:OnHideSelect()
+	self.Select:SetActive(false)
+end
+--点击事件
+function ToppedPreviewItem:OnClickHandler()
+	if self.CallBack~=nil then
+		self.CallBack(self.Index);
+	end
+	
+	self.Select:SetActive(true)
+end
+
+
+
+--数据更新
+function ToppedPreviewItem:UpdateContent(data,selectIndex,CurStage)
+	self.Index=data;
+	self.Select:SetActive(self.Index==selectIndex)
+	self.Stage.text=tostring(self.Index);
+	self.Lock:SetActive(self.Index> CurStage);
+	self.Stage.gameObject:SetActive(self.Index<=CurStage)
+end
+
+return  ToppedPreviewItem;

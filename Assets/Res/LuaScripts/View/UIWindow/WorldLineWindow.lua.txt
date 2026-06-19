@@ -1,0 +1,656 @@
+--[[
+*文件名   :   WorldLineWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2024/04/28 13:09:51"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+WorldLineWindow = class("WorldLineWindow", UIPanel)
+WorldLineWindow.IsOpen = false
+
+local WorldLineItem = require("View/UIWindow/WorldLine/WorldLineItem")
+local ObjectPool = require("Common/Helper/ObjectPool")
+local WorldLinePopMenu = require("View/UIWindow/WorldLine/WorldLinePopMenu")
+
+function WorldLineWindow:Awake()
+end
+
+function WorldLineWindow:BindModule(m)
+    self.module = m
+end
+
+function WorldLineWindow:InitItems()
+    self.transform = self.prefab.transform
+    self.gameObject = self.transform.gameObject
+
+    self.m_CloseBtn = self:Find("Cut4Cam90/AssemblyRatio2/Back/CloseBtn"):GetComponent(typeof(Button))
+    self.m_CloseBtn.onClick:AddListener(
+        function()
+            self:OnClickCloseBtn()
+        end
+    )
+
+    self.RectMask = self.transform:Find("Cut4Cam90/AssemblyRatio2/Scroll View/Viewport/Content"):GetComponent(typeof(RectTransform))
+
+    self.WorldLinePopMenu = WorldLinePopMenu:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/PopMenu").gameObject, self)
+
+    self.imgMat = self.RectMask.transform:Find("Root/WorldLineMainItem/img"):GetComponent(typeof(Image)).material
+
+    self.tr_chaptBtnTagLastLine = self.transform:Find("Cut4Cam90/AssemblyRatio2/Lines/lineTopButtom")
+
+    --大章节Tag
+    local _go1 = self.transform:Find("Cut4Cam90/AssemblyRatio2/Lines/ChaptBtn").gameObject
+    self.chaptBtnTagPool =
+        ObjectPool:New(
+        1,
+        "View/Item/SelectBtn",
+        _go1,
+        _go1.transform.parent,
+        function(ritem)
+            ritem:PoolInit(
+                function(idx)
+                    --点击事件
+                    self:OnChaptBtnTagClick(idx)
+                end
+            )
+        end,
+        function(ritem)
+            ritem:SetUse(false)
+        end
+    )
+
+    --大章节Tag线
+    local _go0 = self.transform:Find("Cut4Cam90/AssemblyRatio2/Lines/line").gameObject
+    self.chaptBtnTagLinePool =
+        ObjectPool:New(
+        1,
+        "View.UIWindow.WorldLine.WorldLineDot",
+        _go0,
+        _go0.transform.parent,
+        function(ritem)
+            ritem:InitItem()
+        end,
+        function(ritem)
+            ritem:SetUse(false)
+        end
+    )
+
+    --大章节
+    local _go = self.RectMask.transform:Find("Root/WorldLineMainItem").gameObject
+    self.worldLineMainItemPool =
+        ObjectPool:New(
+        1,
+        "View.UIWindow.WorldLine.WorldLineItem",
+        _go,
+        _go.transform.parent,
+        function(it)
+            it:InitItem(
+                self.imgMat,
+                function(item)
+                    self:OnWorldLineItemClick(item)
+                end
+            )
+        end,
+        function(it)
+            --回收
+            it:SetUse(false)
+        end
+    )
+
+    --主章节
+    local _go3 = self.RectMask.transform:Find("Root/WorldLineChaptItem").gameObject
+    self.worldLineChapterItemPool =
+        ObjectPool:New(
+        1,
+        "View.UIWindow.WorldLine.WorldLineItem",
+        _go3,
+        _go3.transform.parent,
+        function(it)
+            it:InitItem(
+                self.imgMat,
+                function(item)
+                    self:OnWorldLineItemClick(item)
+                end
+            )
+        end,
+        function(it)
+            --回收
+            it:SetUse(false)
+        end
+    )
+
+    --子章节
+    local _go2 = self.RectMask.transform:Find("Root/WorldLineSubItem").gameObject
+    self.worldLineSubItemPool =
+        ObjectPool:New(
+        10,
+        "View.UIWindow.WorldLine.WorldLineItem",
+        _go2,
+        _go2.transform.parent,
+        function(it)
+            it:InitItem(
+                self.imgMat,
+                function(item)
+                    self:OnWorldLineItemClick(item)
+                end
+            )
+        end,
+        function(it)
+            --回收
+            it:SetUse(false)
+        end
+    )
+
+    --线
+    local _go3 = self.RectMask.transform:Find("Root/WorldLineLine").gameObject
+    self.worldLineLinePool =
+        ObjectPool:New(
+        10,
+        "View.UIWindow.WorldLine.WorldLineLine",
+        _go3,
+        _go3.transform.parent,
+        function(it)
+            it:InitItem()
+        end,
+        function(it)
+            --回收
+            it:SetUse(false)
+        end
+    )
+
+    --点
+    local _go4 = self.RectMask.transform:Find("Root/WorldLineDot").gameObject
+    self.worldLineDotPool =
+        ObjectPool:New(
+        10,
+        "View.UIWindow.WorldLine.WorldLineDot",
+        _go4,
+        _go4.transform.parent,
+        function(it)
+            it:InitItem()
+        end,
+        function(it)
+            --回收
+            it:SetUse(false)
+        end
+    )
+end
+
+function WorldLineWindow:OnChaptBtnTagClick(idx)
+    for i = 1, #self.chaptBtnTagPool.m_ObjPool do
+        self.chaptBtnTagPool.m_ObjPool[i]:MakeSelected(false)
+    end
+    self.chaptBtnTagPool.m_ObjPool[idx]:MakeSelected(true)
+
+    self:MoveToItem(self.chaptBtnTagPool.m_ObjPool[idx].worldLineItem)
+end
+
+function WorldLineWindow:HideAllWorldLineItem()
+    for i = 1, #self.worldLineMainItemPool.m_ObjPool do
+        self.worldLineMainItemPool.m_ObjPool[i]:MakeSelected(false)
+    end
+
+    for i = 1, #self.worldLineChapterItemPool.m_ObjPool do
+        self.worldLineChapterItemPool.m_ObjPool[i]:MakeSelected(false)
+    end
+
+    for i = 1, #self.worldLineSubItemPool.m_ObjPool do
+        self.worldLineSubItemPool.m_ObjPool[i]:MakeSelected(false)
+    end
+end
+
+function WorldLineWindow:AfterGetRewards()
+    self:HideAllWorldLineItem()
+
+    --显示选中的
+    self.module.SelectedItem:MakeSelected(true)
+
+    --self.RectMask.anchoredPosition=;
+    self:MoveToItem(self.module.SelectedItem)
+    self.WorldLinePopMenu:Show(true, self.module.SelectedItem)
+end
+
+function WorldLineWindow:MakeWorldLineRewardReq(item)
+    item:ShowGetPs()
+
+    self.module.GetItem = item.GetItem
+
+    --点击领取
+    local worldLineRewardReq = CS.ProtoMsg.WorldLineRewardReq()
+    worldLineRewardReq.NodeID = item.ID
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, worldLineRewardReq, false)
+
+    self.module.SelectedItem = item
+end
+
+function WorldLineWindow:OnWorldLineItemClick(item)
+    --[[
+        if item.CanGetItem then
+        self:MakeWorldLineRewardReq(item)
+    else
+        self:HideAllWorldLineItem()
+
+        --显示选中的
+        item:MakeSelected(true)
+
+        --self.RectMask.anchoredPosition=;
+        self:MoveToItem(item)
+        self.WorldLinePopMenu:Show(true, item)
+    end
+    ]]
+    self:HideAllWorldLineItem()
+
+    --显示选中的
+    item:MakeSelected(true)
+
+    --self.RectMask.anchoredPosition=;
+    self:MoveToItem(item)
+    self.WorldLinePopMenu:Show(true, item)
+end
+
+function WorldLineWindow:MoveToItem(item)
+    self.RectMask:DOAnchorPos(Vector2((-item.Rect.anchoredPosition.x - 450), -(item.Rect.anchoredPosition.y - 200)), 0.3):SetEase(Ease.Linear)
+    --:SetSpeedBased();
+end
+
+--刷新奖励
+function WorldLineWindow:RefeshRewards()
+    --刷新奖励
+    for i = 1, #self.worldLineMainItemPool.m_ObjPool do
+        self.worldLineMainItemPool.m_ObjPool[i]:RefeshReward()
+    end
+
+    for i = 1, #self.worldLineChapterItemPool.m_ObjPool do
+        self.worldLineChapterItemPool.m_ObjPool[i]:RefeshReward()
+    end
+
+    for i = 1, #self.worldLineSubItemPool.m_ObjPool do
+        self.worldLineSubItemPool.m_ObjPool[i]:RefeshReward()
+    end
+end
+
+function WorldLineWindow:Refesh(JumpToId)
+    self.chaptBtnTagLinePool:RecycleAll()
+    self.chaptBtnTagPool:RecycleAll()
+
+    local firstSubXoffset2 = 300 --第一个子节点的X偏移不居中的补偿
+    local firstSubYoffset2 = 325 --第一个子节点的Y偏移不居中的补偿
+
+    local firstSubXoffset = 328 --第一个子节点的X偏移
+    local subXoffset = 578 - 368 --每个子节点的X偏移
+    local subXpadding = 964 - 368 --每个子节点X的间隔
+
+    local fOffY = 100
+
+    local firstSubYoffset = -416 + fOffY --第一个子节点的Y偏移
+    local subYpaddingMin = -(566 - 416) --没图子节点的间隔
+    local subYpaddingMax = -(721 - 416) --有图子节点的间隔
+
+    local dotXoffset = 200 --小点的x偏移
+
+    local lineXOffset = 0.5 --线的宽度一半
+    local lineYOffset = 15 --线和点的距离
+
+    self.worldLineMainItemPool:RecycleAll()
+    local mainOffsetX = 0 --大节点的x轴
+
+    local maxMaskWidth = 0 --最大画布宽
+    local maxMaskHeight = 0 --最大画布高
+
+    local keys1 = {}
+    for k, v in pairs(ConfigDataAccessor.WorldLineDic) do
+        table.insert(keys1, k)
+    end
+    table.sort(keys1)
+
+    local lastLine = nil
+
+    local chapterNum = 0
+
+    self.NextCanGetItem = nil
+    self.LastItem = nil
+
+    --for k,v in pairs(ConfigDataAccessor.WorldLineDic) do
+    for ii = 1, #keys1 do
+        local k = keys1[ii]
+        local v = ConfigDataAccessor.WorldLineDic[k]
+
+        --大节点
+
+        local wlmItem = nil
+
+        local cfg = ConfigDataAccessor.WorldLine[k]
+        --判断节点是否显示
+        local canShow = true
+        if not (cfg.UnfinishPreNodeShow) and cfg.PreNode > 0 then
+            local perCfg = ConfigDataAccessor.WorldLine[cfg.PreNode]
+            if perCfg ~= nil then
+                --不配完成任务就表示自动完成
+                if perCfg.FinishTask > 0 then
+                    --查看前置节点是否完成
+                    local perBigFinish = (GetTaskState(perCfg.FinishTask) == 2)
+                    if not (perBigFinish) then
+                        canShow = false
+                    end
+                end
+            else
+                --表里不存在前置节点
+                canShow = false
+            end
+        end
+
+        if canShow then
+            --判断节点是否完成（大章节不配）
+            if cfg.NodeType == 1 then
+                wlmItem = self.worldLineMainItemPool:Spawn()
+
+                chapterNum = chapterNum + 1
+
+                --下方的章节按钮
+                local cbtItem = self.chaptBtnTagPool:Spawn()
+                cbtItem.worldLineItem = wlmItem
+                cbtItem:InitItem(chapterNum, nil)
+
+                local plotCfg = ConfigDataAccessor.Plot[chapterNum]
+
+                if plotCfg ~= nil then
+                    local img1 = cbtItem.transform:Find("selected"):GetComponent(typeof(Image))
+                    local img2 = cbtItem.transform:Find("noselected"):GetComponent(typeof(Image))
+                    local tex1 = cbtItem.transform:Find("noselected/title2"):GetComponent(typeof(Text))
+
+                    --加载标题
+                    tex1.text = plotCfg.ActNum
+
+                    --加载图片
+                    ResourceHelper:LoadIconByAtlasAsync(
+                        img1,
+                        ResourceHelper.AtlasPathWorldLine,
+                        plotCfg.Icon,
+                        false,
+                        function()
+                            img2.sprite = img1.sprite
+                        end
+                    )
+                end
+
+                --下方章节按钮的链接线
+                if chapterNum > 1 then
+                    local cbtlItem = self.chaptBtnTagLinePool:Spawn()
+                    cbtlItem:SetUse(true)
+                else
+                    cbtItem:MakeSelected(true)
+                end
+            elseif cfg.NodeType == 2 then
+                wlmItem = self.worldLineChapterItemPool:Spawn()
+            end
+
+            wlmItem:SetItem(k, Vector2(mainOffsetX, 0))
+            self.LastItem = wlmItem
+            if wlmItem.CanGetItem and self.NextCanGetItem == nil then
+                self.NextCanGetItem = wlmItem
+            end
+
+            local subOffsetX = 0
+            local subOffsetY = firstSubYoffset
+            local idx = 0
+            local isHaveLageSubPre = false
+
+            for k2, v2 in pairs(v) do
+                local isHaveLageSub = false
+                local isHaveLageSubFirst = false
+
+                --local subOffsetXTemp=mainOffsetX+firstSubXoffset+subXoffset*idx;--偏移
+                --local subOffsetXTemp=firstSubXoffset;--偏移
+                local subOffsetXTemp = firstSubXoffset + firstSubXoffset2 --偏移
+
+                local isHaveSmallThisLine = false --本行是否有节点
+
+                for i = 1, #v2 do
+                    --前置节点未完成是否开启判断
+                    local cfg2 = ConfigDataAccessor.WorldLine[v2[i]]
+                    local canShow2 = true
+                    if not (cfg2.UnfinishPreNodeShow) and cfg2.PreNode > 0 then
+                        local perCfg2 = ConfigDataAccessor.WorldLine[cfg2.PreNode]
+                        if perCfg2 ~= nil then
+                            --不配完成任务就表示自动完成
+                            if perCfg2.FinishTask > 0 then
+                                --查看前置节点是否完成
+                                local perFinish = (GetTaskState(perCfg2.FinishTask) == 2)
+                                if not (perFinish) then
+                                    canShow2 = false
+                                end
+                            end
+                        else
+                            --表里不存在前置节点
+                            canShow2 = false
+                        end
+                    end
+
+                    if canShow2 then
+                        isHaveSmallThisLine = true --本行是否有节点
+
+                        --子节点
+                        local wlsItem = self.worldLineSubItemPool:Spawn()
+                        local isHaveLageSubTemp = wlsItem:SetItem(v2[i], Vector2(mainOffsetX + subOffsetXTemp, subOffsetY))
+                        self.LastItem = wlmItem
+                        if wlsItem.CanGetItem and self.NextCanGetItem == nil then
+                            self.NextCanGetItem = wlmItem
+                        end
+
+                        --子节点左右的线
+                        local wllItem2 = self.worldLineLinePool:Spawn()
+                        if i == 1 then
+                            --wllItem2:SetItem(Vector2(subOffsetXTemp-149-subXoffset*idx,subOffsetY),1,100+subXoffset*idx);
+                            wllItem2:SetItem(Vector2(mainOffsetX + subOffsetXTemp - 129, subOffsetY), 1, 80) --第一个的偏移
+                        else
+                            wllItem2:SetItem(Vector2(mainOffsetX + subOffsetXTemp - 176, subOffsetY), 1, 130)
+                        end
+
+                        if isHaveLageSubTemp then
+                            isHaveLageSub = isHaveLageSubTemp
+                        end
+
+                        subOffsetXTemp = subOffsetXTemp + subXpadding --间隔
+                    else
+                        --不显示下一个
+                        break
+                    end
+                end
+
+                --至少有一个点亮才多加一行
+                if isHaveSmallThisLine then
+                    idx = idx + 1
+
+                    --子节点前的小点
+                    local wldItem = self.worldLineDotPool:Spawn()
+                    --子节点上下的线
+                    local wllItem = self.worldLineLinePool:Spawn()
+
+                    --判断是否带图
+                    if isHaveLageSubPre then
+                        --线
+                        local y = subOffsetY - subYpaddingMax - lineYOffset
+                        local h = -subYpaddingMax - lineYOffset * 2
+                        if idx == 1 then
+                            y = subOffsetY + 89 + firstSubYoffset2 - fOffY --第一个的偏移
+                            h = 72 + firstSubYoffset2 - fOffY --第一个的偏移
+
+                            --额外产生一个点
+                            local wldItem2 = self.worldLineDotPool:Spawn()
+                            wldItem2:SetItem(Vector2(mainOffsetX + dotXoffset - lineXOffset + firstSubXoffset2, y))
+                        end
+                        wllItem:SetItem(Vector2(mainOffsetX + dotXoffset - lineXOffset + firstSubXoffset2, y), 2, h)
+                    else
+                        --线
+                        local y = subOffsetY - subYpaddingMin - lineYOffset
+                        local h = -subYpaddingMin - lineYOffset * 2
+                        if idx == 1 then
+                            y = subOffsetY + 89 + firstSubYoffset2 - fOffY --第一个的偏移
+                            h = 72 + firstSubYoffset2 - fOffY --第一个的偏移
+
+                            --额外产生一个点
+                            local wldItem2 = self.worldLineDotPool:Spawn()
+                            wldItem2:SetItem(Vector2(mainOffsetX + dotXoffset - lineXOffset + firstSubXoffset2, y))
+                        end
+                        wllItem:SetItem(Vector2(mainOffsetX + dotXoffset - lineXOffset + firstSubXoffset2, y), 2, h)
+                    end
+
+                    isHaveLageSubPre = isHaveLageSub
+
+                    --判断是否带图
+                    if isHaveLageSub then
+                        --点
+                        wldItem:SetItem(Vector2(mainOffsetX + dotXoffset + firstSubXoffset2, subOffsetY))
+                        subOffsetY = subOffsetY + subYpaddingMax
+                    else
+                        --点
+                        wldItem:SetItem(Vector2(mainOffsetX + dotXoffset + firstSubXoffset2, subOffsetY))
+
+                        subOffsetY = subOffsetY + subYpaddingMin
+                    end
+
+                    --保留最大的
+                    if subOffsetXTemp > subOffsetX then
+                        subOffsetX = subOffsetXTemp
+                    end
+
+                    --计算画布大小
+                    if (-subOffsetY) > maxMaskHeight then
+                        maxMaskHeight = -subOffsetY
+                    end
+                end
+            end
+
+            --没有子节点
+            if subOffsetX == 0 then
+                subOffsetX = subXpadding
+            end
+
+            --大节点左右的线
+            local wllItem2 = self.worldLineLinePool:Spawn()
+            lastLine = wllItem2
+            --if ii~=#keys1 then
+
+            if cfg.NodeType == 1 then
+                wllItem2:SetItem(Vector2(mainOffsetX + 458 - 30 + 30, 0), 1, subOffsetX - 488 - 30)
+            elseif cfg.NodeType == 2 then
+                wllItem2:SetItem(Vector2(mainOffsetX + 458 - 30 - 30, 0), 1, subOffsetX - 488 + 30)
+            end
+
+            --end
+
+            mainOffsetX = mainOffsetX + subOffsetX
+        else
+            --不显示下一个
+            break
+        end
+    end
+
+    --最后一根线隐藏
+    if lastLine ~= nil then
+        lastLine:SetUse(false)
+    end
+
+    maxMaskWidth = mainOffsetX
+    --如果一个子节点都没有
+    if maxMaskHeight == 0 then
+        maxMaskHeight = -subYpaddingMax
+    end
+
+    self.RectMask.sizeDelta = Vector2(maxMaskWidth + 750, maxMaskHeight)
+
+    --刷新奖励领取情况
+    self:RefeshRewards()
+
+    --最后一根线放在最后
+    self.tr_chaptBtnTagLastLine:SetAsLastSibling()
+
+    --跳转到指定节点
+    if JumpToId ~= nil and JumpToId > 0 then
+        self:JumpToItem(JumpToId, true)
+    elseif self.NextCanGetItem ~= nil then
+        self:MoveToItem(self.NextCanGetItem)
+        self.NextCanGetItem = nil
+    elseif self.LastItem ~= nil then
+        --跳转到最后一个主线节点
+        self:MoveToItem(self.LastItem)
+        self.LastItem = nil
+    end
+end
+
+function WorldLineWindow:JumpToItem(JumpToId, needClick)
+    --刷新奖励
+    for i = 1, #self.worldLineMainItemPool.m_ObjPool do
+        local it = self.worldLineMainItemPool.m_ObjPool[i]
+        if it.ID == JumpToId then
+            if needClick then
+                self:OnWorldLineItemClick(it)
+            else
+                self:MoveToItem(it)
+            end
+            return
+        end
+    end
+
+    for i = 1, #self.worldLineChapterItemPool.m_ObjPool do
+        local it = self.worldLineChapterItemPool.m_ObjPool[i]
+        if it.ID == JumpToId then
+            if needClick then
+                self:OnWorldLineItemClick(it)
+            else
+                self:MoveToItem(it)
+            end
+            return
+        end
+    end
+
+    for i = 1, #self.worldLineSubItemPool.m_ObjPool do
+        local it = self.worldLineSubItemPool.m_ObjPool[i]
+        if it.ID == JumpToId then
+            if needClick then
+                self:OnWorldLineItemClick(it)
+            else
+                self:MoveToItem(it)
+            end
+            return
+        end
+    end
+end
+
+function WorldLineWindow:Start()
+    print("WorldLineWindow:Start")
+end
+
+function WorldLineWindow:OnEnable()
+end
+
+function WorldLineWindow:OnDisable()
+end
+
+function WorldLineWindow:OnDestroy()
+end
+
+function WorldLineWindow:OnOpen(arg)
+    self.IsOpen = true
+end
+
+function WorldLineWindow:OnClose(arg)
+    --self:CloseWindow();
+    self.module:DelAttribute()
+    self.module.worldlineWindowView = nil
+end
+
+function WorldLineWindow:OnCloseInfoClick()
+    self.module.worldlineWindowView = nil
+end
+
+function WorldLineWindow:OnClickCloseBtn()
+    self.IsOpen = false
+
+    self.Close()
+
+    self.module.worldlineWindowView = nil
+end
+
+return WorldLineWindow

@@ -1,0 +1,107 @@
+--[[
+*文件名   :   SortList
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/18 16:55:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local SortList = {}
+
+SortList.__index = SortList
+
+local ObjectPool= require("Common/Helper/ObjectPool")
+
+function SortList:New(_go)
+	local self = {};
+	setmetatable(self, SortList);
+
+	self.gameObject=_go;
+	self.transform=_go.transform;
+
+	--排序列表
+	local _go=self.transform:Find("Root/SortListItem").gameObject;
+	self.sortListItemPool=ObjectPool:New(
+		10,
+		"View/Item/SortListItem",
+		_go,
+		_go.transform.parent,
+		--生成回调
+		function (ritem)
+			ritem:InitItem(
+				--点击回调
+				function (ritem)
+					self:OnSortItemClick(ritem);
+				end
+			);
+		end,
+		--回收回调
+		function (ritem)
+			ritem:SetUse(false);
+		end
+	)
+
+
+	--选中的idx
+	self.SelectedIdx=1;
+
+	--点击事件
+	local closeBtn = self.transform:Find("BtnClose");
+	if closeBtn ~= nil then
+		self.btnClick=closeBtn:GetComponent(typeof(JButton));
+		self.btnClick.OnClick=(function()
+				self:Show(false);
+			end);
+	end
+
+
+	return self;    --返回自身
+end
+
+function SortList:OnSortItemClick(ritem)
+	local idx=ritem.Idx;
+	self.OnFinishSelected(idx);
+	self:Show(false);
+end
+
+function SortList:Init(names,onFinishSelected)
+	self.OnFinishSelected=onFinishSelected;
+	self.SortNames=names;
+
+	--背包格子
+	self.sortListItemPool:RecycleAll();
+	for i=1,#self.SortNames do
+		local item=self.sortListItemPool:Spawn();
+		item:SetItem(self.SortNames[i],i);
+	end
+end
+
+
+--是否被选中
+function SortList:Show(b,idx)
+
+	self.gameObject:SetActive(b)
+	if b then
+		if idx~= nil then
+			self.SelectedIdx=idx;--已经选择的
+		else
+			self.SelectedIdx=1;--否则默认选第一个
+		end
+
+		self:Refesh();
+	end
+end
+
+
+function SortList:Refesh()
+
+	--显示选中的
+	for i=1,#self.sortListItemPool.m_ObjPool do
+		self.sortListItemPool.m_ObjPool[i]:MakeSelected(false);
+	end
+	self.sortListItemPool.m_ObjPool[self.SelectedIdx]:MakeSelected(true);
+
+end
+
+return SortList;

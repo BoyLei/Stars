@@ -1,0 +1,415 @@
+--[[
+*文件名   :   ArenaWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/11/29 17:54:40"
+*创建人   :   "caojie"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+ArenaWindow=class("ArenaWindow",UIPanel)
+local CurrencyBar =require("View/Item/CurrencyBar")
+local ArenaPlayerItem=require("View/UIWindow/Arena/ArenaPlayerItem")
+
+ArenaWindow.m_CloseBtn=nil;
+ArenaWindow.m_CurrencyAhchor=nil;
+ArenaWindow.m_MineNameText=nil;
+ArenaWindow.m_MineLevelContentText=nil;
+ArenaWindow.m_MineOccupationImage=nil;
+ArenaWindow.m_MineRankContentText=nil;
+ArenaWindow.m_RankRewardBtn=nil;
+ArenaWindow.m_ScrollView=nil;
+ArenaWindow.m_PlayerItem=nil;
+ArenaWindow.m_RemainContentText=nil;
+ArenaWindow.m_AddRemainCountBtn=nil;
+ArenaWindow.m_TreasureBoxBtn=nil;
+ArenaWindow.m_TreasureCountText=nil;
+ArenaWindow.m_BattleRecordBtn=nil;
+ArenaWindow.m_ChangeChallengeBtn=nil;
+ArenaWindow.m_ItemPreviewGo=nil;
+ArenaWindow.m_ItemPreview=nil;
+ArenaWindow.m_ChallengeRewardTipRoot=nil;
+ArenaWindow.m_CloseChallengeRewardTipBtn=nil;
+ArenaWindow.m_ChallengeRewardTipText=nil;
+ArenaWindow.m_RankRewardPartRoot=nil;
+ArenaWindow.m_CloseRankRewardPartBtn=nil;
+ArenaWindow.m_ConfirmBtn=nil;
+ArenaWindow.m_RewardItemPreviewGo=nil;
+ArenaWindow.m_RewardItemPreview=nil;
+ArenaWindow.m_CloseBuyPartBtn=nil;
+ArenaWindow.m_BuyTipText=nil;
+ArenaWindow.m_AddBtn=nil;
+ArenaWindow.m_SubBtn=nil;
+ArenaWindow.m_BuyCountText=nil;
+ArenaWindow.m_CostcurrencyImage=nil;
+ArenaWindow.m_CostCurrencyText=nil;
+ArenaWindow.m_BuyConfirmBtn=nil;
+
+local CloseBtnFunc=nil;
+local RankRewardBtnFunc=nil;
+local AddRemainCountBtnFunc=nil;
+local TreasureBoxBtnFunc=nil;
+local BattleRecordBtnFunc=nil;
+local ChangeChallengeBtnFunc=nil;
+local CloseChallengeRewardTipBtnFunc=nil;
+local CloseRankRewardPartBtnFunc=nil;
+local CloseBuyPartBtnFunc=nil;
+local AddBtnFunc=nil;
+local SubBtnFunc=nil;
+local BuyConfirmBtnFunc=nil;
+
+local coins={2, 3}
+ArenaWindow.ItemList={}
+ArenaWindow.ItemDataList={}
+ArenaWindow.BuyCount = 0
+ArenaWindow.CostCurrencyId = 3
+ArenaWindow.BuyCostCurrencyNum = 0
+
+function ArenaWindow:InitAllComponent()
+	self.m_CloseBtn=self:Find("Cut4Cam90/AssemblyRatio2/CloseBtnRoot/CloseBtn"):GetComponent(typeof(Button));
+	self.m_CurrencyAhchor=self:Find("Cut4Cam90/AssemblyRatio2/CurrencyAhchor"):GetComponent(typeof(RectTransform));
+	self.m_MineNameText=self:Find("Cut4Cam90/AssemblyRatio2/LeftRoot/MyRankRoot/MineNameText"):GetComponent(typeof(Text));
+	self.m_MineLevelContentText=self:Find("Cut4Cam90/AssemblyRatio2/LeftRoot/MyRankRoot/MineLevelContentText"):GetComponent(typeof(Text));
+	self.m_MineFightContentText=self:Find("Cut4Cam90/AssemblyRatio2/LeftRoot/MyRankRoot/MineFightContentText"):GetComponent(typeof(Text));
+	self.m_MineOccupationImage=self:Find("Cut4Cam90/AssemblyRatio2/LeftRoot/MyRankRoot/MineOccupationImage"):GetComponent(typeof(Image));
+	self.m_MineRankContentText=self:Find("Cut4Cam90/AssemblyRatio2/LeftRoot/MyRankRoot/MineRankContentText"):GetComponent(typeof(Text));
+	self.m_RankRewardBtn=self:Find("Cut4Cam90/AssemblyRatio2/LeftRoot/MyRankRoot/RankRewardBtn"):GetComponent(typeof(JButton));
+	self.m_ScrollView=self:Find("Cut4Cam90/AssemblyRatio2/LeftRoot/Scroll View"):GetComponent(typeof(SuperScrollViewController));
+	self.m_PlayerItem=self:Find("Cut4Cam90/AssemblyRatio2/LeftRoot/Scroll View/Mask/List/PlayerItem").gameObject;
+	self.m_RemainContentText=self:Find("Cut4Cam90/AssemblyRatio2/BottomRoot/RemainCountRoot/RemainContentRoot/RemainContentText"):GetComponent(typeof(Text));
+	self.m_AddRemainCountBtn=self:Find("Cut4Cam90/AssemblyRatio2/BottomRoot/RemainCountRoot/AddRemainCountBtn"):GetComponent(typeof(JButton));
+	self.m_TreasureBoxBtn=self:Find("Cut4Cam90/AssemblyRatio2/BottomRoot/TreasureBoxRoot/TreasureBoxBtn"):GetComponent(typeof(JButton));
+	self.m_TreasureBoxReceivedAll=self:Find("Cut4Cam90/AssemblyRatio2/BottomRoot/TreasureBoxRoot/TreasureBoxBtn/TreasureBoxReceivedAll").gameObject;
+	self.m_TreasureCountText=self:Find("Cut4Cam90/AssemblyRatio2/BottomRoot/TreasureBoxRoot/TreasureCountText"):GetComponent(typeof(Text));
+	self.m_BattleRecordBtn=self:Find("Cut4Cam90/AssemblyRatio2/BottomRoot/BattleRecordBtn"):GetComponent(typeof(JButton));
+	self.m_ChangeChallengeBtn=self:Find("Cut4Cam90/AssemblyRatio2/BottomRoot/ChangeChallengeBtn"):GetComponent(typeof(JButton));
+	self.m_ChallengeRewardTipRoot=self:Find("Cut4Cam90/AssemblyRatio2/BottomRoot/ChallengeRewardTipRoot").gameObject;
+	self.m_ItemPreviewGo=self:Find("Cut4Cam90/AssemblyRatio2/BottomRoot/ChallengeRewardTipRoot/ItemPreview").gameObject;
+	self.m_ItemPreview=StructAccessor.ItemPreview.new(self.m_ItemPreviewGo);
+	-- 排名奖励弹窗
+	self.m_RewardItemPreviewGo=self:Find("Cut4Cam90/AssemblyRatio2/RankRewardPartRoot/Content/RankItemPreview").gameObject;
+	self.m_RewardItemPreview=StructAccessor.ItemPreview.new(self.m_RewardItemPreviewGo);
+	self.m_CloseChallengeRewardTipBtn=self:Find("Cut4Cam90/AssemblyRatio2/BottomRoot/ChallengeRewardTipRoot/CloseChallengeRewardTipBtn"):GetComponent(typeof(JButton));
+	self.m_ChallengeRewardTipText=self:Find("Cut4Cam90/AssemblyRatio2/BottomRoot/ChallengeRewardTipRoot/ChallengeRewardTipText"):GetComponent(typeof(Text));
+	self.m_RankRewardPartRoot=self:Find("Cut4Cam90/AssemblyRatio2/RankRewardPartRoot").gameObject;
+	self.m_CloseRankRewardPartBtn=self:Find("Cut4Cam90/AssemblyRatio2/RankRewardPartRoot/CloseRoot/CloseRankRewardPartBtn"):GetComponent(typeof(JButton));
+	self.m_ConfirmBtn=self:Find("Cut4Cam90/AssemblyRatio2/RankRewardPartRoot/ConfirmBtn"):GetComponent(typeof(Button));
+	self.m_RankRewardTimeText=self:Find("Cut4Cam90/AssemblyRatio2/RankRewardPartRoot/Content/RankRewardTimeText"):GetComponent(typeof(Text));
+	self.m_RankRewardText=self:Find("Cut4Cam90/AssemblyRatio2/RankRewardPartRoot/Content/RankRewardText"):GetComponent(typeof(Text));
+	-- 购买弹窗
+	self.m_BuyCountPartRoot=self:Find("Cut4Cam90/AssemblyRatio2/BuyCountPartRoot").gameObject;
+	self.m_CloseBuyPartBtn=self:Find("Cut4Cam90/AssemblyRatio2/BuyCountPartRoot/CloseRoot/CloseBuyPartBtn"):GetComponent(typeof(JButton));
+	self.m_BuyTipText=self:Find("Cut4Cam90/AssemblyRatio2/BuyCountPartRoot/Content/BuyTipText"):GetComponent(typeof(Text));
+	self.m_AddBtn=self:Find("Cut4Cam90/AssemblyRatio2/BuyCountPartRoot/Content/ChangeBuyCountRoot/AddBtn"):GetComponent(typeof(JButton));
+	self.m_SubBtn=self:Find("Cut4Cam90/AssemblyRatio2/BuyCountPartRoot/Content/ChangeBuyCountRoot/SubBtn"):GetComponent(typeof(JButton));
+	self.m_BuyCountText=self:Find("Cut4Cam90/AssemblyRatio2/BuyCountPartRoot/Content/ChangeBuyCountRoot/BuyCountRoot/BuyCountText"):GetComponent(typeof(Text));
+	self.m_CostcurrencyImage=self:Find("Cut4Cam90/AssemblyRatio2/BuyCountPartRoot/Content/CostRoot/CostcurrencyImage"):GetComponent(typeof(Image));
+	self.m_CostCurrencyText=self:Find("Cut4Cam90/AssemblyRatio2/BuyCountPartRoot/Content/CostRoot/CostCurrencyText"):GetComponent(typeof(Text));
+	self.m_BuyConfirmBtn=self:Find("Cut4Cam90/AssemblyRatio2/BuyCountPartRoot/BuyConfirmBtn"):GetComponent(typeof(JButton));
+
+	self.currencyBar=CurrencyBar:New(nil,self.m_CurrencyAhchor);
+	self.m_ScrollView:NewScroll(self.m_PlayerItem, 0, function (tr,idx)
+			self:OnItemRefesh(tr,idx);
+		end);
+end
+
+function ArenaWindow:OnFreshPlayerList(data)
+	-- self.ItemDatas=data
+	self.ItemDatas=self.module.ChallengePlayerDataList
+	-- table.print(self.ItemDatas)
+	-- 默认显示3个比自己高的1个比自己低的
+	if #self.ItemDatas == 16 then
+		self.m_ScrollView:ContinueScroll(#self.ItemDatas,false, 11);
+	-- 新号没有比自己低的玩家，数据为14条
+	elseif #self.ItemDatas == 14 then
+		self.m_ScrollView:ContinueScroll(#self.ItemDatas,false, 10);
+	else
+		self.m_ScrollView:ContinueScroll(#self.ItemDatas,true);
+	end
+end
+
+function ArenaWindow:SetCurUIHandler()
+	CloseBtnFunc = function() self:OnClickCloseBtn(); end;
+	RankRewardBtnFunc = function() self:OnClickRankRewardBtn(); end;
+	AddRemainCountBtnFunc = function() self:OnClickAddRemainCountBtn(); end;
+	TreasureBoxBtnFunc = function() self:OnClickTreasureBoxBtn(); end;
+	BattleRecordBtnFunc = function() self:OnClickBattleRecordBtn(); end;
+	ChangeChallengeBtnFunc = function() self:OnClickChangeChallengeBtn(); end;
+	CloseChallengeRewardTipBtnFunc = function() self:OnClickCloseChallengeRewardTip(); end;
+	CloseRankRewardPartBtnFunc = function() self:OnClickCloseRankRewardPart(); end;
+	CloseBuyPartBtnFunc = function() self:OnClickCloseBuyPart(); end;
+	AddBtnFunc = function() self:OnClickAddBtn(); end;
+	SubBtnFunc = function() self:OnClickSubBtn(); end;
+	BuyConfirmBtnFunc = function() self:OnClickBuyConfirmBtn(); end;
+
+	self.m_CloseBtn.onClick:AddListener(CloseBtnFunc);
+	self.m_RankRewardBtn.OnClick = RankRewardBtnFunc;
+	self.m_AddRemainCountBtn.OnClick = AddRemainCountBtnFunc;
+	self.m_TreasureBoxBtn.OnClick = TreasureBoxBtnFunc;
+	self.m_BattleRecordBtn.OnClick = BattleRecordBtnFunc;
+	self.m_ChangeChallengeBtn.OnClick = ChangeChallengeBtnFunc;
+	self.m_CloseChallengeRewardTipBtn.OnClick = CloseChallengeRewardTipBtnFunc;
+	-- self.m_CloseRankRewardPartBtn.OnClick = CloseRankRewardPartBtnFunc;
+	self.m_ConfirmBtn.onClick:AddListener(CloseRankRewardPartBtnFunc);
+	self.m_CloseBuyPartBtn.OnClick = CloseBuyPartBtnFunc;
+	self.m_AddBtn.OnClick = AddBtnFunc;
+	self.m_SubBtn.OnClick = SubBtnFunc;
+	self.m_BuyConfirmBtn.OnClick = BuyConfirmBtnFunc;
+end
+
+function ArenaWindow:BindModule(m)
+	self.module = m
+end
+
+function ArenaWindow:Awake()
+	self:InitAllComponent();
+	self:SetCurUIHandler();
+end
+
+function ArenaWindow:RenderAllView(isInit)
+	self:RenderChallengeReward()
+	self:RenderCurrencyBar()
+	self:RenderMyRankInfo()
+	self:OnFreshPlayerList()
+	self:RenderChallengeAndRewardCount()
+	-- self:RenderRankRewardPart()
+end
+
+-- 刷新货币
+function ArenaWindow:RenderCurrencyBar()
+	self.currencyBar:RefeshBar(coins);
+	self.currencyBar:PlayAnim(true);
+end
+
+-- 职业图标&立绘显示
+function ArenaWindow:RenderJobImage(jobId, imageBg, imgIcon, imageHead)
+	-- 职业类型icon设置
+	local jobshi = math.floor(jobId / 10)
+	if imageBg ~= nil then
+		local jobTypeBgName = "Icon_ArmBg" .. jobshi
+		ResourceHelper:LoadIconByAtlasAsync(imageBg, ResourceHelper.AtlasPathRole, jobTypeBgName, false)
+	end
+
+	if imgIcon ~= nil then
+		local jobTypeName = "Icon_Arm" .. jobshi
+		ResourceHelper:LoadIconByAtlasAsync(imgIcon, ResourceHelper.AtlasPathRole, jobTypeName, false)
+	end
+
+	-- 职业立绘
+	if imageHead ~= nil then
+		local jobCfg = ConfigDataAccessor.Job[jobId]
+    	if jobCfg ~= nil then
+	        local avatarDataCell = ConfigDataAccessor.Avatar[jobCfg.AvatarID]
+	        if avatarDataCell ~= nil then
+	            local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID]
+	            if headCfg ~= nil then
+	            	ResourceHelper:LoadIconByAtlasAsync(imageHead, headCfg.HeadAtlasName, headCfg.MaxHead, false)
+	            end
+	        end
+        end
+    end
+end
+
+function ArenaWindow:RenderMyRankInfo()
+	local data = self.module.MyRankInfoData
+	if data == nil then return end
+	
+	self.m_MineNameText.text = data.PlayerName
+	self.m_MineLevelContentText.text = "Lv."..tostring(data.Level)
+
+	self.m_MineFightContentText.text = GetPlayerTotalPowerRankLevel(false) 
+
+	self.m_MineRankContentText.text = tostring(data.Rank)
+	self:RenderJobImage(data.JobId, nil, self.m_MineOccupationImage)
+end
+
+function ArenaWindow:RenderChallengeReward()
+	local config= ConfigDataAccessor.PlayOpenConditions[4]
+	if config==nil then return end
+
+	--奖励
+	local Items=ConfigDataAccessor.DropShow[config.AwardID];
+	self.CostItems={}
+	if Items~=nil then
+		for i, v in ipairs(Items) do
+			table.insert(self.CostItems,{ItemID=v.ItemID,ItemNum=v.Num})
+		end
+	end
+	self.m_ItemPreview:SetItems(self.CostItems);
+
+	--self.m_ChallengeRewardTipText.text = string.format(LanguageHelp:GetLanguageByKey("Local_Str_strChallengeRewardTip"),self.module.FreeChallengeCount)
+	self.m_ChallengeRewardTipText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_strChallengeRewardTip"), {self.module.FreeChallengeCount});
+
+end
+
+function ArenaWindow:OnItemRefesh(tr,idx)
+	if self.ItemList ==nil then return end
+	for i=1,#self.ItemList do
+		if self.ItemList[i].transform == tr then
+            self.ItemList[i]:SetItem(self.ItemDatas[idx+1]);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+		end
+	end
+
+    local bi = ArenaPlayerItem:New(tr.gameObject);
+	bi.gameObject:SetActive(true);
+	bi:SetItem(self.ItemDatas[idx+1]);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+
+    table.insert(self.ItemList, bi);
+
+end
+
+function ArenaWindow:RenderChallengeAndRewardCount()
+	local info = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.ComCount):GetData(17)
+	local challengedCount = info.AddCount - info.RemainCount
+
+	--self.m_RemainContentText.text = string.format(LanguageHelp:GetLanguageByKey("Local_Str_strRemainContent"), info.RemainCount, info.AddCount)
+	self.m_RemainContentText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_strRemainContent"), {info.RemainCount, info.AddCount});
+
+	local canRewardCount = challengedCount >= self.module.FreeChallengeCount and 0 or self.module.FreeChallengeCount - challengedCount
+	self.m_TreasureCountText.text = tostring(canRewardCount)
+	self.m_TreasureBoxReceivedAll:SetActive(canRewardCount <= 0)
+end
+
+function ArenaWindow:RenderRankRewardPart(data)
+	local hasRewardData = data ~= nil and data.FinalDrop ~= nil and data.FinalDrop.Count > 0
+	self.m_RankRewardPartRoot:SetActive(hasRewardData)
+	if not hasRewardData then return end
+
+	--self.m_RankRewardTimeText.text = string.format(strRankRewardTime, TimeToFullString2(TimeUtils.Stamp2DataTime(data.MyLastAwardTime)))
+	self.m_RankRewardTimeText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_strRankRewardTime"), {TimeToFullString2(TimeUtils.Stamp2DataTime(data.MyLastAwardTime))});
+
+	--self.m_RankRewardText.text = string.format(strRankReward, data.MyRankNum) 
+	self.m_RankRewardText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_strRankReward"), {data.MyRankNum});
+
+	self.CostItems={}
+	for i = 0, data.FinalDrop.Count-1 do
+		local v = data.FinalDrop[i]
+		table.insert(self.CostItems,{ItemID=v.Index,ItemNum=v.Count})
+	end
+	
+	self.m_RewardItemPreview:SetItems(self.CostItems);
+end
+
+function ArenaWindow:RenderBuyPartRoot(isShow)
+	self.m_BuyCountPartRoot:SetActive(isShow)
+	if not isShow then return end
+
+	--self.m_BuyTipText.text = string.format(LanguageHelp:GetLanguageByKey("Local_Str_strBuyTipText"),self.module:GetCanBuyChallengeCount())
+	self.m_BuyTipText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_strBuyTipText"), {self.module:GetCanBuyChallengeCount()});
+
+	local cfg = ConfigDataAccessor.Item[self.CostCurrencyId];
+	ResourceHelper:LoadIconAsync(self.m_CostcurrencyImage, "", cfg.Icon, false);
+	self:RenderBuyCount()
+end
+
+function ArenaWindow:RenderBuyCount()
+	self.m_BuyCountText.text = tostring(self.BuyCount)
+	self.m_CostCurrencyText.text = tostring(self.module:GetCostCurrencyNum(self.BuyCount))
+end
+
+function ArenaWindow:Start()
+
+end
+
+function ArenaWindow:OnEnable()
+
+end
+
+function ArenaWindow:OnDisable()
+
+end
+
+function ArenaWindow:OnDestroy()
+
+end
+
+function ArenaWindow:OnOpen(arg)
+	self.m_ChallengeRewardTipRoot:SetActive(false)
+	self:RenderBuyPartRoot(false)
+	self.BuyCount = 0
+end
+
+function ArenaWindow:OnClose(arg)
+	self.module:OnClose(arg)
+end
+
+function ArenaWindow:OnClickCloseBtn()
+	self:Close()
+end
+
+function ArenaWindow:OnClickRankRewardBtn()
+	UIManager.Instance:OpenWidget("Arena/Prefab/ArenaRankRewardWidget", false, {RankRewardData = self.module.RankRewardData, MyRankInfoData = self.module.MyRankInfoData}, nil,
+                CS.StarProjectDef.MainPageCommond.HideNone, true, false);
+end
+
+function ArenaWindow:OnClickAddRemainCountBtn()
+	if self.module:GetCanBuyChallengeCount() <= 0 then
+		Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_149"))
+		return
+	end
+	self.BuyCount = 1
+	self:RenderBuyPartRoot(true)
+end
+
+function ArenaWindow:OnClickTreasureBoxBtn()
+	self.m_ChallengeRewardTipRoot:SetActive(true)
+end
+
+function ArenaWindow:OnClickCloseChallengeRewardTip()
+	self.m_ChallengeRewardTipRoot:SetActive(false)
+end
+
+function ArenaWindow:OnClickCloseRankRewardPart()
+	self.m_RankRewardPartRoot:SetActive(false)
+end
+
+function ArenaWindow:OnClickCloseBuyPart()
+	self.m_BuyCountPartRoot:SetActive(false)
+end
+
+function ArenaWindow:OnClickBuyConfirmBtn()
+	if self.BuyCount <= 0 then return end
+	
+	local costNum = self.module:GetCostCurrencyNum(self.BuyCount)
+	local ownNum = BusinessManager.Instance:GetCurrencyNum(self.CostCurrencyId)
+
+	if ownNum < costNum then
+		Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_81"))
+		return
+	end
+
+	self.module:ArenaBuyChallengeTimesReq(self.BuyCount)
+	self.BuyCount = 0
+
+	self.m_BuyCountPartRoot:SetActive(false)
+end
+
+function ArenaWindow:OnClickAddBtn()
+	if self.BuyCount >= self.module:GetCanBuyChallengeCount() then return end;
+	self.BuyCount = self.BuyCount + 1
+	self:RenderBuyCount()
+end
+
+function ArenaWindow:OnClickSubBtn()
+	if self.BuyCount <= 1 then return end;
+	self.BuyCount = self.BuyCount - 1
+	self:RenderBuyCount()
+end
+
+function ArenaWindow:OnClickBattleRecordBtn()
+	self.module:ArenaGetMyFightLogReq()
+end
+
+function ArenaWindow:OnClickChangeChallengeBtn()
+	if self.module:GetCurrentChallengeCount() > 0 then
+		self.module:ArenaGetFightListReq()
+	else
+		if self.module:GetCanBuyChallengeCount() > 0 then
+			self.OnClickAddRemainCountBtn()
+		else
+			Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_261"))
+		end
+	end
+end
+
+return  ArenaWindow

@@ -1,0 +1,249 @@
+---------------------------------------------------------------------
+-- Stars (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-06-05 18:08:52
+---------------------------------------------------------------------
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+---@class WantedWindow
+WantedWindow = class("WantedWindow", UIPanel)
+
+local ItemWantedTarget = require("View/UIWindow/Wanted/ItemWantedTarget")
+local GamePlayChoiceWindowPath = "Ectype/Prefab/GamePlayChoiceWindow" -- 玩法界面
+
+WantedWindow.IsOpen = false
+WantedWindow.m_TargetItemList = {}
+
+function WantedWindow:Awake()
+    self:Init()
+end
+
+function WantedWindow:BindModule(m)
+    self.module = m
+end
+
+function WantedWindow:Init()
+    self.transform = self.prefab.transform
+    self.gameObject = self.transform.gameObject
+
+    local FrameTransForm = self.transform:Find("Cut4Cam90/AssemblyRatio2").transform
+    -- 关闭按钮
+    local CloseBtn = FrameTransForm:Find("L/LeftTop/CloseBtn"):GetComponent(typeof(JButton))
+    self.CloseBtnFun = function()
+        self.Close()
+    end
+    CloseBtn.OnClick = self.CloseBtnFun
+    -- 人数
+    self.PeopleCount = FrameTransForm:Find("R/RightContent/PeopleTips/PeopleCount"):GetComponent(typeof(Text))
+    -- 玩法描述
+    self.Des = FrameTransForm:Find("R/RightContent/DesBg/Des"):GetComponent(typeof(Text))
+    -- 开放时间
+    self.OpenTime = FrameTransForm:Find("R/RightContent/OpenTime/Bg/OpenTime"):GetComponent(typeof(Text))
+    -- 奖励预览循环列表
+    self.ItemPreviewGo = FrameTransForm:Find("R/RightContent/RewardPreview/ItemPreview").gameObject
+    self.ItemPreview = StructAccessor.ItemPreview.new(self.ItemPreviewGo)
+    -- 前往缉拿
+    self.JBtnGo = FrameTransForm:Find("R/RightContent/JBtnGo"):GetComponent(typeof(JButton))
+    self.JBtnGoFun = function()
+        self:OnClickGoJBtn()
+    end
+    self.JBtnGo.OnClick = self.JBtnGoFun
+    -- 今日次数
+    self.TimeTips = FrameTransForm:Find("R/RightContent/TimeTips"):GetComponent(typeof(Text))
+    -- 三个阶段的目标数据
+    self.m_TargetItemList = {}
+    self.ItemWantedTargetClickFun = function(index)
+        self:ItemWantedTargetClick(index)
+    end
+    for i = 1, 3 do
+        self.m_TargetItemList[i] = ItemWantedTarget:New(
+            FrameTransForm:Find("D/TargetContent/Image/Item" .. i).gameObject,
+            i, self.ItemWantedTargetClickFun)
+    end
+
+    --------------------------- 初始化一次性的数据
+    self:InitWindowShowData()
+    --------------------------- 初始化一次性的数据
+end
+
+function WantedWindow:Start()
+end
+
+function WantedWindow:OnEnable()
+end
+
+function WantedWindow:OnDisable()
+end
+
+function WantedWindow:OnDestroy()
+end
+
+function WantedWindow:OnOpen(arg)
+    self.IsOpen = true
+end
+
+function WantedWindow:OnClose(arg)
+    self.IsOpen = false
+    self.module.WantedWindow = nil;
+    self:CloseWindow()
+end
+
+-- 初始化界面信息
+function WantedWindow:InitData()
+    -- 设置今日次数
+    self:SetTimeTips()
+    -- 设置3档的目标信息
+    self:SetTargetItemList()
+end
+
+-- 设置今日次数
+function WantedWindow:SetTimeTips()
+    local starTime = 0
+    local info = GameManager.Instance:GetMainPlayerWantTaskMD()
+    if info ~= nil then
+        starTime = info.RewNum
+    end
+    local count = SystemConstConfigs.TeamWantedAwardLimits
+    local haveTime = count - starTime
+    --self.TimeTips.text = "今日次数：" .. haveTime .. "/" .. count
+    self.TimeTips.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_left"), {haveTime, count});
+
+
+    -- local isUnClick = starTime >= count;
+    -- self.JBtnGo.UnClick = isUnClick;
+end
+
+-- 设置3档的目标信息
+function WantedWindow:SetTargetItemList()
+    local allData = self.module:GetAllTarNumInfo()
+    for i = 1, #self.m_TargetItemList, 1 do
+        local item = self.m_TargetItemList[i]
+        local data = allData[i]
+        item:SetItem(data, self.IsOpen)
+    end
+end
+
+----------------------------------------------------- 无限列表 【STAR】 ------------------------------------------
+
+----------------------------------------------------- 无限列表 【END】 ------------------------------------------
+
+----------------------------------------------------- 初始化一次性数据 【STAR】 ------------------------------------------
+
+-- 初始化界面展示信息
+function WantedWindow:InitWindowShowData()
+    local config = ConfigDataAccessor.PlayOpenConditions[3]
+    if config ~= nil then
+        -- 人数设置
+        local peopleNum = tonumber(config.PeopleNum)
+        if peopleNum > 1 then
+            --self.PeopleCount.text = peopleNum .. "~5人"
+            self.PeopleCount.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_WantedWindow_PeopleCount"), {peopleNum, 5});
+
+        else
+            self.PeopleCount.text = LanguageHelp:GetLanguageByKey("Local_Str_SOLO")
+        end
+        -- 开放时间设置
+
+        -- 奖励预览
+        local Items = ConfigDataAccessor.DropShow[config.AwardID]
+        local CostItems = {}
+        if Items ~= nil then
+            for i, v in ipairs(Items) do
+                table.insert(CostItems, {
+                    ItemID = v.ItemID,
+                    ItemNum = v.Num
+                })
+            end
+        end
+        self.ItemPreview:SetItems(CostItems)
+    end
+end
+
+----------------------------------------------------- 初始化一次性数据 【END】 ------------------------------------------
+
+----------------------------------------------------- 按钮点击事件 【STAR】 ------------------------------------------
+
+function WantedWindow:OnClickGoJBtn()
+    -- 判断有无队伍
+    --- 有-》关闭界面并自动寻路至通缉目标
+    ---- 无-》打开弹出组队提示弹窗-点击确认-打开组队面板，玩法目标自动选中“通缉任务”（队伍列表中显示该目标的所有队伍）
+    local isReceiveTask = false
+    local rewNum = 0
+    local info = GameManager.Instance:GetMainPlayerWantTaskMD()
+    if info ~= nil then
+        isReceiveTask = info.IsAcc
+        rewNum = info.RewNum
+    end
+    if isReceiveTask == false then
+        return
+    end
+    -- 次数是否已经达到上限
+    local count = SystemConstConfigs.TeamWantedAwardLimits;
+    if rewNum >= count then
+        -- 弹框提示
+        UIAPI.ShowMsgBox(
+            45,
+            function(EventName)
+                if EventName == "SURE" then
+                    self:FindGoWanted();
+                end
+            end
+        )
+        return;
+    end
+    self:FindGoWanted();
+end
+
+function WantedWindow:FindGoWanted()
+    -- 1 没有队伍 创建队伍
+    -- 2、有队伍 且是队长  则开始挑战
+    -- 3、有队伍 不是队长  飘字提示 仅有队长才能发起挑战
+    local module = ModuleManager.Instance:GetModule(ModuleDef.TeamModule)
+    local luatable = module:GetLuaTable()
+    local teamInfo = luatable:GetTeamInfo()
+    local hasTeam = false
+    if teamInfo ~= nil and teamInfo.TeamID ~= 0 and teamInfo.UserInfos.Count > 0 then
+        hasTeam = true
+    end
+    if hasTeam then
+        self.Close()
+        -- 关闭玩法界面
+        UIManager.Instance:CloseWindow(GamePlayChoiceWindowPath)
+        GameManager.Instance:FindGoWantedEntity(-1);
+    else
+        -- 打开组队大厅
+        UIAPI.ShowMsgBox(34, function(EventName)
+            if EventName == "SURE" then
+                self:QueryTeamInfo()
+            end
+        end)
+    end
+end
+
+-- 请求打开组队大厅
+function WantedWindow:QueryTeamInfo()
+    local getAllTeamInfoReq = CS.ProtoMsg.GetAllTeamInfoReq()
+    getAllTeamInfoReq.Select = CS.ProtoMsg.SelectTeamType.PlayId;
+    getAllTeamInfoReq.PlayID = 1009;
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace,
+        getAllTeamInfoReq, false)
+end
+
+-- 目标点击
+function WantedWindow:ItemWantedTargetClick(index)
+    self.Close()
+    UIManager.Instance:CloseWindow(GamePlayChoiceWindowPath)
+    GameManager.Instance:FindGoWantedEntity(index);
+end
+
+----------------------------------------------------- 按钮点击事件 【END】 ------------------------------------------
+
+-- 关闭界面
+function WantedWindow:CloseWindow()
+    for i = 1, #self.m_TargetItemList, 1 do
+        local item = self.m_TargetItemList[i]
+        item:SetCountdown(self.IsOpen)
+    end
+end
+
+return WantedWindow

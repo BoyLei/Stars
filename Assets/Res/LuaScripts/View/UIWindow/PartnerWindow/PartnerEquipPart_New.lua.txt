@@ -1,0 +1,377 @@
+--[[
+*文件名   :   PartnerEquipPart_New
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local PartnerEquipPart_New = {}
+
+PartnerEquipPart_New.__index = PartnerEquipPart_New
+
+local ItemGrid = require("View/Item/ItemGrid")
+local SelectBtn = require("View/Item/SelectBtn")
+local EquipItemSlot = require("View.Item.EquipItemSlot")
+local select=nil;
+function PartnerEquipPart_New:New(_go,selectCb,tcb)
+	local self = {}
+	setmetatable(self, PartnerEquipPart_New)
+
+	self.gameObject = _go
+	self.transform = _go.transform
+	self.SelectCb=selectCb;
+	self.OnTabChange=tcb;
+	self.tips_anchor = self.transform:Find("TipsAnchor").transform
+
+	--道具列表
+	self.PartnerEquipItemList = {}
+	--无限列表
+	self.go_PartnerEquipItem = self.transform:Find("Items/ItemGrid").gameObject
+
+	self.rect_grid = self.transform:Find("Items/Scroll View/Mask/List"):GetComponent(typeof(RectTransform))
+
+	self.tr_ItemRoot = self.transform:Find("Items/Scroll View/Mask/List")
+	self.go_PartnerEquipItem:SetActive(false)
+	self.go_PartnerEquipItem.transform:SetParent(self.transform:Find("Items"))
+	self.PartnerEquipScorllView = self.transform:Find("Items/Scroll View"):GetComponent(typeof(SuperScrollViewController))
+	self.PartnerEquipScorllView:NewScroll(
+		self.go_PartnerEquipItem,
+		0,
+		function(tr, idx)
+			self:OnPartnerEquipItemRefesh(tr, idx)
+		end
+	)
+
+	--装备菜单
+	self.EquipMenuBtns = {}
+	for i = 1, 3 do
+		local btn =
+		SelectBtn:New(self.transform:Find("Items/EquipMenu/Scroll View/Mask/List/EquipTagItem" .. i).gameObject)
+		btn:InitItem(
+			i,
+			function(idx)
+				self:OnEquipMenuBtnClick(idx)
+			end
+		)
+		table.insert(self.EquipMenuBtns, btn)
+	end
+	self.EquipMenuIdx = 1
+
+	return self --返回自身
+end
+
+function PartnerEquipPart_New:UnNewAllPartnerEquipItem()
+	for i = 1,#self.allitems do
+		self.allitems[i].IsNew = false
+	end
+end
+
+
+
+--入口，传部位1 2 3
+function PartnerEquipPart_New:SetPartnerEquip(idx)
+	--自动切换页签
+	self:OnEquipMenuBtnClick(idx)
+end
+
+--刷新装备列表
+function PartnerEquipPart_New:RefeshItems()
+
+
+	--追加到100个空格子
+	for i = #self.ItemDataList + 1, 50 do
+		local it = {}
+		it.BaseID = 0
+		it.Heroid=0
+		it.IsSelected=false;		
+		table.insert(self.ItemDataList, it)
+	end
+	self:SortItem()
+	self.PartnerEquipScorllView:ContinueScroll(#self.ItemDataList, false)
+
+	if select~=nil  then
+		if self.SelectCb ~=nil then
+			self.SelectCb(select.EntityID,select.BaseID);
+		end
+	else
+
+		self.PartnerEquipItemList[1]:MakeSelected(true)
+		if self.SelectCb ~=nil then
+			self.SelectCb(self.PartnerEquipItemList[1].EntityID,self.PartnerEquipItemList[1].BaseID);
+		end
+	end
+
+end
+
+function PartnerEquipPart_New:GetDataByEquipType(equipType)
+	local equip=nil;
+	if self.partner~=nil then
+		equip= BusinessManager.Instance:GetPartnerEquipedEquip(self.partner.ID,self.EquipMenuIdx);
+	end
+
+	select=nil;
+	for i = 1,#self.allitems do
+		--local cfg=LocalDataManager.Instance:GetItemDataCell(self.allitems[i].BaseID);
+		local cfg = ConfigDataAccessor.Item[self.allitems[i].BaseID]
+		if cfg.SubType == equipType then
+			local it = {}
+			it.EntityID = self.allitems[i].EntityID
+			it.BaseID = self.allitems[i].BaseID
+			it.Heroid = self.allitems[i].Heroid
+			it.Num = self.allitems[i].Num
+			it.IsNew = self.allitems[i].IsNew
+			it.SortProp = cfg.SortProp
+			it.ItemType = cfg.ItemType
+			it.IsSelected=false
+			if self.partner~=nil and equip~=nil and equip.BaseID==it.BaseID and it.EntityID==equip.ID then
+				it.IsSelected=true
+				select=it;
+			end
+			table.insert(self.ItemDataList, it)
+		end
+	end
+end
+
+function PartnerEquipPart_New:OnSetPartner(heroID,idx,isEmpty,three)
+	self.SlotIsEmpty=isEmpty
+	self.Three=three
+	local mgr=	BusinessManager.Instance:GetPartnerMDMgr()
+	if mgr~= nil then
+		self.partner= mgr:GetData(heroID)
+	end
+	if self.partner~=nil then
+		self:OnEquipMenuBtnClick(idx,true)
+	end
+end
+
+
+function PartnerEquipPart_New:OnEquipMenuBtnClick(idx, noResetPos)
+	if noResetPos == nil then
+		self.rect_grid.anchoredPosition = Vector2(self.rect_grid.anchoredPosition.x, 0)
+	end
+
+	for i = 1, #self.EquipMenuBtns do
+		self.EquipMenuBtns[i]:MakeSelected(false)
+	end
+
+	if idx == nil then
+		idx = self.EquipMenuIdx
+	end
+
+	self.EquipMenuBtns[idx]:MakeSelected(true)
+	self.allitems={}
+	--拿到所有的伙伴装备
+	local items = BusinessManager.Instance:GetItemsByItemType(4, 0)
+	for k, v in pairs(items) do
+		if self.Three then
+			local equip=ConfigDataAccessor.PartnerEquip[v.BaseID]
+			if equip~=nil then
+				if equip.AdvancedLevel<3 then
+					table.insert(self.allitems,v)
+				end
+			end
+		else
+			table.insert(self.allitems,v)
+		end
+	end
+
+	self:ClearItemData()
+
+	self.EquipMenuIdx = idx
+
+	if idx == 1 then
+		--装备槽位1
+		self:GetDataByEquipType(1)
+	elseif idx == 2 then
+		--装备槽位2
+		self:GetDataByEquipType(2)
+	elseif idx == 3 then
+		--装备槽位3
+		self:GetDataByEquipType(3)
+	end
+	self.OnTabChange(idx)
+	self:RefeshItems()
+	--关闭道具Tips
+	if GameManager.Instance.IsOpenItemTips then
+		LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips", {})
+	end
+end
+
+function PartnerEquipPart_New:CleanAllSelected()
+	--无限列表
+	for i = 1, #self.PartnerEquipItemList do
+		self.PartnerEquipItemList[i]:MakeSelected(false)
+	end
+end
+
+function PartnerEquipPart_New:OnPartnerEquipItemRefesh(tr, idx)
+	for i = 1, #self.PartnerEquipItemList do
+		if self.PartnerEquipItemList[i].transform == tr then
+			self.PartnerEquipItemList[i]:SetItem(self.ItemDataList[idx + 1],true) --idx是从0开始，如果ItemDataList是lua的table需要idx+1
+
+			--刷新头像
+			--local baseID = self.partnerEquipWidget:GetPartnerBaseIdByEntityID(self.ItemDataList[idx + 1].Heroid)
+			--if baseID > 0 then
+			--self.PartnerEquipItemList[i]:SetPartnerHead(baseID)
+			--end
+
+			return
+		end
+	end
+
+	--tr.gameObject:SetActive(true);
+	local bi = ItemGrid:New(tr.gameObject, self.tr_ItemRoot)
+	bi:InitItem(
+		true,
+		function(ritem)
+			self:OnItemClick(ritem)
+		end
+	)
+	bi.gameObject:SetActive(true)
+	bi:SetItem(self.ItemDataList[idx + 1],true) --idx是从0开始，如果ItemDataList是lua的table需要idx+1
+
+
+	----刷新头像
+	--local baseID = self.partnerEquipWidget:GetPartnerBaseIdByEntityID(self.ItemDataList[idx + 1].Heroid)
+	--if baseID > 0 then
+	--bi:SetPartnerHead(baseID)
+	--end
+
+	table.insert(self.PartnerEquipItemList, bi)
+end
+
+
+
+function PartnerEquipPart_New:OnItemClick(bitem)
+	self:CleanAllSelected()
+	bitem:MakeSelected(true)
+	if self.SelectCb ~=nil then
+		self.SelectCb(bitem.EntityID,bitem.BaseID);
+	end
+	--设置道具Tips
+	--LuaModuleDispatcher:SendMessage(
+	--ModuleDef.ItemTipsModule,
+	--"OnOpenTips",
+	--{
+	--bitem.BaseID,
+	--true,
+	--bitem.EntityID,
+	--self.tips_anchor,
+	--0,
+	--self.partner.Index,
+	--self.partner.ID,
+	--self.partner.Level
+	--}
+	--)
+
+	--SendMessage
+end
+
+function PartnerEquipPart_New:ClearItemData()
+	if self.ItemDataList == nil then
+		self.ItemDataList = {}
+	else
+		--self.ItemDataList ={}
+		for k, _ in pairs(self.ItemDataList) do
+			self.ItemDataList[k] = nil
+		end
+	end
+end
+
+function PartnerEquipPart_New:SortItem()
+	if #self.ItemDataList > 1 then
+		table.sort(
+			self.ItemDataList,
+			function(a, b)
+				local aisSelect = 0
+				if a.IsSelected then
+					aisSelect = 1
+				end
+
+				local bisSelect = 0
+				if b.IsSelected then
+					bisSelect = 1
+				end
+
+				local aequip = 1
+				if a.Heroid > 0 then
+					aequip = 0
+				end
+
+				local bequip = 1
+				if b.Heroid > 0 then
+					bequip = 0
+				end
+
+				-- 装备状态优先于未选中状态
+				if aequip < bequip then
+					return true
+				elseif aequip > bequip then
+					return false
+				end
+
+				-- 如果装备状态相同，比较选中状态，选中的排在后面
+				if aisSelect < bisSelect then
+					return false
+				elseif aisSelect > bisSelect then
+					return true
+				end
+				
+				local aSortProp=1;
+				if a~=nil and a.SortProp~=nil then
+					aSortProp=1
+				end
+
+				
+				local bSortProp=1;
+				if b~=nil and b.SortProp~=nil then
+					bSortProp=1
+				end
+				
+				-- 如果选中状态相同，则比较SortProp
+				if aSortProp < bSortProp then
+					return true
+				elseif aSortProp > bSortProp then
+					return false
+				end
+
+				
+				local aItemType=1;
+				if a~=nil and a.ItemType~=nil then
+					aItemType=0
+				end
+
+
+				local bItemType=1;
+				if b~=nil and b.ItemType~=nil then
+					bItemType=0
+				end
+				
+				-- 如果SortProp相同，则比较ItemType
+				if aItemType < bItemType then
+					return true
+				elseif aItemType > bItemType then
+					return false
+				end
+
+				
+				local aBaseID=0;
+				if a~=nil and a.BaseID~=nil then
+					aBaseID=a.BaseID
+				end
+
+
+				local bBaseID=0;
+				if b~=nil and b.BaseID~=nil then
+					bBaseID=b.BaseID
+				end
+				
+				-- 如果ItemType相同，则比较BaseID
+				return aBaseID < bBaseID
+			end
+		)
+	end
+end
+
+return PartnerEquipPart_New

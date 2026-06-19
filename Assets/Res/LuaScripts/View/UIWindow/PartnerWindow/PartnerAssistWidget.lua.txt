@@ -1,0 +1,135 @@
+--[[
+*文件名   :   PartnerAssistWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/02/13 16:14:36"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+PartnerAssistWidget=class("PartnerAssistWidget",UIPanel)
+local AssistItem=require("View/UIWindow/PartnerWindow/AssistItem")
+
+PartnerAssistWidget.m_PartnerRawImage=nil;
+PartnerAssistWidget.m_Items=nil;
+PartnerAssistWidget.m_AttributeBtn=nil;
+PartnerAssistWidget.m_BattleBtn=nil;
+PartnerAssistWidget.m_ScoreText=nil;
+PartnerAssistWidget.m_AssistItems=nil;
+PartnerAssistWidget.m_AssistDatas=nil;
+PartnerAssistWidget.FreshCallBack=nil;
+
+local OnFreshFunc=nil;
+function PartnerAssistWidget:Awake()
+	self.m_PartnerRawImage=self:Find("Center/Mask/PartnerRawImage"):GetComponent(typeof(Image));
+	self.m_Items=self:Find("Center/Items"):GetComponent(typeof(RectTransform));
+	self.m_AttributeBtn=self:Find("AttributeBtn"):GetComponent(typeof(Button));
+	self.m_BattleBtn=self:Find("BattleBtn"):GetComponent(typeof(Button));
+	self.m_ScoreText=self:Find("score/scoretxt"):GetComponent(typeof(Text));
+	self.m_AssistItems={}
+	for i = 1, 	6 do
+		self.m_AssistItems[i]=AssistItem.new(
+			i,
+			self:Find("Center/Items/AssistItem"..i).gameObject,
+			self.AtlasPath,
+			function(id) self:OnSub(id); end,
+			function(id,seat) self:OnSelectItem(id,seat); end);
+	end
+	OnFreshFunc=function (id) self:OnFresh() end
+end
+
+function PartnerAssistWidget:Start()
+	self.m_AttributeBtn.onClick:AddListener(function() self:OnClickAttributeBtn() end);
+	self.m_BattleBtn.onClick:AddListener(function() self:OnClickBattleBtn() end);
+	CS.StarProject.GlobalEvent.OnPartnerFresh:AddListener(OnFreshFunc);
+
+end
+
+function PartnerAssistWidget:OnSub(id)
+	local config=ConfigDataAccessor.Partner[id];
+	if config~=nil then
+		--local text=	config.Name.."取消助战"
+		local text=	StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_271"), {config.Name})
+
+		Util.ShowMessage(text);
+
+	end
+	LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "PartnerFallReq", id);
+end
+function PartnerAssistWidget:OnSelectItem(id,seat)
+	LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OnOpenAssistList", {id,seat});
+end
+
+function PartnerAssistWidget:OnEnable()
+	--- 重新刷新
+	self:OnFresh();
+end
+
+function PartnerAssistWidget:OnDisable()
+
+end
+
+function PartnerAssistWidget:OnDestroy()
+
+end
+
+function PartnerAssistWidget:OnOpen(arg)
+	self.FreshCallBack=arg;
+	self:OnFresh();
+	local playerJob=GameManager.Instance:GetPlayerJob();
+	local jobCfg=ConfigDataAccessor.Job[playerJob]
+	if jobCfg~=nil then
+		local avatarDataCell= ConfigDataAccessor.Avatar[jobCfg.AvatarID];
+		if avatarDataCell ~= nil then
+			local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID];
+			if headCfg ~= nil then
+				--ResourceHelper:LoadRawIconAsync(self.m_PartnerRawImage, headCfg.HalfDrawing, true)
+				
+				local atlasName = string.gsub(headCfg.HalfDrawing, "_Half", "")
+			
+				
+				--ResourceHelper:LoadSpriteAtlasAsync(ResourceHelper.HeadAtlasPath .. atlasName, headCfg.HalfDrawing ,function(sp) 
+						--self.m_PartnerRawImage.sprite=sp
+				--end)
+
+				
+				ResourceHelper:LoadSpriteAtlasAsync(self.m_PartnerRawImage,ResourceHelper.HeadAtlasPath .. atlasName, headCfg.HalfDrawing,false ,function(sp)
+						--self.m_PartnerRawImage.sprite=sp
+					end,false)
+				
+				 --ResourceManager.Instance:LoadTextureAsync(headCfg.HalfDrawing,function (texture)
+				 		--if self.m_PartnerRawImage ~= nil and texture ~= nil then
+				 			--self.m_PartnerRawImage.texture = texture;
+							--self.m_PartnerRawImage:SetNativeSize();
+				 		--end
+				 	--end)
+			end
+		end
+	end
+	--self.m_PartnerRawImage
+end
+
+function PartnerAssistWidget:OnFresh()
+	if self.FreshCallBack~=nil then
+		local list=self.FreshCallBack();
+		self.m_AssistDatas=list;
+		for k, v in pairs(self.m_AssistItems) do
+			v:OnOpen(self.m_AssistDatas[k-1]);
+		end
+	end
+end
+
+function PartnerAssistWidget:OnClose(arg)
+
+end
+
+function PartnerAssistWidget:OnClickAttributeBtn()
+	LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OnOpenPartnerTeamAttributeWidget");
+end
+
+function PartnerAssistWidget:OnClickBattleBtn()
+	LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OnOpenBattleTeam");
+
+end
+
+
+return  PartnerAssistWidget

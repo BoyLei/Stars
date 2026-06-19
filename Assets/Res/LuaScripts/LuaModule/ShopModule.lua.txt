@@ -1,0 +1,489 @@
+--[[
+*文件名   :   ShopModule
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/25 09:45:39"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] ShopModule = class("ShopModule", BaseLuaModule)
+
+local ShopWindowPath = "Shop/ShopWindow"
+local NpcShopWindowPath = "Shop/NpcShopWindow"
+
+ShopModule.IsOpenTips = false;
+
+-- LuaModule 消息模块
+ShopModule.ModuleMessages = {
+    -- 打开商店
+    -- ModuleManager.Instance.SendMessage(ModuleDef.ShopModule, "OnOpenShop", new object[] {  }); 
+    ["OnOpenShop"] = function(...)
+        ShopModule:OnOpenShopMsg(...);
+    end,
+
+    -- 打开NPC商店
+    -- ModuleManager.Instance.SendMessage(ModuleDef.ShopModule, "OnOpenNpcShop", new object[] { 1 }); //只要传一个对话ID
+    ["OnOpenNpcShop"] = function(...)
+        ShopModule:OnOpenNpcShopMsg(...);
+    end,
+
+    -- 刷新商店
+    -- ModuleManager.Instance.SendMessage(ModuleDef.ShopModule, "OnRefeshShop", new object[] {  }); 
+    ["OnRefeshShop"] = function(...)
+        ShopModule:OnRefeshShopMsg(...);
+    end,
+
+    -- 关闭商店
+    -- ModuleManager.Instance.SendMessage(ModuleDef.ShopModule, "OnCloseShop", new object[] { 1 }); //只要传一个对话ID
+    ["OnCloseShop"] = function(...)
+        ShopModule:OnCloseShopMsg(...);
+    end,
+
+    -- 刷新回调弹窗
+    -- ModuleManager.Instance.SendMessage(ModuleDef.ShopModule, "OnRefeshDrop", new object[] { 1 }); //只要传一个对话ID
+    ["OnRefeshDrop"] = function(...)
+        ShopModule:OnRefeshDropMsg(...);
+    end
+}
+
+-- 监听关闭商店事件
+function ShopModule:OnRefeshDropMsg(...)
+    local tb = ...
+
+    local Item_id = 1;
+    local goodNum = 1;
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        Item_id = tb[1];
+        goodNum = tb[2];
+    else
+        -- C#调用
+        Item_id = tb[0];
+        goodNum = tb[1]
+    end
+
+    self:SetBuyDrop(Item_id, goodNum);
+
+end
+
+-- 监听关闭商店事件
+function ShopModule:OnCloseShopMsg(...)
+
+end
+
+-- 监听刷新商店事件
+function ShopModule:OnRefeshShopMsg(...)
+
+    if self.shopWindowView ~= nil and self.shopWindowView.IsOpen then
+        self.shopWindowView:RefeshShop();
+    end
+
+    if self.npcShopWindowView ~= nil and self.npcShopWindowView.IsOpen then
+        self.npcShopWindowView:RefeshShop();
+    end
+end
+
+-- 监听打开NPC商店事件
+function ShopModule:OnOpenNpcShopMsg(...)
+
+    local tb = ...
+
+    local Shop_id = 1;
+
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        Shop_id = tb[1];
+    else
+        -- C#调用
+        Shop_id = tb[0];
+    end
+
+    -- local npcShopWindowCs =UIManager.Instance:OpenWindow(NpcShopWindowPath,nil,CS.StarProjectDef.MainPageCommond.HideBoth);
+    -- if self.npcShopWindowView == nil then
+    -- 	self.npcShopWindowView=npcShopWindowCs:GetLuaPanel().ScriptTable;	
+    -- 	self.npcShopWindowView:BindModule(self);
+    -- 	self.npcShopWindowView:InitItems();
+    -- 	self.evtOnCloseNpcShop = LuaModuleDispatcher:Event(ModuleDef.ShopModule, "OnCloseNpcShopEvt")
+    -- end
+    -- --打开商店
+    -- self.npcShopWindowView:OpenShop(Shop_id);
+
+    -- self.npcShopWindowView.currencyBar:OnListener();
+
+    self.AsyncLoadNpcShopWindowCb = function(ui)
+        if ui ~= nil then
+            if self.npcShopWindowView == nil then
+                self.npcShopWindowView = ui:GetLuaPanel().ScriptTable;
+                self.npcShopWindowView:BindModule(self);
+                self.npcShopWindowView:InitItems();
+                self.evtOnCloseNpcShop = LuaModuleDispatcher:Event(ModuleDef.ShopModule, "OnCloseNpcShopEvt")
+            end
+            -- 打开商店
+            self.npcShopWindowView:OpenShop(Shop_id);
+
+            self.npcShopWindowView.currencyBar:OnListener();
+        end
+        self.AsyncLoadNpcShopWindowCb = nil;
+    end
+    UIManager.Instance:OpenWindowAsync(NpcShopWindowPath, self.AsyncLoadNpcShopWindowCb, nil,
+        CS.StarProjectDef.MainPageCommond.HideBoth);
+
+end
+
+-- 监听打开商店事件
+function ShopModule:OnOpenShopMsg(...)
+
+    local tb = ...
+
+    local Shop_id = 0;
+    local Shop_item = 0;
+
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        Shop_id = tb[1];
+        if #tb > 1 then
+            Shop_item = tb[2];
+        end
+    else
+        -- C#调用
+        Shop_id = tb[0];
+        if tb.Length > 1 then
+            Shop_item = tb[1];
+        end
+    end
+
+    -- local shopWindowCs =UIManager.Instance:OpenWindow(ShopWindowPath,nil,CS.StarProjectDef.MainPageCommond.HideBoth);
+    -- if self.shopWindowView == nil then
+    -- 	self.shopWindowView=shopWindowCs:GetLuaPanel().ScriptTable;	
+    -- 	self.shopWindowView:BindModule(self);
+    -- 	self.shopWindowView:InitItems();
+    -- 	self.evtOnCloseShop = LuaModuleDispatcher:Event(ModuleDef.ShopModule, "OnCloseShopEvt")
+    -- end
+    -- --打开商店
+    -- self.shopWindowView:OpenShop();
+
+    -- if Shop_id>0 then
+    -- 	self.shopWindowView:OnShopTagClick(Shop_id);
+    -- end
+
+    -- self.shopWindowView.currencyBar:OnListener();
+
+    self.AsyncLoadShopWindowCb = function(ui)
+        if ui ~= nil then
+            if self.shopWindowView == nil then
+                self.shopWindowView = ui:GetLuaPanel().ScriptTable;
+                self.shopWindowView:BindModule(self);
+                self.shopWindowView:InitItems();
+                self.evtOnCloseShop = LuaModuleDispatcher:Event(ModuleDef.ShopModule, "OnCloseShopEvt")
+            end
+            -- 打开商店
+            
+			self.shopWindowView:OpenShop(Shop_id);
+            --if Shop_id > 0 then
+				
+                --self.shopWindowView:OnShopSelectClick(Shop_id);
+            --else
+				
+				--end
+
+            -- 点击道具
+            if Shop_item > 0 then
+                self.shopWindowView:SearchItem(Shop_item);
+            end
+
+            self.shopWindowView.currencyBar:OnListener();
+        end
+        self.AsyncLoadShopWindowCb = nil;
+    end
+    UIManager.Instance:OpenWindowAsync(ShopWindowPath, self.AsyncLoadShopWindowCb, nil,
+        CS.StarProjectDef.MainPageCommond.HideBoth);
+end
+
+-- 关闭商店回调
+function ShopModule:OnCloseShopEvt(arg)
+    if self.evtOnCloseShop ~= nil then
+        self.evtOnCloseShop:Invoke()
+    end
+    self.shopWindowView = nil;
+end
+
+-- 关闭Npc商店回调
+function ShopModule:OnCloseNpcShopEvt(arg)
+    if self.evtOnCloseNpcShop ~= nil then
+        self.evtOnCloseNpcShop:Invoke()
+    end
+    self.npcShopWindowView = nil;
+end
+
+-- 关闭商店
+function ShopModule:OnCloseShop()
+    self.shopWindowView.currencyBar:OffListener();
+
+    self:OnCloseShopEvt();
+    -- 所有的New置空
+end
+
+-- 关闭Npc商店
+function ShopModule:OnCloseNpcShop()
+    self.npcShopWindowView.currencyBar:OffListener();
+
+    self:OnCloseNpcShopEvt()
+    -- 所有的New置空
+end
+
+function ShopModule:SendAllLimInfoReq()
+    local allLimInfoReq = CS.ProtoMsg.AllLimInfoReq();
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+        allLimInfoReq, false);
+end
+
+function ShopModule:SetBuyDrop(baseID, num)
+    self.BuyBaseID = baseID;
+    self.BuyNum = num;
+
+end
+
+function ShopModule:OpenBuyMenu(ritem)
+
+    local info = {};
+    info.BuyCount = ritem.buyCount; -- 已购数量
+    info.GoodsId = ritem.GoodsId; -- 商品ID
+
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemBuyModule, "OnOpenItemBuy", {info});
+
+end
+
+function ShopModule:SendShopBuyReq(shopID, goodID, goodNum)
+    local shopBuyReq = CS.ProtoMsg.ShopBuyReq();
+    shopBuyReq.ShopID = shopID; -- 商店ID
+    shopBuyReq.GoodID = goodID; -- 商品ID
+    shopBuyReq.GoodNum = goodNum; -- 商品数量
+
+    local cfg = ConfigDataAccessor.Goods[goodID];
+    self:SetBuyDrop(cfg.Item_id, goodNum);
+
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, shopBuyReq,
+        false);
+end
+
+-- LuaModule 创建
+function ShopModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.ShopModule, self)
+    -- 限购信息
+    self.ShopBuyLimit = {};
+
+    -- 是否打开了Tips
+    self.IsOpenTips = false;
+
+    -- 请求所有商店购买信息回复
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.AllLimInfoRetID, function(data)
+        self:OnAllLimInfoRet(data)
+    end, nil);
+
+    -- 购买物品回复
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.ShopBuyRetID, function(data)
+        self:OnShopBuyRet(data)
+    end, nil);
+
+end
+
+function ShopModule:OnAllLimInfoRet(data)
+
+    print("OnAllLimInfoRet");
+
+    local pb = data.data;
+
+    if self.ShopBuyLimit == nil then
+        self.ShopBuyLimit = {}
+    else
+        for k, _ in pairs(self.ShopBuyLimit) do
+            self.ShopBuyLimit[k] = nil
+        end
+        -- self.ItemDataList ={}
+    end
+
+    local dayLimit = nil;
+    if pb.DayLimit ~= nil then
+        dayLimit = pb.DayLimit.AllInfo; -- int,ShopLimMD
+    end
+
+    local weekLimit = nil; -- int,ShopLimMD
+    if pb.WeekLimit ~= nil then
+        weekLimit = pb.WeekLimit.AllInfo; -- int,ShopLimMD
+    end
+
+    local forEverLimit = nil;
+    if pb.ForEverLimit ~= nil then
+        forEverLimit = pb.ForEverLimit.AllInfo; -- int,ShopLimMD
+    end
+
+    if dayLimit ~= nil then
+        for k, v in pairs(dayLimit) do
+            local shopLimMD = v;
+            local shopID = shopLimMD.ShopID;
+            local buyInfo = shopLimMD.BuyInfo; -- int,int
+
+            for k2, v2 in pairs(buyInfo) do
+                print("buyInfo:" .. k2 .. "   " .. v2);
+                self.ShopBuyLimit[k2] = v2;
+            end
+        end
+    end
+
+    if weekLimit ~= nil then
+        for k, v in pairs(weekLimit) do
+            local shopLimMD = v;
+            local shopID = shopLimMD.ShopID;
+            local buyInfo = shopLimMD.BuyInfo; -- int,int
+
+            for k2, v2 in pairs(buyInfo) do
+                print("buyInfo:" .. k2 .. "   " .. v2);
+                self.ShopBuyLimit[k2] = v2;
+            end
+        end
+    end
+
+    if forEverLimit ~= nil then
+        for k, v in pairs(forEverLimit) do
+            local shopLimMD = v;
+            local shopID = shopLimMD.ShopID;
+            local buyInfo = shopLimMD.BuyInfo; -- int,int
+
+            for k2, v2 in pairs(buyInfo) do
+                print("buyInfo:" .. k2 .. "   " .. v2);
+                self.ShopBuyLimit[k2] = v2;
+            end
+        end
+    end
+
+    if self.shopWindowView ~= nil and self.shopWindowView.IsOpen then
+        self.shopWindowView:RefeshShop();
+    end
+
+end
+
+function ShopModule:OnShopBuyRet(data)
+
+    print("OnShopBuyRet");
+
+    local pb = data.data;
+
+    Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_31"));
+
+    --[[
+	local dropinfo={};
+	dropinfo.Itemid=self.BuyBaseID;--baseID 
+	dropinfo.ItemNum=self.BuyNum;--数量
+	LuaModuleDispatcher:SendMessage(ModuleDef.DropInfoListModule, "OnAddDrop",{dropinfo} );
+	
+	--奖励弹窗测试
+	local rewardsList={};
+	local rw={};
+	rw.BaseID=self.BuyBaseID;--baseID 
+	rw.Num=self.BuyNum;--数量
+	table.insert( rewardsList,rw);
+	LuaModuleDispatcher:SendMessage(ModuleDef.RewardsPopModule, "OnOpenRewardsPop",{rewardsList});
+	]]
+
+    local shopLimMD = pb.Info; -- ShopLimMD
+
+    if shopLimMD ~= nil then
+
+        local shopID = shopLimMD.ShopID;
+        local buyInfo = shopLimMD.BuyInfo; -- int,int
+
+        for k2, v2 in pairs(buyInfo) do
+            print("buyInfo:" .. k2 .. "   " .. v2);
+            self.ShopBuyLimit[k2] = v2;
+        end
+
+    end
+
+    -- 由于货币同步延迟的特殊处理
+    DOVirtual.DelayedCall(0.01, function()
+        if self.shopWindowView ~= nil and self.shopWindowView.IsOpen then
+            self.shopWindowView:RefeshShop();
+        end
+
+        if self.npcShopWindowView ~= nil and self.npcShopWindowView.IsOpen then
+            self.npcShopWindowView:RefeshShop();
+        end
+    end)
+
+end
+
+-- 检查购买限制
+function ShopModule:CheckBuyLimit(shopData)
+    shopData.buyCount = 0;
+
+    for k, v in pairs(self.ShopBuyLimit) do
+        if k == shopData.cfg.Id then
+            shopData.buyCount = v;
+        end
+    end
+
+    local cfg = shopData.cfg;
+
+    -- 判断购买条件
+    shopData.MeteFlag = 1;
+    local condition = cfg.Condition;
+    if #condition > 0 then
+        for i = 1, #condition do
+            if not (GameManager.Instance:IsConditionMete(condition[i])) then
+                shopData.MeteFlag = 0;
+            end
+        end
+    end
+
+    -- 判断是否已经售空
+    shopData.SoldOutFlag = 0;
+    if cfg.Buy_type == 1 then
+        if shopData.buyCount >= cfg.Buy_num then
+            shopData.SoldOutFlag = 1;
+        end
+    elseif cfg.Buy_type == 2 then
+        if shopData.buyCount >= cfg.Buy_num then
+            shopData.SoldOutFlag = 1;
+        end
+    elseif cfg.Buy_type == 3 then
+        if shopData.buyCount >= cfg.Buy_num then
+            shopData.SoldOutFlag = 1;
+        end
+    end
+
+end
+
+function ShopModule:OpenItemTips(baseID, entityID)
+    print("ShopModule:OpenItemTips:" .. baseID);
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",
+        {baseID, true, entityID, self.shopWindowView.tips_anchor, 0});
+end
+
+function ShopModule:CloseItemTips()
+    print("ShopModule:CloseItemTips");
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips", {});
+end
+
+-- LuaModule 消息处理
+function ShopModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...);
+end
+
+-- LuaModule显示
+function ShopModule:OnModuleShow(arg)
+    self:OnOpenShopMsg(arg);
+end
+
+function ShopModule:OnModuleHide(arg)
+
+end
+
+-- LuaModule 释放
+function ShopModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.ShopModule)
+end
+
+return ShopModule
+

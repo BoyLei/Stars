@@ -1,0 +1,168 @@
+--[[
+*文件名   :   AdventureLevelWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/02/03 13:09:51"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+AdventureLevelWindow=class("AdventureLevelWindow",UIPanel)
+AdventureLevelWindow.IsOpen=false;
+
+local AdventureLevelLvUp=require("View/Uiwindow/AdventureLevel/AdventureLevelLvUp")
+local AdventureLevelRankUp=require("View/Uiwindow/AdventureLevel/AdventureLevelRankUp")
+
+
+function AdventureLevelWindow:Awake()
+
+end
+
+function AdventureLevelWindow:BindModule(m)
+	self.module=m;
+end
+
+function AdventureLevelWindow:InitItems()
+	self.transform =self.prefab.transform;
+	self.gameObject=self.transform.gameObject;
+
+
+	--关闭信息
+	--[[
+			local btnCloseInfo=self.transform:Find("BackGround"):GetComponent(typeof(JButton));
+			btnCloseInfo.OnClick=(function()
+				self:OnCloseInfoClick();
+			end);
+	]]
+
+	--动画相关
+	self.anim=self.transform:GetComponent(typeof(Animator));
+
+
+
+	self.adventureLevelLvUp=AdventureLevelLvUp:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/LvUp").gameObject,self);
+	self.adventureLevelRankUp=AdventureLevelRankUp:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/RankUp").gameObject);
+
+
+
+	self.m_CloseBtn=self:Find("Cut4Cam90/AssemblyRatio2/LvUp/R/CloseBg/CloseBtn"):GetComponent(typeof(Button));
+	self.m_CloseBtn.onClick:AddListener(function() self:OnClickCloseBtn() end);
+
+	self.m_CloseBtn2=self:Find("Cut4Cam90/AssemblyRatio2/RankUp/R/CloseBg/CloseBtn"):GetComponent(typeof(Button));
+	self.m_CloseBtn2.onClick:AddListener(function() self:OnClickCloseBtn() end);
+
+	self.m_LevelIntroduceBtn=self:Find("Cut4Cam90/AssemblyRatio2/LvUp/L/LevelIntroduceBtn"):GetComponent(typeof(JButton));
+	self.m_LevelIntroduceBtn.OnClick = function() self:OnClickIntroduceBtn(); end;
+
+	self.m_RankIntroduceBtn=self:Find("Cut4Cam90/AssemblyRatio2/RankUp/L/RankIntroduceBtn"):GetComponent(typeof(JButton));
+	self.m_RankIntroduceBtn.OnClick = function() self:OnClickIntroduceBtn(); end;
+end
+
+
+function AdventureLevelWindow:Open()
+
+	local RiskInfo=	GameManager.Instance.M_MainPlayerCtrlBase.Data.Attrs:GetProtoValue(CS.StarProjectDef.AOIAttrDefine.RiskInfo);
+    if RiskInfo~= nil then
+		local curRiskLevel=RiskInfo.CurRiskLevel;
+
+		
+        local cfg=ConfigDataAccessor.AdvGradeExp[curRiskLevel];
+		if cfg~=nil then
+			if cfg.IfBreak then
+				if not(self.adventureLevelRankUp.gameObject.activeSelf) then
+					self.anim:Play("RankUp");
+				end
+				self.adventureLevelLvUp:Show(false);
+				self.adventureLevelRankUp:Show(true);
+			else
+				if not(self.adventureLevelLvUp.gameObject.activeSelf) then
+					self.anim:Play("LvUp");
+				end
+				self.adventureLevelLvUp:Show(true);
+				self.adventureLevelRankUp:Show(false);
+			end
+		end
+
+	end
+end
+
+function AdventureLevelWindow:Refesh()
+	self:Open();
+	--self.adventureLevelLvUp:Refesh();
+end
+
+function AdventureLevelWindow:Start()
+	print("AdventureLevelWindow:Start")
+
+end
+
+function AdventureLevelWindow:OnEnable()
+	
+end
+
+function AdventureLevelWindow:OnDisable()
+	
+end
+
+function AdventureLevelWindow:OnDestroy()
+
+end
+
+function AdventureLevelWindow:OnOpen(arg)
+	self.IsOpen=true;
+end
+
+function AdventureLevelWindow:OnClose(arg)
+	--self:CloseWindow();
+	self.module.AdventureLevelWindowView=nil;
+end
+
+function AdventureLevelWindow:CloseWindow()
+	self:OnClickCloseBtn();
+end
+
+function AdventureLevelWindow:OnCloseInfoClick()
+	--关闭道具Tips
+	if self.module.IsOpenTips then
+		self.module.IsOpenTips=false;
+		self.module:CloseItemTips();
+	else
+		--UIManager.Instance:CloseWindow("Item/AdventureLevelWindow");
+	end
+end
+
+
+function AdventureLevelWindow:OnClickCloseBtn()
+
+	if self.module.IsOpenTips then
+		self.module.IsOpenTips=false;
+		self.module:CloseItemTips();
+
+		self:CleanAllSelected();
+	end
+
+	self.module:OnCloseAdventureLevel();
+	self.adventureLevelLvUp:Show(false);
+	self.adventureLevelRankUp:Show(false);
+	self.Close();
+
+	self.module.AdventureLevelWindowView=nil;
+	
+	--[[
+	self.PlayAnimation("AdventureLevelWindowAnim_Close", function ()
+		self.idxNow=-1;
+		self.IsOpen=false;
+		self.module:OnCloseAdventureLevel();
+
+		self.Close();
+	end)
+	]]
+
+
+
+end
+
+function AdventureLevelWindow:OnClickIntroduceBtn()
+	CS.StarProjectDef.UIAPI.ShowGameplayInfo(114)
+end
+
+return  AdventureLevelWindow

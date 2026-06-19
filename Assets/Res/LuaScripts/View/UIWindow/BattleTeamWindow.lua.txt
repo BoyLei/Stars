@@ -1,0 +1,357 @@
+--[[
+*文件名   :   BattleTeamWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/29 13:46:00"
+*创建人   :   "gopal"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+BattleTeamWindow = class("BattleTeamWindow", UIPanel)
+BattleTeamWindow.IsOpen = false;
+
+local SelectBtn= require("View/Item/SelectBtn");
+
+function BattleTeamWindow:Awake()
+
+end
+
+function BattleTeamWindow:BindModule(m)
+	self.module = m;
+end
+
+function BattleTeamWindow:InitControls()
+	self.modelPos = {
+		[0] = Vector3(-1.324, -0.2, 2.091),
+		[1] = Vector3(-0.111, -0.2, 2.091),
+		[2] = Vector3(1.088, -0.2, 2.11)
+	}
+
+	self.transform = self.prefab.transform;
+	self.gameObject = self.transform.gameObject;
+
+	local list = List_GameObject();
+	self.battleItems = {}
+	-- 初始化控件
+	for i = 0, 2 do
+		self.battleItems[i] = {}
+		local battleItem = self.transform:Find("Items/BattleItem" .. i+1);
+		local obj = battleItem:Find("DragArea").gameObject;
+		list:Add(obj)
+
+		self.battleItems[i].go_battleitem = battleItem.gameObject;
+		self.battleItems[i].go_inbattle = battleItem:Find("InBattle").gameObject;
+		self.battleItems[i].go_inbattle:SetActive(false);
+		self.battleItems[i].img_character = battleItem:Find("InBattle/ItemInfo/Character"):GetComponent(typeof(Image));
+		self.battleItems[i].txt_name = battleItem:Find("InBattle/ItemInfo/Name"):GetComponent(typeof(Text));
+		self.battleItems[i].txt_level = battleItem:Find("InBattle/ItemInfo/Level/Text"):GetComponent(typeof(Text));
+		self.battleItems[i].go_unbattle = battleItem:Find("UnBattle").gameObject;
+		self.battleItems[i].go_unbattle:SetActive(false);
+		self.battleItems[i].btn_battle = battleItem:Find("UnBattle/Battle"):GetComponent(typeof(Button));
+		self.battleItems[i].go_droppable = battleItem:Find("Droppable").gameObject;
+		self.battleItems[i].go_droppable:SetActive(false);
+		self.battleItems[i].go_undroppable = battleItem:Find("UnDroppable").gameObject;
+		self.battleItems[i].go_undroppable:SetActive(false);
+
+		self.battleItems[i].jb_dragarea = battleItem:Find("DragArea"):GetComponent(typeof(JButton));
+
+		local DragPos =function()
+			self:FollowDragPos();
+		end
+
+		self.battleItems[i].jb_dragarea.OnLongPressDown = function()
+			self.curSelectSeat = i; --记录当前坑位
+			--检测所有出战的条目
+			for index=0,2 do
+				if index == i then  --当前出战
+					self.battleItems[index].go_inbattle:SetActive(false);
+				elseif self.inBattleSeat[index] ~= nil then    --其它出战
+					self.battleItems[index].go_droppable:SetActive(true);
+					self.battleItems[index].go_inbattle:SetActive(false);
+					BusinessManager.Instance:CloseModel(index, self.inBattleSeat[index]);
+				else    --其它未出战
+					self.battleItems[index].go_undroppable:SetActive(true);
+					self.battleItems[index].go_unbattle:SetActive(false);
+					BusinessManager.Instance:CloseModel(index, self.inBattleSeat[index]);
+				end
+			end
+
+
+			self.startPos = CommonFunction.ScreenPointToCanvas();
+
+			--模型跟随鼠标
+			MonoHelper.AddUpdateListener(DragPos);
+		end
+
+		self.battleItems[i].jb_dragarea.OnLongPressUp = function()
+			MonoHelper.RemoveUpdateListener(DragPos);
+			self.rawImage.localPosition = Vector3.zero;
+			--检测鼠标屏幕位置
+			local index = CommonFunction.PointerOverGameObject(list);
+
+			if self.curSelectSeat ~= index and self.inBattleSeat[index] ~= nil then
+				--切换位置
+
+				--1.发送服务器请求
+				local message =CS.ProtoMsg.PartnerBattleReq();
+				for k,v in pairs(self.battleData) do
+					if v.CurSeat == self.curSelectSeat then
+						message.ID = v.Index;
+						break;
+					end
+				end
+				message.Seat = self.curSelectSeat;
+				--message.ReplaceSeat = index;
+
+				CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message, false);
+			else
+				--复位
+				self:Reset();
+			end
+		end
+	end
+
+
+
+	self.rawImage = self.transform:Find("RawImage");
+
+	--背包菜单按钮
+	self.MenuBtns={};
+
+	local btn1=SelectBtn:New(self.transform:Find("RightMenu/BtnAll").gameObject);
+	btn1:InitItem(1,function (idx)
+			self:OnMenuBtnClick(idx);
+		end);
+	table.insert(self.MenuBtns,btn1);
+
+	local btn2=SelectBtn:New(self.transform:Find("RightMenu/BtnEquip").gameObject);
+	btn2:InitItem(2,function (idx)
+			self:OnMenuBtnClick(idx);
+		end);
+	table.insert( self.MenuBtns,btn2);
+
+	local btn3=SelectBtn:New(self.transform:Find("RightMenu/BtnItem").gameObject);
+	btn3:InitItem(3,function (idx)
+			self:OnMenuBtnClick(idx);
+		end);
+	table.insert( self.MenuBtns,btn3);
+
+	local btn4=SelectBtn:New(self.transform:Find("RightMenu/BtnFriend").gameObject);
+	btn4:InitItem(4,function (idx)
+			self:OnMenuBtnClick(idx);
+		end);
+	table.insert( self.MenuBtns,btn4);
+
+	local btn5=SelectBtn:New(self.transform:Find("RightMenu/BtnOthers").gameObject);
+	btn5:InitItem(5,function (idx)
+			self:OnMenuBtnClick(idx);
+		end);
+	table.insert( self.MenuBtns,btn5);
+
+end
+
+function BattleTeamWindow:Refresh(data)
+
+	if self.inBattleSeat ~= nil then
+		for k, v in pairs(self.inBattleSeat) do
+			BusinessManager.Instance:CloseModel(k, v);
+		end
+	end
+
+	self.battleData = data;
+
+	self.inBattleSeat = {}      --占了哪几个坑位
+	-- 初始化数据
+	for i = 0, 2 do
+		local find = false;
+		for k,v in pairs(data) do
+			if i == v.CurSeat then
+				local cfg = ConfigDataAccessor.Partner[v.Index];
+				self.battleItems[i].go_unbattle:SetActive(false);
+				self.battleItems[i].go_inbattle:SetActive(true);
+				self.battleItems[i].go_droppable:SetActive(false);
+				self.battleItems[i].go_undroppable:SetActive(false);
+				self.battleItems[i].txt_name.text = cfg.Name;
+				self.battleItems[i].txt_level.text = v.Level;
+				-- 加载模型
+				local obj = BusinessManager.Instance:ShowModel(i, cfg.AvatarID, self.modelPos[i]);
+				self.inBattleSeat[i] = obj;
+				find = true;
+				break;
+			end
+		end
+		if not find then
+			self.battleItems[i].go_unbattle:SetActive(true);
+			self.battleItems[i].go_inbattle:SetActive(false);
+			self.battleItems[i].go_droppable:SetActive(false);
+			self.battleItems[i].go_undroppable:SetActive(false);
+		end
+	end
+
+	self:OnMenuBtnClick(4);
+	
+	UIManager.Instance:SetRawCamrea(true);
+
+end
+
+function BattleTeamWindow:FollowDragPos()
+	local curPos = CommonFunction.ScreenPointToCanvas();
+	local delta = curPos - self.startPos;
+	self.rawImage.localPosition = delta;
+end
+
+function BattleTeamWindow:OnReplacePartner(data)
+	if data == nil or data.data == nil then
+		return;
+	end
+
+	local replaceData = data.data;
+
+	if replaceData.Ret == CS.ProtoMsg.PartnerOperate.OpOk then
+		-- --3.模型切换位置
+		-- local org = replaceData.Seat;
+		-- local dst = replaceData.ReplaceSeat;
+		-- self.inBattleSeat[org].transform.position = self.modelPos[dst];
+		-- self.inBattleSeat[dst].transform.position = self.modelPos[org];
+		-- local obj1 = self.inBattleSeat[org];
+		-- local obj2 = self.inBattleSeat[dst];
+		-- self.inBattleSeat[org] = obj2;
+		-- self.inBattleSeat[dst] = obj1;
+
+		-- --4.UI切换位置
+		-- local pos1 = self.battleItems[org].go_battleitem.transform.position;
+		-- local pos2 = self.battleItems[dst].go_battleitem.transform.position;
+		-- self.battleItems[org].go_battleitem.transform.position = pos2;
+		-- self.battleItems[dst].go_battleitem.transform.position = pos1;
+		-- local item1 = self.battleItems[org];
+		-- local item2 = self.battleItems[dst];
+		-- self.battleItems[org] = item2;
+		-- self.battleItems[dst] = item1;
+	else
+		self:Reset();
+	end
+
+	--复位
+	-- for i=0,2 do
+	-- 	if self.inBattleSeat[i] ~= nil then    --出战
+	-- 		self.battleItems[i].go_droppable:SetActive(false);
+	-- 		self.battleItems[i].go_inbattle:SetActive(true);
+
+	-- 		local curID = 0;
+	-- 		for k,v in pairs(self.battleData) do
+	-- 			if i == v.CurSeat then
+	-- 				curID = v.Index;
+	-- 				break;
+	-- 			end
+	-- 		end
+	-- 		local cfg = ConfigDataAccessor.Partner[curID];
+	-- 		BusinessManager.Instance:ShowModel(i, cfg.Model, self.modelPos[i]);
+	-- 	else    --未出战
+	-- 		self.battleItems[i].go_undroppable:SetActive(false);
+	-- 		self.battleItems[i].go_unbattle:SetActive(true);
+	-- 		BusinessManager.Instance:CloseModel(i, self.inBattleSeat[i]);
+	-- 	end
+	-- end
+end
+
+--复位
+function BattleTeamWindow:Reset()
+	for i=0,2 do
+		if self.inBattleSeat[i] ~= nil then    --出战
+			self.battleItems[i].go_droppable:SetActive(false);
+			self.battleItems[i].go_inbattle:SetActive(true);
+			self.battleItems[i].go_unbattle:SetActive(false);
+			self.battleItems[i].go_undroppable:SetActive(false);
+
+			local curID = 0;
+			for k,v in pairs(self.battleData) do
+				if i == v.CurSeat then
+					curID = v.Index;
+					break;
+				end
+			end
+			local cfg = ConfigDataAccessor.Partner[curID];
+			BusinessManager.Instance:ShowModel(i, cfg.AvatarID, self.modelPos[i]);
+		else    --未出战
+			self.battleItems[i].go_undroppable:SetActive(false);
+			self.battleItems[i].go_unbattle:SetActive(true);
+			self.battleItems[i].go_droppable:SetActive(false);
+			self.battleItems[i].go_inbattle:SetActive(false);
+			BusinessManager.Instance:CloseModel(i, self.inBattleSeat[i]);
+		end
+	end
+
+
+end
+
+function BattleTeamWindow:OnMenuBtnClick(idx)
+
+	for i = 1, #self.MenuBtns do
+		self.MenuBtns[i]:MakeSelected(false);
+	end
+
+	self.MenuBtns[idx]:MakeSelected(true);
+
+
+	-- 无限列表
+	if idx == 1 then
+
+		-- 全部
+
+	elseif idx == 2 then
+
+		-- 装备
+
+	elseif idx == 3 then
+
+		-- 道具
+
+
+	elseif idx == 4 then
+
+		-- 伙伴
+
+
+	elseif idx == 5 then
+
+		-- 其他
+
+	end
+
+
+end
+
+function BattleTeamWindow:Start()
+	print("BattleTeamWindow:Start")
+end
+
+function BattleTeamWindow:OnEnable()
+
+end
+
+function BattleTeamWindow:OnDisable()
+
+end
+
+function BattleTeamWindow:OnDestroy()
+
+end
+
+function BattleTeamWindow:OnOpen(arg)
+	self.IsOpen = true;
+end
+
+function BattleTeamWindow:OnClose(arg)
+	self:CloseWindow();
+end
+
+function BattleTeamWindow:CloseWindow()
+	local list = List_GameObject();
+	for k, v in pairs(self.inBattleSeat) do
+		list:Add(v)
+	end
+	BusinessManager.Instance:CloseModel2UI(list);
+	UIManager.Instance:SetRawCamrea(false);
+	self.IsOpen = false;
+end
+
+return BattleTeamWindow

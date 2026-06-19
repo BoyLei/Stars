@@ -1,0 +1,320 @@
+--[[
+*文件名   :   EventWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/09/15 13:09:51"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+EventWindow = class("EventWindow", UIPanel)
+
+local DailyActRoot = require("View/UIWindow/DailyActWindow/DailyActRoot")
+local EventPopWindowPath = "Event/EventPopWindow"
+local WorldExpTipsWidgetPath = "Ectype/Prefab/WorldExpTipsWidget"
+
+EventWindow.IsOpen = false
+
+local ObjectPool = require("Common/Helper/ObjectPool")
+
+function EventWindow:Awake()
+end
+
+function EventWindow:BindModule(m)
+    self.module = m
+end
+
+function EventWindow:InitItems()
+    self.transform = self.prefab.transform
+    self.gameObject = self.transform.gameObject
+
+    self.m_CloseBtn = self:Find("Cut4Cam90/AssemblyRatio2/CloseBtn/CloseBtn1"):GetComponent(typeof(Button))
+    self.m_CloseBtn.onClick:AddListener(
+        function()
+            self:OnClickCloseBtn()
+        end
+    )
+
+    self.Time1 = self:Find("Cut4Cam90/AssemblyRatio2/Time/tt1"):GetComponent(typeof(Text))
+    self.Time2 = self:Find("Cut4Cam90/AssemblyRatio2/Time/tt2"):GetComponent(typeof(Text))
+
+    self.m_BtnCalendar = self:Find("Cut4Cam90/AssemblyRatio2/BtnCalendar"):GetComponent(typeof(JButton))
+    self.m_BtnCalendar.OnClick = function()
+        LuaModuleDispatcher:SendMessage(ModuleDef.GamePlayCalendarModule, "OnOpenGamePlayCalendarWindow", {})
+    end
+
+    --打开日常活动页面
+    local DailyCopyBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/Buttons/DailyCopyBtn"):GetComponent(typeof(Button))
+    DailyCopyBtn.onClick:AddListener(
+        function()
+            UIManager.Instance:CloseAllLoadedWindowNWidget()
+            LuaModuleDispatcher:SendMessage(ModuleDef.GamePlayChoiceModule, "OnOpenGamePlayChoice", {})
+        end
+    )
+
+    self.rect = self.transform:Find("Cut4Cam90/AssemblyRatio2/Scroll View/Viewport/Content"):GetComponent(typeof(RectTransform))
+
+    self.scrollView = self.transform:Find("Cut4Cam90/AssemblyRatio2/Scroll View"):GetComponent(typeof(ScrollRect))
+
+    self.tr_Over = self.transform:Find("Cut4Cam90/AssemblyRatio2/Scroll View/Viewport/Content/Over")
+
+    self.go_Left = self.transform:Find("Cut4Cam90/AssemblyRatio2/leftBtn").gameObject
+    self.go_Right = self.transform:Find("Cut4Cam90/AssemblyRatio2/rightBtn").gameObject
+    -- update事件
+    self.UpdateFun = function()
+        self:UpdatePos()
+    end
+    self.go_Left:SetActive(false)
+    self.go_Right:SetActive(false)
+
+    --池
+    local _go = self.transform:Find("Cut4Cam90/AssemblyRatio2/Scroll View/Viewport/Content/EventItem").gameObject
+    self.eventItemPool =
+        ObjectPool:New(
+        4,
+        "View.Uiwindow.Event.EventItem",
+        _go,
+        _go.transform.parent,
+        function(it)
+            it:InitItem(
+                function(event)
+                    self:OnItemClick(event)
+                end
+            )
+        end,
+        --回收回调
+        function(ritem)
+            ritem:SetUse(false)
+        end,
+        nil
+    )
+
+    local go = self.transform:Find("Cut4Cam90/AssemblyRatio2/DailyActRoot").gameObject
+    self.dailyActRoot = DailyActRoot.new(go)
+
+    --玩家经验
+    self.MainPlayerExpNum = self.transform:Find("Cut4Cam90/AssemblyRatio2/EXP/ExpNum"):GetComponent(typeof(Text))
+    self.MainPlayerExpProgress = self.transform:Find("Cut4Cam90/AssemblyRatio2/EXP/ExpProgress"):GetComponent(typeof(Slider))
+    self.JBtnExp = self.transform:Find("Cut4Cam90/AssemblyRatio2/EXP/JBtnExp"):GetComponent(typeof(JButton))
+    self.JBtnExpFun = function()
+        self:OnClickExpFunJBtn()
+    end
+    self.JBtnExp.OnClick = self.JBtnExpFun
+
+    self.ExpTipsRoot = self.transform:Find("Cut4Cam90/AssemblyRatio2/TipsRoot").transform
+    self.JBtnExpTipsRoot = self.transform:Find("Cut4Cam90/AssemblyRatio2/TipsRoot"):GetComponent(typeof(JButton))
+    self.JBtnExpTipsRootFun = function()
+        self:OnClickExpTipsRootJBtn()
+    end
+    self.JBtnExpTipsRoot.OnClick = self.JBtnExpTipsRootFun
+end
+
+function EventWindow:UpdatePos()
+    self.go_Left:SetActive(self.scrollView.horizontalNormalizedPosition > 0.05)
+    self.go_Right:SetActive(self.scrollView.horizontalNormalizedPosition < 0.95)
+end
+
+function EventWindow:function_name()
+end
+
+function EventWindow:OnItemClick(event)
+    if event.id > 0 then
+        -- 野外boss打开自己的界面
+        if event.gameID == 4 then
+            self.module:OnOpenWildBossMsg()
+        else
+            --UIManager.Instance:OpenWindow(EventPopWindowPath,event,CS.StarProjectDef.MainPageCommond.HideBoth);
+            UIManager.Instance:OpenWindowAsync(EventPopWindowPath, nil, event, CS.StarProjectDef.MainPageCommond.HideBoth)
+        end
+    end
+end
+
+function EventWindow:OpenEvent(playID)
+    --MonoHelper.AddUpdateListener(self.UpdateFun);
+
+    self.eventItemPool:RecycleAll()
+
+    local openIdx = 1
+
+    --计算开启时间
+    self.module:OnCalEventOpenTime()
+    self:RefeshTime()
+
+    local isFindWildBoss = false
+
+    for i = 1, #self.module.openedEvent do
+        local event = self.module.openedEvent[i]
+
+        if
+            (event.gameID == 1 and BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.PlayModeGVE)) or
+                (event.gameID == 2 and BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.GuildNoonActiv)) or
+                (event.gameID == 3 and BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.BattleField)) or
+                (event.gameID == 4 and BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.FieldBoss) and not (isFindWildBoss)) or
+                (event.gameID == 5 and BusinessManager.Instance:GetGuildID() > 0)
+         then --有公会
+            local canAdd = true
+
+            if event.gameID == 4 then
+                local tt = GameManager.Instance:GetServerTimeStamp()
+                local serverNowTime = math.floor(tt / 1000)
+
+                if serverNowTime < event.serverCloseTime then
+                    isFindWildBoss = true
+                end
+
+                if serverNowTime > event.serverCloseTime then
+                    canAdd = false
+                end
+            end
+
+            if canAdd then
+                --获得当前
+                local eventItem = self.eventItemPool:Spawn()
+                local isOpen = eventItem:RefeshItem(event)
+                if isOpen and openIdx == 1 then
+                    openIdx = i
+                end
+            end
+        end
+    end
+
+    --[[
+	--最后再追加空的（没有就追加4个，有就追加三个）
+	for i=1,3 do
+		local event={};
+		event.id=0;
+		local eventItem =self.eventItemPool:Spawn();
+		eventItem:RefeshItem(event);
+	end
+	]]
+    if #self.module.openedEvent == 0 then
+        local event = {}
+        event.id = 0
+        local eventItem = self.eventItemPool:Spawn()
+        eventItem:RefeshItem(event)
+    end
+
+    self.rect.anchoredPosition = Vector2(0 - 460 * (openIdx - 1), 370)
+
+    self.dailyActRoot:OnOpen()
+
+    --打开一个对应id的玩法
+    if playID > 0 then
+        if playID == 999 then
+            --额外打开 活跃度
+            LuaModuleDispatcher:SendMessage(ModuleDef.DailyActModule, "OpenDailyActWindow", {})
+        else
+            for i = 1, #self.eventItemPool.m_ObjPool do
+                if self.eventItemPool.m_ObjPool[i].EventID == playID then
+                    self:OnItemClick(self.eventItemPool.m_ObjPool[i].EventData)
+                    break
+                end
+            end
+        end
+        playID = 0
+    end
+
+    self.tr_Over:SetAsLastSibling()
+
+    self:InitMainPlayerExp()
+end
+
+function EventWindow:RefeshTime()
+    local tt = GameManager.Instance:GetServerTimeStamp()
+    local serverNowTime = math.floor(tt / 1000)
+
+    self.Time1.text = GetWeekTime(serverNowTime)
+    self.Time2.text = MillsSecToFullString5(tt)
+end
+
+function EventWindow:InitMainPlayerExp()
+    local mainPlayerAllExp = GameManager.Instance:GetMainPlayerAllExp_GetAddCount()
+    local levelLimitID = GameManager.Instance:GetLevelLimitID_CommonCount()
+
+    local cfg = ConfigDataAccessor.LevelLimit[levelLimitID]
+    if cfg == nil then
+        return
+    end
+    self.MainPlayerExpNum.text = mainPlayerAllExp .. "/" .. cfg.ExpDailyLimit
+    local ratio = 0
+    if cfg.ExpDailyLimit > 0 then
+        ratio = mainPlayerAllExp / cfg.ExpDailyLimit
+        if ratio > 1 then
+            ratio = 1
+        end
+    end
+    self.MainPlayerExpProgress.value = ratio
+end
+
+function EventWindow:OnClickExpFunJBtn()
+    local levelLimitID = GameManager.Instance:GetLevelLimitID_CommonCount()
+    local cfg = ConfigDataAccessor.LevelLimit[levelLimitID]
+    if cfg == nil then
+        return
+    end
+    self.AsyncLoadWorldExpTipsWidgetCb = function(ui)
+        if ui ~= nil then
+            self.ExpTipsRoot.gameObject:SetActive(true)
+        end
+        self.AsyncLoadWorldExpTipsWidgetCb = nil
+    end
+    -- UIManager.Instance:OpenWidgetAsync(WorldExpTipsWidgetPath, self.AsyncLoadWorldExpTipsWidgetCb, true,
+    -- cfg, self.ExpTipsRoot, CS.StarProjectDef.MainPageCommond.HideNone, false, false)
+    UIManager.Instance:OpenWidgetAsync(WorldExpTipsWidgetPath, nil, true, cfg, nil, CS.StarProjectDef.MainPageCommond.HideNone)
+end
+
+function EventWindow:OnClickExpTipsRootJBtn()
+    --UIManager.Instance:CloseWidget(WorldExpTipsWidgetPath, self.ExpTipsRoot, false);
+    UIManager.Instance:CloseWidget(WorldExpTipsWidgetPath)
+
+    --self.ExpTipsRoot.gameObject:SetActive(false);
+end
+
+function EventWindow:Start()
+    print("EventWindow:Start")
+end
+
+function EventWindow:OnEnable()
+end
+
+function EventWindow:OnDisable()
+end
+
+function EventWindow:OnDestroy()
+    if self.dailyActRoot ~= nil then
+        self.dailyActRoot:OnDestroy()
+    end
+end
+
+function EventWindow:OnOpen(arg)
+    self.IsOpen = true
+end
+
+function EventWindow:OnClose(arg)
+    --self:CloseWindow();
+    --MonoHelper.RemoveUpdateListener(self.UpdateFun);
+    self.module.EventWindowView = nil
+end
+
+function EventWindow:OnClickCloseBtn()
+    if self.module.IsOpenTips then
+        self.module.IsOpenTips = false
+    end
+    self.IsOpen = false
+    self.module:OnCloseEvent()
+
+    self.Close()
+
+    ModuleManager.Instance:HideModule(ModuleDef.EventModule)
+
+    --[[
+	self.PlayAnimation("EventWindowAnim_Close", function ()
+		self.IsOpen=false;
+		self.module:OnCloseEvent();
+
+		self.Close();
+	end)
+	]]
+    self.module.EventWindowView = nil
+end
+
+return EventWindow

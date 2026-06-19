@@ -1,0 +1,186 @@
+--[[
+*文件名   :   EctypeTargetWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/12/02 14:19:07"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]] EctypeTargetWidget = class("EctypeTargetWidget", UIPanel)
+local EctypeTargetItem = require("View/Item/EctypeTargetItem")
+EctypeTargetWidget.m_RootTween = nil;
+EctypeTargetWidget.m_RootBtn = nil;
+EctypeTargetWidget.m_TaskName = nil;
+EctypeTargetWidget.m_ScrollViewEx = nil;
+EctypeTargetWidget.Data = nil;
+EctypeTargetWidget.Tables = nil;
+EctypeTargetWidget.ScrollViewEx = nil;
+EctypeTargetWidget.m_ItemGrid = nil;
+EctypeTargetWidget.Items = {}
+EctypeTargetWidget.BG = nil;
+EctypeTargetWidget.List = nil;
+EctypeTargetWidget.Select = nil;
+local OnEctypeTargetDataChangeFunc = nil;
+
+local OnActiveSelfFunc = nil;
+
+function EctypeTargetWidget:Awake()
+    self.m_RootTween = self:Find("Root"):GetComponent(typeof(EasyTweenPosition));
+    self.m_RootBtn = self:Find("Root"):GetComponent(typeof(Button));
+    self.m_TaskName = self:Find("Root/TaskName"):GetComponent(typeof(Text));
+    self.ScrollViewEx = self:Find("Root/ScrollView"):GetComponent(typeof(SuperScrollViewController));
+    self.m_ItemGrid = self:Find("Root/TargetItem").gameObject;
+    self.BG = self:Find("Root/BG"):GetComponent(typeof(RectTransform));
+    self.List = self:Find("Root/ScrollView/Mask/List"):GetComponent(typeof(RectTransform));
+    self.ScrollViewEx:NewScroll(self.m_ItemGrid, 0, function(tr, idx)
+        self:OnItemRefesh(tr, idx);
+    end);
+    self.Select = self:Find("Root/BG/Select").gameObject;
+    OnEctypeTargetDataChangeFunc = function(data)
+        self:OnEctypeTargetDataChange(data)
+    end
+
+    OnActiveSelfFunc = function(active)
+        self:OnActiveSelf(active);
+    end
+    self:OnActiveSelf(false);
+    self.m_RootBtn.onClick:AddListener(function()
+        self:OnClickRootBtn()
+    end);
+    CS.StarProject.GlobalEvent.OnEctypeTargetDataChange:AddListener(OnEctypeTargetDataChangeFunc);
+    CS.StarProject.GlobalEvent.OnEntityEctype:AddListener(OnActiveSelfFunc);
+end
+
+function EctypeTargetWidget:OnActiveSelf(active)
+    self.m_RootTween.gameObject:SetActive(active);
+    if not active then
+        self.ScrollViewEx:ContinueScroll(0);
+        self.m_TaskName.text = ""
+    else
+        CS.StarProject.GlobalEvent.OnSetTaskWidgetShow:Invoke(false);
+    end
+    -- if active then
+    -- CS.StarProject.GlobalEvent.OnEctypeTargetDataChange:AddListener(OnEctypeTargetDataChangeFunc);
+    -- else
+    -- CS.StarProject.GlobalEvent.OnEctypeTargetDataChange:RemoveListener(OnEctypeTargetDataChangeFunc);
+    -- end
+end
+
+function EctypeTargetWidget:OnItemRefesh(tr, idx)
+    if self.Items == nil then
+        return;
+    end
+    for i = 1, #self.Items do
+        if self.Items[i].transform == tr then
+            self.Items[i]:UpdateContent(self.Tables[idx]); -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+        end
+    end
+
+    local bi = EctypeTargetItem.new(tr.gameObject, self.AtlasPath);
+    bi.prefab:SetActive(true);
+    bi:UpdateContent(self.Tables[idx]); -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+    table.insert(self.Items, bi);
+end
+
+function EctypeTargetWidget:Start()
+
+end
+
+function EctypeTargetWidget:itemCountFunc()
+    if self.Tables == nil then
+        return 0
+    end
+    return self.Tables.Count;
+end
+
+function EctypeTargetWidget:OnEctypeTargetDataChange(data)
+
+    self.Items = {};
+    self.Data = data;
+    self.Tables = self.Data.Contents;
+
+    self.m_TaskName.text = self.Data.TileName
+    self.ScrollViewEx:ContinueScroll(self.Tables.Count);
+    CS.UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(self.List);
+    self.BG:SetHeight(self.List.sizeDelta.y + 20)
+    if self.Data.IsNew then
+        self.m_RootTween:Play()
+    end
+
+    if self.Data.GoalId >= 3000000 and self.Data.GoalId <= 3000002 then
+        if self.Tables.Count > 0 then
+            CS.StarProject.GlobalEvent.OnMiniMapShowEctypeTask:Invoke(self.Tables[0].spid);
+            -- print(self.Data.spid);
+        end
+    end
+end
+
+function EctypeTargetWidget:OnEnable()
+
+end
+
+function EctypeTargetWidget:OnDisable()
+
+end
+
+function EctypeTargetWidget:OnDestroy()
+end
+
+function EctypeTargetWidget:OnOpen(arg)
+    -- if self.m_RootTween~=nil then
+    -- self.m_RootTween:ApplayFrom();
+    -- end
+
+    local mapType = GameManager.Instance:GetCurMapType()
+    local isShow = mapType == CS.ProtoMsg.SpaceType.SpaceMirror or mapType == CS.ProtoMsg.SpaceType.SpacePlot;
+    if GameManager.Instance.IsShowPlayerWidget == false then
+        isShow = false;
+    end
+    self:OnActiveSelf(isShow)
+    local data = BusinessManager.Instance:EctypeTargetData();
+    if data ~= nil then
+        self:OnEctypeTargetDataChange(data)
+    end
+end
+
+function EctypeTargetWidget:OnClose(arg)
+
+end
+
+function EctypeTargetWidget:OnClickRootBtn()
+    -- 寻路
+    if self.Data == nil then
+        return
+    end
+    local needShow = true;
+
+    GameManager.Instance:TriggerEvent("ClickTask", false);
+
+    if self.Data:HasFollow() then
+        TaskHelper.FindToDynamicTarget("EctypeTargetWidget",self.Data.FollowID, 1, function(result)
+            --- 关闭
+            self.Select:SetActive(false)
+            if not result then
+                needShow = false;
+            end
+        end)
+    else
+        local spid = self.Data:GetSpawnerID();
+        if spid > 0 then
+            TaskHelper.FindPathByEctype(spid, 1, function(result)
+                --- 关闭
+                self.Select:SetActive(false)
+                if not result then
+                    needShow = false;
+                end
+            end)
+        else
+            needShow = false;
+        end
+    end
+
+    self.Select:SetActive(needShow)
+
+end
+
+return EctypeTargetWidget

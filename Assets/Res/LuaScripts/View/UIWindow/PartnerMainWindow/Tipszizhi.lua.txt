@@ -1,0 +1,166 @@
+--[[
+*文件名   :   Tipszizhi
+*内  容   :
+*说  明   :
+*创建日期 :   "2024/05/30 10:57:57"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+Tipszizhi=class("Tipszizhi",UIPanel)
+Tipszizhi.m_Stage=nil;
+Tipszizhi.m_CurStage=nil;
+Tipszizhi.m_Next=nil;
+Tipszizhi.m_Max=nil;
+Tipszizhi.m_CurMax=nil;
+Tipszizhi.m_NextStage=nil;
+Tipszizhi.m_NextMax=nil;
+Tipszizhi.m_Condition1=nil;
+Tipszizhi.m_Finish1=nil;
+Tipszizhi.m_Condition2=nil;
+Tipszizhi.m_Finish2=nil;
+Tipszizhi.PropItems={}
+Tipszizhi.Conditions={}
+Tipszizhi.m_CloseBtn=nil;
+Tipszizhi.onCloseCb=nil;
+local OnCloseHandler=nil;
+
+function Tipszizhi:ctor(go,cb)
+	self.prefab=go
+	self.onCloseCb=cb
+	self.m_Stage=self:Find("Stage").gameObject;
+
+	self.m_CurStage=self:Find("Stage/1/Cur/CurStage"):GetComponent(typeof(Text));
+	self.m_Next=self:Find("Stage/1/Next").gameObject;
+	self.m_Max=self:Find("Stage/1/Max").gameObject;
+	self.m_CurMax=self:Find("Stage/1/Cur/CurMax"):GetComponent(typeof(Text));
+	self.m_NextStage=self:Find("Stage/1/Next/NextStage"):GetComponent(typeof(Text));
+	self.m_NextMax=self:Find("Stage/1/Next/NextMax"):GetComponent(typeof(Text));
+	self.m_Condition1=self:Find("Stage/1/Next/2/Condition1"):GetComponent(typeof(Text));
+	self.m_Finish1=self:Find("Stage/1/Next/2/State1/Finish").gameObject;
+	self.m_Condition2=self:Find("Stage/1/Next/2/Condition2"):GetComponent(typeof(Text));
+	self.m_Finish2=self:Find("Stage/1/Next/2/State2/Finish").gameObject;
+	self.m_CloseBtn=self:Find("CloseBtn"):GetComponent(typeof(JButton));
+	self.Conditions={}
+	table.insert(self.Conditions,{Content=self.m_Condition1,State=self.m_Finish1})
+	table.insert(self.Conditions,{Content=self.m_Condition2,State=self.m_Finish2})
+	
+	
+	--self.PropItems={}
+	--table.insert(self.PropItems,{
+			--Icon=self:Find("Prop/Icon1"):GetComponent(typeof(Image)),
+			--PropName=self:Find("Prop/PropName1"):GetComponent(typeof(Text)),
+			--PropValue=self:Find("Prop/PropValue1"):GetComponent(typeof(Text))
+			--});
+	
+	--table.insert(self.PropItems,{
+			--Icon=self:Find("Prop/Icon2"):GetComponent(typeof(Image)),
+			--PropName=self:Find("Prop/PropName2"):GetComponent(typeof(Text)),
+			--PropValue=self:Find("Prop/PropValue2"):GetComponent(typeof(Text))
+		--});
+	
+	--table.insert(self.PropItems,{
+			--Icon=self:Find("Prop/Icon3"):GetComponent(typeof(Image)),
+			--PropName=self:Find("Prop/PropName3"):GetComponent(typeof(Text)),
+			--PropValue=self:Find("Prop/PropValue3"):GetComponent(typeof(Text))
+		--});
+	OnCloseHandler=function()
+		self:OnCloseTips()
+	end
+	self.m_CloseBtn.OnClick=OnCloseHandler
+end
+
+function Tipszizhi:Start()
+	
+end
+
+function Tipszizhi:OnEnable()
+
+end
+
+function Tipszizhi:OnDisable()
+
+end
+
+function Tipszizhi:OnDestroy()
+
+end
+
+function Tipszizhi:OnCloseTips()
+	self.prefab:SetActive(false)
+	if self.onCloseCb~=nil then
+		self.onCloseCb()
+	end
+end
+
+function Tipszizhi:OnOpen(data)
+	self.prefab:SetActive(true)
+	local config=ConfigDataAccessor.Partner[data.Index];
+	if config==nil then
+		return
+	end
+	local maxBreak=0;
+--[data.AptitudeBreakStep]
+	local qualificate=ConfigDataAccessor.Qualifications[config.QualificationID]
+	if qualificate==nil then
+		return
+	end
+	
+	for k, v in pairs(qualificate) do
+		if v.BreakStep> maxBreak then
+			maxBreak=v.BreakStep
+		end
+	end
+	
+	---已经满了
+	local isMax=data.AptitudeBreakStep>=maxBreak;
+	
+	self.m_Next:SetActive(not isMax)
+	self.m_Max:SetActive(isMax)
+	
+	local curqualificate=qualificate[data.AptitudeBreakStep]
+	local curMax=0;
+	for k, v in pairs(curqualificate.Value_max) do
+		curMax=curMax+v;
+	end	
+	
+	self.m_CurStage.text=tostring(data.AptitudeBreakStep)
+	self.m_CurMax.text=tostring(curMax)	
+	
+	local isFull=true;
+	
+	for i = 1, #curqualificate.QualiFications do
+		local AoiAttr= ConfigDataAccessor.ParConversion[curqualificate.QualiFications[i]]
+		if AoiAttr~=nil then
+			local t=data.AMD.Aptitudes[curqualificate.QualiFications[i]]
+			if t.BaseValue < curqualificate.Value_max[i] then
+				isFull=false;
+				break;
+			end
+		end
+	end
+	
+	
+	if not isMax then
+		local nextqualificate=qualificate[data.AptitudeBreakStep+1]
+		local nextMax=0;
+		for k, v in pairs(nextqualificate.Value_max) do
+			nextMax=nextMax+v;
+		end
+		self.m_NextStage.text=tostring(data.AptitudeBreakStep+1)
+		self.m_NextMax.text=tostring(nextMax)
+		
+		self.Conditions[1].Content.text=StringFormat(LanguageHelp:GetLanguageByKey("partner_sys_6"),{data.AptitudeBreakStep})
+		self.Conditions[1].State:SetActive(isFull)
+		
+		self.Conditions[2].Content.text=StringFormat(LanguageHelp:GetLanguageByKey("partner_sys_7"),{nextqualificate.Star})
+		self.Conditions[2].State:SetActive(data.CurStar>=nextqualificate.Star)
+	end
+end
+
+function Tipszizhi:OnClose(arg)
+
+end
+
+
+
+return  Tipszizhi

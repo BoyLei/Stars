@@ -1,0 +1,218 @@
+--[[
+*文件名   :   WorldLinePopMenu
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local WorldLinePopMenu = {}
+
+WorldLinePopMenu.__index = WorldLinePopMenu
+local ItemGrid = require("View/Item/ItemGrid")
+function WorldLinePopMenu:New(_go, worldLineWindow)
+    local self = {}
+    setmetatable(self, WorldLinePopMenu)
+
+    self.WorldLineWindow = worldLineWindow
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    --关闭信息
+    local btnClose = self.transform:Find("closeBtn"):GetComponent(typeof(JButton))
+    btnClose.OnClick = (function()
+        self:Show(false)
+    end)
+
+    self.img = self.transform:Find("img"):GetComponent(typeof(Image))
+    self.rect_img = self.transform:Find("img"):GetComponent(typeof(RectTransform))
+
+    self.title = self.transform:Find("title"):GetComponent(typeof(Text))
+    self.title2 = self.transform:Find("title2"):GetComponent(typeof(Text))
+    self.desc = self.transform:Find("Scroll View/Viewport/Content/desc"):GetComponent(typeof(Text))
+
+    self.rect_desc = self.transform:Find("Scroll View"):GetComponent(typeof(RectTransform))
+
+    self.go_finish = self.transform:Find("finish").gameObject
+
+    self.go_task = self.transform:Find("task").gameObject
+    self.taskName = self.transform:Find("task/BtnGo/name"):GetComponent(typeof(Text))
+
+    self.go_task:SetActive(false)
+    self.taskName.text = ""
+
+    --任务前往
+    local btnGo = self.transform:Find("task/BtnGo"):GetComponent(typeof(JButton))
+    btnGo.OnClick = (function()
+        self.WorldLineWindow:OnClickCloseBtn()
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        TaskHelper.FindPathToTask(
+            self.NeedAcceptTaskID,
+            1,
+            function(result)
+                --接取任务
+                if result then
+                --TaskHelper.AcceptTaskReq(self.NeedAcceptTaskID);
+                --Util.ShowMessage("接取成功");
+                end
+            end
+        )
+    end)
+
+    --领取奖励
+    local btnGet = self.transform:Find("BtnGet"):GetComponent(typeof(JButton))
+    btnGet.OnClick = (function()
+        --点击领取奖励
+        self.WorldLineWindow:MakeWorldLineRewardReq(self.ItemData)
+    end)
+    self.go_btnGet = self.transform:Find("BtnGet").gameObject
+
+    self.go_fog = self.transform:Find("img/fog").gameObject
+
+    self.scroll = self.transform:Find("Scroll View"):GetComponent(typeof(ScrollRect))
+    self.rect_Scroll = self.transform:Find("Scroll View"):GetComponent(typeof(RectTransform))
+
+    --道具
+    self.items = {}
+    self.rewardsGet = {}
+    for i = 1, 4 do
+        local it = ItemGrid:New(self.transform:Find("rewards/Items/ItemGrid" .. i).gameObject)
+        it:InitItem(
+            false,
+            function(ritem)
+                self:OnItemClick(ritem)
+            end
+        )
+        table.insert(self.items, it)
+        table.insert(self.rewardsGet, self.transform:Find("rewards/Items/ItemGrid" .. i .. "/Have/Get").gameObject)
+    end
+
+    --道具获取
+
+    self.rect_Rewards = self.transform:Find("rewards"):GetComponent(typeof(RectTransform))
+
+    self.go_items = self.transform:Find("rewards").gameObject
+
+    self.gameObject:SetActive(false)
+
+    return self --返回自身
+end
+
+function WorldLinePopMenu:OnItemClick(ritem)
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", {ritem.BaseID, false, 0, ritem.transform, 0})
+end
+
+function WorldLinePopMenu:Show(b, data)
+    self.gameObject:SetActive(b)
+
+    if b then
+        self.ItemData = data
+        local id = data.ID
+
+        local cfg = ConfigDataAccessor.WorldLine[id]
+
+        --是否显示标题
+        if not (data.IsNeedShowTitle) then
+            self.title.text = "????"
+        else
+            self.title.text = cfg.NodeTitle
+        end
+
+        local task = TaskHelper.GetTaskConfig(cfg.AccessTask)
+        if task ~= nil then
+            self.title2.text = task.Base.ChapterName
+        else
+            self.title2.text = ""
+        end
+
+        --是否有大图
+        if data.IsHaveImage then
+            self.img.gameObject:SetActive(true)
+            self.img.sprite = data.Img.sprite
+            --是否变灰
+            if data.IsGray then
+                self.img.material:SetFloat("_Grey", data.IsGray)
+            end
+
+            self.rect_desc.anchoredPosition = Vector2(557, 9)
+            self.rect_desc.sizeDelta = Vector2(489, 151)
+
+            --小节点
+            if cfg.NodeType ~= 1 and cfg.NodeType ~= 2 then
+                self.rect_img.sizeDelta = Vector2(418, 211)
+            else
+                self.rect_img.sizeDelta = Vector2(418, 247)
+            end
+        else
+            self.img.gameObject:SetActive(false)
+
+            self.rect_desc.anchoredPosition = Vector2(557, 269)
+            self.rect_desc.sizeDelta = Vector2(489, 400)
+        end
+
+        --未完成时是否显示迷雾
+        if not (data.IsFinish) and not (cfg.UnfinishImageShow) then
+            self.go_fog:SetActive(true)
+        else
+            self.go_fog:SetActive(false)
+        end
+
+        self.scroll.verticalNormalizedPosition = 1.0
+
+        --奖励打勾
+        for i = 1, #self.rewardsGet do
+            self.rewardsGet[i]:SetActive(false)
+        end
+        --奖励道具
+        for i = 1, #self.items do
+            self.items[i].gameObject:SetActive(false)
+        end
+
+        for i = 1, #cfg.Reward do
+            self.items[i].gameObject:SetActive(true)
+            self.items[i]:SetItemNum(cfg.Reward[i], cfg.RewardNum[i])
+        end
+
+        if data.CanGetItem then
+            --可以领取奖励
+            self.go_btnGet:SetActive(true)
+            self.go_finish:SetActive(false)
+            self.go_task:SetActive(false)
+            self.desc.text = cfg.UnfinishedText
+        else
+            if data.IsFinish then
+                self.desc.text = cfg.FinishText
+                self.go_finish:SetActive(true)
+                self.go_task:SetActive(false)
+                self.go_btnGet:SetActive(false)
+                for i = 1, #cfg.Reward do
+                    self.rewardsGet[i]:SetActive(true)
+                end
+            else
+                self.go_btnGet:SetActive(false)
+                self.go_finish:SetActive(false)
+                self.desc.text = cfg.UnfinishedText
+                --是否已经接取了接取任务
+                if data.IsAccessTask then
+                    --显示奖励
+                    self.go_task:SetActive(false)
+
+                    self.rect_Scroll.sizeDelta = Vector2(489, 270)
+                else
+                    --显示任务信息
+                    self.go_task:SetActive(true)
+                    self.NeedAcceptTaskID = cfg.AccessTask
+                    local taskCfg = TaskHelper.GetTaskConfig(self.NeedAcceptTaskID)
+                    if taskCfg ~= nil then
+                        self.taskName.text = taskCfg.Base.TaskName
+                    end
+                end
+            end
+        end
+    else
+        self.WorldLineWindow:HideAllWorldLineItem()
+    end
+end
+
+return WorldLinePopMenu

@@ -1,0 +1,128 @@
+RiseStarItem=class("RiseStarItem",UIPanel)
+
+
+--RiseStarItem.m_Locked=nil;
+--RiseStarItem.m_BG=nil;
+RiseStarItem.m_ItemBg=nil;
+RiseStarItem.m_Des=nil;
+
+--RiseStarItem.m_UnLock=nil;
+--RiseStarItem.m_Icon=nil;
+
+RiseStarItem.m_Click=nil;
+RiseStarItem.m_CB=nil;
+RiseStarItem.LockAnim=nil;
+RiseStarItem.UnLockAnim=nil;
+
+RiseStarItem.m_Seat=-1;
+RiseStarItem.StarExpendCfg=nil;
+RiseStarItem.m_State=-1;
+RiseStarItem.CanvasGroupTW = nil;
+
+function RiseStarItem:ctor(seat,go,atlas,cb1)
+	self.m_Seat=seat;
+	self.prefab=go;
+	self.AtlasPath=atlas;
+	self.m_CB=cb1;
+	self.CanvasGroup = self.prefab:GetComponent(typeof(CanvasGroup));
+	--self.m_Locked=self:Find("Locked").gameObject;
+	--self.m_BG=self:Find("Locked/BG").gameObject;
+	--self.m_Icon=self:Find("UnLock/Icon"):GetComponent(typeof(Image));
+	self.m_ItemBg=self:Find("ItemBg"):GetComponent(typeof(Image));
+	self.m_Des=self:Find("DesBg/Des"):GetComponent(typeof(Text));
+	self.LockAnim=self:Find("LockAnim").gameObject;
+	self.UnLockAnim=self:Find("UnlockAnim").gameObject;
+	self.LineAnim=self:Find("Image_Fx_Line").gameObject;
+
+	--self.m_UnLock=self:Find("UnLock").gameObject;
+	--self.m_Icon=self:Find("UnLock/Icon"):GetComponent(typeof(Image));
+
+	self.m_Click=self:Find("Click"):GetComponent(typeof(Button));
+	self.m_ClickFun = function()
+		self:OnClickSubButton();
+	end
+	self.m_Click.onClick:AddListener(self.m_ClickFun);
+
+end
+
+function RiseStarItem:SetAtlas(atlas)
+
+	self.AtlasPath=atlas;
+
+end
+
+-- state: 【-1:未解锁（不能解锁）】【0:未解锁（可解锁）】【1:已解锁】
+function RiseStarItem:SetData(arg,state)
+	self.StarExpendCfg = arg;
+	self.m_State = state;
+	--self.m_Locked:SetActive(state ~= 1);
+	--self.m_UnLock:SetActive(state == 1);
+	--self.m_BG:SetActive(state == 0);
+
+	if state >= 0 then
+		self.CanvasGroup.alpha = 0;
+		if self.CanvasGroupTW ~= nil then
+			self.CanvasGroupTW:Kill();
+		end
+	else
+		self.CanvasGroup.alpha = 1;
+	end
+
+	self.LockAnim:SetActive(state == 0);
+	self.UnLockAnim:SetActive(state == 1);
+	if state == 1 then
+		self.LineAnim:SetActive(true);
+		--elseif state == 0 and self.StarExpendCfg.Star == 1 then
+		--self.LineAnim:SetActive(true);
+	else
+		self.LineAnim:SetActive(false);
+	end
+
+	--local des = string.format("%d%s",self.StarExpendCfg.Star,"星解锁");
+	local des = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_RiseStarItem_des"), {self.StarExpendCfg.Star});
+
+	local sp = nil;
+	local spName = "Partner_deco_bg02";
+	if state == 1 then
+		--des = "星级" .. self.StarExpendCfg.Star;
+		des = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_RiseStarItem_des2"), {self.StarExpendCfg.Star});
+		spName = "Partner_deco_bg03"
+	end
+	ResourceHelper:GetSpriteInAtlasByName(self.AtlasPath, spName,function (sp)
+			if sp ~= nil then
+				self.m_ItemBg.sprite = sp;
+			end		
+	end);
+	
+	self.m_Des.text = des;
+	--self.m_Condition.text = tostring(self.StarExpendCfg.Star) + "星解锁";
+
+	if state >= 0 then
+		local delayTime = (self.StarExpendCfg.Star - 1) * 0.2;
+		if delayTime > 0 then
+			DOVirtual.DelayedCall(delayTime,function ()
+					self:OpenAnim();
+				end)
+		else
+			self:OpenAnim();
+		end
+	end
+
+end
+
+function RiseStarItem:OpenAnim()
+	local from = 0;
+	local to = 1;
+	self.CanvasGroupTW = UIDOTweenExt.To(from, to, 0.2, function(v)
+			self.CanvasGroup.alpha = v;
+		end);
+end
+
+function RiseStarItem:OnClickSubButton()
+	if self.m_CB ~= nil then
+		self.m_CB(self.m_Seat, self.prefab.transform.position, self.m_State);
+	end
+end
+
+
+return RiseStarItem

@@ -1,0 +1,488 @@
+RankingWindow = class("RankingWindow", UIPanel)
+
+local RankingTypeItem = require("View/UIWindow/RankingWindow/RankingTypeItem")
+local RankingItem = require("View/UIWindow/RankingWindow/RankingItem")
+
+local UpdateFun=nil;
+function RankingWindow:Awake()
+
+end
+
+function RankingWindow:BindModule(m)
+	RankingWindow.module = m;
+end
+
+function RankingWindow:GetCurJob(jobId)
+	local jobCfg = ConfigDataAccessor.Job;
+	for k,v in pairs(jobCfg) do
+		if v.BaseJob == jobId and v.ID%10 == 0 then
+			return v;
+		end
+	end
+	return nil;
+end
+
+function RankingWindow:InitControls()
+	self.transform = self.prefab.transform;
+	self.gameObject = self.transform.gameObject;
+	local rootTrans = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root");
+	self.rankName = rootTrans:Find("RankName"):GetComponent(typeof(Text));
+	self.nameText = rootTrans:Find("Name"):GetComponent(typeof(Text));
+	self.SearchBtn = rootTrans:Find("SearchBtn"):GetComponent(TButton);
+	self.SearchBtn.onClick:AddListener(function()
+		if self.rankInfos and self.rankInfos[self.curSelIndex].OfflineData then
+			LuaModuleDispatcher:SendMessage(ModuleDef.PlayerPreviewModule, "SendGetOtherPlayerNameplateReq", {self.rankInfos[self.curSelIndex].OfflineData.PID})
+			self:CloseModel()
+		end
+	end);
+	self.rankTypeItem = rootTrans:Find("RankTypes/Viewport/Content/Item").gameObject;
+
+	local rcl =ConfigDataAccessor.RankCommonList;
+
+	self.typeRanks = {};
+	for _,v in pairs(rcl) do
+		if self.typeRanks[v.RankDataType] == nil then
+			self.typeRanks[v.RankDataType] = {};
+		end
+		table.insert(self.typeRanks[v.RankDataType], v);
+	end
+
+	self.rankTypes = {};
+	local index = 1;
+	self.curSelRankType = 1;	--默认选中第一个
+	self.rankName.text = ConfigDataAccessor.RankCommonList[index].RankName
+	for k,v in pairs(self.typeRanks) do
+		local go = newObject(self.rankTypeItem);
+		go.transform:SetParent(self.rankTypeItem.transform.parent);
+		go.transform.localPosition = Vector3.zero;
+		go.transform.localScale = Vector3.one;
+		go:SetActive(true);
+
+		local rt = RankingTypeItem:New(go);
+		rt:Init(k,index==1,v[1].RankName, index);
+		table.insert(self.rankTypes, rt);
+
+		index = index + 1;
+	end
+
+	-- --五种职业
+	self.jobTypesGo = rootTrans:Find("JobTypes").gameObject;
+	self.jobTypesGo:SetActive(false);
+	self.jobSelBtn = rootTrans:Find("JobSelector"):GetComponent(typeof(Button));
+	self.jobSelBtn.onClick:AddListener(function() 
+		self.jobTypesGo:SetActive(not self.jobTypesGo.activeSelf);
+	end);
+	self.jobSelIcons = {};
+	for i=1, 5 do
+		local go = rootTrans:Find("JobSelector/".."Icon"..i):GetComponent(typeof(Image));
+		self.jobSelIcons[i] = go;
+	end
+
+	self.selJobText = self.jobSelBtn.transform:Find("Name"):GetComponent(typeof(Text));
+
+	local jobTypeItemGo = rootTrans:Find("JobTypes/Viewport/Content/Item").gameObject;
+	local allJobItems =self.typeRanks[2];
+	self.jobItems = {};
+	
+	--self.selJobIcon = self.jobSelBtn.transform:Find("Icon"):GetComponent(typeof(Image));
+	local jobDataCell = self:GetCurJob(allJobItems[1].RanktypeParam);
+	--if jobDataCell ~= nil then
+		--local avatarDataCell = ConfigDataAccessor.Avatar[jobDataCell.AvatarID];
+		--if avatarDataCell ~= nil then
+			--local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID];
+			--if headCfg ~= nil then
+				--if self.jobIcon ~= nil then
+					--ResourceHelper:LoadIconByAtlasAsync(self.selJobIcon, headCfg.HeadAtlasName, headCfg.JobIcon, false)
+				--end
+			--end
+		--end
+	--end
+	
+	--for i=1, 5 do
+		--self.jobSelIcons[i]:SetActive(i==1);
+	--end
+	
+	self.selJobText.text = jobDataCell.Name;
+	
+	for i=1, #allJobItems do
+		local _go = newObject(jobTypeItemGo);
+		_go.transform:SetParent(jobTypeItemGo.transform.parent)
+        _go.transform.localPosition = Vector3.zero
+        _go.transform.localScale = Vector3.one
+		_go:SetActive(true);
+		self.jobItems[i] = _go;
+		
+		local jobIcons = {};
+		for j=1, 5 do
+			local go = _go.transform:Find("Icon"..j):GetComponent(typeof(Image));
+			jobIcons[j] = go;
+		end
+
+		local jobName = _go.transform:Find("Text"):GetComponent(typeof(Text));
+		
+		local jobDataCell = self:GetCurJob(allJobItems[i].RanktypeParam);
+		--if jobDataCell ~= nil then
+			--local avatarDataCell = ConfigDataAccessor.Avatar[jobDataCell.AvatarID];
+			--if avatarDataCell ~= nil then
+				--local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID];
+				--if headCfg ~= nil then
+					--if self.jobIcon ~= nil then
+						--ResourceHelper:LoadIconByAtlasAsync(jobIcon, headCfg.HeadAtlasName, headCfg.JobIcon, false)
+					--end
+				--end
+			--end
+		--end
+		
+		-- for j=1, 5 do
+		-- 	jobIcons[j]:SetActive(i == j);
+		-- end
+		
+		local jobId = allJobItems[i].RanktypeParam
+		local jobshi = math.floor(jobId / 10)
+		
+		local jobTypeName = "Icon_Arm" .. jobshi
+		ResourceHelper:LoadIconByAtlasAsync(jobIcons[1], ResourceHelper.AtlasPathRole, jobTypeName, false)
+
+		jobName.text = jobDataCell.Name;
+
+		local btn = _go:GetComponent(typeof(Button));
+		btn.onClick:AddListener(function()
+			self.jobTypesGo:SetActive(false);
+			local jobDataCell = self:GetCurJob(allJobItems[i].RanktypeParam); 
+			--if jobDataCell ~= nil then
+				--local avatarDataCell = ConfigDataAccessor.Avatar[jobDataCell.AvatarID];
+				--if avatarDataCell ~= nil then
+					--local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID];
+					--if headCfg ~= nil then
+						--if self.jobIcon ~= nil then
+							--ResourceHelper:LoadIconByAtlasAsync(self.selJobIcon, headCfg.HeadAtlasName, headCfg.JobIcon, false)
+						--end
+					--end
+				--end
+			--end
+				
+			--for j=1, 5 do
+				--self.jobSelIcons[j]:SetActive(i==j);
+			--end
+				
+				local jobTypeName = "Icon_Arm" .. jobshi
+				ResourceHelper:LoadIconByAtlasAsync(self.jobSelIcons[1], ResourceHelper.AtlasPathRole, jobTypeName, true)
+	
+			self.selJobText.text = jobDataCell.Name;
+			LuaModuleDispatcher:SendMessage(ModuleDef.RankModule, "OnSelectRankJob", i);
+		end);
+	end
+
+	self.selNameText = rootTrans:Find("Name"):GetComponent(typeof(Text));
+	self.percentText = rootTrans:Find("MyRank/Percent"):GetComponent(typeof(Text));
+	self.nameText = rootTrans:Find("MyRank/Name"):GetComponent(typeof(Text));
+	self.statusText = rootTrans:Find("MyRank/Status"):GetComponent(typeof(Text));
+
+
+	self.rewardBtn = rootTrans:Find("RewardBtn"):GetComponent(typeof(Button));
+	self.rewardBtn.onClick:AddListener(function() 
+		--领取奖励
+		local message = CS.ProtoMsg.GetGenericRankGetAwardReq();
+		message.RankId = self.curSelRankType;
+		NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message, false)
+	end);
+
+	self.rankItemList = {};
+	self.ItemGrid = rootTrans:Find("RankList/Mask/List/Item").gameObject;
+	self.RankScorllView = rootTrans:Find("RankList"):GetComponent(typeof(SuperScrollViewController));
+    self.RankScorllView:NewScroll(self.ItemGrid, 0, function(tr, idx)
+        self:OnItemRefesh(tr, idx);
+    end);
+
+	self.rawImg = rootTrans:Find("PowerRank"):GetComponent(typeof(RawImage));
+	
+	
+	self.powerRankObj = rootTrans:Find("PowerRank").gameObject;
+	--self.towerRankObj = rootTrans:Find("TowerRank").gameObject;
+
+	self.titlePowerObj = rootTrans:Find("TitlePower").gameObject;
+	self.titleTowerObj = rootTrans:Find("TitleTower").gameObject;
+
+	self.descText = rootTrans:Find("Desc"):GetComponent(typeof(Text));
+end
+
+function RankingWindow:OnItemRefesh(tr, idx)
+    local rankInfo = self.rankInfos[idx + 1];
+
+    for i = 1, #self.rankItemList, 1 do
+        if self.rankItemList[i].transform == tr then
+            self.rankItemList[i]:Refresh(rankInfo, self.curSelIndex, self.curSelRankType);
+            return;
+        end
+    end
+
+    local rankingItem = RankingItem:New(tr.gameObject);
+    rankingItem:SetClickCb(function(id)
+        self:OnClickRankingItem(id);
+    end);
+
+    tr.gameObject:SetActive(true);
+    rankingItem:Refresh(rankInfo, self.curSelIndex, self.curSelRankType);
+
+    table.insert(self.rankItemList, rankingItem);
+end
+
+function RankingWindow:OnSelectRankItem(index)
+	self.curSelRankType = index;
+	self.rankName.text = ConfigDataAccessor.RankCommonList[index].RankName
+	local ranktype = ConfigDataAccessor.RankCommonList[index].RankDataType
+	for k,v in pairs(self.rankTypes) do
+		v:OnSelItem(k==ranktype);
+	end
+
+	if index == 2 then
+		local allJobItems =self.typeRanks[2];
+		local jobDataCell = self:GetCurJob(allJobItems[1].RanktypeParam); 
+		--if jobDataCell ~= nil then
+			--local avatarDataCell = ConfigDataAccessor.Avatar[jobDataCell.AvatarID];
+			--if avatarDataCell ~= nil then
+				--local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID];
+				--if headCfg ~= nil then
+					--if self.jobIcon ~= nil then
+						--ResourceHelper:LoadIconByAtlasAsync(self.selJobIcon, headCfg.HeadAtlasName, headCfg.JobIcon, false)
+					--end
+				--end
+			--end
+		--end
+		
+		--for j=1, 5 do
+			--self.jobSelIcons[j]:SetActive(1==j);
+		--end
+		
+		local jobId = ConfigDataAccessor.RankCommonList[index].RanktypeParam
+		local jobshi = math.floor(jobId / 10)
+		local jobTypeName = "Icon_Arm" .. jobshi
+		ResourceHelper:LoadIconByAtlasAsync(self.jobSelIcons[1], ResourceHelper.AtlasPathRole, jobTypeName, true)
+
+
+		self.selJobText.text = jobDataCell.Name;
+	end
+end
+
+function RankingWindow:OnClickRankingItem(id)
+	--刷新选中
+	--刷新左边栏
+	self.curSelIndex = id;
+	for _,v in pairs(self.rankItemList) do
+		v:SetSelect(v.curData.RankNum == self.curSelIndex);
+	end
+
+	self:SelectItem(self.rankInfos[id]);
+end
+
+function RankingWindow:InitData(data)
+	if data == nil then
+		return;
+	end
+	
+	-- self.myNameText
+	-- self.percentText
+	-- self.nameText
+	-- self.statusText
+	--刷新所有排行列表
+	
+	self.curSelIndex = 1;
+
+	self.rankInfos = {};
+	local ranks = data.PlayerRanks;
+	for i=0, ranks.Count-1 do
+		--ranks[i].RankNum
+		--ranks[i].RankScore
+		--ranks[i].OfflineData
+
+		self.rankInfos[i+1] = ranks[i];
+	end
+	
+	self.RankScorllView:ContinueScroll(#self.rankInfos, false, 0);
+	
+	--self.powerRankObj:SetActive(self.curSelRankType ~= 6);
+	--self.towerRankObj:SetActive(self.curSelRankType == 6);
+
+	self.titlePowerObj:SetActive(self.curSelRankType ~= 6);
+	self.titleTowerObj:SetActive(self.curSelRankType == 6);
+	
+	if self.curSelRankType == 6 or self.curSelRankType == 1 then
+		self.jobTypesGo:SetActive(false);
+		self.jobSelBtn.gameObject:SetActive(false);
+	else
+		self:SelectItem(self.rankInfos[1]);
+		--self.jobTypesGo:SetActive(true);
+		self.jobSelBtn.gameObject:SetActive(true);
+	end
+	self.loopIndex = 1;
+	self:StartLoop(true);
+	
+	if #self.rankInfos > 0 then
+		self.selNameText.text = self.rankInfos[self.curSelIndex].OfflineData.UserName;
+	end
+
+	local str = "--";
+	if data.MyRankNum <= 100 and data.MyRankNum>0 then
+		str = tostring(data.MyRankNum);
+	elseif data.MyRankNum <= data.TotalNum and data.MyRankNum>0 then
+		local per = math.floor(data.MyRankNum / data.TotalNum * 100);
+		str = string.format("%d", per).."%";
+	else
+	end
+	self.percentText.text = str;
+	self.nameText.text = GameManager.Instance:GetPlayerName();
+	
+	self.rewardBtn.gameObject:SetActive(data.MyAwardStatus == 1);
+
+	--local selfBattleScore=GameManager.Instance:GetAllPower(0, false);
+	if data.MyRankScore == 0 then
+		self.statusText.text = "-"
+	else
+		if self.curSelRankType == 6 then
+			self.statusText.text = tostring(data.MyRankScore);
+		else
+			self.statusText.text = GetTotalPowerRankLevel(data.MyRankScore);
+		end
+	end
+	local rcl =ConfigDataAccessor.RankCommonList;
+	for k,v in pairs(rcl) do
+		if k == self.curSelRankType then
+			local strType = "";
+			if v.RefreshType == 1 then
+				strType = LanguageHelp:GetLanguageByKey("Local_Str_Time_second");
+			elseif v.RefreshType == 2 then
+				strType = LanguageHelp:GetLanguageByKey("Local_Str_Time_minute");
+			elseif v.RefreshType == 3 then
+				strType = LanguageHelp:GetLanguageByKey("Local_Str_Time_hour");
+			elseif v.RefreshType == 4 then
+				strType = LanguageHelp:GetLanguageByKey("Local_Str_Time_day");
+			elseif v.RefreshType == 5 then
+				strType = LanguageHelp:GetLanguageByKey("Local_Str_Time_week");
+			end
+
+			local timeStamp=GetTimeStamp(data.UpdateTime);
+			self.descText.text = StringFormat(LanguageHelp:GetLanguageByKey("RankWindow_12"),{v.RefreshParam, strType,timeStamp}  );
+			--self.descText.text = string.format("每%d%s刷新；数据截止至：%s", v.RefreshParam, strType, GetTimeStamp(data.UpdateTime));
+			break;
+		end
+	end
+end
+
+function RankingWindow:SelectItem(data)
+	--if data == nil then
+		--return;
+	--end
+	
+	if #self.rankInfos > 0 then
+		self.selNameText.text = self.rankInfos[self.curSelIndex].OfflineData.UserName;
+	else
+		self.selNameText.text = "";
+	end
+	
+	--local cfg = ConfigDataAccessor.Partner[curID];
+	self.rawImg.texture = ResourceManager.Instance.RenderTexture;
+
+	if self.jobModel ~= nil then
+		BusinessManager.Instance:CloseModel(1, self.jobModel);
+		self.jobModel = nil;
+	end
+	if self.partnerModel ~= nil then
+		BusinessManager.Instance:CloseModel(2, self.partnerModel);
+		self.partnerModel = nil;
+	end
+	
+	if #self.rankInfos == 0 then
+		return;
+	end
+	--显示职业模型
+	self.jobModel = BusinessManager.Instance:ShowModel(1, ConfigDataAccessor.Job[data.OfflineData.JobID].AvatarID, Vector3(0.176,-0.425,0.01));
+	--显示伙伴模型
+	self.partnerModel = BusinessManager.Instance:ShowModel(2, 90101, Vector3(1.412,-0.641,0.714));
+
+end
+
+function RankingWindow:StartLoop(isBegin)
+	self.rawImg.gameObject.transform.localScale = Vector3.one
+	if self.tw_delay~= nil then
+		self.tw_delay:Kill();
+		self.tw_delay = nil;
+	end
+
+	local delay = ConfigDataAccessor.SystemList[236].Value/1000;
+	if isBegin then
+		delay = 0;
+	end
+	self.tw_delay = DOVirtual.DelayedCall(delay, function()
+		self:OnClickRankingItem(self.loopIndex);
+		self.loopIndex = self.loopIndex + 1;
+		if self.loopIndex > 3 or self.loopIndex > #self.rankInfos then
+			self.loopIndex = 1;
+		end
+
+		self:StartLoop(false);
+	end);
+end
+
+function RankingWindow:StopLoop()
+	if self.tw_delay~= nil then
+		self.tw_delay:Kill();
+		self.tw_delay = nil;
+	end
+end
+
+function RankingWindow:OnShow()
+	
+end
+
+function RankingWindow:Start()
+end
+
+function RankingWindow:OnEnable()
+	
+end
+
+function RankingWindow:OnDisable()
+
+end
+
+function RankingWindow:OnDestroy()
+
+end
+
+function RankingWindow:OnOpen(arg)
+	if not self.IsOpen then
+		UIManager.Instance:SetRawCamrea(true);
+	end
+	self.IsOpen = true;
+end
+
+function RankingWindow:OnClose(arg)
+	self:CloseWindow();
+	UIManager.Instance:SetRawCamrea(false);
+	self:StopLoop();
+	self:CloseModel()
+
+	self.module.rankWindowView = nil
+end
+
+function RankingWindow:CloseModel()
+	self.rawImg.gameObject.transform.localScale = Vector3.zero
+	if self.tw_delay~= nil then
+		self.tw_delay:Kill();
+		self.tw_delay = nil;
+	end
+	if self.jobModel ~= nil then
+		BusinessManager.Instance:CloseModel(1, self.jobModel);
+		self.jobModel = nil;
+	end
+	if self.partnerModel ~= nil then
+		BusinessManager.Instance:CloseModel(2, self.partnerModel);
+		self.partnerModel = nil;
+	end
+end
+function RankingWindow:CloseWindow()
+	self.IsOpen = false;
+	self.module.rankWindowView = nil
+end
+
+return RankingWindow

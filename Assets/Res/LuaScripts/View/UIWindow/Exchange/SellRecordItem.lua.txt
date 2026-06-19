@@ -1,0 +1,29 @@
+---------------------------------------------------------------------
+-- src (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-11-01 20:56:33
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class SellRecordItem
+SellRecordItem=class("SellRecordItem",UIPanel)
+SellRecordItem.m_price=nil;
+SellRecordItem.m_num=nil;
+
+function SellRecordItem:ctor(go, atlas)
+	self.prefab = go;
+	self.AtlasPath = atlas;
+	self.m_price=self:Find("price"):GetComponent(typeof(Text));
+	self.m_num=self:Find("num"):GetComponent(typeof(Text));
+end
+
+function SellRecordItem:UpdateContent(arg)
+	self.m_price.text=arg.TotalPrice
+	self.m_num.text=arg.ItemNum
+end
+
+
+
+return  SellRecordItem

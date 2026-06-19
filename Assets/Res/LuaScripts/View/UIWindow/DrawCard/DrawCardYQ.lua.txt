@@ -1,0 +1,24 @@
+local DrawCardYQ = {}
+DrawCardYQ.__index = DrawCardYQ
+
+function DrawCardYQ:New(obj)
+    local self = {};
+    setmetatable(self, DrawCardYQ);
+
+    self:InitControls(obj)
+
+    return self;
+end
+
+function DrawCardYQ:InitControls(obj)
+    self.gameObject = obj;
+    self.transform = obj.transform;
+	
+	self.leftTimes = self.transform:Find("SSRLeft/Times1"):GetComponent(typeof(Text));
+end
+
+function DrawCardYQ:RefreshSsrTimes(t, ft)
+	self.leftTimes.text = tostring(ft);
+end
+
+return DrawCardYQ

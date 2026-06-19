@@ -1,0 +1,85 @@
+local BattleInfoItem = {}
+BattleInfoItem.__index = BattleInfoItem
+
+function BattleInfoItem:New(obj, data, index)
+    local self = {};
+    setmetatable(self, BattleInfoItem);
+
+    self:InitControls(obj, data, index)
+
+    return self;
+end
+
+function BattleInfoItem:InitControls(obj, data, index)
+    self.gameObject = obj;
+    self.transform = obj.transform;
+
+    local rankImg1 = self.transform:Find("Rank1"):GetComponent(typeof(Image));
+    local rankImg2 = self.transform:Find("Rank2"):GetComponent(typeof(Image));
+    local rankImg3 = self.transform:Find("Rank3"):GetComponent(typeof(Image));
+    local rankText = self.transform:Find("Text"):GetComponent(typeof(Text));
+
+    local jobIcon = self.transform:Find("Job"):GetComponent(typeof(Image));
+    local playerName = self.transform:Find("Name"):GetComponent(typeof(Text));
+
+    local allKillIcons = {};
+    for i=1, 5 do
+        local killIcon = self.transform:Find("KillIcon"..i).gameObject;
+        allKillIcons[i] = killIcon;
+    end
+
+    local killNum = self.transform:Find("KillNum"):GetComponent(typeof(Text));
+    local scoreTxt = self.transform:Find("Score"):GetComponent(typeof(Text));
+    --local madelTxt = self.transform:Find("Madel"):GetComponent(typeof(Text));
+
+    rankImg1.gameObject:SetActive(index == 1);
+    rankImg2.gameObject:SetActive(index == 2);
+    rankImg3.gameObject:SetActive(index == 3);
+    rankText.gameObject:SetActive(index > 3);
+    if index > 3 then
+        rankText.text = index;
+    end
+
+    playerName.text = data.RoleName;
+    scoreTxt.text = tostring(data.Score);
+    killNum.text = tostring(data.KillNum);
+    
+
+    local battleFieldScore = ConfigDataAccessor.BattleFieldScoreList;
+    local tb = {};
+    for k,v in pairs(battleFieldScore) do
+        if v.ScoreType == 1 then
+            table.insert(tb, v);
+        end
+    end
+
+    local curIndex = 0;
+    for k,v in pairs(tb) do
+        if data.MultiKillNum >= v.Param and (k==#tb or data.MultiKillNum < tb[k+1].Param) then
+            curIndex = k;
+            break;
+        end
+    end
+
+    for i=1, 5 do
+        allKillIcons[i]:SetActive(curIndex == i);
+    end
+
+
+    local jobDataCell = ConfigDataAccessor.Job[data.JobID];
+    if jobDataCell ~= nil then
+        local avatarDataCell = ConfigDataAccessor.Avatar[jobDataCell.AvatarID];
+        if avatarDataCell ~= nil then
+            local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID];
+            if headCfg ~= nil then
+                --AtlasManager.Instance:GetSprite(headCfg.HeadAtlasName, headCfg.MaxHead,function (sp)
+						--jobIcon.sprite =sp
+				--end);
+				
+				ResourceHelper:LoadIconByAtlasAsync(jobIcon, headCfg.HeadAtlasName, headCfg.MinHead, false)
+            end
+        end
+    end
+end
+
+return BattleInfoItem

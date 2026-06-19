@@ -1,0 +1,208 @@
+--[[
+*文件名   :   SkillSwitchModule
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/12/12 16:00:00"
+*创建人   :   "gopal"
+*版权所有 :   游卡网络科技技术有限公司
+]] SkillSwitchModule = class("SkillSwitchModule", BaseLuaModule)
+
+local SkillSwitchNewPath = "Skill/Prefab/SkillSwitchNew";
+
+-- LuaModule 消息模块
+SkillSwitchModule.ModuleMessages = {
+    -- 打开技能装配
+    ["OnOpenSkillSwitch"] = function(...)
+        SkillSwitchModule:OnOpenSkillSwitch(...);
+    end
+}
+
+-- 监听打开出战界面事件
+function SkillSwitchModule:OnOpenSkillSwitch(...)
+
+    local tb = ...
+    if GameManager.Instance.IsSeverBattleState then
+
+        CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(
+            LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_7"));
+        return;
+    end
+
+    -- local skillSwitchWindowCS = UIManager.Instance:OpenWindow(SkillSwitchNewPath, nil, CS.StarProjectDef.MainPageCommond.HideBoth);
+    -- if self.skillSwitchWindowView == nil then
+    --     self.skillSwitchWindowView = skillSwitchWindowCS:GetLuaPanel().ScriptTable;
+    --     self.skillSwitchWindowView:BindModule(self);
+    --     self.skillSwitchWindowView:InitControls();
+    -- end
+    -- self.skillSwitchWindowView:Refresh(self.skillList, self.skillPosList, self.caseID);
+
+    -- local parsedParameters = ParseParameters(tb);
+
+    -- if parsedParameters ~= nil then
+    --     -- 如果参数 中存在 isEnter 标识,且标识为 true, 表明是从 外面第一次进入, 此时需要播放进入动画
+    --     if parsedParameters.isEnter ~= nil and parsedParameters.isEnter then
+    --         self.skillSwitchWindowView:PlayEnterAnim(true);
+    --     else
+    --         -- 否则就是正常 点击动画
+    --         self.skillSwitchWindowView:PlayEnterAnim(false);
+    --     end
+
+    --     if parsedParameters.Length == 2 then
+    --         self.skillSwitchWindowView:SyncData(parsedParameters[1], parsedParameters[2]);
+    --     end
+    -- end
+    -- -- if tb ~= nil and tb.Length > 0 and type(tb[0]) == "table" then
+    -- --     self.skillSwitchWindowView:SyncData(tb[1], tb[2]);
+    -- -- end
+
+    self.AsyncLoadSkillSwitchNewCb = function(ui)
+        if ui ~= nil then
+            if self.skillSwitchWindowView == nil then
+                self.skillSwitchWindowView = ui:GetLuaPanel().ScriptTable;
+                self.skillSwitchWindowView:BindModule(self);
+                self.skillSwitchWindowView:InitControls();
+            end
+            self.skillSwitchWindowView:Refresh(self.skillList, self.skillPosList, self.caseID);
+
+            local parsedParameters = ParseParameters(tb);
+
+            if parsedParameters ~= nil then
+                -- 如果参数 中存在 isEnter 标识,且标识为 true, 表明是从 外面第一次进入, 此时需要播放进入动画
+                if parsedParameters.isEnter ~= nil and parsedParameters.isEnter then
+                    self.skillSwitchWindowView:PlayEnterAnim(true);
+                else
+                    -- 否则就是正常 点击动画
+                    self.skillSwitchWindowView:PlayEnterAnim(false);
+                end
+
+                if parsedParameters.Length == 2 then
+                    self.skillSwitchWindowView:SyncData(parsedParameters[1], parsedParameters[2]);
+                end
+            end
+            -- if tb ~= nil and tb.Length > 0 and type(tb[0]) == "table" then
+            --     self.skillSwitchWindowView:SyncData(tb[1], tb[2]);
+            -- end
+        end
+        self.AsyncLoadSkillSwitchNewCb = nil;
+    end
+
+    UIManager.Instance:OpenWindowAsync(SkillSwitchNewPath, self.AsyncLoadSkillSwitchNewCb, nil,
+        CS.StarProjectDef.MainPageCommond.HideBoth);
+
+end
+
+-- LuaModule 创建
+function SkillSwitchModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.SkillSwitchModule, self)
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.AllSkillNoticeID, function(data)
+        self:OnAllSkillNotice(data)
+    end, nil);
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.SwitchSkillPosRetID, function(data)
+        self:OnSwitchSkillPosRet(data)
+    end, nil);
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.UpSkillCaseDataRetID, function(data)
+        self:OnUpSkillCaseDataRet(data)
+    end, nil);
+end
+
+-- 所有技能信息
+function SkillSwitchModule:OnAllSkillNotice(data)
+    if data == nil or data.data == nil then
+        return;
+    end
+
+    self.skillList = data.data.Skilllist;
+    self.skillPosList = data.data.Skillposlist;
+
+    -- 目前 切换方案 服务器走的 OnSwitchSkillPosRet. 同时, 下发技能的全同步. 
+    -- 在 OnSwitchSkillPosRet 不太好区分 是改名 还是 切换的方案.
+    -- 同时, 孔磊 跟我保证 OnAllSkillNotice 先到, 所以在 此处 做技能方案变化的 提示
+    if self.caseID ~= nil and self.caseID ~= 0 and self.caseID ~= data.data.CaseID then
+        -- Util.ShowMessage("启动技能方案: 方案" .. tostring(self.caseID));
+        Util.ShowMessage(StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_238"), {data.data.CaseID}))
+    end
+
+    self.caseID = data.data.CaseID;
+    self.caseName = data.data.CaseName;
+    if self.skillSwitchWindowView ~= nil then
+        self.skillSwitchWindowView:Refresh(self.skillList, self.skillPosList, self.caseID);
+    end
+end
+
+-- 技能替换返回
+function SkillSwitchModule:OnSwitchSkillPosRet(data)
+    local switchSkillPosRet = data.data;
+
+    local retValue = switchSkillPosRet.RetValue;
+    if retValue == CS.ProtoMsg.SwitchSkillPosRet.Types.SwitchResult.Ok then
+        -- 技能方案切换 服务器会 通过 AllSkillNotice 通知刷新所有技能
+        -- local posID = switchSkillPosRet.CaseID;
+        -- local list = switchSkillPosRet.List;
+
+        -- if self.skillSwitchWindowView ~= nil then
+        -- self.skillSwitchWindowView:SwitchCaseID(posID,list);
+        -- self.skillSwitchWindowView:SwitchData(posID, skillID, replacePos);
+        -- end
+    elseif retValue == CS.ProtoMsg.SwitchSkillPosRet.Types.SwitchResult.Fail_BattleState then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_239"));
+
+    elseif retValue == CS.ProtoMsg.SwitchSkillPosRet.Types.SwitchResult.Fail_SameSkill then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_240"));
+    elseif retValue == CS.ProtoMsg.SwitchSkillPosRet.Types.SwitchResult.Fail_ErrType then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_241"));
+    elseif retValue == CS.ProtoMsg.SwitchSkillPosRet.Types.SwitchResult.Fail_NoExistSkill then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_242"));
+    elseif retValue == CS.ProtoMsg.SwitchSkillPosRet.Types.SwitchResult.Fail_ErrPos then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_243"));
+    elseif retValue == CS.ProtoMsg.SwitchSkillPosRet.Types.SwitchResult.Fail_PosNoLock then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_244"));
+    elseif retValue == CS.ProtoMsg.SwitchSkillPosRet.Types.SwitchResult.Fail_AlreadyInPos then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_245"));
+    elseif retValue == CS.ProtoMsg.SwitchSkillPosRet.Types.SwitchResult.Fail_UnknownSkill_LockLevel then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_246"));
+    else
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_247"));
+    end
+end
+
+-- 方案名修改 的回复
+function SkillSwitchModule:OnUpSkillCaseDataRet(data)
+    local upSkillCaseDataRet = data.data;
+
+    local result = upSkillCaseDataRet.Success;
+    if result then
+        if self.caseName ~= nil then
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_248"));
+        end
+
+        self.caseName = upSkillCaseDataRet.CaseName;
+        if self.skillSwitchWindowView ~= nil then
+            self.skillSwitchWindowView:RefreshCaseName();
+        end
+
+    else
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_249"));
+    end
+end
+
+-- LuaModule 消息处理
+function SkillSwitchModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...);
+end
+
+-- LuaModule显示
+function SkillSwitchModule:OnModuleShow(arg)
+
+end
+
+-- LuaModule 释放
+function SkillSwitchModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.SkillSwitchModule)
+    self.caseID = nil;
+    self.caseName = nil;
+end
+
+return SkillSwitchModule

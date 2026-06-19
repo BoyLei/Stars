@@ -1,0 +1,219 @@
+--[[
+*文件名   :   AssistItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/02/13 16:47:51"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+AssistItem=class("AssistItem",UIPanel)
+AssistItem.m_Locked=nil;
+AssistItem.m_UnLock=nil;
+AssistItem.m_Has=nil;
+AssistItem.m_None=nil;
+AssistItem.m_Condition=nil;
+AssistItem.m_Quality=nil;
+AssistItem.m_Head=nil;
+AssistItem.m_Level=nil;
+AssistItem.m_Power=nil;
+AssistItem.m_SubButton=nil;
+AssistItem.m_AddButton=nil;
+AssistItem.m_HeadButton=nil;
+AssistItem.m_Stars=nil;
+AssistItem.m_Data=nil;
+AssistItem.m_SubCallBack=nil;
+AssistItem.m_SelectCallBack=nil;
+AssistItem.Seat=-1;
+AssistItem.SlotTag=nil;
+AssistItem.Tag=nil;
+AssistItem.redPoint=nil;
+AssistItem.m_LockedBtn=nil;
+AssistItem.UnLockCondition=nil;
+function AssistItem:ctor(seat,go,atlas,cb1,cb2)
+	self.Seat=seat;
+	self.prefab=go;
+	self.AtlasPath=atlas;
+	self.m_SubCallBack=cb1;
+	self.m_SelectCallBack=cb2;
+	self.m_Locked=self:Find("Locked").gameObject;
+	self.m_UnLock=self:Find("UnLock").gameObject;
+	self.m_Has=self:Find("UnLock/Has").gameObject;
+	self.m_None=self:Find("UnLock/None").gameObject;
+	self.redPoint=self:Find("UnLock/None/Button/redPoint").gameObject;
+	self.m_Condition=self:Find("Locked/Condition"):GetComponent(typeof(Text));
+	self.m_Quality=self:Find("UnLock/Has/Quality"):GetComponent(typeof(Image));
+	self.SlotTag=self:Find("UnLock/UnActiveTag"):GetComponent(typeof(Image));
+	self.Tag=self:Find("UnLock/Has/Tag"):GetComponent(typeof(Image));
+	self.m_Head=self:Find("UnLock/Has/Head"):GetComponent(typeof(Image));
+	self.m_Level=self:Find("UnLock/Has/Level"):GetComponent(typeof(Text));
+	self.m_Power=self:Find("UnLock/Has/Image/Power"):GetComponent(typeof(Text));
+	self.m_SubButton=self:Find("UnLock/Has/Button"):GetComponent(typeof(Button));
+	self.m_HeadButton=self:Find("UnLock/Has/Head"):GetComponent(typeof(Button));
+	self.m_LockedBtn=self:Find("Locked"):GetComponent(typeof(JButton));
+	self.Stars={}
+	table.insert(self.Stars,self:Find("UnLock/Has/Stars/star1").gameObject);
+	table.insert(self.Stars,self:Find("UnLock/Has/Stars/star2").gameObject);
+	table.insert(self.Stars,self:Find("UnLock/Has/Stars/star3").gameObject);
+	table.insert(self.Stars,self:Find("UnLock/Has/Stars/star4").gameObject);
+	table.insert(self.Stars,self:Find("UnLock/Has/Stars/star5").gameObject);
+	table.insert(self.Stars,self:Find("UnLock/Has/Stars/star6").gameObject);
+	self.m_AddButton=self:Find("UnLock/None/Button"):GetComponent(typeof(Button));
+	self.m_SubButton.onClick:AddListener(function() self:OnClickSubButton() end);
+	self.m_AddButton.onClick:AddListener(function() self:OnClickAddButton() end);
+	self.m_HeadButton.onClick:AddListener(function() self:OnClickHeadButton() end);
+	self.m_LockedBtn.OnClick=function()
+		self:OnClickLockedBtn()
+	end
+	
+end
+function AssistItem:GetQualityName(quality)
+	if quality== 1 then
+		return "Bottom_Quality_01"
+	elseif quality== 2 then
+		return "Bottom_Quality_02"
+	elseif quality== 3 then
+		return "Bottom_Quality_03"
+	elseif quality== 4 then
+		return "Bottom_Quality_04"
+	elseif quality== 5 then
+		return "Bottom_Quality_05"
+	end
+end
+
+function AssistItem:GetActiveTagName(tag)
+	if tag== 1 then
+		return "Partner_icon_life"
+	elseif tag== 2 then
+		return "Partner_icon_defense"
+	elseif tag== 3 then
+		return "Partner_icon_attack"
+	elseif tag== 4 then
+		return "Partner_icon_mix"
+	end
+end
+
+function AssistItem:GetUnActiveTagName(tag)
+	if tag== 1 then
+		return "Partner_icon_life02"
+	elseif tag== 2 then
+		return "Partner_icon_defense02"
+	elseif tag== 3 then
+		return "Partner_icon_attack02"
+	elseif tag== 4 then
+		return "Partner_icon_mix02"
+	end
+end
+
+function AssistItem:OnOpen(arg)
+	----assites[i]={Pos=i,data=nil};
+	self.m_Data=arg.data;
+	self.Seat=arg.Pos
+	local playerJob=GameManager.Instance:GetPlayJobBaseID();
+	local cfg = ConfigDataAccessor.PartnerAssistSlot[playerJob];
+	if cfg == nil then
+		return;
+	end
+	local slotInfo= cfg[self.Seat]
+	if slotInfo~=nil then
+		
+		self:GetSprite(self:GetUnActiveTagName(slotInfo.Mark),function (sp)
+				self.SlotTag.sprite=sp
+				self.SlotTag:SetNativeSize();
+		end)
+
+		
+		self:GetSprite(self:GetActiveTagName(slotInfo.Mark),function (sp)
+				self.Tag.sprite=sp
+				self.Tag:SetNativeSize();
+		end)
+
+		
+		local active=false;
+		if partnerMgr~=nil then
+			active=partnerMgr:FreePartnerCount() > 0
+		end
+		self.redPoint:SetActive(active)
+		local locked= GameManager.Instance:IsConditionMete(slotInfo.Condition);
+		--状态
+		--- 未解锁
+		if not locked then
+			self.m_Locked:SetActive(true);
+			self.m_UnLock:SetActive(false);
+			self.m_Condition.text=slotInfo.Desc
+			self.UnLockCondition=slotInfo.Desc
+		else
+			self.m_Locked:SetActive(false);
+			if self.m_Data==nil then
+				self.m_None:SetActive(true);
+				self.m_Has:SetActive(false);
+
+			else
+				--ID
+				local config=ConfigDataAccessor.Partner[self.m_Data.Index];
+				for i = 1, #self.Stars do
+					if i<=self.m_Data.CurStar then
+						self.Stars[i]:SetActive(true)
+					else
+						self.Stars[i]:SetActive(false)
+					end
+				end
+				
+				local avatarDataCell= ConfigDataAccessor.Avatar[config.AvatarID];
+				if avatarDataCell ~= nil then
+					local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID];
+					if headCfg ~= nil then
+						self:GetSpriteByAtlas(headCfg.HeadAtlasName,headCfg.MinHead,function (sp)
+								self.m_Head.sprite=sp
+								--self.m_Head:SetNativeSize();
+						end);
+					
+					end
+				end
+				
+				local  PartnerNature=ConfigDataAccessor.PartnerNature[config.Nature][self.m_Data.Level]
+				if PartnerNature~=nil then
+					--self.m_Power.text=tostring(PartnerNature.Power).."/"..tostring(self.m_Data.Level) .. "级";
+					self.m_Power.text=StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {tostring(PartnerNature.Fight).."/"..tostring(self.m_Data.Level)});
+				end
+				
+				self:GetSpriteByAtlas("UI/Common/Atlas/CommonItem","Bag_Grid_r"..(config.Quality+1),function (sp)
+						self.m_Quality.sprite=sp
+						--self.m_Head:SetNativeSize();
+					end);
+				
+				--self:GetSprite(self:GetQualityName(config.Quality),function (sp)
+						--self.m_Quality.sprite=sp
+				--end)
+				--self.m_Level.text=tostring(self.m_Data.Level) .. "级";
+				self.m_Level.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {self.m_Data.Level});
+
+				--self.m_Power.text=tostring(self.m_Data.Level);
+				self.m_None:SetActive(false);
+				self.m_Has:SetActive(true);
+			end
+			self.m_UnLock:SetActive(true);
+		end
+	end
+
+end
+
+function AssistItem:OnClickLockedBtn()
+	Util.ShowMessage(self.UnLockCondition)
+end
+
+function AssistItem:OnClickSubButton()
+	if self.m_SubCallBack~=nil then
+		self.m_SubCallBack(self.m_Data.Index);
+	end
+end
+function AssistItem:OnClickAddButton()
+	if self.m_SelectCallBack~=nil then
+		self.m_SelectCallBack(0,self.Seat);
+	end
+end
+function AssistItem:OnClickHeadButton()
+	if self.m_SelectCallBack~=nil then
+		self.m_SelectCallBack(self.m_Data.Index,self.Seat);
+	end
+end
+return  AssistItem

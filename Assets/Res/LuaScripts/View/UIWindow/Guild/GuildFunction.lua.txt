@@ -1,0 +1,185 @@
+--[[
+*文件名   :   GuildFunction
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] local GuildFunction = {}
+
+GuildFunction.__index = GuildFunction
+
+local ObjectPool = require("Common/Helper/ObjectPool")
+
+function GuildFunction:New(_go)
+    local self = {}
+    setmetatable(self, GuildFunction)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    --功能页签
+
+    --跳转列表
+    local _go = self.transform:Find("Scroll View/Mask/List/GuildFunctionItem").gameObject
+    self.guildFunctionItemPool =
+        ObjectPool:New(
+        5,
+        "View/UIWindow/Guild/GuildFunctionItem",
+        _go,
+        _go.transform.parent,
+        --生成回调
+        function(ritem)
+            ritem:InitItem()
+        end,
+        --回收回调
+        function(ritem)
+            ritem:SetUse(false)
+        end
+    )
+
+    --普通跳转
+    self.commonJumpFunc = function(jumpID)
+        local sysJumpCfg = ConfigDataAccessor.SystemJump[jumpID]
+        if sysJumpCfg ~= nil then
+            JumpBySystemJumpEnum(sysJumpCfg.WayString)
+        end
+    end
+
+    --冒险团拍卖跳转
+    self.specialJumpFunc = function(jumpID)
+        --进入冒险团拍卖行
+
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        if self.rechargeState == 1 then
+            LuaModuleDispatcher:SendMessage(ModuleDef.RechargeModule, "OnOpen", {CS.ProtoMsg.AuctionType.AtDefault, AuctionOtherSelectType.UnionWarehouse, nil})
+        elseif self.rechargeState == 2 then
+            LuaModuleDispatcher:SendMessage(ModuleDef.RechargeModule, "OnOpen", {CS.ProtoMsg.AuctionType.AtDefault, AuctionOtherSelectType.UnionWarehouse, nil})
+        end
+    end
+
+    self.rechargeModule = LuaModuleDispatcher:GetModule(ModuleDef.RechargeModule)
+
+    self.refreshFunc = function()
+        self:RefreshRechargeUI()
+    end
+
+    self:Show(false)
+
+    return self -- 返回自身
+end
+
+function GuildFunction:Show(b)
+    self.gameObject:SetActive(b)
+    if b then
+        RedPointManager.Instance:TriggerConditionTypeBoolValue(RedPointConditionType.Union_Notice, false)
+
+        MonoHelper.RemoveSecTimeUpdateListener(self.refreshFunc)
+        MonoHelper.AddSecTimeUpdateListener(self.refreshFunc)
+
+        self:Refesh()
+    else
+        MonoHelper.RemoveSecTimeUpdateListener(self.refreshFunc)
+    end
+end
+
+function GuildFunction:Refesh()
+    --对象池
+    self.guildFunctionItemPool:RecycleAll()
+
+    local JumpList = {}
+    for k, v in pairs(ConfigDataAccessor.GuildJump) do
+        local data = {}
+        data.ID = k
+        data.JumpID = v.SystemJump
+        data.IsOpen = 1
+        data.IsInPlay = 0
+        data.SystemName = v.SystemName
+        data.Systemdesc = v.Systemdesc
+        data.SystemOpenDesc = v.SystemOpenDesc
+
+        if v.SystemJump == 0 then
+            --判断拍卖行是否开启
+            if not (CheckPlayerGuidanceOpen(10024, "", false)) then
+                data.IsOpen = 0
+            end
+
+            --冒险团拍卖行
+            table.insert(JumpList, data)
+            data.OnItemClick = self.specialJumpFunc
+
+            --- 刷新 冒险团 拍卖按钮的 ui逻辑
+            local hasOpenType = self.rechargeModule:HasOpenType()
+
+            self.rechargeState = 1
+
+            -- 未开放状态
+            if not hasOpenType then
+                data.IsOpen = 0
+            else
+                local hasWaitingType = self.rechargeModule:HasWaitingType()
+                local serverNowTime = GameManager.Instance:GetServerTimeStamp()
+                local waitingEndTime = self.rechargeModule:GetWaitingEndTime()
+
+                if hasWaitingType and serverNowTime < waitingEndTime then
+                    --self.btnGoDesc.text =LanguageHelp:GetLanguageByKey("Local_Str_examine")
+                    -- 活动开启了,但是 是 待拍期的状态, 显示剩余 待拍的时间
+
+                    local leastTime = math.floor((waitingEndTime - serverNowTime) / 1000)
+                    --self.rechargeDesc.text = "活动进行中,还有" .. leastTime .. "开启拍卖";
+                    data.SystemOpenDesc = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_GuildFunction_rechargeDesc"), {leastTime})
+                    self.rechargeState = 2
+                else
+                    --self.btnGoDesc.text =LanguageHelp:GetLanguageByKey("Local_Str_Go")
+                    -- 拍卖活动完全开启, 显示 正常的冒险团拍卖进行中的状态
+                    data.SystemOpenDesc = LanguageHelp:GetLanguageByKey("Local_Str_Tips27")
+                end
+            end
+        else
+            local sysJumpCfg = ConfigDataAccessor.SystemJump[v.SystemJump]
+
+            if sysJumpCfg ~= nil then
+                data.OnItemClick = self.commonJumpFunc
+
+                local WayString = sysJumpCfg.WayString
+                --判断是否系统开启
+                local sysOpen = sysJumpCfg.SysOpen
+                if sysOpen > 0 then
+                    if not (CheckPlayerGuidanceOpen(sysOpen, "", false)) then
+                        data.IsOpen = 0
+                    end
+                end
+
+                if WayString == "Play_Week_GuildNoonActiv" then
+                    --无畏之战
+                    --判断是否正在进行
+                elseif WayString == "Play_Week_FieldBoss" then
+                    --协会讨伐
+                    --判断是否正在进行
+                elseif WayString == "Play_Week_PlayModeGVE" then
+                    --梦境入侵
+                    --判断是否正在进行
+                elseif WayString == "Buy_Shop_Guild" then
+                    --帮会商店
+                elseif WayString == "Play_Day_GuildDonate" then
+                --协会募集
+                end
+
+                table.insert(JumpList, data)
+            end
+        end
+    end
+
+    --排序
+
+    for i = 1, #JumpList do
+        local item = self.guildFunctionItemPool:Spawn()
+        item:SetItem(JumpList[i])
+    end
+end
+
+--- 刷新 冒险团 拍卖按钮的 ui逻辑
+function GuildFunction:RefreshRechargeUI()
+end
+
+return GuildFunction

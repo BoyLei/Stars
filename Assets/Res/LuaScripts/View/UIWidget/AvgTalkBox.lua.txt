@@ -1,0 +1,728 @@
+--[[
+*文件名   :   AvgTalkBox
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/10/21 17:36:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] AvgTalkBox = class("AvgTalkBox", UIPanel)
+AvgTalkBox.m_Background = nil
+AvgTalkBox.m_TalkBoxBg = nil
+AvgTalkBox.m_TalkBoxContent = nil
+AvgTalkBox.m_TalkBoxName = nil
+AvgTalkBox.m_TalkNextBtn = nil
+
+AvgTalkBox.m_CommonDialog = nil
+AvgTalkBox.m_NewPlayerPreFlag = true
+
+local PreNewPlayerEventStepID = "1_%s_%s_%s"
+local AvgTalkBoxSelectItem = require("View/Item/AvgTalkBoxSelectItem")
+local ObjectPool = require("Common/Helper/ObjectPool")
+
+function AvgTalkBox:Awake()
+    self.transform = self.prefab.transform
+    self.gameObject = self.prefab
+
+    self.m_BlackCover = self:Find("black"):GetComponent(typeof(Image))
+
+    self.m_Background = self:Find("BackGround"):GetComponent(typeof(Image))
+    self.m_Background.gameObject:SetActive(false)
+
+    self.m_TalkBoxBg = self:Find("Cut4Cam90/AssemblyRatio2/TalkBoxBg"):GetComponent(typeof(RectTransform))
+    -- self.m_TalkBoxContent = self:Find("Cut4Cam90/AssemblyRatio2/TalkBoxBg/TalkBoxContent"):GetComponent(typeof(Text))
+    self.m_TalkBoxContent = self:Find("Cut4Cam90/AssemblyRatio2/TalkBoxBg/TalkBoxContent"):GetComponent(typeof(TextMeshProUGUI))
+    self.m_typewriter = self:Find("Cut4Cam90/AssemblyRatio2/TalkBoxBg/TalkBoxContent"):GetComponent(typeof(CS.KoganeUnityLib.TMP_Typewriter))
+
+    self.m_TalkBoxName = self:Find("Cut4Cam90/AssemblyRatio2/TalkBoxBg/TalkBoxNameBg/TalkBoxName"):GetComponent(typeof(Text))
+
+    self.m_TalkNextBtn = self:Find("click"):GetComponent(typeof(Button))
+    self.m_go_CommonBg = self:Find("ComBlack").gameObject
+
+    self.go_nameBg = self:Find("Cut4Cam90/AssemblyRatio2/TalkBoxBg/TalkBoxNameBg").gameObject
+    self.go_skipBtn = self:Find("Cut4Cam90/AssemblyRatio2/SkipBtn").gameObject
+
+    self.go_autoBtn = self:Find("Cut4Cam90/AssemblyRatio2/AutoBtn").gameObject
+
+    self.autoPs = self:Find("Cut4Cam90/AssemblyRatio2/AutoBtn/AutoPs").gameObject
+    self.autoIcon = self:Find("Cut4Cam90/AssemblyRatio2/AutoBtn/icon"):GetComponent(typeof(Image))
+
+    -- 从本地读取是否是自动
+    self.IsAuto = false
+    if LocalCacheManager.Instance:Has("AvgIsAuto") then
+        self.IsAuto = LocalCacheManager.Instance:Get("AvgIsAuto")
+    end
+    self:SetIsAuto()
+
+    self.go_selectMenu = self:Find("Cut4Cam90/AssemblyRatio2/Select").gameObject
+    self.go_selectMenu:SetActive(false)
+
+    self.go_nextGo = self:Find("Cut4Cam90/AssemblyRatio2/TalkBoxBg/NextGo").gameObject
+    self.go_nextGo:SetActive(false)
+
+    self.selectItems = {}
+    -- 初始化选项Item
+    for i = 1, 4, 1 do
+        local _go = self:Find("Cut4Cam90/AssemblyRatio2/Select/Root/SelectItem" .. i).gameObject
+
+        local si =
+            AvgTalkBoxSelectItem:New(
+            _go,
+            function(idx, cID)
+                self:OnSelectClick(idx, cID)
+            end
+        )
+        self.selectItems[i] = si
+    end
+
+    self.CanClickToNext = false
+
+    self.talkConetntNow = nil
+
+    self.cutIn = self:Find("Cut4Cam90/AssemblyRatio2/Cutin"):GetComponent(typeof(Image))
+
+    self.fgId_faces = {"", "", ""}
+    self.fgIds = {"", "", ""}
+    self.m_Character = {}
+    self.m_CharacterRect = {}
+    self.m_CharacterOldX = {}
+    for i = 1, 3 do
+        local img = self:Find("Cut4Cam90/AssemblyRatio2/Char" .. i):GetComponent(typeof(Image))
+        local rect = img:GetComponent(typeof(RectTransform))
+        table.insert(self.m_Character, img)
+        table.insert(self.m_CharacterRect, rect)
+        table.insert(self.m_CharacterOldX, rect.anchoredPosition.x)
+    end
+
+    self.tw_content = nil -- 对话内容
+    self.text_speed = 40
+    self.module = nil
+end
+
+function AvgTalkBox:BindModule(m)
+    self.module = m
+end
+
+function AvgTalkBox:Start()
+    self.m_TalkNextBtn.onClick:AddListener(
+        function()
+            self:OnNextButtonClick()
+            SoundManager.Instance:PlayEventName("UI_Click_On_Sound", nil, nil)
+        end
+    )
+
+    -- 跳过对话
+    local btnSkip = self.go_skipBtn:GetComponent(typeof(JButton))
+    -- JButton点击
+    btnSkip.OnClick = function(go)
+        if self.m_CommonDialog ~= nil then
+            local stepID = string.format(PreNewPlayerEventStepID, self.m_CommonDialog.Dialog_type, self.m_CommonDialog.Id, 2)
+            GameManager.Instance:EventPreNewPlayerEvent(stepID)
+            self.m_NewPlayerPreFlag = false
+        end
+        self:FinishTalk()
+    end
+
+    -- 自动对话
+    local btnAuto = self.go_autoBtn:GetComponent(typeof(JButton))
+    -- JButton点击
+    btnAuto.OnClick = function(go)
+        self:OnAutoClick()
+    end
+end
+
+function AvgTalkBox:OnAutoClick()
+    self.IsAuto = not (self.IsAuto)
+    self:SetIsAuto()
+    -- 存档
+    LocalCacheManager.Instance:SetValueType("AvgIsAuto", self.IsAuto)
+
+    if self.CanClickToNext then
+        self:CheckToAutoToNext()
+    end
+end
+
+function AvgTalkBox:SetIsAuto()
+    self.autoPs:SetActive(self.IsAuto)
+    if self.IsAuto then
+        self.autoIcon.color = Color(1, 1, 1, 1)
+    else
+        self.autoIcon.color = Color(1, 1, 1, 0.4)
+    end
+end
+
+function AvgTalkBox:OnEnable()
+end
+
+function AvgTalkBox:OnDisable()
+end
+
+function AvgTalkBox:OnDestroy()
+end
+
+function AvgTalkBox:OnOpen(arg)
+    -- 随便打开一段对话
+    -- self:GetTalkContentById(4);
+
+    print("OpenAVG")
+end
+
+function AvgTalkBox:OnClose(arg)
+    print("CloseAVG")
+
+    self.m_CommonDialog = nil
+    self.m_NewPlayerPreFlag = true
+end
+
+function AvgTalkBox:ShowSelect()
+    -- 显示选项
+    if self.talkConetntNow.Dialog_option ~= nil and self.talkConetntNow.Dialog_option ~= "" then
+        -- 防止一次对话里有两组选项
+        if self.SelectedIdxs_Id ~= self.talkConetntNow.Id then
+            if self.SelectedIdxs == nil then
+                self.SelectedIdxs = {}
+            else
+                for k, _ in pairs(self.SelectedIdxs) do
+                    self.SelectedIdxs[k] = nil
+                end
+            end
+        end
+
+        local nextIds = self.talkConetntNow.Next_dialog_id
+        self.go_selectMenu:SetActive(true)
+        for i = 1, #self.selectItems, 1 do
+            self.selectItems[i].gameObject:SetActive(false)
+        end
+        local dialog_options = string.split(self.talkConetntNow.Dialog_option, "#")
+
+        -- 判断选项显示条件
+        local select_condition = self.talkConetntNow.Select_condition
+
+        local isHaveSelect = false
+        for i = 1, #nextIds, 1 do
+            local condition = 0
+            local IsMete = true
+            if select_condition[i] ~= nil and select_condition[i] > 0 then
+                condition = select_condition[i]
+            end
+
+            if condition > 0 then
+                IsMete = GameManager.Instance:IsConditionMete(condition)
+            end
+
+            -- 判断是否满足条件
+            if IsMete then
+                self.selectItems[i].gameObject:SetActive(true)
+                -- self.selectItems[i]:SetItem(dialog_options[i],nextIds[i]);
+
+                local targetID = GameManager.Instance.mainPlayerId
+                local playerName = GameManager.Instance:GetEntityNameById(targetID)
+                local opTex = string.gsub(dialog_options[i], "@player", playerName)
+                self.selectItems[i]:SetItem(opTex, i, nextIds[i])
+                isHaveSelect = true
+                -- 防止一次对话里有两组选项
+                if self.SelectedIdxs_Id ~= self.talkConetntNow.Id then
+                    self.SelectedIdxs[i] = 0
+                end
+
+                -- 处理已经点击过的
+                if self.SelectedIdxs[i] == 1 then
+                    if self.talkConetntNow.Select_type == 1 then
+                        -- 置灰
+                        self.selectItems[i]:SetDark()
+                    elseif self.talkConetntNow.Select_type == 2 then
+                        -- 隐藏
+                        self.selectItems[i].gameObject:SetActive(false)
+                    end
+                end
+            end
+        end
+        self.go_skipBtn:SetActive(false)
+        -- 防止一次对话里有两组选项
+        self.SelectedIdxs_Id = self.talkConetntNow.Id
+
+        -- 全部被条件卡住了直接结束
+        if not (isHaveSelect) then
+            self:FinishTalk()
+        end
+    end
+end
+
+-- 点击下一句对话
+function AvgTalkBox:OnNextButtonClick()
+    if not (self.CanClickToNext) then
+        self:ShowSelect()
+
+        self.CanClickToNext = true
+        -- 立马显示完整句子
+        if self.tw_content ~= nil then
+            self.tw_content:Kill()
+        end
+        self.go_nextGo:SetActive(true)
+        self.m_typewriter:Skip(false)
+        self.m_TalkBoxContent.text = self.talkConetntNow.Dialog_desc2
+
+        -- 结束倒计时
+        if self.talkConetntNow.Delay_time > 0 then
+            if self.tw_Delay_time ~= nil then
+                self.tw_Delay_time:Kill()
+            end
+            self.m_TalkBoxBg.gameObject:SetActive(true)
+            self:ShowFg()
+            self:ShowCutIn()
+        end
+
+        -- 延迟后自动进入下一句
+        self:CheckToAutoToNext()
+    else
+        if self.tw_auto_delay ~= nil then
+            self.tw_auto_delay:Kill()
+        end
+        self:GetNextTalkContent()
+    end
+end
+
+function AvgTalkBox:OnSelectClick(idx, cID)
+    -- 回调
+    self.module:OnTalkBoxSelectAction(idx)
+
+    print("onClick" .. idx)
+    self.go_selectMenu:SetActive(false)
+
+    -- 选中选项
+    self.SelectedIdxs[idx] = 1
+
+    --[[(暂时关闭)
+	if self.module.NPCEnityID~= nil then
+		idx=0;
+	end
+	]]
+    self:GetTalkContentById(cID)
+end
+
+function AvgTalkBox:ShowTalkBoxAndFg()
+    -- 对话内容
+    self.go_nextGo:SetActive(false)
+    if self.tw_content ~= nil then
+        self.tw_content:Kill()
+    end
+
+    if self.SoundKey ~= nil then
+        SoundManager.Instance:StopVoice(self.SoundKey)
+        self.IsPlayVoice = false
+        self.SoundKey = nil
+    end
+
+    -- 播放语音
+    if self.talkConetntNow.Voice_id ~= "" and self.talkConetntNow.Voice_id ~= "0" then
+        local rest =
+            SoundManager.Instance:PlayVoice(
+            self.talkConetntNow.Voice_id,
+            self.gameObject,
+            function(key)
+                --Play Complete
+                if self.IsPlayVoice and key == self.SoundKey then
+                    self.IsPlayVoice = false
+                    self:CheckToAutoToNext(true)
+                end
+            end
+        )
+
+        self.IsSoundSuccess = rest.Item1
+        self.SoundKey = rest.Item2
+
+        if self.IsSoundSuccess then
+            self.IsPlayVoice = true
+        end
+    end
+
+    self.m_TalkBoxContent.text = ""
+    self.m_typewriter:Play(
+        self.talkConetntNow.Dialog_desc2,
+        self.text_speed,
+        function()
+            self.CanClickToNext = true
+            self.go_nextGo:SetActive(true)
+            -- 显示选项
+            self:ShowSelect()
+
+            -- 延迟后自动进入下一句
+            if not (self.IsPlayVoice) then
+                self:CheckToAutoToNext()
+            end
+        end
+    )
+
+    self:ShowFg()
+    self:ShowCutIn()
+end
+
+function AvgTalkBox:CheckToAutoToNext(isHaveVoice)
+    -- 延迟后自动进入下一句
+    if self.IsAuto and not (self.go_selectMenu.activeSelf) then
+        local delay = SystemConstConfigs.Dialogue_AutoPlayDelay_NoVoice
+        if isHaveVoice then
+            delay = SystemConstConfigs.Dialogue_AutoPlayDelay_HaveVoice
+        end
+        if self.tw_auto_delay ~= nil then
+            self.tw_auto_delay:Kill()
+        end
+        self.tw_auto_delay =
+            DOVirtual.DelayedCall(
+            delay / 1000,
+            function()
+                if not (self.IsPlayVoice) then
+                    self:GetNextTalkContent()
+                end
+            end
+        )
+    end
+end
+
+function AvgTalkBox:ShowFg()
+    -- 加载立绘
+
+    -- 0当作隐藏npc处理
+    if self.talkConetntNow.Spine_id == "0" then
+        return
+    end
+
+    -- 空的 对话表可不写名字和立绘，根据触发对象自动读取，若填写则读取填写内容
+    if self.talkConetntNow.Spine_id == nil or self.talkConetntNow.Spine_id == "" then
+        --[[
+		需求对接杨蕊涵
+		对话表可不写名字和立绘，根据触发对象自动读取，若填写则读取填写内容
+		]]
+        if self.module.BaseID ~= nil then
+            local cfg = ConfigDataAccessor.Npc[self.module.BaseID]
+            if cfg ~= nil then
+                self.talkConetntNow.Spine_id = "" .. cfg.AvatarID
+                self.talkConetntNow.Site = "1"
+            else
+                return
+            end
+        else
+            return
+        end
+    end
+
+    local fgIds = string.split(self.talkConetntNow.Spine_id, "#") -- id 用 # 分割
+    local posIds = string.split(self.talkConetntNow.Site, "#") -- 用 # 分割
+
+    for i = 1, #fgIds do
+        local pos = 1
+        if posIds[i] ~= "" and posIds[i] ~= nil then
+            pos = tonumber(posIds[i])
+        end
+        if pos == 0 then
+            pos = 1
+        end
+        local faceID = self.talkConetntNow.Face_id
+        local id_face = fgIds[i] .. "_" .. faceID
+        if self.fgId_faces[i] ~= id_face then
+            local AvatarID = math.floor(tonumber(fgIds[1]))
+            local avatarDataCell = ConfigDataAccessor.Avatar[AvatarID]
+            if avatarDataCell ~= nil then
+                if avatarDataCell.HeadID > 0 then
+                    local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID]
+                    if headCfg ~= nil then
+                        local imageName = headCfg.HalfDrawing
+                        if not (self.IsFirstIn) and self.fgIds[i] == fgIds[i] then
+                            self.m_Character[i].gameObject:SetActive(true)
+                        end
+
+                        local isHaveFaceID = false
+                        if faceID > 0 then
+                            local loda_imageName = imageName .. "_" .. faceID
+
+                            ResourceHelper:LoadIconAsync(
+                                self.m_Character[i],
+                                "",
+                                ResourceHelper.HeadAtlasPath .. loda_imageName,
+                                true,
+                                function()
+                                    if self.IsFirstIn then
+                                        self.IsFirstIn = false
+                                    end
+
+                                    self.m_Character[i].gameObject:SetActive(true)
+
+                                    faceID = 0
+                                    isHaveFaceID = true
+                                end
+                            )
+                        end
+
+                        if not (isHaveFaceID) then
+                            ResourceHelper:LoadSpriteAtlasAsync(
+                                self.m_Character[i],
+                                ResourceHelper.HeadAtlasPath .. imageName,
+                                imageName,
+                                true,
+                                function()
+                                    if self.IsFirstIn then
+                                        self.IsFirstIn = false
+                                    end
+
+                                    self.m_Character[i].gameObject:SetActive(true)
+                                end
+                            )
+                        end
+
+                        -- ResourceHelper:LoadIconAsync(self.m_Character[i], "", headCfg.HalfDrawing, true,function()
+
+                        self.fgId_faces[i] = id_face
+                        self.fgIds[i] = fgIds[i]
+                    end
+                end
+            end
+        else
+            self.m_Character[i].gameObject:SetActive(true)
+        end
+
+        -- 坐标偏移
+        local offX = self.m_CharacterOldX[pos]
+
+        if self.talkConetntNow.Offset ~= nil and self.talkConetntNow.Offset ~= "" then
+            self.m_CharacterRect[i].anchoredPosition = Vector2(tonumber(self.talkConetntNow.Offset) + offX, self.m_CharacterRect[i].anchoredPosition.y)
+        else
+            self.m_CharacterRect.anchoredPosition = Vector2(offX, self.m_CharacterRect[i].anchoredPosition.y)
+        end
+    end
+
+    -- 立绘明暗和对话名左右位置（需要策划补充表）
+end
+
+function AvgTalkBox:ShowCutIn()
+    -- 加载中间的图片
+    if self.talkConetntNow.Image ~= "" and self.talkConetntNow.Image ~= nil then
+        print("showcutin")
+        self.cutIn.gameObject:SetActive(false)
+        if self.TalkImage ~= self.talkConetntNow.Image then
+            self.TalkImage = self.talkConetntNow.Image
+
+            ResourceHelper:LoadIconAsync(
+                self.cutIn,
+                "",
+                self.talkConetntNow.Image,
+                true,
+                function()
+                    self.cutIn.gameObject:SetActive(true)
+                end
+            )
+        else
+            self.cutIn.gameObject:SetActive(true)
+        end
+    else
+        self.cutIn.gameObject:SetActive(false)
+    end
+end
+
+function AvgTalkBox:RefeshTalkInfo()
+    -- 加载背景图片
+    self.m_Background.gameObject:SetActive(false)
+    if self.talkConetntNow.Dialog_background ~= "" and self.talkConetntNow.Dialog_background ~= nil then
+        self.m_Background.gameObject:SetActive(false)
+        if self.TalkImageBg ~= self.talkConetntNow.Dialog_background then
+            self.TalkImageBg = self.talkConetntNow.Dialog_background
+
+            self.m_BlackCover.gameObject:SetActive(true)
+            self.m_BlackCover.color = Color(0, 0, 0, 0)
+            if self.tw_BlackCover1 ~= nil then
+                self.tw_BlackCover1:Kill()
+            end
+            if self.tw_BlackCover2 ~= nil then
+                self.tw_BlackCover2:Kill()
+            end
+            self.tw_BlackCover1 =
+                self.m_BlackCover:DOColor(Color(0, 0, 0, 1), 0.2):OnComplete(
+                function()
+                    ResourceHelper:LoadIconAsync(
+                        self.m_Background,
+                        "",
+                        self.talkConetntNow.Dialog_background,
+                        true,
+                        function()
+                            self.m_Background.gameObject:SetActive(true)
+                        end
+                    )
+                end
+            )
+            self.tw_BlackCover2 =
+                self.m_BlackCover:DOColor(Color(0, 0, 0, 0), 0.2):SetDelay(0.7):OnComplete(
+                function()
+                    self.m_BlackCover.gameObject:SetActive(false)
+                end
+            )
+        else
+            self.m_Background.gameObject:SetActive(true)
+        end
+    else
+        self.m_Background.gameObject:SetActive(false)
+    end
+
+    -- 是否显示对话名
+    if self.talkConetntNow.Name2 == "@npc" then
+        --[[
+			需求对接杨蕊涵
+			对话表可不写名字和立绘，根据触发对象自动读取，若填写则读取填写内容
+
+			咱们读默认npc名字的 用@npc   不写就不读 用这种方式吧
+		]]
+        if self.module.BaseID ~= nil then
+            local cfg = ConfigDataAccessor.Npc[self.module.BaseID]
+            if cfg ~= nil then
+                self.go_nameBg:SetActive(true)
+                self.m_TalkBoxName.text = cfg.Name
+            else
+                self.go_nameBg:SetActive(false)
+            end
+        else
+            self.go_nameBg:SetActive(false)
+        end
+    elseif self.talkConetntNow.Name2 == nil or self.talkConetntNow.Name2 == "" then
+        self.go_nameBg:SetActive(false)
+    else
+        self.go_nameBg:SetActive(true)
+        self.m_TalkBoxName.text = self.talkConetntNow.Name2
+    end
+    for i = 1, #self.m_Character do
+        self.m_Character[i].gameObject:SetActive(false)
+    end
+    if self.talkConetntNow.Delay_time > 0 then
+        self.m_TalkBoxBg.gameObject:SetActive(false)
+        if self.tw_Delay_time ~= nil then
+            self.tw_Delay_time:Kill()
+        end
+        self.tw_Delay_time =
+            DOVirtual.DelayedCall(
+            self.talkConetntNow.Delay_time / 1000,
+            function()
+                self.m_TalkBoxBg.gameObject:SetActive(true)
+                self:ShowTalkBoxAndFg()
+            end
+        )
+    else
+        self.m_TalkBoxBg.gameObject:SetActive(true)
+        self:ShowTalkBoxAndFg()
+    end
+
+    -- 是否显示跳过按钮
+    self.go_skipBtn:SetActive(self.talkConetntNow.Is_skip == 0)
+end
+
+function AvgTalkBox:StartTalkBox(idx)
+    self.LoopToID = 0
+    -- 清空选项记录
+    self.SelectedIdxs_Id = 0
+    self.IsFirstIn = true
+    self.m_CommonDialog = ConfigDataAccessor.CommonDialog[idx]
+    self.m_NewPlayerPreFlag = true
+    self:GetTalkContentById(idx)
+
+    GameManager.Instance:TriggerEvent("AvgStart", true)
+end
+
+function AvgTalkBox:GetTalkContentById(idx)
+    if self.LoopToID > 0 then
+        idx = self.LoopToID
+        self.LoopToID = 0
+    end
+
+    if idx == 0 then
+        self:FinishTalk()
+        return
+    end
+
+    self.CanClickToNext = false
+    -- self.talkConetntNow = LocalDataManager.Instance:GetCommonDialogDataCell(idx);
+
+    self.talkConetntNow = self.module:CommonDialogDataCellById(idx)
+    self.LoopToID = 0
+    -- 循环选项
+    if self.talkConetntNow.Loop > 0 then
+        local canNext = true
+        for k, v in pairs(self.SelectedIdxs) do
+            if v == 0 then
+                canNext = false
+            end
+        end
+        if not (canNext) then
+            self.LoopToID = self.talkConetntNow.Loop
+        -- self:GetTalkContentById(self.talkConetntNow.Loop)
+        end
+    end
+
+    self.m_go_CommonBg:SetActive(self.talkConetntNow.Dialog_type ~= 9)
+
+    self:RefeshTalkInfo()
+end
+
+function AvgTalkBox:GetNextTalkContent()
+    local nextIds = self.talkConetntNow.Next_dialog_id
+
+    if self.LoopToID > 0 then
+        -- 切换到下一句对话
+        self:GetTalkContentById(self.LoopToID)
+        self.LoopToID = 0
+        return
+    end
+
+    -- 结束对话
+    if nextIds[1] == 0 then
+        self:FinishTalk()
+    else
+        -- 切换到下一句对话
+        self:GetTalkContentById(nextIds[1])
+    end
+end
+
+function AvgTalkBox:FinishTalk()
+    self.m_typewriter:Skip(false)
+    if self.SoundKey ~= nil then
+        SoundManager.Instance:StopVoice(self.SoundKey)
+        self.IsPlayVoice = false
+        self.SoundKey = nil
+    end
+
+    if self.tw_content ~= nil then
+        self.tw_content:Kill()
+    end
+    if self.tw_BlackCover1 ~= nil then
+        self.tw_BlackCover1:Kill()
+    end
+    if self.tw_BlackCover2 ~= nil then
+        self.tw_BlackCover2:Kill()
+    end
+    if self.tw_auto_delay ~= nil then
+        self.tw_auto_delay:Kill()
+    end
+    self.TalkImage = nil
+
+    if self.m_CommonDialog ~= nil and self.m_NewPlayerPreFlag then
+        local stepID = string.format(PreNewPlayerEventStepID, self.m_CommonDialog.Dialog_type, self.m_CommonDialog.Id, 3)
+        GameManager.Instance:EventPreNewPlayerEvent(stepID)
+    end
+
+    if self.TalkImageBg ~= nil then
+        LuaModuleDispatcher:SendMessage(ModuleDef.AvgLuaModule, "OnTransition", {0, 0})
+        if self.tw_fade ~= nil then
+            self.tw_fade:Kill()
+        end
+        self.tw_fade =
+            DOVirtual.DelayedCall(
+            1,
+            function()
+                UIManager.Instance:CloseWidget("Avg/AvgTalkBox", nil, true)
+                self.module:OnFinishAvgTalkBox()
+            end
+        )
+        self.TalkImageBg = nil
+    else
+        UIManager.Instance:CloseWidget("Avg/AvgTalkBox", nil, true)
+        self.module:OnFinishAvgTalkBox()
+    end
+
+    GameManager.Instance:TriggerEvent("AvgStart", false)
+end
+
+return AvgTalkBox

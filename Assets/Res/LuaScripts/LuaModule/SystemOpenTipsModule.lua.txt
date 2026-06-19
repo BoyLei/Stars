@@ -1,0 +1,113 @@
+--[[
+*文件名   :   SystemOpenTipsModule
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/10/31 14:54:39"
+*创建人   :   "dl"
+*版权所有 :   游卡网络科技技术有限公司
+]] 
+SystemOpenTipsModule = class("SystemOpenTipsModule", BaseLuaModule)
+
+local SystemOpenWidgetPath = "SystemOpen/SystemOpenWidget"
+
+-- LuaModule 消息模块
+SystemOpenTipsModule.ModuleMessages = {
+    -- 功能开放的 tips
+    -- ModuleManager.Instance.SendMessage(ModuleDef.SystemOpenTipsModule, "OnOpen", new object[] { 1 }); //只要传一个对话ID
+    ["OnOpen"] = function(...)
+        SystemOpenTipsModule:OnOpen(...);
+    end,
+
+    -- 关闭功能Tips
+    -- ModuleManager.Instance.SendMessage(ModuleDef.SystemOpenTipsModule, "OnClose", new object[] {  }); 
+    ["OnClose"] = function(...)
+        SystemOpenTipsModule:OnClose(...);
+    end
+
+}
+
+-- 监听打开Tips事件
+function SystemOpenTipsModule:OnOpen(...)
+
+    local tb = ...
+
+    local systems = nil;
+    -- 传入功能ID
+    if type(tb) == "table" then
+        -- Lua调用
+        -- tb[1];
+        -- tb[2];
+    else
+        -- C#调用 
+        -- List<Service.SystemOpen.SystemItemData>
+        systems = tb[0];
+    end
+
+    -- local systemOpenWidgetCs = UIManager.Instance:OpenWidget(SystemOpenWidgetPath, false, nil, nil,
+    --     CS.StarProjectDef.MainPageCommond.HideNone, false, true);
+    -- if self.systemOpenWidgetView == nil then
+    --     self.systemOpenWidgetView = systemOpenWidgetCs:GetLuaPanel().ScriptTable;
+    -- end
+
+    -- if self.systemOpenWidgetView.IsOpen == false then
+    --     -- 刷新UI
+    --     self.systemOpenWidgetView:OnShow(systems);
+    -- else
+    --     -- 如果 tips 弹出已经存在，那就给它添加数据
+    --     self.systemOpenWidgetView:RefreshDatas(systems);
+    -- end
+
+    self.AsyncLoadSystemOpenWidgetCb = function(ui)
+        if ui ~= nil then
+            if self.systemOpenWidgetView == nil then
+                self.systemOpenWidgetView = ui:GetLuaPanel().ScriptTable;
+            end
+        
+            if self.systemOpenWidgetView.IsOpen == false then
+                -- 刷新UI
+                self.systemOpenWidgetView:OnShow(systems);
+            else
+                -- 如果 tips 弹出已经存在，那就给它添加数据
+                self.systemOpenWidgetView:RefreshDatas(systems);
+            end
+        
+        end
+        self.AsyncLoadSystemOpenWidgetCb = nil;
+    end
+    UIManager.Instance:OpenWidgetAsync(SystemOpenWidgetPath,self.AsyncLoadSystemOpenWidgetCb, false, nil, nil,
+    CS.StarProjectDef.MainPageCommond.HideNone, false, true);
+
+end
+
+-- 监听关闭Tips事件
+function SystemOpenTipsModule:OnClose(...)
+
+    if self.systemOpenWidgetView ~= nil and self.systemOpenWidgetView.IsOpen then
+        self.systemOpenWidgetView:CloseWidget();
+    end
+end
+
+-- LuaModule 创建
+function SystemOpenTipsModule:OnModuleCreate(arg)
+
+    LuaModuleDispatcher:Register(ModuleDef.SystemOpenTipsModule, self)
+
+end
+
+-- LuaModule 消息处理
+function SystemOpenTipsModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...);
+end
+
+-- LuaModule显示
+function SystemOpenTipsModule:OnModuleShow(arg)
+
+end
+
+-- LuaModule 释放
+function SystemOpenTipsModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.SystemOpenTipsModule)
+end
+
+return SystemOpenTipsModule
+

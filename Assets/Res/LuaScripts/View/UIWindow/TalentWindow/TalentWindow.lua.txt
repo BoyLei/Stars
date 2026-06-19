@@ -1,0 +1,336 @@
+TalentWindow = class("TalentWindow", UIPanel)
+
+local TreesPanel = require("View/UIWindow/TalentWindow/TreesPanel")
+local TreeNodePanel = require("View/UIWindow/TalentWindow/TreeNodePanel")
+local RightPanel = require("View/UIWindow/TalentWindow/RightPanel")
+local CurrencyBar = require("View/Item/CurrencyBar")
+
+function TalentWindow:Awake()
+
+end
+
+function TalentWindow:BindModule(m)
+    TalentWindow.module = m;
+end
+
+function TalentWindow:InitControls()
+    self.transform = self.prefab.transform;
+    self.gameObject = self.transform.gameObject;
+
+    local rootTrans = self.transform:Find("Cut4Cam90/AssemblyRatio2");
+    -- 所有树
+    local treesObj = rootTrans:Find("Trees").gameObject;
+    self.treePanel = TreesPanel:New(treesObj,self.module);
+    -- 树节点
+    --local treeNodesObj = rootTrans:Find("TreeNodes").gameObject;
+    --self.treeNodePanel = TreeNodePanel:New(treeNodesObj);
+ 
+
+    -- 快速加点
+    self.quickAddBtn = rootTrans:Find("QuickAddBtn"):GetComponent(typeof(Button));
+    self.quickAddBtn.onClick:AddListener(function()
+        UIAPI.ShowMsgBox(35, function(eventName)
+            if eventName == "SURE" then
+                local talentNodeAutoReq = CS.ProtoMsg.TalentNodeAutoReq()
+                if self.curType == "alltree" then
+                    talentNodeAutoReq.IsAll = true;
+                else
+                    talentNodeAutoReq.TreeID = self.singleTreeId;
+                end
+                CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+                    talentNodeAutoReq, false)
+            end
+        end)
+    end);
+    -- 重置
+    self.resetBtn = rootTrans:Find("ResetBtn"):GetComponent(typeof(Button));
+    self.resetBtn.onClick:AddListener(function()
+        local treeName = "";
+        local coinNum = 0;
+        local RebuildItem1 = ConfigDataAccessor.SystemList[116].Value;
+        local RebuildItem2 = ConfigDataAccessor.SystemList[115].Value;
+        if self.curType == "alltree" then
+            local attriTTCondition = ConfigDataAccessor.AttriTTCondition;
+            local playerJob = GameManager.Instance:GetPlayerJob();
+            for k, v in pairs(attriTTCondition) do
+                if v.JobID == playerJob then
+                    treeName = v.TreeName;
+                    coinNum = RebuildItem1;
+                    break
+                end
+            end
+        else
+            local attriTTCondition = ConfigDataAccessor.AttriTTCondition;
+            treeName = attriTTCondition[self.singleTreeId].RootName;
+            coinNum = RebuildItem2;
+        end
+
+        UIAPI.ShowMsgBox(36, function(eventName)
+            if eventName == "SURE" then
+                local talentTreeResetReq = CS.ProtoMsg.TalentTreeResetReq()
+                if self.curType == "alltree" then
+                    talentTreeResetReq.IsClear = true;
+                else
+                    talentTreeResetReq.TreeID = self.singleTreeId;
+                end
+                CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+                    talentTreeResetReq, false)
+            end
+        end, treeName, coinNum)
+    end);
+    self.quickAddBtn.gameObject:SetActive(false);
+    self.resetBtn.gameObject:SetActive(false);
+    -- 总加成
+    self.totalAddBtn = rootTrans:Find("TotalAddBtn"):GetComponent(typeof(Button));
+    self.totalAddBtn.onClick:AddListener(function()
+        self.rightPanel:Show(true, self.curType, self.singleTreeId, nil, self.treeData);
+        self.totalAddBtn.gameObject:SetActive(false);
+        self.quickAddBtn.gameObject:SetActive(false);
+        self.resetBtn.gameObject:SetActive(false);
+    end);
+
+    self.curType = "alltree";
+
+    -- 左边栏
+    self.btnWidgetGo = rootTrans:Find("BtnWidget").gameObject;
+    -- 关闭按钮
+    self.closeGo = rootTrans:Find("CloseBtn").gameObject;
+
+    self.m_SkillBtn = self:Find("Cut4Cam90/AssemblyRatio2/BtnWidget/LeftBtns/SkillBtn"):GetComponent(typeof(JButton));
+    self.m_SwitchBtn = self:Find("Cut4Cam90/AssemblyRatio2/BtnWidget/LeftBtns/SwitchBtn"):GetComponent(typeof(JButton));
+    self.m_TalentBtn = self:Find("Cut4Cam90/AssemblyRatio2/BtnWidget/LeftBtns/TalentBtn"):GetComponent(typeof(JButton));
+
+    self.m_SkillBtn.OnClick = function(...)
+        LuaModuleDispatcher:SendMessage(ModuleDef.SkillWindowModule, "OnOpenSkill", {});
+        self.Close();
+    end
+
+    self.m_SwitchBtn.OnClick = function(...)
+        LuaModuleDispatcher:SendMessage(ModuleDef.SkillWindowModule, "OnOpenSkill", {
+            skillType = 2
+        });
+        self.Close();
+    end
+
+    self.m_TalentBtn.OnClick = function()
+        LuaModuleDispatcher:SendMessage(ModuleDef.TalentModule, "OnOpenTalentWindow", function ()
+            self.Close();
+        end); 
+    end;
+
+    self.currencyBar = CurrencyBar:New(nil, rootTrans:Find("CurrencyAhchor"), function(bar)
+        bar:PlayAnim(true);
+
+        self.barText = bar.transform:Find("Grid/CurrencyItem(Clone)/num"):GetComponent(typeof(Text));
+        self.barText.text = tostring(self.module.talentPoint);
+    end);
+    local coins = {113, 114};
+    self.currencyBar:OnListener();
+    self.currencyBar:RefeshBar(coins);
+
+    self.talentAni = self.transform:GetComponent(typeof(Animator));
+
+	self.root = rootTrans
+ --   self.smallSel = rootTrans:Find("TreeNodes/FX_ui_TalentWindow_XuanZhong01").gameObject;
+ --   self.bigSel = rootTrans:Find("TreeNodes/FX_ui_TalentWindow_XuanZhong02").gameObject;
+end
+
+function TalentWindow:InitData(data)
+    self.treeData = data;
+    self.treePanel:InitData(data);
+end
+
+function TalentWindow:CreateTreeNode()
+	if not self.treeNodePanel then 
+		local treeNodesObj=ResourceManager.Instance:LoadGameObject("UI/Talent/Prefab/TreeNodes");
+		treeNodesObj.transform:SetParent(self.root,false);
+        treeNodesObj.transform:SetSiblingIndex(3)
+		treeNodesObj.name = "TreeNodes"
+		self.treeNodePanel = TreeNodePanel:New(treeNodesObj);
+        self.smallSel = self.root:Find("TreeNodes/FX_ui_TalentWindow_XuanZhong01").gameObject;
+        self.bigSel = self.root:Find("TreeNodes/FX_ui_TalentWindow_XuanZhong02").gameObject;
+		-- 所有加成
+		local foldBtn1 = self.root:Find("TreeNodes/Fold"):GetComponent(typeof(Button));
+		local foldBtn2 = self.root:Find("Trees/Fold"):GetComponent(typeof(Button));
+		local rightPanelObj = self.root:Find("RightPanel").gameObject;
+		self.rightPanel = RightPanel:New(rightPanelObj, foldBtn1, foldBtn2);
+	end
+end
+
+function TalentWindow:RefreshTree(data)
+    self.treeData = data;
+    self.treePanel:InitData(data);
+	self:CreateTreeNode()
+    if self.treeNodePanel.gameObject.activeSelf then
+        self.treeNodePanel:Refresh(true, self.singleTreeId, data, self.module.usedTalentPoint);
+    end
+
+    self.barText.text = tostring(self.module.talentPoint);
+end
+
+function TalentWindow:OpenTreeNodes(id)
+	self:CreateTreeNode()
+    self.treeNodePanel:Show(true, id, self.treeData, self.module.usedTalentPoint, false);
+    self.treePanel:Show(false);
+    self.rightPanel:Show(false, nil);
+    self.btnWidgetGo:SetActive(false);
+    self.closeGo:SetActive(false);
+    self.curType = "singletree";
+    self.singleTreeId = id;
+    self.totalAddBtn.gameObject:SetActive(true);
+
+    self.talentAni:Play("TalentWindow_" .. id, 0, 0);
+
+    self.quickAddBtn.gameObject:SetActive(true);
+    self.resetBtn.gameObject:SetActive(true);
+end
+
+function TalentWindow:CloseTreeNodes()
+	self:CreateTreeNode()
+    self.treeNodePanel:Show(false,self.singleTreeId);
+    self.treePanel:Show(true);
+    self.rightPanel:Show(false, nil);
+    self.btnWidgetGo:SetActive(true);
+    self.closeGo:SetActive(true);
+    self.curType = "alltree";
+    self.totalAddBtn.gameObject:SetActive(true);
+    self.talentAni:Play("TalentWindow_Go", 0, 0);
+    self.quickAddBtn.gameObject:SetActive(false);
+    self.resetBtn.gameObject:SetActive(false);
+end
+
+function TalentWindow:OnOpenNodeInfo(id, nodeTrans, nodeType)
+    if id == nil then 
+        id = self.preid
+        nodeTrans = self.pretrans 
+        nodeType = self.prenodetype
+    else
+        self.preid = id
+        self.pretrans = nodeTrans
+        self.prenodetype = nodeType
+    end
+    local lv = 0;
+    local attriTTNode = ConfigDataAccessor.AttriTTNode[id];
+    for k, v in pairs(self.module.treeData.AllTree) do
+        for k2, v2 in pairs(v.Tree) do
+            if k2 == id then
+                lv = v2;
+                break
+            end
+        end
+    end
+
+    local preLight = false;
+    for k, v in pairs(attriTTNode.PredeNode) do
+        local prenode = ConfigDataAccessor.AttriTTNode[v];
+        if prenode == nil and v ~= 0 then
+            preLight = true;
+        elseif v ~= 0 then
+            for k2, v2 in pairs(self.module.treeData.AllTree) do
+                for k3, v3 in pairs(v2.Tree) do
+                    if k3 == prenode.ID and prenode.MaxLevel == v3 then
+                        preLight = true;
+                        break
+                    end
+                end
+            end
+        end
+    end
+
+    self.rightPanel:Show(true, "singlenode", id, lv, nil, self.module.usedTalentPoint, preLight, self.module.talentPoint);
+    self.totalAddBtn.gameObject:SetActive(false);
+    self.quickAddBtn.gameObject:SetActive(false);
+    self.resetBtn.gameObject:SetActive(false);
+
+    if nodeType == 0 then
+        self.smallSel.transform.parent = nodeTrans;
+        self.smallSel.transform.localPosition = Vector3.zero;
+        self.smallSel:SetActive(true);
+        self.bigSel:SetActive(false);
+        self.smallSel.transform:SetAsFirstSibling();
+    else
+        self.bigSel.transform.parent = nodeTrans;
+        self.bigSel.transform.localPosition = Vector3.zero;
+        self.bigSel:SetActive(true);
+        self.smallSel:SetActive(false);
+        self.bigSel.transform:SetAsFirstSibling();
+    end
+end
+
+function TalentWindow:OnCloseRightPanel1()
+    self.totalAddBtn.gameObject:SetActive(true);
+    self.quickAddBtn.gameObject:SetActive(true);
+    self.resetBtn.gameObject:SetActive(true);
+end
+
+function TalentWindow:OnCloseRightPanel2()
+    self.totalAddBtn.gameObject:SetActive(true);
+    -- self.quickAddBtn.gameObject:SetActive(true);
+    -- self.resetBtn.gameObject:SetActive(true);
+end
+
+function TalentWindow:InitDadta(data)
+    self.treePanel:InitData(data);
+end
+
+function TalentWindow:OnShow()
+    self.talentAni:Play("TalentWindow_Go", 0, 0);
+
+    local coins = {113, 114};
+    self.currencyBar:RefeshBar(coins);
+    self.barText.text = tostring(self.module.talentPoint);
+end
+
+function TalentWindow:RefreshCoin()
+    local coins = {113, 114};
+    self.currencyBar:RefeshBar(coins);
+    if self.barText ~= nil then
+        self.barText.text = tostring(self.module.talentPoint);
+    end
+end
+
+function TalentWindow:Start()
+
+end
+
+function TalentWindow:OnEnable()
+
+end
+
+function TalentWindow:OnDisable()
+
+end
+
+function TalentWindow:OnDestroy()
+
+end
+
+function TalentWindow:OnOpen(arg)
+    self.IsOpen = true;
+end
+
+function TalentWindow:OnClose(arg)
+    self:CloseWindow();
+    self.module.talentWindowView = nil;
+end
+
+function TalentWindow:CloseWindow()
+    self.IsOpen = false;
+
+    self.currencyBar:PlayAnim(false);
+    self.currencyBar:OffListener();
+end
+
+function TalentWindow:RefreshNodeLines(data)
+	self:CreateTreeNode()
+    self.treeNodePanel:ResetNodeLines(data);
+   -- self:treeNodePanel:Refresh(true);
+end
+
+function  TalentWindow:ClearPool()
+    if self.treeNodePanel then 
+        self.treeNodePanel:ClearPool()
+    end
+end
+
+return TalentWindow

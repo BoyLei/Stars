@@ -1,0 +1,543 @@
+--[[
+*文件名   :   TaskWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/10/31 17:19:10"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]] TaskWindow = class("TaskWindow", UIPanel)
+local TaskGroupItem = require('View/UIWindow/TaskWindow/TaskGroupItem')
+local TaskTargetItem = require('View/UIWindow/TaskWindow/TaskTargetItem')
+TaskWindow.m_HistoryStoryBtn = nil;
+TaskWindow.m_TaskInfo = nil;
+TaskWindow.m_TaskName = nil;
+TaskWindow.m_TaskTime = nil;
+-- TaskWindow.m_TaskTargets=nil;
+TaskWindow.m_TaskDesc = nil;
+-- TaskWindow.m_RewardList=nil;
+TaskWindow.m_ReciveBtn = nil;
+TaskWindow.m_GotoBtn = nil;
+TaskWindow.m_GiveUpBtn = nil;
+TaskWindow.m_ShareBtn = nil;
+TaskWindow.Datas = nil;
+TaskWindow.SelectData = nil
+TaskWindow.SelectAwards = nil;
+TaskWindow.TimeRoot = nil;
+TaskWindow.Reward = nil;
+TaskWindow.TaskTargetTemp = nil;
+TaskWindow.m_Root = nil;
+TaskWindow.m_NoRoot = nil;
+
+TaskWindow.TaskGroupTemplate = nil;
+TaskWindow.TaskGroupRoot = nil;
+TaskWindow.TaskGroups = {};
+TaskWindow.m_RewardPreviewGo = nil;
+TaskWindow.m_RewardPreview = nil;
+TaskWindow.m_TaskTargets = {}
+TaskWindow.ItemVerticalLayoutGroup = nil;
+TaskWindow.ContentVerticalLayoutGroup = nil;
+function TaskWindow:Awake()
+    self.m_Root = self:Find("Cut4Cam90/AssemblyRatio2/Root").gameObject
+    self.m_NoRoot = self:Find("Cut4Cam90/AssemblyRatio2/NoRoot").gameObject
+    self.m_HistoryStoryBtn = self:Find("Cut4Cam90/AssemblyRatio2/Root/RightPanel/MenuGroup/HistoryStoryBtn")
+        :GetComponent(typeof(Button));
+    self.BtnWorldLine = self:Find("Cut4Cam90/AssemblyRatio2/Root/RightPanel/TaskInfo/BtnWorldLine"):GetComponent(typeof(
+        Button));
+    self.m_TaskInfo = self:Find("Cut4Cam90/AssemblyRatio2/Root/RightPanel/TaskInfo"):GetComponent(typeof(RectTransform));
+    self.m_TaskName = self:Find("Cut4Cam90/AssemblyRatio2/Root/RightPanel/TaskInfo/TaskName"):GetComponent(typeof(Text));
+    self.TxtChaptName = self:Find("Cut4Cam90/AssemblyRatio2/Root/RightPanel/TaskInfo/Chapt/ChaptName"):GetComponent(
+        typeof(Text));
+    self.TimeRoot = self:Find("Cut4Cam90/AssemblyRatio2/Root/RightPanel/TaskInfo/Time"):GetComponent(typeof(
+        RectTransform));
+    self.m_TaskTime = self:Find("Cut4Cam90/AssemblyRatio2/Root/RightPanel/TaskInfo/Time/TaskTime"):GetComponent(typeof(
+        Text));
+    self.m_TaskDesc = self:Find("Cut4Cam90/AssemblyRatio2/Root/RightPanel/TaskInfo/Items/TaskDesc/TaskDesc")
+        :GetComponent(typeof(Text));
+    self.Reward = self:Find("Cut4Cam90/AssemblyRatio2/Root/RightPanel/TaskInfo/Reward"):GetComponent(typeof(
+        RectTransform));
+    self.m_ReciveBtn = self:Find("Cut4Cam90/AssemblyRatio2/Root/RightPanel/MenuGroup/ReciveBtn"):GetComponent(typeof(
+        Button));
+    self.m_GotoBtn = self:Find("Cut4Cam90/AssemblyRatio2/Root/RightPanel/MenuGroup/GotoBtn")
+        :GetComponent(typeof(Button));
+    self.m_GiveUpBtn = self:Find("Cut4Cam90/AssemblyRatio2/Root/RightPanel/MenuGroup/GiveUpBtn"):GetComponent(typeof(
+        Button));
+    self.m_ShareBtn = self:Find("Cut4Cam90/AssemblyRatio2/Root/RightPanel/MenuGroup/ShareBtn"):GetComponent(typeof(
+        Button));
+    self.TaskGroupRoot = self:Find("Cut4Cam90/AssemblyRatio2/Root/LeftPanel/Scroll View/Viewport/Content")
+    self.TaskGroupTemplate = self:Find(
+                                 "Cut4Cam90/AssemblyRatio2/Root/LeftPanel/Scroll View/Viewport/Content/TaskGroupTemplate").gameObject
+    self.m_RewardPreviewGo =
+        self:Find("Cut4Cam90/AssemblyRatio2/Root/RightPanel/TaskInfo/Reward/ItemPreview").gameObject
+    self.m_TaskTargets = {}
+    for i = 1, 4 do
+        local go =
+            self:Find("Cut4Cam90/AssemblyRatio2/Root/RightPanel/TaskInfo/Items/TaskTargets/TargetItem" .. i).gameObject
+        if go ~= nil then
+            table.insert(self.m_TaskTargets, TaskTargetItem.new(go, self.AtlasPath))
+        end
+    end
+    self.ItemVerticalLayoutGroup = self:Find("Cut4Cam90/AssemblyRatio2/Root/RightPanel/TaskInfo/Items"):GetComponent(
+        typeof(VerticalLayoutGroup));
+    self.ContentVerticalLayoutGroup = self:Find("Cut4Cam90/AssemblyRatio2/Root/RightPanel/TaskInfo/Items/TaskDesc")
+        :GetComponent(typeof(VerticalLayoutGroup));
+    self.ContentContentSizeFitter = self:Find(
+        "Cut4Cam90/AssemblyRatio2/Root/RightPanel/TaskInfo/Items/TaskDesc/TaskDesc"):GetComponent(typeof(
+        ContentSizeFitter));
+
+    self.m_RewardPreview = StructAccessor.ItemPreview.new(self.m_RewardPreviewGo);
+    self.TaskGroups = {}
+
+    -- update事件
+    self.UpdateFun = function()
+        self:UpdateTime()
+    end
+end
+
+function TaskWindow:Start()
+    self.m_HistoryStoryBtn.onClick:AddListener(function()
+        self:OnClickHistoryStoryBtn()
+    end);
+    self.BtnWorldLine.onClick:AddListener(function()
+        LuaModuleDispatcher:SendMessage(ModuleDef.WorldLineModule, "OnOpenWorldLine", {})
+    end)
+
+    self.m_ReciveBtn.onClick:AddListener(function()
+        self:OnClickReciveBtn()
+    end);
+    self.m_GotoBtn.onClick:AddListener(function()
+        self:OnClickGotoBtn()
+    end);
+    self.m_GiveUpBtn.onClick:AddListener(function()
+        self:OnClickGiveUpBtn()
+    end);
+    self.m_ShareBtn.onClick:AddListener(function()
+        self:OnClickShareBtn()
+    end);
+    CS.StarProject.GlobalEvent.ShowTaskInfo:AddListener(function(task)
+        self:OnTaskSelect(task);
+    end);
+    local datas = TaskHelper.GetAllWindow(true)
+    self:Fresh(datas)
+end
+
+function TaskWindow:OnTaskSelect(task)
+    self.SelectData = task
+    self.SelectAwards = {}
+    local taskName = "";
+    local taskDesc = "";
+    local taskChapterName = ""
+    local active = false;
+    if self.SelectData ~= nil then
+        taskName = self.SelectData.TaskTitle
+        taskDesc = self.SelectData.TaskDesc
+        taskChapterName = self.SelectData.ChapterName
+        active = true;
+    end
+    self.m_TaskInfo.gameObject:SetActive(active)
+
+    if self.SelectData ~= nil and self.SelectData.TaskOverdueTime > 0 then
+        self.TimeRoot.gameObject:SetActive(true)
+    else
+        self.TimeRoot.gameObject:SetActive(false)
+    end
+    self.m_TaskName.text = taskName
+    self.TxtChaptName.text = taskChapterName
+    self.m_TaskDesc.text = taskDesc
+    self.m_TaskTime.text = self:ShowTime()
+
+    self.m_GotoBtn.gameObject:SetActive(false)
+    if self.SelectData ~= nil then
+        if self.SelectData.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStageRunning or self.SelectData.TaskState ==
+            CS.ProtoMsg.TaskStateEnum.TaskStateNoGetReward then
+            self.m_GotoBtn.gameObject:SetActive(true)
+        end
+    end
+
+    self.m_ReciveBtn.gameObject:SetActive(false)
+    self.m_GiveUpBtn.gameObject:SetActive(false)
+
+    if self.SelectData ~= nil then
+        self.m_ShareBtn.gameObject:SetActive(false)
+        if self.SelectData.TaskID == TaskHelper.WANTEDTASKID then
+            -- 通缉任务特殊ID
+            self.m_ReciveBtn.gameObject:SetActive(false)
+            -- 队长才能共享通缉任务
+            self:SetShareBtnShow();
+            if self.SelectData.Awards ~= nil and self.SelectData.Awards.Count > 0 then
+                for i, v in pairs(self.SelectData.Awards) do
+                    local awardinfo = StructAccessor.AwardInfo.new(i, v, false)
+                    if awardinfo ~= nil then
+                        table.insert(self.SelectAwards, awardinfo)
+                    end
+                end
+                -- Drop
+            end
+        else
+            local config = TaskHelper.GetTaskConfig(self.SelectData.TaskID)
+            if config ~= nil then
+                if config.CanDelete then
+                    self.m_GiveUpBtn.gameObject:SetActive(true)
+                end
+
+                if self.SelectData.TaskStateEnum == CS.ProtoMsg.TaskStateEnum.TaskStateFailure and config.CanAgain then
+                    self.m_ReciveBtn.gameObject:SetActive(true)
+                end
+                -- local Items=ConfigDataAccessor.DropShow[config.Base.DropShow]
+
+                if self.SelectData.Awards ~= nil and self.SelectData.Awards.Count > 0 then
+                    for i, v in pairs(self.SelectData.Awards) do
+                        local awardinfo = StructAccessor.AwardInfo.new(i, v, false)
+                        if awardinfo ~= nil then
+                            table.insert(self.SelectAwards, awardinfo)
+                        end
+                    end
+                    -- Drop
+                end
+            end
+        end
+    end
+
+    self.Reward.gameObject:SetActive(self:itemRewardCount() > 0);
+    MonoHelper.RemoveSecTimeUpdateListener(self.UpdateFun)
+
+    local now = TimeUtils.GetServerTimeNow()
+    if self.SelectData ~= nil and self.SelectData.TaskOverdueTime > 0 and now < self.SelectData.TaskOverdueTime then
+        MonoHelper.AddSecTimeUpdateListener(self.UpdateFun)
+    end
+
+    for i = 1, #self.m_TaskTargets do
+        self.m_TaskTargets[i]:OnHide();
+    end
+
+    if self.SelectData:IsSpecialDesc() then
+        local result = self.SelectData:GetTotalProcessDesc();
+        local desc = result.Item1
+        local finished = result.Item2
+        local info = self.SelectData.SpecTaskDesc;
+        local color = self.SelectData:GetStateColor(finished)
+        if self.SelectData.ShowProcess then
+            info = info .. desc
+        end
+        self.m_TaskTargets[1]:OnSpecShow(info, color);
+    else
+        for i = 1, self.SelectData.TaskTarget.Count do
+            self.m_TaskTargets[i]:OnShow(self.SelectData.TaskTarget[i - 1]);
+        end
+    end
+
+    self.ContentContentSizeFitter:SetLayoutVertical();
+    self.ContentVerticalLayoutGroup:CalculateLayoutInputVertical();
+    self.ItemVerticalLayoutGroup:CalculateLayoutInputVertical();
+    --
+    -------奖励
+    self.m_RewardPreview:SetItems(self.SelectAwards);
+end
+
+-- 判断设置共享按钮的显示
+function TaskWindow:SetShareBtnShow()
+    local module = ModuleManager.Instance:GetModule(ModuleDef.TeamModule)
+    local luatable = module:GetLuaTable()
+    local teamInfo = luatable:GetTeamInfo()
+    local hasTeam = false -- 是否有队伍
+    local isCaptain = false -- 是否队长
+    local teamPeopleNum = 0 -- 队伍人数
+    if teamInfo ~= nil and teamInfo.TeamID ~= 0 and teamInfo.UserInfos.Count > 0 then
+        hasTeam = true
+        for i = 0, teamInfo.UserInfos.Count - 1 do
+            local info = teamInfo.UserInfos[i]
+            if info ~= nil then
+                if info.IsCaptain then
+                    if info.Eid == GameManager.Instance.mainPlayerId then
+                        isCaptain = true
+                    end
+                end
+            end
+            teamPeopleNum = teamPeopleNum + 1
+        end
+    end
+
+    if hasTeam then
+        if isCaptain then
+            if teamPeopleNum > 1 then
+                self.m_ShareBtn.gameObject:SetActive(true)
+            end
+        end
+    end
+end
+
+function TaskWindow:ShowTime()
+    if self.SelectData == nil then
+        return ""
+    end
+
+    if self.SelectData.TaskOverdueTime > 0 then
+        local now = TimeUtils.GetServerTimeNow()
+        if now >= self.SelectData.TaskOverdueTime then
+            return LanguageHelp:GetLanguageByKey("Local_Str_Tips54")
+        else
+            local t = math.floor((tonumber(self.SelectData.TaskOverdueTime) - tonumber(now)) / 1000)
+            return SecToStringColon(t)
+        end
+    else
+        return LanguageHelp:GetLanguageByKey("Local_Str_Tips55")
+    end
+end
+
+function TaskWindow:UpdateTime()
+    if self.m_TaskTime ~= nil then
+        -- self.m_TaskTime.text = "剩余时间" .. self:ShowTime()
+        self.m_TaskTime.text =
+            StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Time_Remaining"), {self:ShowTime()});
+    end
+end
+
+function TaskWindow:updateReward(index, UIcell)
+    if self.SelectAwards == nil then
+        return
+    end
+    local data = self.SelectAwards[index + 1];
+    UIcell:UpdateContent(data);
+end
+
+function TaskWindow:itemSizeReward(index)
+    return Vector2(120, 120)
+end
+
+function TaskWindow:itemRewardCount()
+    if self.SelectAwards == nil then
+        return 0
+    end
+    return #self.SelectAwards
+end
+
+function TaskWindow:updateFunc(index, UIcell)
+    local data = self.Datas[index + 1];
+    UIcell:UpdateContent(data);
+end
+
+function TaskWindow:OnEnable()
+
+end
+
+function TaskWindow:OnDisable()
+
+end
+
+function TaskWindow:OnDestroy()
+    if self.UpdateFun then
+        MonoHelper.RemoveSecTimeUpdateListener(self.UpdateFun)
+        self.UpdateFun = nil
+    end
+end
+
+function TaskWindow:updateFunc(index, UIcell)
+    local data = self.Datas[index];
+    UIcell:UpdateContent(data);
+    -- item.gameObject.SetActive(true);
+    -- item.transform.Find("Text").GetComponent<Text>().text = string.Format("{0}_{1}", data.name, index);
+end
+
+function TaskWindow:itemSizeFunc(index)
+    local data = self.Datas[index];
+    return Vector2(520, data:GetHeight()) -- UIcell:SetItemSize();
+end
+
+function TaskWindow:itemCountFunc()
+    return self.Datas.Count;
+end
+
+function TaskWindow:OnOpen(arg)
+    self:Fresh(arg);
+end
+
+function TaskWindow:Fresh(arg)
+    self.Datas = arg;
+    if self.Datas.Count > 0 then
+        self.m_Root:SetActive(true)
+        self.m_NoRoot:SetActive(false)
+    else
+        self.m_Root:SetActive(false)
+        self.m_NoRoot:SetActive(true)
+    end
+
+    if self.TaskGroups ~= nil then
+        for k, v in pairs(self.TaskGroups) do
+            v:OnHide();
+        end
+    end
+
+    for k, v in pairs(self.Datas) do
+        if self.TaskGroups[k] == nil then
+            local go = GameObject.Instantiate(self.TaskGroupTemplate)
+            go.transform:SetParent(self.TaskGroupRoot)
+            go.transform.localPosition = Vector3.zero
+            go.transform.localScale = Vector3.one
+            self.TaskGroups[k] = TaskGroupItem.new(go, self.AtlasPath)
+        end
+        self.TaskGroups[k]:OnShow(k, v)
+    end
+
+    local select = false;
+    for k, v in pairs(self.TaskGroups) do
+        if not select then
+            v:OnSelect()
+            select = true;
+        end
+    end
+end
+
+function TaskWindow:OnClose(arg)
+    CS.StarProject.GlobalEvent.ShowTaskInfo:RemoveAllListeners()
+end
+
+function TaskWindow:OnClickHistoryStoryBtn()
+
+end
+
+function TaskWindow:OnClickReciveBtn()
+    if self.SelectData ~= nil then
+        local config = TaskHelper.GetTaskConfig(self.SelectData.TaskID)
+        if config ~= nil then
+            TaskHelper.FindPathBySpawner(config.Pick_Spawner[0], config.Pick_Spawner[1])
+            self.Close();
+            -- UIManager.Instance:CloseWindow("TaskWindow/Prefab/TaskWindow")
+        end
+    end
+end
+
+function TaskWindow:OnFinishPathFinding(targetid, SourceID, SourceSubID, taskType)
+    if taskType == CS.Task.TaskType.Dialogue then
+        self:OnOpenDialogue(targetid, SourceID, SourceSubID)
+    elseif taskType == CS.Task.TaskType.InterAction then
+        self:OnInterAction(targetid, SourceID, SourceSubID)
+    end
+end
+
+function TaskWindow:OnInterAction(objectID, SourceID, SourceSubID)
+    local uid = GameManager.Instance:GetObjectEntityIDByConfig(objectID);
+    BusinessManager.Instance:TurnToEntity(uid);
+    LuaModuleDispatcher:SendMessage(ModuleDef.InterActionModule, "QueryInter", uid, true, SourceID, SourceSubID);
+end
+
+function TaskWindow:OnOpenDialogue(npcID, SourceID, SourceSubID)
+    local lobbyService = CS.ProtoMsg.LobbyServiceReq();
+    lobbyService.MapID = GameManager.Instance:GetCurMapId();
+    lobbyService.UID = GameManager.Instance:GetNPCEntityIDByConfig(npcID);
+    lobbyService.ObjID = npcID;
+    lobbyService.SourceType = CS.ProtoMsg.MapServiceSourceTypeEnum.Task;
+    lobbyService.SourceID = SourceID;
+    lobbyService.SourceSubID = SourceSubID;
+    lobbyService.ObjType = CS.ProtoMsg.ServiceObjEnum.ObjNpc
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+        lobbyService, false);
+end
+
+function TaskWindow:OnClickGotoBtn()
+    if self.SelectData ~= nil then
+        if self.SelectData.TaskID == TaskHelper.WANTEDTASKID then
+            -- 通缉任务的寻路
+            local config = ConfigDataAccessor.PlayOpenConditions[3]
+            if config ~= nil then
+
+                if CheckSysOpen(3) then
+
+                    -- 关闭自己
+                    self.Close()
+                    -- 寻路结束后打开通缉界面
+                    TaskHelper.FindPathByNpc(config.MapID, config.NPCID, 1, function(result)
+                        if result then
+                            -- 打开通缉界面
+                            LuaModuleDispatcher:SendMessage(ModuleDef.WantedModule, "OnOpenWantedWindow", {})
+                        end
+                    end)
+
+                end
+            end
+        else
+            local config = TaskHelper.GetTaskConfig(self.SelectData.TaskID)
+            if config ~= nil then
+                if self.SelectData.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStageRunning then
+                    -- local eventMap=TaskHelper.GetTaskEventMap(self.SelectData.TaskID)
+                    -- if eventMap~=nil and eventMap.Count>=2 then
+                    -- CS.StarProject.GlobalEvent.SelectTaskItem:Invoke(self.SelectData.TaskID)
+                    ----任务进行中
+                    -- TaskHelper.FindPathBySpawner(eventMap[0],eventMap[1],1,function (result)
+
+                    -- CS.StarProject.GlobalEvent.SelectTaskItem:Invoke(0)
+
+                    -- if result and eventMap.Count>=3 then
+                    -- local EventID= TaskHelper.GetTaskRunningEventID(self.SelectData.TaskID)
+                    -- self:OnOpenDialogue(eventMap[2],self.SelectData.TaskID,EventID);
+                    -- end
+
+                    -- end)
+                    -- end
+                    CS.StarProject.GlobalEvent.SelectTaskItem:Invoke(self.SelectData.TaskID)
+                    local taskTarget = TaskHelper.GetTaskTarget(self.SelectData.TaskID)
+                    if taskTarget ~= nil then
+                        TaskHelper.FindPathByTask(taskTarget.MapID, taskTarget.FindPath,taskTarget.TargetID, function(result)
+                            CS.StarProject.GlobalEvent.SelectTaskItem:Invoke(0)
+                            if result and
+                                (taskTarget.FindPath.FindPathType == CS.Task.E_FindPath.NPC or
+                                    taskTarget.FindPath.FindPathType == CS.Task.E_FindPath.InterAction) then
+                                local EventID = TaskHelper.GetTaskRunningEventID(self.SelectData.TaskID)
+                                self:OnFinishPathFinding(taskTarget.TargetID, self.SelectData.TaskID, EventID,
+                                    taskTarget.taskType);
+                            end
+                        end)
+                    end
+                elseif self.SelectData.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStageFinished then
+                    -- 任务已完成未提交
+                    -- CS.StarProject.GlobalEvent.SelectTaskItem:Invoke(self.SelectData.TaskID)
+                    CS.StarProject.GlobalEvent.SelectTaskItem:Invoke(self.SelectData.TaskID)
+                    TaskHelper.FindPathByNpc(config.TaskFinishInfo.FinishTaskMapID, config.TaskFinishInfo.FinishTaskNPC,
+                        1, function(result)
+                            CS.StarProject.GlobalEvent.SelectTaskItem:Invoke(0)
+                            if result then
+                                self:OnFinishPathFinding(config.TaskFinishInfo.FinishTaskNPC, self.TaskInfo.TaskID, 0,
+                                    CS.Task.TaskType.Dialogue);
+                            end
+                        end)
+                end
+
+                self.Close();
+                -- UIManager.Instance:CloseWindow("TaskWindow/Prefab/TaskWindow")
+            end
+        end
+    end
+end
+
+function TaskWindow:OnClickGiveUpBtn()
+    if self.SelectData ~= nil then
+        TaskHelper.DropTaskReq(self.SelectData.TaskID)
+        self.Close();
+        -- UIManager.Instance:CloseWindow("TaskWindow/Prefab/TaskWindow")
+    end
+end
+
+-- 共享按钮
+function TaskWindow:OnClickShareBtn()
+    if self.SelectData ~= nil then
+        -- 通过聊天发送共享功能，其他队员直接打开共享界面
+
+        local name = "";
+        local mainPlayer = GameManager.Instance.M_MainPlayerCtrlBase;
+        if mainPlayer ~= nil and mainPlayer.Data ~= nil then
+            name = mainPlayer.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.String,
+                CS.StarProjectDef.AOIAttrDefine.Name);
+        end
+
+        local chatMsg = "";
+        local chatChannel = CS.ProtoMsg.ChatChannel.ChannelTeam;
+        local extrainfos = CS.ProtoMsg.ChatExtraInfos();
+        local chatExtraInfo = CS.ProtoMsg.ChatExtraInfo();
+        chatExtraInfo.EType = CS.ProtoMsg.ChatExtraInfo.Types.EMsg.ShareWantedTask;
+        chatExtraInfo.Captainer = name;
+        extrainfos.ChatExtraInfo:Add(chatExtraInfo);
+
+        local pid = BusinessManager.Instance:GetUserPID();
+        LuaModuleDispatcher:SendMessage(ModuleDef.ChatModule, "OnSendChatMsg", {chatMsg, chatChannel, extrainfos, pid});
+    end
+end
+
+return TaskWindow

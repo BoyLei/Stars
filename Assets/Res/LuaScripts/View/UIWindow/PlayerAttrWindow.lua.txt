@@ -1,0 +1,572 @@
+--[[
+*文件名   :   PlayerAttrWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/18 15:35:15"
+*创建人   :   "quzhenxin"
+*版权所有 :   游卡网络科技技术有限公司
+]] PlayerAttrWindow = class("PlayerAttrWindow", UIPanel)
+
+PlayerAttrWindow.AttrDeclareWidgetPath = "PlayerAttrWindow/Prefabs/AttrDeclareWidget";
+
+local SelectBtn = require("View/Item/SelectBtn");
+local ItemBaseAttr = require("View/UIWindow/PlayerAttrWindow/ItemBaseAttr");
+local ItemHighAttr = require("View/Item/ItemHighAttr");
+
+PlayerAttrWindow.CanvasGroup = nil;
+PlayerAttrWindow.Root = nil;
+--------------------- TOP
+PlayerAttrWindow.m_Portrait = nil;
+PlayerAttrWindow.m_Name = nil;
+PlayerAttrWindow.m_Uid = nil;
+PlayerAttrWindow.m_Title = nil; -- 称号 富文本
+PlayerAttrWindow.m_Guild = nil; -- 冒险团
+PlayerAttrWindow.m_Honor = nil; -- 头衔
+PlayerAttrWindow.m_Level = nil; -- 等级 富文本
+PlayerAttrWindow.m_Exp = nil;
+PlayerAttrWindow.m_ExpRectBar = nil;
+PlayerAttrWindow.m_JBtnRenamer = nil;
+PlayerAttrWindow.m_JBtnCopy = nil;
+PlayerAttrWindow.m_JBtnExp = nil;
+--------------------- DOWN
+PlayerAttrWindow.m_JBtnWardrode = nil; -- 服装按钮
+PlayerAttrWindow.m_JBtnBaseAttr = nil;
+PlayerAttrWindow.m_JBtnHighAttr = nil;
+PlayerAttrWindow.m_BaseAttrScroll = nil; -- 虚拟列表
+PlayerAttrWindow.m_HighAttrScroll = nil; -- 正常的滑动列表
+PlayerAttrWindow.m_ItemHighAttr = nil; -- 高级属性Item模板
+PlayerAttrWindow.m_ItemAttr = nil; -- 基础属性Item模板
+PlayerAttrWindow.m_ItemHighBaseAttr = nil; -- 基础属性Item模板
+--------------------- RIGHT
+
+PlayerAttrWindow.AttrMenuJBtns = {};
+
+PlayerAttrWindow.BaseAttrItemList = {}; -- 基础属性预制体的列表
+PlayerAttrWindow.BaseAttrConfList = {};
+PlayerAttrWindow.HighAttrConfList = {};
+PlayerAttrWindow.ItemHighAttrfList = {};
+
+PlayerAttrWindow.m_CombatNum = nil;
+
+PlayerAttrWindow.m_EntityBase = nil;
+PlayerAttrWindow.m_SyncBaseInfo = nil;
+PlayerAttrWindow.m_transform = nil;
+
+PlayerAttrWindow.m_avatarDataCell = nil;
+PlayerAttrWindow.m_ModelViewDisplay = nil;
+
+PlayerAttrWindow.expWidthCfg = 562; -- 经验条的宽度
+
+PlayerAttrWindow.CurCheckAttrData = nil;
+
+PlayerAttrWindow.AttrDeclareWidget = nil;
+
+function PlayerAttrWindow:Awake()
+    self.transform = self.prefab.transform;
+    self.gameObject = self.transform.gameObject;
+
+    self.CanvasGroup = self.transform.gameObject:GetComponent(typeof(CanvasGroup));
+    -- self.CanvasGroup.alpha = 0;
+
+    local FrameTransForm = self.transform:Find("Cut4Cam90/AssemblyRatio2").transform;
+    self.Root = FrameTransForm:Find("Root").transform;
+    local JBtnClose = FrameTransForm:Find("JBtnClose"):GetComponent(typeof(JButton));
+    self.CloseBtnFun = function()
+        self.Close();
+    end
+    JBtnClose.OnClick = self.CloseBtnFun;
+    self.m_Portrait = FrameTransForm:Find("RoleInfoContent/Top/PortraitBg/Portrait"):GetComponent(typeof(Image));
+    self.m_Name = FrameTransForm:Find("RoleInfoContent/Top/NameBG/Name"):GetComponent(typeof(Text));
+    -- self.m_Uid=self:Find("RoleInfoContent/Top/TextUid"):GetComponent(typeof(Text));
+    self.m_Title = FrameTransForm:Find("RoleInfoContent/Top/Title/TextTitle"):GetComponent(typeof(Text));
+    self.m_Guild = FrameTransForm:Find("RoleInfoContent/Top/Guild/TextGuild"):GetComponent(typeof(Text));
+    -- self.m_Honor=self:Find("RoleInfoContent/Top/TextHonor"):GetComponent(typeof(Text));
+    self.m_Level = FrameTransForm:Find("RoleInfoContent/Top/TextLevel"):GetComponent(typeof(Text));
+    self.m_Job = FrameTransForm:Find("RoleInfoContent/Top/Job/TextJob"):GetComponent(typeof(Text));
+    self.m_Exp = FrameTransForm:Find("RoleInfoContent/Top/TextExp"):GetComponent(typeof(Text));
+    self.m_ExpRectBar = FrameTransForm:Find("RoleInfoContent/Top/ProgressExp/ExpRectBar"):GetComponent(typeof(
+        RectTransform));
+    -- self.m_JBtnRenamer=self:Find("RoleInfoContent/Top/JBtnRename"):GetComponent(typeof(JButton));
+    -- self.m_JBtnCopy=self:Find("RoleInfoContent/Top/JBtnCopy"):GetComponent(typeof(JButton));
+    -- self.m_JBtnExp = FrameTransForm:Find("RoleInfoContent/Top/JBtnExp"):GetComponent(typeof(JButton));
+
+    self.m_JBtnWardrode = FrameTransForm:Find("RoleInfoContent/JBtnWardrobe"):GetComponent(typeof(JButton));
+    self.m_JBtnTitle = FrameTransForm:Find("RoleInfoContent/JBtnTitle"):GetComponent(typeof(JButton));
+    self.m_JBtnHonor = FrameTransForm:Find("RoleInfoContent/JBtnHonor"):GetComponent(typeof(JButton));
+
+    self.m_HighAttrScroll = FrameTransForm:Find("RoleInfoContent/Down/ScrollHigh"):GetComponent(typeof(ScrollRect));
+    self.m_ItemHighAttr = FrameTransForm:Find("RoleInfoContent/Down/ItemHighAttr");
+    self.m_ItemHighBaseAttr = FrameTransForm:Find("RoleInfoContent/Down/ItemHighBaseAttr").gameObject;
+
+    self.m_ItemAttr = FrameTransForm:Find("RoleInfoContent/Down/ItemAttr");
+    self.m_BaseAttrScrollgob = FrameTransForm:Find("RoleInfoContent/Down/BaseAttrScrollView");
+    self.m_BaseAttrScroll = self.m_BaseAttrScrollgob:GetComponent(typeof(SuperScrollViewController));
+
+    self.renderTexture = FrameTransForm:Find("RawImage"):GetComponent(typeof(RawImage));
+    self.m_DisplayRawing = FrameTransForm:Find("DisplayRawimg"):GetComponent(typeof(DisplayRawimg));
+
+    ------------------------- 战力
+
+    self.PowerIcon = FrameTransForm:Find("RoleInfoContent/Down/PowerBg/PowerIcon"):GetComponent(typeof(Image));
+    self.PowerLevel = FrameTransForm:Find("RoleInfoContent/Down/PowerBg/PowerLevel"):GetComponent(typeof(Text));
+    local JBtnPower = FrameTransForm:Find("RoleInfoContent/Down/PowerBg"):GetComponent(typeof(JButton));
+    self.JBtnPowerFun = function()
+        self.Close();
+        LuaModuleDispatcher:SendMessage(ModuleDef.FightPowerModule, "OnOpen", {1});
+
+        --跳转
+		--local formArgs={};
+		--local toArgs={1};
+		--ModuleManager.Instance:SendMessage_Stack_Internal(ModuleDef.EquipUpgradeModule,ModuleDef.FightPowerModule,formArgs,toArgs,"Show");
+
+
+    end
+    JBtnPower.OnClick = self.JBtnPowerFun;
+
+    ------------------ 属性Tab单选框按钮  START  ----------------------
+    self.AttrMenuJBtns = {};
+    self.TabClickFun = function(idx)
+        self:OnAttrMenuJBtnClick(idx);
+    end
+    local btn1 = SelectBtn:New(FrameTransForm:Find("RoleInfoContent/Down/TabAttr/JBtnBaseAttr").gameObject);
+    btn1:InitItem(1, self.TabClickFun);
+    table.insert(self.AttrMenuJBtns, btn1);
+    local btn2 = SelectBtn:New(FrameTransForm:Find("RoleInfoContent/Down/TabAttr/JBtnHighAttr").gameObject);
+    btn2:InitItem(2, self.TabClickFun);
+    table.insert(self.AttrMenuJBtns, btn2);
+    ------------------ 属性Tab单选框按钮  END  ----------------------
+
+    local btnCloseInfo = FrameTransForm:Find("Block"):GetComponent(typeof(Button));
+    self.btnCloseInfoFun = function()
+        self:OnCloseInfoClick();
+    end
+    btnCloseInfo.onClick:AddListener(self.btnCloseInfoFun);
+
+    -- 经验条的宽度
+    self.expWidthCfg = self.m_ExpRectBar.rect.width;
+
+    self.m_BaseAttrScrollFun = function(tr, idx)
+        self:OnItemRefesh(tr, idx);
+    end
+    self.m_BaseAttrScroll:NewScroll(self.m_ItemAttr.gameObject, 0, self.m_BaseAttrScrollFun);
+
+    -- 添加事件，点击了装备后，关闭属性详情界面
+    self.OnEquipClickEventFun = function(isClick)
+        self:CloseAttrDeclareWidget();
+    end
+    CS.StarProject.GlobalEvent.OnEquipClickEvent:AddListener(self.OnEquipClickEventFun);
+
+    self.ItemHighAttrClickFun = function(data)
+        self:OnItemBaseAttrClick(data);
+    end
+
+    self.ItemBaseAttrClickFun = function(data)
+        self:OnItemBaseAttrClick(data);
+    end
+end
+
+function PlayerAttrWindow:OnCloseInfoClick()
+    -- 关闭道具Tips
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips", {});
+    -- LuaModuleDispatcher:SendMessage(ModuleDef.EquipModule, "OnRefeshEquip", { });
+
+    -- UIManager.Instance:CloseWindow("PlayerAttrWindow/Prefabs/PlayerAttrWindow");
+end
+
+function PlayerAttrWindow:OnEnable()
+
+end
+
+function PlayerAttrWindow:OnDisable()
+
+end
+
+function PlayerAttrWindow:OnDestroy()
+    CS.StarProject.GlobalEvent.OnEquipClickEvent:RemoveListener(self.OnEquipClickEventFun);
+end
+
+function PlayerAttrWindow:OnOpen(arg)
+    self:SetAttrInfo(arg);
+end
+
+function PlayerAttrWindow:OnClose(arg)
+    self:CloseWindow();
+end
+
+function PlayerAttrWindow:SetAttrInfo(arg)
+    if arg == nil then
+        self:CloseWindow();
+        return;
+    end
+
+    if type(arg) == "table" then
+        self.m_EntityBase = arg[1];
+        self.m_SyncBaseInfo = arg[2];
+    else
+        self.m_EntityBase = arg[0];
+        self.m_SyncBaseInfo = arg[1];
+    end
+
+    if self.m_EntityBase == nil or self.m_SyncBaseInfo == nil then
+        self:CloseWindow();
+        return;
+    end
+
+    self:Init();
+
+    if not self.transform.gameObject.activeSelf then
+        self.transform.gameObject:SetActive(true);
+    end
+
+    LuaModuleDispatcher:SendMessage(ModuleDef.EquipModule, "OnOpenEquip", {1});
+end
+
+function PlayerAttrWindow:CloseWindow()
+    if self.m_EntityBase ~= nil then
+        self:ReleaseInfo();
+    end
+    -- 关闭道具Tips
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips", {});
+    LuaModuleDispatcher:SendMessage(ModuleDef.EquipModule, "OnCloseEquip", {});
+end
+
+------------------------------------------------------------------
+
+function PlayerAttrWindow:GetSyncBaseInfoByIndex(index)
+    if self.m_SyncBaseInfo == nil then
+        return 0;
+    end
+
+    for i = 0, self.m_SyncBaseInfo.Count - 1 do
+        local value = self.m_SyncBaseInfo[i];
+        if value.Index == index then
+            local type = LocalDataManager.Instance:GetAttrPropByAttrIdx(value.Index);
+            return GetValueByPropType(value, type.type);
+        end
+    end
+
+    return 0;
+end
+
+function PlayerAttrWindow:Init()
+    local name = self.m_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.String,
+        CS.StarProjectDef.AOIAttrDefine.Name);
+    self.m_Name.text = name;
+    -- local uid = self.m_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Ulong,CS.StarProjectDef.AOIAttrDefine.UserID);
+    -- self.m_Uid.text = "UID："..tostring(uid);
+    local jobId = self.m_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Uint,
+        CS.StarProjectDef.AOIAttrDefine.Job);
+    local jobName = "";
+    local jobCfg = ConfigDataAccessor.Job[jobId];
+    if jobCfg then
+        jobName = jobCfg.Name;
+    end
+    self.m_Job.text = jobName;
+    local level = self.m_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Int,
+        CS.StarProjectDef.AOIAttrDefine.PlayerLevel);
+    -- local maxLevel = self:GetMaxLevel();
+    self.m_Level.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_PlayerAttrWindow_Level"), {level});
+
+    local expCur = self.m_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Int,
+        CS.StarProjectDef.AOIAttrDefine.PlayerExp);
+    local expSum = self:GetCurLevelExp(level);
+    self.m_Exp.text = tostring(expCur) .. "/" .. tostring(expSum);
+
+    local ratio = 0;
+    if expSum > 0 then
+        ratio = expCur / expSum;
+        if ratio > 1 then
+            ratio = 1;
+        end
+    end
+    self.m_ExpRectBar:SetWidth(self.expWidthCfg * ratio);
+
+    local guidName = BusinessManager.Instance:GetGuildName();
+    if guidName == "" then
+        guidName = LanguageHelp:GetLanguageByKey("Local_Str_guidName");
+    end
+    self.m_Guild.text = guidName;
+
+    self:SetModel(self.m_EntityBase.avatarDataCell);
+
+    -- 根据OwnModule分类
+    local list = ConfigDataAccessor.Attribute;
+    self.BaseAttrConfList = {}; -- 一维数组
+    self.HighAttrConfList = {}; -- 二维数组
+    for k, v in pairs(list) do
+        local value = self:GetSyncBaseInfoByIndex(v.AttrId);
+        -- local value = self.m_EntityBase.Data.Attrs:GetLuaAoiValue(v.AttrId);
+        v.Value = value;
+
+        v.ExtraVal = 0;
+        local com = v.ComputationalFormula;
+        if com ~= nil and #com >= 3 then
+            local attr1ID = tonumber(com[1]);
+            local attr2ID = tonumber(com[2]);
+            local del = tonumber(com[3]);
+            local RealityVal = self:GetSyncBaseInfoByIndex(attr1ID);
+            local ExtraVal = self:GetSyncBaseInfoByIndex(attr2ID);
+            v.ExtraVal = roundToDecimal((RealityVal - ExtraVal - del) / 100, 1);
+        end
+
+        if v.OwnModule == 0 then
+            table.insert(self.BaseAttrConfList, v);
+        elseif v.OwnModule ~= -1 then
+            if self.HighAttrConfList[v.OwnModule] == nil then
+                self.HighAttrConfList[v.OwnModule] = {};
+            end
+            table.insert(self.HighAttrConfList[v.OwnModule], v);
+        end
+    end
+    -- 创建基础属性
+    self.m_BaseAttrScroll:ContinueScroll(#self.BaseAttrConfList);
+    -- 创建高级属性
+    for i = 1, #self.ItemHighAttrfList do
+        GameObject.Destroy(self.ItemHighAttrfList[i].Transform.gameObject);
+    end
+    self.ItemHighAttrfList = {};
+    for k, v in pairs(self.HighAttrConfList) do
+        local go = newObject(self.m_ItemHighAttr);
+        go.transform:SetParent(self.m_HighAttrScroll.content);
+        go.transform.localPosition = Vector3.zero;
+        go.transform.localScale = Vector3.one;
+        local item = ItemHighAttr:New(go);
+        item:SetItem(k, self.HighAttrConfList[k], self.m_ItemHighBaseAttr, self.ItemHighAttrClickFun);
+        table.insert(self.ItemHighAttrfList, item);
+    end
+    -- CS.UnityEngine.UI.LayoutRebuilder:ForceRebuildLayoutImmediate(self.m_HighAttrScroll.content:GetComponent(typeof(RectTransform)));
+    -- self.m_HighAttrScroll.content:GetComponent(typeof(VerticalLayoutGroup)):CalculateLayoutInputVertical();
+    -- self.m_HighAttrScroll.content:GetComponent(typeof(ContentSizeFitter)):SetLayoutVertical();
+
+    ---------------- [战力] [start]------------
+
+    self.PowerLevel.text = GetPlayerTotalPowerRankLevel(false)
+    local RankLevelCfg = GetPlayerCurRankLevelCfg(false)
+    if RankLevelCfg ~= nil then
+        local level = RankLevelCfg.ParentRank;
+        local iconName = "Icon_PowerLevel_" .. level;
+        ResourceHelper:LoadIconByAtlasAsync(self.PowerIcon, ResourceHelper.AtlasPathCommonctrl, iconName, false)
+    end
+
+    ---------------- [战力] [END]------------
+
+    ---------------- [虚拟列表] [start]------------
+
+    ---------------- [虚拟列表] [END]------------
+
+    UIManager.Instance:SetRawCamrea(true);
+
+    -- 默认选中基础属性
+    self:OnAttrMenuJBtnClick(1);
+    -- 默认清空基础属性的选中
+    self:CleanBaseAttrAllSelected();
+end
+
+---------------- [FixedUpdate] [start]------------
+
+function PlayerAttrWindow:FixedUpdate()
+
+end
+
+---------------- [FixedUpdate] [END]------------
+
+---------------- [虚拟列表] [start]------------
+
+function PlayerAttrWindow:OnItemRefesh(tr, idx)
+    if self.BaseAttrItemList == nil then
+        return;
+    end
+
+    local data = self.BaseAttrConfList[idx + 1];
+    for i = 1, #self.BaseAttrItemList do
+        if self.BaseAttrItemList[i].transform == tr then
+            self.BaseAttrItemList[i]:UpdateContent(data);
+            if self.CurCheckAttrData ~= nil and self.BaseAttrItemList[i].AttrData == self.CurCheckAttrData then
+                self.BaseAttrItemList[i]:OnSelect(true);
+            end
+            return;
+        end
+    end
+    -- 找不到，就创建一个新的
+    self:CreateItemBaseAttr(tr.gameObject, data);
+end
+
+function PlayerAttrWindow:CreateItemBaseAttr(gameObject, data)
+    local item = ItemBaseAttr:New(gameObject, self.ItemBaseAttrClickFun);
+    item:UpdateContent(data);
+    if self.CurCheckAttrData ~= nil and data == self.CurCheckAttrData then
+        item:OnSelect(true);
+    end
+    item.prefab.gameObject:SetActive(true);
+
+    table.insert(self.BaseAttrItemList, item);
+end
+
+-- 清空所有基础属性的选中
+function PlayerAttrWindow:CleanBaseAttrAllSelected()
+    for i = 1, #self.BaseAttrItemList do
+        self.BaseAttrItemList[i]:OnSelect(false);
+    end
+end
+
+-- 基础属性点击事件
+function PlayerAttrWindow:OnItemBaseAttrClick(data)
+    self:CleanBaseAttrAllSelected();
+    if data == nil then
+        return;
+    end
+    self:OpenAttrDeclareWidget(data);
+end
+
+function PlayerAttrWindow:OpenAttrDeclareWidget(data)
+    -- 显示属性详细界面
+    self.CurCheckAttrData = data;
+    if self.AttrDeclareWidget == nil then
+        local list = {};
+        table.insert(list, self.m_EntityBase);
+        table.insert(list, self.BaseAttrConfList);
+        table.insert(list, self.HighAttrConfList);
+        table.insert(list, self.CurCheckAttrData);
+        local widget = UIManager.Instance:OpenWidget(self.AttrDeclareWidgetPath, false, list, self.Root,
+            CS.StarProjectDef.MainPageCommond.HideNone, false, false);
+        self.AttrDeclareWidget = widget:GetLuaPanel().ScriptTable;
+        self.AttrDeclareWidget.RootParent = self.Root;
+    else
+        self.AttrDeclareWidget:SetCheckAttr(self.CurCheckAttrData);
+    end
+    -- 关闭道具Tips
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips", {});
+    -- LuaModuleDispatcher:SendMessage(ModuleDef.EquipModule, "OnCloseEquip", { });
+end
+
+function PlayerAttrWindow:CleanHighAttrAllSelected()
+    for i = 1, #self.ItemHighAttrfList do
+        local item = self.ItemHighAttrfList[i];
+        item:CleanBaseAttrAllSelected();
+    end
+end
+
+---------------- [虚拟列表] [END]------------
+
+function PlayerAttrWindow:OnAttrMenuJBtnClick(idx)
+    for i = 1, #self.AttrMenuJBtns do
+        self.AttrMenuJBtns[i]:MakeSelected(false);
+    end
+
+    self.AttrMenuJBtns[idx]:MakeSelected(true);
+
+    self.m_BaseAttrScroll.gameObject:SetActive(idx == 1);
+    self.m_HighAttrScroll.gameObject:SetActive(idx == 2);
+    if idx == 1 then
+        -- self:UpdateData(self.BaseAttrConfList);
+    elseif idx == 2 then
+        if self.CurCheckAttrData ~= nil then
+            for i = 1, #self.ItemHighAttrfList do
+                local item = self.ItemHighAttrfList[i];
+                item:CleanBaseAttrAllSelected();
+                item:CheckItemByAttrId(self.CurCheckAttrData.AttrId);
+            end
+        end
+    end
+end
+
+function PlayerAttrWindow:GetCurLevelExp(level)
+    --return ConfigDataAccessor.LevelExp[level].Exp;
+    if level == 0 then
+		return 0;
+	end
+	local cfg = ConfigDataAccessor.LevelExp[level];
+	if cfg ~= nil then
+		return cfg.Exp;
+	end
+	return 0;
+end
+
+function PlayerAttrWindow:GetMaxLevel()
+    local count = #ConfigDataAccessor.LevelExp;
+    return ConfigDataAccessor.LevelExp[count].Id;
+end
+
+function PlayerAttrWindow:SetModel(avatarDataCell)
+    if self.m_avatarDataCell ~= avatarDataCell then
+        self:PushDisplayGob();
+        self.m_avatarDataCell = avatarDataCell;
+
+        ------- 加载头像
+        local headItem = ConfigDataAccessor.ModelHead[tonumber(self.m_avatarDataCell.HeadID)];
+        if headItem ~= nil then
+            self:GetSpriteByAtlas(headItem.HeadAtlasName, headItem.MinHead, function(sp)
+                self.m_Portrait.sprite = sp
+            end);
+        end
+        ------- 加载头像
+
+        ------- 设置模型
+        ResourceManager.Instance:PopGameObject("Roles/Template/Display_Model", function(go)
+            if go == nil then
+                return;
+            end
+
+            if self.m_avatarDataCell == nil then
+                ResourceManager.Instance:PushGameObject("Roles/Template/Display_Model", go);
+                return;
+            end
+
+            local pos = Vector3.zero;
+            pos.x = -0.5;
+            UIManager.Instance:SetModel2UI2(go, self.m_avatarDataCell.AvatarID, CS.StarProjectDef.ThreeDModelPos.Raw,
+                Vector3.one, Vector3.zero, Vector3.zero, pos, "idle_01");
+            go:SetActive(true);
+            self.m_ModelViewDisplay = go:GetComponent(typeof(RoleViewDisplay));
+            self.m_DisplayRawing:SetModelView(self.m_ModelViewDisplay);
+
+            if self.m_ModelViewDisplay ~= nil then
+                local rotation = Quaternion.Euler(0, 0, 0);
+                self.m_ModelViewDisplay:SetRotation(rotation);
+                self.m_DisplayRawing:SetState(true);
+            end
+
+            ------- 设置模型
+            self.renderTexture.texture = ResourceManager.Instance.RenderTexture;
+        end);
+    end
+    if self.m_ModelViewDisplay ~= nil then
+        local rotation = Quaternion.Euler(0, 0, 0);
+        self.m_ModelViewDisplay:SetRotation(rotation);
+        self.m_DisplayRawing:SetState(true);
+    end
+end
+
+function PlayerAttrWindow:PushDisplayGob()
+    if self.m_ModelViewDisplay ~= nil then
+        ResourceManager.Instance:PushGameObject("Roles/Template/Display_Model", self.m_ModelViewDisplay.gameObject);
+        -- GameObject.Destroy(self.m_ModelViewDisplay.gameObject);
+        self.m_ModelViewDisplay = nil;
+        self.m_DisplayRawing:SetModelView(self.m_ModelViewDisplay);
+    end
+end
+
+function PlayerAttrWindow:CloseAttrDeclareWidget()
+    if self.AttrDeclareWidget ~= nil then
+        self.AttrDeclareWidget:CloseWidget();
+        self:CleanBaseAttrAllSelected();
+        self:CleanHighAttrAllSelected();
+    end
+end
+
+function PlayerAttrWindow:ReleaseInfo()
+    self:PushDisplayGob();
+    UIManager.Instance:SetRawCamrea(false);
+    self.m_avatarDataCell = nil;
+    self.m_EntityBase = nil;
+    if self.m_DisplayRawing ~= nil then
+        self.m_DisplayRawing:SetState(false);
+    end
+    self.BaseAttrConfList = {};
+    self.HighAttrConfList = {};
+
+    self:CloseAttrDeclareWidget();
+    -- self.m_HighAttrScroll.content:DestroyChildren();
+end
+
+return PlayerAttrWindow

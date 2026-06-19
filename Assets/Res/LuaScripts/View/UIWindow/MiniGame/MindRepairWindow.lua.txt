@@ -1,0 +1,558 @@
+--[[
+*文件名   :   MindRepairWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/11/29 17:54:40"
+*创建人   :   "caojie"
+*版权所有 :   游卡网络科技技术有限公司
+]] MindRepairWindow = class("MindRepairWindow", UIPanel)
+
+-- 策划配置的步数
+MindRepairWindow.StepLimitCount = 0
+-- 剩余步数
+MindRepairWindow.LeftStepCount = 0
+-- 策划配置的初始格子数据
+MindRepairWindow.InitGridData = {}
+-- 当前操作后的格子数据
+MindRepairWindow.GridData = {}
+-- 显示层缓存对象
+MindRepairWindow.AllGridGoList = {}
+-- 是否完成
+MindRepairWindow.IsComplete = false
+-- 游戏状态 默认为放弃
+MindRepairWindow.GameState = nil
+
+local GameStateEnum = 
+{
+    Success = 0,
+    Fail = 1,
+    GiveUp = 2,
+}
+
+local GridConnectDataMap = 
+{
+    -- 起点
+    ["Start"] = {Type = "Start", Left = false, Right = true, Top = false, Bottom = false},
+    -- 终点
+    ["End"] = {Type = "End", Left = true, Right = false, Top = false, Bottom = false},
+    -- 空格子
+    ["Empty"] = {Type = "Empty", Left = false, Right = false, Top = false, Bottom = false},
+    -- 阻挡
+    ["1"] = {Type = "Block", Left = false, Right = false, Top = false, Bottom = false},
+    -- 十
+    ["2"] = {Type = "Normal", Left = true, Right = true, Top = true, Bottom = true},
+    -- 一
+    ["3"] = {Type = "Normal", Left = true, Right = true, Top = false, Bottom = false},
+    -- 丨
+    ["4"] = {Type = "Normal", Left = false, Right = false, Top = true, Bottom = true},
+    -- ↑→
+    ["5"] = {Type = "Normal", Left = false, Right = true, Top = true, Bottom = false},
+    -- ↓→
+    ["6"] = {Type = "Normal", Left = false, Right = true, Top = false, Bottom = true},
+    -- ↓←
+    ["7"] = {Type = "Normal", Left = true, Right = false, Top = false, Bottom = true},
+    -- ↑←
+    ["8"] = {Type = "Normal", Left = true, Right = false, Top = true, Bottom = false},
+    -- ↑←↓
+    ["9"] = {Type = "Normal", Left = true, Right = false, Top = true, Bottom = true},
+    -- ↑←→
+    ["10"] = {Type = "Normal", Left = true, Right = true, Top = true, Bottom = false},
+    -- ↑→↓
+    ["11"] = {Type = "Normal", Left = false, Right = true, Top = true, Bottom = true},
+    -- →↓←
+    ["12"] = {Type = "Normal", Left = true, Right = true, Top = false, Bottom = true},
+}
+
+local GridShowConfig = 
+{
+    -- 起点
+    ["Start"] = {Type = "Start", Normal = "MindRepair_block_bright01", Connect = "MindRepair_block_bright01", GridScale = 1},
+    -- 终点
+    ["End"] = {Type = "End", Normal = "MindRepair_block_dark01", Connect = "MindRepair_block_bright01", GridScale = 2},
+    -- 空格子
+    ["Empty"] = {Type = "Empty", Normal = "", Connect = "", GridScale = 1},
+    -- 阻挡
+    ["1"] = {Type = "Block", Normal = "MindRepair_block_empt", Connect = "MindRepair_block_empt", GridScale = 1},
+    -- 十
+    ["2"] = {Type = "Normal", Normal = "MindRepair_block_dark02", Connect = "MindRepair_block_bright02", GridScale = 1},
+    -- 一
+    ["3"] = {Type = "Normal", Normal = "MindRepair_block_dark03", Connect = "MindRepair_block_bright03", GridScale = 1},
+    -- 丨
+    ["4"] = {Type = "Normal", Normal = "MindRepair_block_dark04", Connect = "MindRepair_block_bright04", GridScale = 1},
+    -- ↑→
+    ["5"] = {Type = "Normal", Normal = "MindRepair_block_dark05", Connect = "MindRepair_block_bright05", GridScale = 1},
+    -- ↓→
+    ["6"] = {Type = "Normal", Normal = "MindRepair_block_dark06", Connect = "MindRepair_block_bright06", GridScale = 1},
+    -- ↓←
+    ["7"] = {Type = "Normal", Normal = "MindRepair_block_dark07", Connect = "MindRepair_block_bright07", GridScale = 1},
+    -- ↑←
+    ["8"] = {Type = "Normal", Normal = "MindRepair_block_dark08", Connect = "MindRepair_block_bright08", GridScale = 1},
+    -- ↑←↓
+    ["9"] = {Type = "Normal", Normal = "MindRepair_block_dark09", Connect = "MindRepair_block_bright09", GridScale = 1},
+    -- ↑←→
+    ["10"] = {Type = "Normal", Normal = "MindRepair_block_dark10", Connect = "MindRepair_block_bright10", GridScale = 1},
+    -- ↑→↓
+    ["11"] = {Type = "Normal", Normal = "MindRepair_block_dark11", Connect = "MindRepair_block_bright11", GridScale = 1},
+    -- →↓←
+    ["12"] = {Type = "Normal", Normal = "MindRepair_block_dark12", Connect = "MindRepair_block_bright12", GridScale = 1},
+}
+
+local GridScale = 
+{
+    [1] = Vector3(1,1,1),
+    [2] = Vector3(-1,1,1),
+}
+
+function MindRepairWindow:InitAllComponent()
+    self.CloseBtn = self:Find("Cut4Cam90/AssemblyRatio2/CloseBtn"):GetComponent(typeof(JButton))
+    self.ResetBtn = self:Find("Cut4Cam90/AssemblyRatio2/U/ResetBtn"):GetComponent(typeof(JButton))
+    self.IntroduceBtn = self:Find("Cut4Cam90/AssemblyRatio2/L/Title/IntroduceBtn"):GetComponent(typeof(JButton))
+    self.LeftStepText = self:Find("Cut4Cam90/AssemblyRatio2/U/LeftStepText"):GetComponent(typeof(Text))
+    self.MidRoot = self:Find("Cut4Cam90/AssemblyRatio2/U/MidRoot")
+    self.Row = self:Find("Cut4Cam90/AssemblyRatio2/U/MidRoot/Row")
+    self.Grid = self:Find("Cut4Cam90/AssemblyRatio2/U/Grid")
+    self.Settlement = self:Find("Cut4Cam90/AssemblyRatio2/Settlement")
+    self.Win = self:Find("Cut4Cam90/AssemblyRatio2/Settlement/Win").gameObject
+    self.Lose = self:Find("Cut4Cam90/AssemblyRatio2/Settlement/Lose").gameObject
+    self.Settlement.gameObject:SetActive(false)
+    self.Win:SetActive(false)
+    self.Lose:SetActive(false)
+    self.Grid.gameObject:SetActive(false)
+end
+
+function MindRepairWindow:SetCurUIHandler()
+    self.CloseBtn.OnClick = function()
+        self:OnClickCloseBtn();
+    end;
+
+    self.ResetBtn.OnClick = function()
+        self:OnClickResetBtn();
+    end;
+
+    self.IntroduceBtn.OnClick = function()
+        self:OnClickIntroduceBtn();
+    end;
+end
+
+function MindRepairWindow:OnClickCloseBtn()
+    self:Close()
+end
+
+-- 重置
+function MindRepairWindow:OnClickResetBtn()
+    -- 回路已重置
+    Util.ShowMessage(LanguageHelp:GetLanguageByKey("Str_MindRepairReseted"))
+
+    self.LeftStepCount = self.StepLimitCount
+    self:InitGrid()
+
+    for i=1, #self.GridData do
+        local rowData = self.GridData[i]
+        for j=1,#rowData do
+            self.AllGridGoList[i][j].ExchangeEffect:SetActive(false)
+            self.AllGridGoList[i][j].ExchangeEffect:SetActive(false)
+            self.AllGridGoList[i][j].ExchangeEffect:SetActive(true)
+            self.AllGridGoList[i][j].ExchangeEffect:SetActive(true)
+        end
+    end
+
+    if self.SelectGrid ~= nil then
+        self.AllGridGoList[self.SelectGrid.Row][self.SelectGrid.Column].Selectimage:SetActive(false)
+        self.SelectGrid = nil
+    end
+
+    self:CheckAllGridConnected()
+    -- self:RenderAllGrid()
+end
+
+-- 玩法介绍
+function MindRepairWindow:OnClickIntroduceBtn()
+    CS.StarProjectDef.UIAPI.ShowGameplayInfo(125)
+end
+
+function MindRepairWindow:BindModule(m)
+    self.Module = m
+end
+
+function MindRepairWindow:Awake()
+    self:InitAllComponent()
+    self:SetCurUIHandler()
+end
+
+function MindRepairWindow:OnDestroy()
+
+end
+
+function MindRepairWindow:RenderAllView(isInit, cfgId)
+    if isInit then
+        self.GamePlayConfigId = cfgId
+        self:InitAllGrid()
+    end
+
+    self:CheckAllGridConnected()
+    -- self:RenderAllGrid()
+end
+
+function MindRepairWindow:InitGrid()
+    self.GridData = {}
+    for i=1,#self.InitGridData do
+        if self.GridData[i] == nil then
+            self.GridData[i] = {}
+        end
+        for j=1,#self.InitGridData[i] do
+            local gridData = {}
+            gridData.GridKey = self.InitGridData[i][j]
+            gridData.IsConnected = false
+            gridData.IsVisited = false
+            gridData.Row = i
+            gridData.Column = j
+            self.GridData[i][j] = gridData
+        end
+    end
+end
+
+function MindRepairWindow:InitAllGrid()
+    local MindRepairConfig = require "Common.Config.MindRepair"
+    self.InitGridData = {}
+    local cfgData = MindRepairConfig[self.GamePlayConfigId]
+    self.StepLimitCount = cfgData.StepLimitCount
+    self.LeftStepCount = self.StepLimitCount
+
+    for i=1, #cfgData.Grids do
+        local rowData = string.split(cfgData.Grids[i],"|")
+        -- 头加空，尾加终点
+        if i == 1 then
+            table.insert(rowData,1,"Empty")
+            table.insert(rowData,"End")
+            self.EndGrid = {Column = #rowData, Row = 1}
+        -- 头加起点，尾加空
+        elseif i == #cfgData.Grids then
+            self.StartGrid = {Column = 1, Row = i}
+            table.insert(rowData,1,"Start")
+            table.insert(rowData,"Empty")
+        -- 头尾都加空
+        else
+            table.insert(rowData,1,"Empty")
+            table.insert(rowData,"Empty")
+        end
+        table.insert(self.InitGridData, rowData)
+    end
+
+    self.GridData = {}
+    for i=1,#self.InitGridData do
+        if self.GridData[i] == nil then
+            self.GridData[i] = {}
+        end
+        for j=1,#self.InitGridData[i] do
+            local gridData = {}
+            gridData.GridKey = self.InitGridData[i][j]
+            gridData.IsConnected = false
+            gridData.IsVisited = false
+            gridData.Row = i
+            gridData.Column = j
+            self.GridData[i][j] = gridData
+        end
+    end
+    -- self.GridData = table.copy(self.InitGridData)
+    self.AllGridGoList = {}
+
+    RefreshGoCachePool(self.Row.gameObject, self.MidRoot, #self.InitGridData)
+    for i=1,#self.InitGridData do
+        if self.AllGridGoList[i] == nil then
+            self.AllGridGoList[i] = {}
+        end
+        local row = self.MidRoot:GetChild(i-1)
+        row.transform.name = "Row"..i
+        RefreshGoCachePool(self.Grid.gameObject, row, #self.InitGridData[i])
+        for j=1,#self.InitGridData[i] do
+            if self.AllGridGoList[i][j] == nil then
+                self.AllGridGoList[i][j] = {}
+                local grid = row:GetChild(j-1)
+                grid.transform.name = "Grid"..(100*i + j)
+                self.AllGridGoList[i][j].GridBtn = grid:GetComponent(typeof(JButton))
+                self.AllGridGoList[i][j].ShowRoot = grid:Find("ShowRoot").gameObject
+                self.AllGridGoList[i][j].StartBg = grid:Find("ShowRoot/BgRoot/StartBg").gameObject
+                self.AllGridGoList[i][j].NormalBg = grid:Find("ShowRoot/BgRoot/NormalBg").gameObject
+                self.AllGridGoList[i][j].EndBg = grid:Find("ShowRoot/BgRoot/EndBg").gameObject
+                self.AllGridGoList[i][j].BlockBg = grid:Find("ShowRoot/BgRoot/BlockBg").gameObject
+                self.AllGridGoList[i][j].GridImage = grid:Find("ShowRoot/GridImage"):GetComponent(typeof(Image))
+                self.AllGridGoList[i][j].GridImageTransform = grid:Find("ShowRoot/GridImage")
+                self.AllGridGoList[i][j].Selectimage = grid:Find("ShowRoot/Selectimage").gameObject
+                self.AllGridGoList[i][j].ExchangeEffect = grid:Find("ShowRoot/ExchangeEffect").gameObject
+                self.AllGridGoList[i][j].GridImageTransform.gameObject:SetActive(false)
+                self.AllGridGoList[i][j].Selectimage:SetActive(false)
+                self.AllGridGoList[i][j].ExchangeEffect:SetActive(false)
+                self.AllGridGoList[i][j].GridBtn.OnClick = function()
+                    self:OnClickGridBtn(i, j, self.AllGridGoList[i][j].Selectimage)
+                end
+            end
+        end
+    end
+
+end
+
+function MindRepairWindow:RenderAllGrid()
+    for i=1, #self.GridData do
+        local rowData = self.GridData[i]
+        for j=1,#rowData do
+            local gridData = rowData[j]
+            self:RenderSingleGrid(gridData, self.AllGridGoList[i][j], i, j)
+        end
+    end
+end
+
+function MindRepairWindow:RenderSingleGrid(gridData, gridGo, row, column)
+    gridGo.ShowRoot:SetActive((GridShowConfig[gridData.GridKey].Type) ~= "Empty")
+    gridGo.StartBg:SetActive(GridShowConfig[gridData.GridKey].Type == "Start")
+    gridGo.NormalBg:SetActive(GridShowConfig[gridData.GridKey].Type == "Normal")
+    gridGo.EndBg:SetActive(GridShowConfig[gridData.GridKey].Type == "End")
+    gridGo.BlockBg:SetActive(GridShowConfig[gridData.GridKey].Type == "Block")
+
+    local scale = GridScale[1]
+    if GridShowConfig[gridData.GridKey].Type == "End" and gridData.IsConnected then
+       scale = GridScale[2]
+    end
+    gridGo.GridImageTransform.localScale = scale
+
+    if GridShowConfig[gridData.GridKey].Type == "Block" then
+        gridGo.GridImage.gameObject:SetActive(false)
+    else
+        local imageRes = gridData.IsConnected and GridShowConfig[gridData.GridKey].Connect or GridShowConfig[gridData.GridKey].Normal
+        ResourceHelper:LoadIconByAtlasAsync(gridGo.GridImage, "UI/MiniGame/Atlas/MindRepair", imageRes, false, function()
+            if gridGo.GridImage ~= nil and not Util.IsNull(gridGo.GridImage) then
+                gridGo.GridImage.gameObject:SetActive(true)
+            end
+        end)
+    end
+end
+
+function MindRepairWindow:CheckAllGridConnected()
+    local row = #self.GridData
+    local column = #self.GridData[1]
+
+    local visited = {} -- row x column的矩阵，用于标记访问过的方块
+    for i = 1, row do
+        visited[i] = {}
+        for j = 1,column do
+            visited[i][j] = false -- 初始化为未访问
+        end
+    end
+
+    for i = 1, row do
+        for j = 1,column do
+            self.GridData[i][j].IsConnected = false -- 初始化为未访问
+        end
+    end
+
+    -- for i = 1, row do
+    --     visited[i] = {}
+    --     for j = 1,column do
+    --         self.GridData[i][j].visited = false -- 初始化为未访问
+    --     end
+    -- end 
+
+    local pathExists = self:DFS(self.StartGrid.Column, self.StartGrid.Row, self.EndGrid.Column, self.EndGrid.Row, visited)
+    self:RenderAllGrid()
+    self:CheckGameState(pathExists)
+end
+
+function MindRepairWindow:DFS(x, y, targetX, targetY, visited)
+    local row = #self.GridData
+    local column = #self.GridData[1]
+
+    -- 检查边界和是否已访问
+    if x < 1 or x > column or y < 1 or y > row or visited[y][x] then
+    -- if x < 1 or x > column or y < 1 or y > row or self.GridData[y][x].IsVisited then
+        return false
+    end
+
+    -- 标记为已访问
+    visited[y][x] = true
+    -- self.GridData[y][x].IsVisited = true
+
+    -- 检查是否到达目标点
+    if (x == self.EndGrid.Column) and (y == self.EndGrid.Row) then
+        self.GridData[self.EndGrid.Row][self.EndGrid.Column].IsConnected = true
+        return true
+    end
+
+    -- 递归检查相邻的方块
+    -- 上
+    if self:CheckSingleConnect(x, y, x, y-1) then
+        -- 当前点标记连通
+        -- self:DFS(x, y-1, x, y-2, visited)
+
+        -- -- 检查是否到达目标点
+        -- if (x == self.EndGrid.Column) and (y == targetY) then
+        --     return true
+        -- end
+
+        if self:DFS(x, y-1, x, y-2, visited) then return true end
+    end
+
+    -- 下
+    if self:CheckSingleConnect(x, y, x, y+1) then
+        -- 当前点标记连通
+        -- self:DFS(x, y+1, x, y+2, visited)
+        if self:DFS(x, y+1, x, y+2, visited) then return true end
+    end
+
+    -- 左
+    if self:CheckSingleConnect(x, y, x-1, y) then
+        -- 当前点标记连通
+        -- self:DFS(x-1, y, x-2, y, visited)
+        if self:DFS(x-1, y, x-2, y, visited) then return true end
+    end
+
+    -- 右
+    if self:CheckSingleConnect(x, y, x+1, y) then
+        -- 当前点标记连通
+        -- self:DFS(x+1, y, x+2, y, visited)
+        if self:DFS(x+1, y, x+2, y, visited) then return true end
+    end
+
+    return false -- 没有找到路径
+end
+
+function MindRepairWindow:CheckSingleConnect(x, y, targetX, targetY)
+    local row = #self.GridData
+    local column = #self.GridData[1]
+    local curGirdData = self.GridData[y][x] 
+    if targetX < 1 or targetX > column or targetY < 1 or targetY > row then
+        curGirdData.IsConnected = false or curGirdData.IsConnected
+        return false
+    end
+
+    local targetGirdData = self.GridData[targetY][targetX]
+    if x == targetX then
+        -- 下
+        if targetY > y then
+            if GridConnectDataMap[curGirdData.GridKey].Bottom and GridConnectDataMap[targetGirdData.GridKey].Top then
+                curGirdData.IsConnected = true
+                return true
+            end
+        -- 上
+        else
+            if GridConnectDataMap[curGirdData.GridKey].Top and GridConnectDataMap[targetGirdData.GridKey].Bottom then
+                curGirdData.IsConnected = true
+                return true
+            end
+        end
+    elseif y == targetY then
+        -- 右
+        if targetX > x then
+            if GridConnectDataMap[curGirdData.GridKey].Right and GridConnectDataMap[targetGirdData.GridKey].Left then
+                curGirdData.IsConnected = true
+                return true
+            end
+        -- 左
+        else
+            if GridConnectDataMap[curGirdData.GridKey].Left and GridConnectDataMap[targetGirdData.GridKey].Right then
+                curGirdData.IsConnected = true
+                return true
+            end
+        end
+    end
+
+    -- self.GridData[x][y].IsConnected = true
+    curGirdData.IsConnected = false or curGirdData.IsConnected
+    return false
+end
+
+function MindRepairWindow:CheckGameState(complete)
+    -- 完成
+    if complete then
+        self.GameState = GameStateEnum.Success
+        self.Settlement.gameObject:SetActive(true)
+        self.Win:SetActive(true)
+        self.Lose:SetActive(false)
+        self:DelayClose()
+    else
+        -- 没有步数失败
+        self.LeftStepText.text = StringFormat(LanguageHelp:GetLanguageByKey("Str_MindRrepairLeftCount"), {self.LeftStepCount}) 
+        if self.LeftStepCount <= 0 then
+            self.GameState = GameStateEnum.Fail
+            self.Settlement.gameObject:SetActive(true)
+            self.Win:SetActive(false)
+            self.Lose:SetActive(true)
+            self:DelayClose()
+        end
+    end
+end
+
+function MindRepairWindow:DelayClose()
+    DOVirtual.DelayedCall(2.5, function()
+        if self.CloseBtn ~= nil and not Util.IsNull(self.CloseBtn) then
+            self:Close()
+        end
+    end)
+end
+
+function MindRepairWindow:OnClickGridBtn(row, column, selectImage)
+    local curGirdData = self.GridData[row][column]
+    -- 不可交互的格子直接return
+    if GridConnectDataMap[curGirdData.GridKey].Type ~= "Normal" then
+        if GridConnectDataMap[curGirdData.GridKey].Type ~= "Empty" then
+            -- 该组件无法移动
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Str_MindRrepairCantMove"))
+        end
+        return
+    end
+
+    -- 当前点击的格子与上次选中的格子一致 直接return
+    if curGirdData == self.SelectGrid then
+        self.AllGridGoList[self.SelectGrid.Row][self.SelectGrid.Column].Selectimage:SetActive(false)
+        self.SelectGrid = nil
+        return
+    end
+
+    -- 第一次选中
+    if self.SelectGrid == nil then
+        self.SelectGrid = curGirdData
+        self.AllGridGoList[curGirdData.Row][curGirdData.Column].Selectimage:SetActive(true)
+    -- 交换格子类型数据GridKey
+    else
+        local selectGridKey = self.SelectGrid.GridKey
+        self.SelectGrid.GridKey = self.GridData[row][column].GridKey
+        self.GridData[row][column].GridKey = selectGridKey
+
+        -- 交换特效
+        self.AllGridGoList[curGirdData.Row][curGirdData.Column].ExchangeEffect:SetActive(false)
+        self.AllGridGoList[self.SelectGrid.Row][self.SelectGrid.Column].ExchangeEffect:SetActive(false)
+        self.AllGridGoList[curGirdData.Row][curGirdData.Column].ExchangeEffect:SetActive(true)
+        self.AllGridGoList[self.SelectGrid.Row][self.SelectGrid.Column].ExchangeEffect:SetActive(true)
+
+        self.AllGridGoList[self.SelectGrid.Row][self.SelectGrid.Column].Selectimage:SetActive(false)
+        self.SelectGrid = nil
+        self.LeftStepCount = self.LeftStepCount - 1
+        self:CheckAllGridConnected()
+        -- self:RenderAllGrid()
+    end
+end
+
+function MindRepairWindow:Start()
+
+end
+
+function MindRepairWindow:OnEnable()
+
+end
+
+function MindRepairWindow:OnDisable()
+
+end
+
+function MindRepairWindow:OnDestroy()
+
+end
+
+function MindRepairWindow:OnOpen(arg)
+    -- self.GamePlayConfigId = arg
+    self.GameState = GameStateEnum.GiveUp
+end
+
+function MindRepairWindow:OnClose(arg)
+    CS.StarProject.GlobalEvent.OnMindRepairResultEvent:Invoke(self.GameState)
+end
+
+return MindRepairWindow

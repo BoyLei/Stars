@@ -1,0 +1,265 @@
+--[[
+*文件名   :   EquipWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/18 16:36:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+PartnerPreviewWindow=class("PartnerPreviewWindow",UIPanel)
+PartnerPreviewWindow.IsOpen=false
+local EquipItem = require("View.Item.EquipItem");
+
+function PartnerPreviewWindow:Awake()
+
+end
+function PartnerPreviewWindow:Start()
+
+end
+
+function PartnerPreviewWindow:InitItems()
+	UIManager.Instance:SetRawCamrea(true);
+	self.transform =self.prefab.transform;
+	self.gameObject =self.prefab;
+	self.IsOpen=false;
+
+	--动画相关
+	self.anim=self.transform:GetComponent(typeof(Animator));
+	self.BtnClose = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/BG/BGTitle/JBtnClose"):GetComponent(TJButton);
+	self.ImgType = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/info/ImgType"):GetComponent(TImage)
+	self.TxtTypeName = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/info/TxtTypeName"):GetComponent(TText)
+	self.TxtName = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/info/TxtName"):GetComponent(TText)
+	self.TxtLevel = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/info/TxtLevel"):GetComponent(TText)
+	self.TxtValue = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/info/TxtValue"):GetComponent(TText)
+	self.StarContent = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/info/StarContent")
+	self.AttriContent = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/RoleInfoContent/Top/AttriContent")
+	self.m_RoleRawImage = self:Find("Cut4Cam90/AssemblyRatio2/Root/RoleRawImage"):GetComponent(TRawImage);
+	self.JBtnFun = function()
+		LuaModuleDispatcher:SendMessage(ModuleDef.PlayerPreviewModule, "ClosePartnerPreviewWindow", nil)
+	end
+	self.BtnClose.OnClick = self.JBtnFun
+
+	self.equips={};
+	for i=1,3 do
+		local _go=self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/RoleInfoContent/Down/EquipContent/EquipGrid"..i);
+		local equip=EquipItem:New(_go);
+
+		equip:InitItem(true,function(it,i)
+			self:OnItemClick(it,i);
+		end)
+
+		table.insert( self.equips, equip );
+	end
+
+
+	self.IsShowPerfect=0;
+end
+
+
+--创建一个背包格子
+function PartnerPreviewWindow:CreateEquipSlot(baseID,entityID,num,state,maxStack)
+	local equipSlot=EquipSlot();--新建一个格子
+	equipSlot:Init(1,state,maxStack);--初始化格子(正在使用)
+	equipSlot:PutIn(baseID,entityID,num);
+	return equipSlot;
+end
+
+function PartnerPreviewWindow:RefreshData(serverData)
+	--伙伴装备
+	if serverData == nil  then return end
+	if serverData.PartnerEquipList then
+		if serverData.PartnerEquipList and #serverData.PartnerEquipList > 0 then
+			for i=1,#self.equips do
+				local data = serverData.PartnerEquipList[i]
+				if data== nil then
+					local equipSlot= self:CreateEquipSlot(0,0,0,0,0);--空格子
+					self.equips[i]:SetItem(equipSlot,i,self.IsShowPerfect,true,false);
+				else
+					local equipSlot= self:CreateEquipSlot(data.BaseID,data.EntityID,0,1,0);--装备格子
+					self.equips[i]:SetItem(equipSlot,i,self.IsShowPerfect,true,false);
+				end
+			end
+		end
+	end
+	local cfg = ConfigDataAccessor.Partner[serverData.Index]
+	if cfg then
+		self.TxtName.text = cfg.Name
+		self.TxtName.color = GetQualityColorRGB(cfg.Quality+1)
+		local partnerTypeConfig = ConfigDataAccessor.PartnerType[cfg.PartnerType]
+		if partnerTypeConfig then
+			ResourceHelper:LoadIconByAtlasAsync(self.ImgType, "ui/icons/atlas/iconrole", partnerTypeConfig.ShowIcon_s, false)
+			self.TxtTypeName.text = partnerTypeConfig.Name
+		end
+		self.TxtLevel.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_PartnerLevel"),{serverData.Level})
+		self.TxtValue.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_PartnerScore"),{serverData.Score})
+
+		if serverData.CurStar > 0 then
+			for j = 1, serverData.CurStar do
+				local starObj = self.StarContent:GetChild(j-1)
+				starObj.gameObject:SetActive(true)
+			end
+		end
+
+		local avatarDataCell = ConfigDataAccessor.Avatar[cfg.AvatarID]
+		if avatarDataCell ~= nil then
+			self:SetModel(avatarDataCell, Vector3(1.2,1.2,1), Vector3.zero, Vector3(0,-0.2,0), cfg.ModelAnima);
+		end
+		--伙伴属性
+		self.Props={}
+
+		local temp={}
+		local attrTable = {}
+		local qualificate=ConfigDataAccessor.Qualifications[cfg.QualificationID][serverData.AptitudeBreakStep]
+		if qualificate~=nil then
+			for i = 1, #qualificate.QualiFications do
+				local AoiAttr= ConfigDataAccessor.ParConversion[qualificate.QualiFications[i]]
+				if AoiAttr~=nil and serverData.AttriTable then
+					temp[qualificate.QualiFications[i]]={PropName=AoiAttr.Name,PropMax=qualificate.Value_max[i],OldMax=qualificate.Value_max[i]}
+					attrTable[qualificate.QualiFications[i]] = AoiAttr.AttrID
+				end
+			end
+		end
+
+		for k, v in pairs(temp) do
+			v.id=k
+			if serverData.AttriTable then
+				v.CurValue = serverData.AttriTable[v.id]
+			end
+			v.AttrID=attrTable[v.id]
+			table.insert(self.Props,v)
+		end
+		table.sort(self.Props,function (p1,p2)
+			return p1.id<p2.id;
+		end);
+		if self.Props and #self.Props > 0 then
+			for i, v in ipairs(self.Props) do
+				local partnerObj = self.AttriContent:GetChild(i-1)
+				if partnerObj then
+					local ImgIcon = partnerObj:Find("BgRare"):GetComponent(TImage)
+					local PropName = partnerObj:Find("PropName"):GetComponent(TText)
+					local PropValue = partnerObj:Find("PropValue"):GetComponent(TText)
+					local Slider = partnerObj:Find("Slider"):GetComponent(TSlider)
+					PropName.text = v.PropName
+					PropValue.text = string.format("%d/%d",v.CurValue,v.PropMax)
+					Slider.value = v.CurValue/v.PropMax
+					partnerObj.gameObject:SetActive(true)
+					ResourceHelper:LoadIconByAtlasAsync(ImgIcon, ResourceHelper.AtlasPathIconAttribute,"Attribute_"..v.AttrID, false)
+				end
+			end
+		end
+	end
+end
+function PartnerPreviewWindow:SetModel(avatarDataCell, scale, localRotate, localPos, animName)
+	if self.m_avatarDataCell ~= avatarDataCell then
+		------- 设置模型
+		self.m_avatarDataCell = avatarDataCell;
+		ResourceManager.Instance:PopGameObject("Roles/Template/Display_Model", function(go)
+			if go == nil then
+				return;
+			end
+			if self.m_avatarDataCell == nil then
+				ResourceManager.Instance:PushGameObject("Roles/Template/Display_Model", go);
+				return;
+			end
+			UIManager.Instance:SetModel2UI2(go, self.m_avatarDataCell.AvatarID, CS.StarProjectDef.ThreeDModelPos.Raw, scale,
+					Vector3.zero, localRotate, localPos, animName);
+			go:SetActive(true);
+			self.modelRender = go
+			------- 设置模型
+			self.m_RoleRawImage.texture = ResourceManager.Instance.RenderTexture;
+		end);
+
+	end
+end
+function PartnerPreviewWindow:SetIsShowPerfect(num)
+	self.IsShowPerfect=num;
+end
+
+function PartnerPreviewWindow:OnItemClick(ritem,idx)
+
+	print("EquipItem:OnItemClick")
+
+
+	if ritem==nil then
+		LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips",{  });
+	else
+		for i=1,#self.amulets do
+			self.amulets[i]:MakeSelected(false);
+		end
+		for j=1,#self.equips do
+			self.equips[j]:MakeSelected(false);
+		end
+
+
+		ritem:MakeSelected(true);
+
+
+		--设置道具Tips
+		self.module.IsOpenTips=true;
+		LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",{ ritem.BaseID,false ,ritem.EntityID,self.equips[idx].transform,1});
+	end
+	if idx<=3 then
+		LuaModuleDispatcher:SendMessage(ModuleDef.BagModule, "OnOpenBagTag",{ 3,idx });
+	end
+end
+function PartnerPreviewWindow:PushDisplayGob()
+	if self.modelRender then
+		ResourceManager.Instance:PushGameObject("Roles/Template/Display_Model", self.modelRender.gameObject);
+	end
+end
+
+function PartnerPreviewWindow:BindModule(m)
+	self.module=m;
+end
+
+
+
+function PartnerPreviewWindow:Start()
+	
+end
+
+function PartnerPreviewWindow:OnEnable()
+	LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OnForceTab",4);
+end
+
+function PartnerPreviewWindow:OnDisable()
+	
+end
+
+function PartnerPreviewWindow:OnDestroy()
+
+end
+
+function PartnerPreviewWindow:OnOpen(arg)
+	self.IsOpen=true;
+
+end
+
+function PartnerPreviewWindow:OnClose(arg)
+	self.IsOpen=false;
+	UIManager.Instance:SetRawCamrea(false);
+	self:PushDisplayGob()
+end
+
+function PartnerPreviewWindow:CloseWindow()
+	self.anim:Play("EquipWidgetAnim_Exit");
+	DOVirtual.DelayedCall(0.1,function ()
+		--关闭道具Tips
+		if self.module.IsOpenTips then
+			self.module.IsOpenTips=false;
+			self.module:CloseItemTips();
+		end
+
+		--关闭所有选择框
+		for i=1,#self.equips do
+			self.equips[i]:MakeSelected(false);
+		end
+		self.IsShowPerfect=0;
+		
+		self.Close();
+		--UIManager.Instance:CloseWindow("Equip/EquipWindow",nil,true);
+		self.module:OnCloseEquip();
+	end)
+end
+
+return  PartnerPreviewWindow

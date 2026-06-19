@@ -1,0 +1,404 @@
+--[[
+*文件名   :   WildBossWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/11/29 17:54:40"
+*创建人   :   "caojie"
+*版权所有 :   游卡网络科技技术有限公司
+]] WildBossWindow = class("WildBossWindow", UIPanel)
+local CurrencyBar = require("View/Item/CurrencyBar")
+local WildBossItem = require("View/UIWindow/WildBoss/WildBossItem")
+
+WildBossWindow.m_BgRawImage = nil;
+WildBossWindow.m_Item = nil;
+WildBossWindow.m_BossRawImage = nil;
+WildBossWindow.m_BossRemainTime = nil;
+WildBossWindow.m_BossRemainTimeText = nil;
+WildBossWindow.m_BossRefresh = nil;
+WildBossWindow.m_BossRemainTimeText = nil;
+WildBossWindow.m_IntroduceBtn = nil;
+WildBossWindow.m_BossDescText = nil;
+WildBossWindow.m_BossNameText = nil;
+WildBossWindow.m_BossLevelText = nil;
+WildBossWindow.m_MapRawImage = nil;
+WildBossWindow.m_MapText = nil;
+WildBossWindow.m_AwardNumText = nil;
+WildBossWindow.m_EnterBtn = nil;
+WildBossWindow.m_EnterBtnText = nil;
+WildBossWindow.m_CurrencyAhchor = nil;
+local IntroduceBtnFunc = nil;
+local EnterBtnFunc = nil;
+
+local coins = {2, 3}
+WildBossWindow.ItemList = {}
+WildBossWindow.WildBossConfigDatas = {}
+-- 已满足开服条件的下次刷新时间
+WildBossWindow.NextRefreshTimeStamp = 0
+-- 刷新倒计时
+WildBossWindow.LeftTimeSec = 0
+WildBossWindow.UpdateFun = nil
+
+function WildBossWindow:InitAllComponent()
+    self.m_BgRawImage = self:Find("BgRawImage"):GetComponent(typeof(RawImage));
+    self.m_ScrollView = self:Find("Cut4Cam90/AssemblyRatio2/L/ScrollView"):GetComponent(typeof(SuperScrollViewController));
+    self.m_Item = self:Find("Cut4Cam90/AssemblyRatio2/L/ScrollView/Mask/List/Item").gameObject;
+    self.m_BossRawImage = self:Find("Cut4Cam90/AssemblyRatio2/U/Mid/BossRawImage"):GetComponent(typeof(RawImage));
+    self.m_BossRemainTime = self:Find("Cut4Cam90/AssemblyRatio2/U/Mid/BossRemainTime").gameObject;
+    self.m_BossRefresh = self:Find("Cut4Cam90/AssemblyRatio2/U/Mid/BossRefresh").gameObject;
+    self.m_BossRemainTimeText = self:Find("Cut4Cam90/AssemblyRatio2/U/Mid/BossRemainTime/BossRemainTimeText")
+        :GetComponent(typeof(Text));
+    self.m_IntroduceBtn = self:Find("Cut4Cam90/AssemblyRatio2/U/Mid/IntroduceBtn"):GetComponent(typeof(JButton));
+    self.m_BossDescText = self:Find("Cut4Cam90/AssemblyRatio2/U/Mid/BossDesc/BossDescText"):GetComponent(typeof(Text));
+    self.m_BossNameText = self:Find("Cut4Cam90/AssemblyRatio2/R/Right/title/BossNameText"):GetComponent(typeof(Text));
+    self.m_BossLevelText = self:Find("Cut4Cam90/AssemblyRatio2/R/Right/title/BossLevelText"):GetComponent(typeof(Text));
+    self.m_MapRawImage = self:Find("Cut4Cam90/AssemblyRatio2/R/Right/First/MapRawImage"):GetComponent(typeof(RawImage));
+    self.m_MapText = self:Find("Cut4Cam90/AssemblyRatio2/R/Right/First/MapText"):GetComponent(typeof(Text));
+    self.m_AwardNumText = self:Find("Cut4Cam90/AssemblyRatio2/R/Right/AwardNumText"):GetComponent(typeof(Text));
+    self.m_EnterBtn = self:Find("Cut4Cam90/AssemblyRatio2/R/Right/EnterBtn"):GetComponent(typeof(JButton));
+    self.m_EnterBtnText = self:Find("Cut4Cam90/AssemblyRatio2/R/Right/EnterBtn/EnterBtnText"):GetComponent(typeof(Text));
+    self.m_CurrencyAhchor = self:Find("Cut4Cam90/AssemblyRatio2/CurrencyAhchor"):GetComponent(typeof(RectTransform));
+    self.m_RewardItemPreviewGo = self:Find("Cut4Cam90/AssemblyRatio2/R/Right/RewardsRoot/ItemPreview").gameObject;
+    self.m_RewardItemPreview = StructAccessor.ItemPreview.new(self.m_RewardItemPreviewGo);
+
+    self.currencyBar = CurrencyBar:New(nil, self.m_CurrencyAhchor);
+    -- self.m_ScrollView:NewScroll(self.m_PlayerItem, 0, function (tr,idx)
+    -- 		self:OnItemRefesh(tr,idx);
+    -- 	end);
+end
+
+function WildBossWindow:SetCurUIHandler()
+    self.m_ScrollView:NewScroll(self.m_Item, 0, function(tr, idx)
+        self:OnItemRefesh(tr, idx);
+    end);
+    IntroduceBtnFunc = function()
+        self:OnClickIntroduceBtn();
+    end;
+    EnterBtnFunc = function()
+        self:OnClickEnterBtn();
+    end;
+
+    self.m_IntroduceBtn.OnClick = IntroduceBtnFunc;
+    self.m_EnterBtn.OnClick = EnterBtnFunc;
+end
+
+function WildBossWindow:OnClickIntroduceBtn()
+    CS.StarProjectDef.UIAPI.ShowGameplayInfo(116)
+end
+
+function WildBossWindow:OnClickEnterBtn()
+    if self.SelectBossConfigId == nil then
+        return
+    end
+
+    local cfgData = ConfigDataAccessor.FieldBoss[self.SelectBossConfigId]
+    local isMapOpen = GameManager.Instance:CheckMapIsOpen(cfgData.Map)
+    if not isMapOpen then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_275"))
+        return
+    end
+    if cfgData == nil then
+        return
+    end
+
+    local info = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.ComCount):GetData(18)
+    local hasRewardCount = info.RemainCount > 0
+    if not hasRewardCount then
+        -- 今日已无领奖次数，是否继续挑战
+        CS.StarProjectDef.UIAPI.ShowMsgBox(56, function(str)
+            if str == "SURE" then
+                UIManager.Instance:CloseAllLoadedWindowNWidget();
+                TaskHelper.FindPathBySpawner(cfgData.Map, cfgData.SpawnID)
+            end
+        end);
+    else
+        local serverData = self.Module:GetWildBossServerDataByConfigId(self.SelectBossConfigId)
+        local hasBoss = serverData ~= nil
+        if hasBoss then
+            UIManager.Instance:CloseAllLoadedWindowNWidget();
+            TaskHelper.FindPathBySpawner(cfgData.Map, cfgData.SpawnID)
+        else
+            -- 该首领暂未出现，是否继续前往
+            CS.StarProjectDef.UIAPI.ShowMsgBox(57, function(str)
+                if str == "SURE" then
+                    UIManager.Instance:CloseAllLoadedWindowNWidget();
+                    TaskHelper.FindPathBySpawner(cfgData.Map, cfgData.SpawnID)
+                end
+            end);
+        end
+    end
+end
+
+function WildBossWindow:BindModule(m)
+    self.Module = m
+end
+
+function WildBossWindow:Awake()
+    self:InitAllComponent()
+    self:SetCurUIHandler()
+
+    -- update事件
+    self.UpdateFun = function()
+        self:UpdateLeftTime();
+    end
+end
+
+function WildBossWindow:OnDestroy()
+    if self.Module ~= nil then
+        self.Module:OnWildBossWindowDestroy()
+    end
+end
+
+function WildBossWindow:RenderAllView(isInit)
+    self.WildBossConfigDatas = self.Module:GetAllWildBossConfigData()
+    if self.SelectBossConfigId == nil then
+        for k, v in pairs(self.WildBossConfigDatas) do
+            self.SelectBossConfigId = v.ID
+            break
+        end
+    end
+    self.m_ScrollView:ContinueScroll(#self.WildBossConfigDatas, isInit);
+
+    self:RenderCurrencyBar()
+    self:RenderBossContent()
+end
+
+function WildBossWindow:RenderBossContent()
+    -- local cfgData = ConfigDataAccessor.FieldBoss[self.SelectBossConfigId]
+    local cfgData = self.WildBossConfigDatas[self.SelectBossConfigId]
+    if cfgData == nil then
+        return
+    end
+
+    -- 底图、出现地图
+    ResourceHelper:LoadRawIconAsync(self.m_BgRawImage, cfgData.BOSSBackDrop, false)
+    ResourceHelper:LoadRawIconAsync(self.m_MapRawImage, cfgData.BOSSCard, false)
+    local mapConfig = ConfigDataAccessor.SceneMap[cfgData.Map]
+    if mapConfig ~= nil then
+        self.m_MapText.text = mapConfig.SceneName
+    end
+
+    -- boss名称、等级、模型显示
+    local monsterConfig = ConfigDataAccessor.Monster[cfgData.MonID]
+    if monsterConfig ~= nil then
+        self.m_BossNameText.text = monsterConfig.Name
+        --self.m_BossLevelText.text = string.format(strMonsterLevel, cfgData.BOSSLevel)
+		self.m_BossLevelText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_strMonsterLevel"), {cfgData.BOSSLevel});
+
+        local avatarDataCell = ConfigDataAccessor.Avatar[monsterConfig.AvatarID];
+        if avatarDataCell ~= nil then
+            -- self:SetModel(avatarDataCell,Vector3.one,Vector3.zero,Vector3.zero);
+            self:SetModel(avatarDataCell, String2Vector3(cfgData.ModelScale), String2Vector3(cfgData.ModelRot),
+                String2Vector3(cfgData.ModelPos), cfgData.ModelAnima);
+
+        end
+    end
+
+    -- 参与奖励预览
+    self.CostItems = {}
+    for i = 1, #cfgData.AwardsShow do
+        table.insert(self.CostItems, {
+            ItemID = cfgData.AwardsShow[i],
+            ItemNum = cfgData.AwardsShowNum[i]
+        })
+    end
+    self.m_RewardItemPreview:SetItems(self.CostItems)
+
+    -- 首领已出现/首领倒计时
+    local serverData = self.Module:GetWildBossServerDataByConfigId(self.SelectBossConfigId)
+    local hasBoss = serverData ~= nil
+    self.m_BossRefresh:SetActive(hasBoss)
+    self.m_BossRemainTime:SetActive(not hasBoss)
+    local serverNowTime = math.floor(GameManager.Instance:GetServerTimeStamp() / 1000)
+    local isPlayOpen = serverNowTime > cfgData.PlayOnRefreshTimeStamp
+    if isPlayOpen then
+        self.LeftTimeSec = self.NextRefreshTimeStamp - serverNowTime
+    else
+        self.LeftTimeSec = cfgData.PlayOnRefreshTimeStamp - serverNowTime
+    end
+
+    -- self.LeftTimeSec = self.LeftTimeSec + 3600
+
+    MonoHelper.RemoveSecTimeUpdateListener(self.UpdateFun)
+    if not hasBoss then
+        --self.m_BossRemainTimeText.text = string.format(strRefreshCd, SecToStringColon5(self.LeftTimeSec))
+        self.m_BossRemainTimeText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_strRefreshCd"), {SecToStringColon5(self.LeftTimeSec)});
+    end
+
+    -- boss不存在且刷新时间小于1天，开启timer显示倒计时
+    if not hasBoss and self.LeftTimeSec < 86400 then
+        MonoHelper.AddSecTimeUpdateListener(self.UpdateFun)
+    end
+
+    -- 首领描述
+    self.m_BossDescText.text = cfgData.BOSSDec
+
+    -- 挑战按钮显示状态、剩余次数
+    local isMapOpen = GameManager.Instance:CheckMapIsOpen(cfgData.Map)
+    self.m_EnterBtn.UnClick = not isMapOpen
+    self.m_EnterBtnText.text = isMapOpen and LanguageHelp:GetLanguageByKey("Local_Str_Tips17") or LanguageHelp:GetLanguageByKey("Local_Str_Tips18")
+
+    local info = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.ComCount):GetData(18)
+    --self.m_AwardNumText.text = string.format(strRemainRewardCount, info.RemainCount)
+    self.m_AwardNumText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_strRemainRewardCount"), {info.RemainCount});
+
+end
+
+function WildBossWindow:UpdateLeftTime()
+    if self.LeftTimeSec <= 0 then
+        self.m_BossRemainTimeText.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips7")
+        MonoHelper.RemoveSecTimeUpdateListener(self.UpdateFun)
+    else
+        self.LeftTimeSec = self.LeftTimeSec - 1
+        --self.m_BossRemainTimeText.text = string.format(strRefreshCd, SecToStringColon5(self.LeftTimeSec))
+        self.m_BossRemainTimeText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_strRefreshCd"), {SecToStringColon5(self.LeftTimeSec)});
+
+    end
+end
+
+-- 刷新货币
+function WildBossWindow:RenderCurrencyBar()
+    self.currencyBar:RefeshBar(coins);
+    self.currencyBar:PlayAnim(true);
+end
+
+function WildBossWindow:OnItemRefesh(tr, idx)
+    if self.ItemList == nil then
+        return
+    end
+    for i = 1, #self.ItemList do
+        if self.ItemList[i].transform == tr then
+            self.ItemList[i]:SetItem(self.WildBossConfigDatas[idx + 1], self.SelectBossConfigId); -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+        end
+    end
+
+    local bi = WildBossItem.new(tr.gameObject, self.AtlasPath, function(bossConfigId)
+        self:OnSelect(bossConfigId)
+    end);
+    bi.prefab.gameObject:SetActive(true);
+    bi:SetItem(self.WildBossConfigDatas[idx + 1], self.SelectBossConfigId); -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+
+    table.insert(self.ItemList, bi);
+end
+
+function WildBossWindow:OnSelect(bossConfigId)
+    if self.SelectBossConfigId == bossConfigId then
+        return
+    end
+
+    self.SelectBossConfigId = bossConfigId
+    self:RenderAllView(false);
+end
+
+function WildBossWindow:Start()
+
+end
+
+function WildBossWindow:OnEnable()
+
+end
+
+function WildBossWindow:OnDisable()
+
+end
+
+function WildBossWindow:OnDestroy()
+
+end
+
+function WildBossWindow:OnOpen(arg)
+    local tb = arg
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        self.NextRefreshTimeStamp = tb[1];
+    else
+        -- C#调用
+        self.NextRefreshTimeStamp = tb[0];
+    end
+
+    -- -- 默认选中传入的BossId
+    -- self.SelectBossConfigId = arg.bossConfigId
+
+    UIManager.Instance:SetRawCamrea(true);
+end
+
+function WildBossWindow:SetModel(avatarDataCell, scale, localRotate, localPos, animName)
+    if self.m_avatarDataCell ~= avatarDataCell then
+        ------- 设置模型
+        self:PushDisplayGob();
+        self.m_avatarDataCell = avatarDataCell;
+        ResourceManager.Instance:PopGameObject("Roles/Template/Display_Model", function(go)
+            if go == nil then
+                return;
+            end
+            if self.m_avatarDataCell == nil then
+                ResourceManager.Instance:PushGameObject("Roles/Template/Display_Model", go);
+                return;
+            end
+            UIManager.Instance:SetModel2UI2(go, self.m_avatarDataCell.AvatarID, CS.StarProjectDef.ThreeDModelPos.Raw, scale,
+                Vector3.zero, localRotate, localPos, animName, false);
+            go:SetActive(true);
+            self.m_ModelViewDisplay = go:GetComponent(typeof(RoleViewDisplay));
+            -- self.m_DisplayRawing:SetModelView(self.m_ModelViewDisplay);
+
+            if self.m_ModelViewDisplay ~= nil then
+                local rotation = Quaternion.Euler(0, 0, 0);
+                self.m_ModelViewDisplay:SetRotation(rotation);
+                -- self.m_DisplayRawimg:SetState(true);
+            end
+
+            ------- 设置模型
+            self.m_BossRawImage.texture = ResourceManager.Instance.RenderTexture;
+
+        end);
+
+    end
+    if self.m_ModelViewDisplay ~= nil then
+        local rotation = Quaternion.Euler(0, 0, 0);
+        self.m_ModelViewDisplay:SetRotation(rotation);
+        -- self.m_DisplayRawimg:SetState(true);
+    end
+end
+
+function WildBossWindow:PushDisplayGob()
+    if self.m_ModelViewDisplay ~= nil then
+        ResourceManager.Instance:PushGameObject("Roles/Template/Display_Model", self.m_ModelViewDisplay.gameObject);
+        -- GameObject.Destroy(self.m_ModelViewDisplay.gameObject);
+        self.m_ModelViewDisplay = nil;
+        -- self.m_DisplayRawimg:SetModelView(self.m_ModelViewDisplay);
+    end
+end
+
+function WildBossWindow:RenderMonsterImage(avatarId)
+    local avatarDataCell = ConfigDataAccessor.Avatar[avatarId];
+    if avatarDataCell == nil then
+        return
+    end
+
+    local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID]
+    if headCfg == nil then
+        return
+    end
+
+    self:GetSpriteByAtlas(headCfg.HeadAtlasName, headCfg.MinHead, function(sp)
+        self.m_BossRawImage.sprite = sp
+    end);
+    -- self.m_BossRawImage:SetNativeSize();
+
+end
+
+function WildBossWindow:OnClose(arg)
+    self.SelectBossConfigId = nil
+    MonoHelper.RemoveSecTimeUpdateListener(self.UpdateFun)
+    self:PushDisplayGob();
+    self.m_avatarDataCell = nil;
+    self.m_ModelViewDisplay = nil;
+    UIManager.Instance:SetRawCamrea(false);
+end
+
+function WildBossWindow:OnClickCloseBtn()
+    self:Close()
+end
+
+return WildBossWindow

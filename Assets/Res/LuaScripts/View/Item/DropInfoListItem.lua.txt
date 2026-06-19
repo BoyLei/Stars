@@ -1,0 +1,156 @@
+--[[
+*文件名   :   DropInfoListItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/4 14:09:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local DropInfoListItem = {}
+
+DropInfoListItem.__index = DropInfoListItem
+
+function DropInfoListItem:New(_go, onFinished)
+    local self = {}
+    setmetatable(self, DropInfoListItem)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.Desc1 = self.transform:Find("Anim/Normal/tex"):GetComponent(typeof(Text))
+    self.Desc2 = self.transform:Find("Anim/Item/tex"):GetComponent(typeof(Text))
+
+    self.Icon = self.transform:Find("Anim/Item/Icon"):GetComponent(typeof(Image))
+
+    self.go_Normal = self.transform:Find("Anim/Normal").gameObject
+    self.go_Normal:SetActive(false)
+
+    self.go_Item = self.transform:Find("Anim/Item").gameObject
+    self.go_Item:SetActive(true)
+
+    self.anim = self.transform:Find("Anim"):GetComponent(typeof(Animator))
+
+    self.qualityList = {}
+    for i = 1, 5 do
+        local go_quality = self.transform:Find("Anim/Eff" .. i).gameObject
+        go_quality:SetActive(false)
+        table.insert(self.qualityList, go_quality)
+    end
+
+    self.gameObject:SetActive(false)
+    self.IsUsed = false
+    self.tw = nil
+
+    self.OnFinished = onFinished
+
+    self.rect = self.transform:GetComponent(typeof(RectTransform))
+
+    return self --返回自身
+end
+
+function DropInfoListItem:UnUse()
+    if self.tw ~= nil then
+        self.tw:Kill()
+    end
+    if self.tw2 ~= nil then
+        self.tw2:Kill()
+        self.tw2 = nil
+    end
+    self.gameObject:SetActive(false)
+    self.IsUsed = false
+end
+
+--往上移动一格
+function DropInfoListItem:MoveUp()
+    --local x=self.rect.anchoredPosition.x;
+    --local y=self.rect.anchoredPosition.y;
+
+    if self.tw2 ~= nil then
+        self.tw2:Kill()
+        self.tw2 = nil
+    end
+    self.aimY = self.aimY + 45
+    self.tw2 = self.rect:DOAnchorPosY(self.aimY, 0.1):SetEase(Ease.Linear)
+
+    --self.rect.anchoredPosition=Vector2(x,y+45);
+end
+
+--
+function DropInfoListItem:SetItem(item)
+    if self.tw2 ~= nil then
+        self.tw2:Kill()
+        self.tw2 = nil
+    end
+    self.aimY = -208
+    --设置坐标
+    self.rect.anchoredPosition = Vector2(80, -208)
+
+    self.IsUsed = true
+    self.gameObject:SetActive(true)
+
+    local ItemType = item.ItemType
+    local quality = item.Quality
+    local icon = item.Icon
+    local desc = item.Desc
+
+    self.Desc1.text = desc
+    self.Desc2.text = desc
+
+    self.Desc1.color = GetDropQualityColorRGB(quality)
+    self.Desc2.color = GetDropQualityColorRGB(quality)
+
+    --[[
+        暂时都先都有图标
+        if ItemType ==101 then
+            self.go_Normal:SetActive(true);
+            self.go_Item:SetActive(false);
+
+        else
+            self.go_Normal:SetActive(false);
+            self.go_Item:SetActive(true);
+            --self.Icon.sprite="";
+        end
+    ]]
+    --LoadIcon(self.Icon,icon);
+    ResourceHelper:LoadIconAsync(self.Icon, "", icon, false)
+
+    self.go_Normal:SetActive(false)
+    self.go_Item:SetActive(true)
+
+    for i = 1, #self.qualityList do
+        self.qualityList[i].gameObject:SetActive(false)
+    end
+    if quality == 99 then
+        quality = 1
+    end
+    self.qualityList[quality].gameObject:SetActive(true)
+
+    self.anim:Play("Go")
+
+    if self.tw ~= nil then
+        self.tw:Kill()
+    end
+
+    --1秒关闭
+    self.tw =
+        DOVirtual.DelayedCall(
+        1.5,
+        function()
+            self.anim:Play("Out")
+
+            DOVirtual.DelayedCall(
+                0.2,
+                function()
+                    self.IsUsed = false
+                    self.gameObject:SetActive(false)
+                    if self.OnFinished ~= nil then
+                        self.OnFinished() --完成回调
+                    --self.OnFinished=nil;
+                    end
+                end
+            )
+        end
+    )
+end
+
+return DropInfoListItem

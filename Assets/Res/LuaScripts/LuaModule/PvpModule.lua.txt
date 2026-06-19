@@ -1,0 +1,702 @@
+PvpModule = class("PvpModule", BaseLuaModule)
+
+local SignUpWindowPath = "PVP/Prefab/SignUpWindow"
+local InfoWindowPath = "PVP/Prefab/InfoWindow"
+local PvpWidgetPath = "PVP/Prefab/PvpWidget"
+local CountDownTipsPath = "PVP/Prefab/CountDownTips"
+local BattleTipsPath = "PVP/Prefab/BattleTips"
+local MarqueeWidgetPath = "PVP/Prefab/MarqueeWidget"
+local ResultWindowPath = "PVP/Prefab/ResultWindow"
+local PvpEntryWindowPath = "PVP/Prefab/PvpEntryWindow"
+local RewardsWindowPath = "PVP/Prefab/RewardsWindow"
+
+-- LuaModule 消息模块
+PvpModule.ModuleMessages = {
+    ["OnDisable"] = function(...)
+        PvpModule:OnDisable(...);
+    end,
+    ["OnCustomEnterEctype"] = function(...)
+        PvpModule:OnCustomEnterEctype(...)
+    end,
+    ["OnCustomLevelEctype"] = function(...)
+        PvpModule:OnCustomLevelEctype(...)
+    end,
+
+    ["OnShowSignUp"] = function(...)
+        PvpModule:OnShowSignUp(...);
+    end,
+
+    ["OnShowBattleWidget"] = function(...)
+        PvpModule:OnShowBattleWidget(...);
+    end,
+
+    ["OnShowBattleInfo"] = function(...)
+        PvpModule:OnShowBattleInfo(...);
+    end,
+
+    ["OnShowPvpEntryWindow"] = function(...)
+        PvpModule:OnShowPvpEntryWindow(...);
+    end,
+
+    ["OnShowRewardWindow"] = function(...)
+        PvpModule:OnShowRewardWindow(...);
+    end,
+
+    ["OnLeavePvp"] = function(...)
+        PvpModule:OnLeavePvp(...);
+    end,
+
+    ["OnRoleReviveRet"] = function(...)
+        PvpModule:OnRoleReviveRet(...)
+    end
+}
+
+function PvpModule:OnRoleReviveRet(...)
+    self.pvpWidgetView.gameObject:SetActive(true);
+end
+
+-- LuaModule 创建
+function PvpModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.PvpModule, self);
+
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.B10RegisterRetID, function(data)
+        self:OnB10RegisterRet(data)
+    end, nil);
+
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.BFMatchedNtfID, function(data)
+        self:OnBFMatchedNtf(data)
+    end, nil);
+
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.B10PlayStartI2LID, function(data)
+        self:OnB10PlayStartI2L(data)
+    end, nil);
+
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.B10PlayStartI2LRetID, function(data)
+        self:OnB10PlayStartI2LRet(data)
+    end, nil);
+
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.B10RunDataNtfID, function(data)
+        self:OnB10RunDataNtf(data)
+    end, nil);
+
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.BFNoticDataNtfID, function(data)
+        self:OnBFNoticDataNtf(data)
+    end, nil);
+
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.BFGameEndNtfID, function(data)
+        self:OnBFGameEndNtf(data)
+    end, nil);
+
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.BFRegisterDataRetID, function(data)
+        self:OnBFRegisterDataRet(data)
+    end, nil);
+
+    FixMessageManager.Instance:OnMessage(FixUpdateDef.B10register, function(data)
+        self:OnB10registerInfos(data)
+    end, nil);
+
+    self.actStartTime = nil;
+
+    -- CS.StarProject.GlobalEvent.OnShowPvpWidget:AddListener(function(isShow)
+    --     self:OnShowBattleWidget(isShow);
+    -- end);
+
+    self.updateTimeFunc = function()
+        self:UpdateTimeFunc();
+    end
+
+    self.OnActiveSelfFunc = function(active)
+        if not active then
+            self:OnShowBattleWidget(false);
+        end
+    end
+    CS.StarProject.GlobalEvent.OnEntityEctype:AddListener(self.OnActiveSelfFunc);
+end
+
+-- LuaModule显示
+function PvpModule:OnModuleShow(arg)
+    self.TaskRoot = arg
+
+    local b10PlayStartI2LReq = CS.ProtoMsg.B10PlayStartI2LReq();
+    b10PlayStartI2LReq.PID = GameManager.Instance.mainPlayerId;
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+        b10PlayStartI2LReq, false);
+
+    local bFRegisterDataReq = CS.ProtoMsg.BFRegisterDataReq();
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+        bFRegisterDataReq, false);
+    self.startupRequest = true;
+end
+
+--
+function PvpModule:OnDisable(...)
+
+end
+
+function PvpModule:OnCustomEnterEctype(...)
+    -- self:OnShowBattleWidget(true);
+    self.runData = nil;
+end
+
+function PvpModule:OnCustomLevelEctype(...)
+    self:OnShowBattleWidget(false);
+    self.runData = nil;
+end
+
+function PvpModule:OnB10PlayStartI2L(data)
+    -- 玩法通知返回
+    if data == nil then
+        return;
+    end
+
+    self.actStartTime = data.StartTime;
+end
+
+function PvpModule:OnB10PlayStartI2LRet(data)
+    -- 玩法请求返回
+    if data == nil or data.data == nil or data.data.Data == nil then
+        return;
+    end
+
+    self.actStartTime = data.data.Data.StartTime;
+
+    if self.actStartTime == nil then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_25"));
+        return;
+    end
+end
+
+function PvpModule:OnB10RegisterRet(data)
+    -- 报名返回
+    -- Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_26"));
+    if data == nil or data.data == nil then
+        return;
+    end
+
+    if self.signData == nil then
+        self.signData = {};
+    end
+    self.signData[data.data.Stage] = not data.data.IsCancel;
+    local count = 0;
+    for k, v in pairs(self.signData) do
+        if v then
+            count = count + 1;
+        end
+    end
+    GameManager.Instance:SetPvpStatus(count);
+end
+
+function PvpModule:OnBFMatchedNtf(data)
+    -- 匹配开始
+    -- Util.ShowMessage("匹配准备 20s");
+
+    if data == nil or data.data == nil then
+        return;
+    end
+
+    local curStage = data.data.Stage;
+    self.curTime = ConfigDataAccessor.SystemList[154].Value;
+
+    local MapSpaceType = GameManager.Instance.M_Map:GetMapType();
+    if MapSpaceType == CS.ProtoMsg.SpaceType.SpaceDefault or MapSpaceType == CS.ProtoMsg.SpaceType.SpaceScene then
+        self.msgBox = UIAPI.ShowMsgBoxNew(43, function(EventName)
+            MonoHelper.RemoveSecTimeUpdateListener(self.updateTimeFunc);
+            local bfMatchAgreeReq = CS.ProtoMsg.BFMatchAgreeReq();
+            bfMatchAgreeReq.Stage = curStage;
+            if EventName == "SURE" then
+                bfMatchAgreeReq.IsAgree = true
+                UIManager.Instance:CloseAllLoadedWindowNWidget();
+                self.msgBox:Close();
+            else
+                bfMatchAgreeReq.IsAgree = false
+            end
+            CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+            bfMatchAgreeReq, false);
+        end, self.curTime);
+
+        MonoHelper.RemoveSecTimeUpdateListener(self.updateTimeFunc);
+        MonoHelper.AddSecTimeUpdateListener(self.updateTimeFunc);
+    end
+end
+
+function PvpModule:UpdateTimeFunc()
+    self.curTime = self.curTime - 1;
+    if self.curTime <= 0 then
+        self.curTime = 0;
+        MonoHelper.RemoveSecTimeUpdateListener(self.updateTimeFunc);
+        self.msgBox:Close();
+    end
+
+    -- local str =string.format("战场即将开启，是否立即加入？%d秒后放弃进入", self.curTime);
+    local str = StringFormat(LanguageHelp:GetLanguageByKey("WindowDesc43"), {self.curTime});
+    self.msgBox:UpdateContent(str);
+end
+
+function PvpModule:OnB10registerInfos(data)
+    -- 报名信息
+    if data == nil or data.data == nil then
+        return;
+    end
+
+    if self.signUpWindow ~= nil then
+    end
+end
+
+function PvpModule:OnB10RunDataNtf(data)
+    -- 战场数据
+    if data == nil or data.data == nil then
+        return;
+    end
+
+    self.runData = data.data;
+    if self.battleInfoWindow ~= nil then
+        self.battleInfoWindow:Init(self.runData);
+    end
+
+    -- self:OnShowBattleWidget(true);
+    if self.pvpWidgetView ~= nil then
+        self.pvpWidgetView:Init(self.runData);
+    end
+
+    -- local factionRelationList = ConfigDataAccessor.FactionRelationList;
+    -- for k, v in pairs(data.data.FacDatas) do
+    --     local name = factionRelationList[k].FactionName;
+
+    --     local str = "";
+    --     if k == 5 then
+    --         str = "#ff0000";
+    --     else
+    --         str = "#0000ff";
+    --     end
+    -- 	for i = 0, v.TeamDatas.Count - 1 do
+    -- 		local pm = v.TeamDatas[i];
+    --         GameManager.Instance:ChangePlayerNameColor(pm.EID, name.."_"..pm.RoleName, str);
+    -- 	end
+    -- end
+end
+
+function PvpModule:OnBFNoticDataNtf(data)
+    -- 战场提示
+    if data == nil or data.data == nil then
+        return;
+    end
+
+    if data.data.NoticeType == CS.ProtoMsg.BFNoticeType.BfNtKill then
+        -- 击败
+        local str = Util.StringFormatter(ConfigDataAccessor.CRetMsgList[47].Note, data.data.BeKillName, data.data.Score);
+        self:SendChatMsgAndShowMsg(str);
+    elseif data.data.NoticeType == CS.ProtoMsg.BFNoticeType.BfNtBeKill then
+        -- 被击败
+        local str = Util.StringFormatter(ConfigDataAccessor.CRetMsgList[48].Note, data.data.KillName);
+        self:SendChatMsgAndShowMsg(str);
+    elseif data.data.NoticeType == CS.ProtoMsg.BFNoticeType.BfNtKillMon then
+        local nameStr = ConfigDataAccessor.Monster[data.data.MonIndex].Name;
+        local str = Util.StringFormatter(ConfigDataAccessor.CRetMsgList[50].Note, nameStr, data.data.Score);
+        self:SendChatMsgAndShowMsg(str);
+    elseif data.data.NoticeType == CS.ProtoMsg.BFNoticeType.BfNtKillNum then
+        -- 连杀 预置
+        -- data.BeKillName data.KillName "主宰战场"
+        local tipsData = {};
+        tipsData.data = data.data;
+        tipsData.status = data.data.Comment;
+        self:OnShowBattleTips(tipsData);
+    elseif data.data.NoticeType == CS.ProtoMsg.BFNoticeType.BfNtEndKillNum then
+        -- 终结 预置
+        -- data.BeKillName data.KillName "终结(大杀特杀)"
+        local tipsData = {};
+        tipsData.data = data.data;
+        tipsData.status = LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_36");
+        self:OnShowBattleTips(tipsData);
+    elseif data.data.NoticeType == CS.ProtoMsg.BFNoticeType.BfNtFirstBlood then
+        -- 第一滴血 预置
+        -- data.BeKillName data.KillName "第一滴血"
+        local tipsData = {};
+        tipsData.data = data.data;
+        tipsData.status = LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_37");
+        self:OnShowBattleTips(tipsData);
+    elseif data.data.NoticeType == CS.ProtoMsg.BFNoticeType.BfNtStartReady then
+        -- 准备开始 20s倒计时  剩余0显示战场开启 1次
+        if data.data.TimeSec > 0 then
+            -- 显示  开战倒计时19-0
+            local countData = {};
+            countData.ct = "count";
+            countData.t = data.data.TimeSec;
+            self:OnShowCountDownTips(countData);
+
+            self:OnShowBattleWidget(true);
+            if self.pvpWidgetView ~= nil then
+                self.pvpWidgetView:SetTimeStatus(1, data.data.TimeSec);
+            end
+        end
+    elseif data.data.NoticeType == CS.ProtoMsg.BFNoticeType.BfNtStart then
+        -- 战场开启
+        -- 显示  开战倒计时19-0
+        local countData = {};
+        countData.ct = "start";
+        self:OnShowCountDownTips(countData);
+
+        self:OnShowBattleWidget(true);
+        if self.pvpWidgetView ~= nil then
+            self.pvpWidgetView:SetTimeStatus(2, nil);
+        end
+    elseif data.data.NoticeType == CS.ProtoMsg.BFNoticeType.BfNtBossReady then
+        -- boss出现 跑马灯
+        local nameStr = ConfigDataAccessor.Monster[data.data.MonIndex].Name;
+        local str = nameStr .. LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_38")
+        self:OnShowMarqueeWidget(str);
+    elseif data.data.NoticeType == CS.ProtoMsg.BFNoticeType.BfNtEndReady then
+        -- 战场即将关闭 跑马灯 剩余3分钟 1分钟 30s  3次
+        -- 倒计时3s 显示3-2-1
+
+        local str;
+        if data.data.TimeSec > 60 then
+            str = LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_39");
+        elseif data.data.TimeSec > 30 then
+            str = LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_40");
+        elseif data.data.TimeSec > 3 then
+            str = LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_41");
+        else
+        end
+
+        if str == nil then
+            local countData = {};
+            countData.ct = "count";
+            countData.t = 3;
+            self:OnShowCountDownTips(countData);
+        else
+            self:OnShowMarqueeWidget(str);
+        end
+    elseif data.data.NoticeType == CS.ProtoMsg.BFNoticeType.BfNtEnd then
+        -- 战场结束 --显示胜利失败  走结算消息
+    elseif data.data.NoticeType == CS.ProtoMsg.BFNoticeType.BfNtBossFirst then
+        -- 首刀
+        local nameStr = ConfigDataAccessor.Monster[data.data.MonIndex].Name;
+        local str = Util.StringFormatter(ConfigDataAccessor.CRetMsgList[51].Note,
+            LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_42"), data.data.KillName, nameStr, data.data.Score);
+        self:SendChatMsgAndShowMsg(str);
+    elseif data.data.NoticeType == CS.ProtoMsg.BFNoticeType.BfNtBossMiddle then
+        -- 中刀
+        local nameStr = ConfigDataAccessor.Monster[data.data.MonIndex].Name;
+        local str = Util.StringFormatter(ConfigDataAccessor.CRetMsgList[52].Note,
+            LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_42"), data.data.KillName, nameStr, data.data.Score);
+        self:SendChatMsgAndShowMsg(str);
+    elseif data.data.NoticeType == CS.ProtoMsg.BFNoticeType.BfNtBossTail then
+        -- 尾刀
+        local nameStr = ConfigDataAccessor.Monster[data.data.MonIndex].Name;
+        local str = Util.StringFormatter(ConfigDataAccessor.CRetMsgList[53].Note,
+            LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_42"), data.data.KillName, nameStr, data.data.Score);
+        self:SendChatMsgAndShowMsg(str);
+    elseif data.data.NoticeType == CS.ProtoMsg.BFNoticeType.BfNtAssistKill then
+        -- 助攻
+        local str = Util.StringFormatter(ConfigDataAccessor.CRetMsgList[46].Note, data.data.AssistKillName,
+            data.data.BeKillName, data.data.Score);
+        self:SendChatMsgAndShowMsg(str);
+    end
+end
+
+function PvpModule:SendChatMsgAndShowMsg(str)
+    Util.ShowMessage(str);
+
+    local msgList = {};
+    local chatMsgNotice = CS.ProtoMsg.ChatMsgNotice();
+    chatMsgNotice.EID = 0;
+    chatMsgNotice.PID = 0;
+    chatMsgNotice.Data = str;
+    chatMsgNotice.Channel = CS.ProtoMsg.ChatChannel.ChannelSystem;
+    chatMsgNotice.ChatTime = TimeUtils.ServerNowStampMilli;
+
+    table.insert(msgList, chatMsgNotice);
+    LuaModuleDispatcher:SendMessage(ModuleDef.ChatModule, "OnAnalogReceptionChatMsg", {msgList});
+end
+
+function PvpModule:OnBFGameEndNtf(data)
+    -- 战斗结算
+    if data == nil or data.data == nil then
+        return;
+    end
+
+    local isSuc = data.data.Success;
+    local countData = {};
+    if isSuc == true then
+        countData.ct = "win";
+    else
+        countData.ct = "lose";
+    end
+    self:OnShowCountDownTips(countData);
+
+    self:OnShowResult(data);
+end
+
+function PvpModule:OnBFRegisterDataRet(data)
+    -- 报名情况
+    if data == nil or data.data == nil then
+        return;
+    end
+
+    if not self.startupRequest then
+        -- local signUpWindowCS = UIManager.Instance:OpenWindow(SignUpWindowPath, nil,
+        --     CS.StarProjectDef.MainPageCommond.HideNone);
+        -- if self.signUpWindow == nil then
+        --     self.signUpWindow = signUpWindowCS:GetLuaPanel().ScriptTable;
+        --     self.signUpWindow:BindModule(self);
+        --     self.signUpWindow:InitControls();
+        -- end
+
+        -- self.signUpWindow:InitData(data.data);
+
+        self.AsyncLoadsignUpWindowCb = function(ui)
+            if ui ~= nil then
+                if self.signUpWindow == nil then
+                    self.signUpWindow = ui:GetLuaPanel().ScriptTable;
+                    self.signUpWindow:BindModule(self);
+                    self.signUpWindow:InitControls();
+                end
+            end
+            self.signUpWindow:InitData(data.data);
+            self.AsyncLoadsignUpWindowCb = nil;
+        end
+        UIManager.Instance:OpenWindowAsync(SignUpWindowPath, self.AsyncLoadsignUpWindowCb, nil,
+            CS.StarProjectDef.MainPageCommond.HideNone);
+
+        local isSigned = false
+        local count = 0;
+        self.signData = {};
+        for k, v in pairs(data.data.StageData) do
+            self.signData[k] = v;
+            count = count + 1;
+        end
+        GameManager.Instance:SetPvpStatus(count);
+    else
+        local isSigned = false
+        local count = 0;
+        self.signData = {};
+        for k, v in pairs(data.data.StageData) do
+            self.signData[k] = v;
+            count = count + 1;
+        end
+        GameManager.Instance:SetPvpStatus(count);
+    end
+end
+
+function PvpModule:OnShowSignUp(...)
+    if self.actStartTime == nil then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_25"));
+        return;
+    else
+        local bFRegisterDataReq = CS.ProtoMsg.BFRegisterDataReq();
+        CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+            bFRegisterDataReq, false);
+        self.startupRequest = false;
+    end
+end
+
+function PvpModule:OnShowBattleInfo(data)
+    -- local battleInfoWindowCS = UIManager.Instance:OpenWindow(InfoWindowPath, nil,
+    --     CS.StarProjectDef.MainPageCommond.HideNone);
+    -- if self.battleInfoWindow == nil then
+    --     self.battleInfoWindow = battleInfoWindowCS:GetLuaPanel().ScriptTable;
+    --     self.battleInfoWindow:BindModule(self);
+    --     self.battleInfoWindow:InitControls();
+    -- end
+    -- self.battleInfoWindow:Init(self.runData);
+
+    self:OnShowBattleWidget(false);
+
+    self.AsyncLoadbattleInfoWindowCb = function(ui)
+        if ui ~= nil then
+            if self.battleInfoWindow == nil then
+                self.battleInfoWindow = ui:GetLuaPanel().ScriptTable;
+                self.battleInfoWindow:BindModule(self);
+                self.battleInfoWindow:InitControls();
+            end
+        end
+        self.battleInfoWindow:Init(self.runData);
+        self.AsyncLoadbattleInfoWindowCb = nil;
+    end
+    UIManager.Instance:OpenWindowAsync(InfoWindowPath, self.AsyncLoadbattleInfoWindowCb, nil,
+        CS.StarProjectDef.MainPageCommond.HideNone);
+end
+
+function PvpModule:OnShowBattleWidget(data)
+    if data == nil or self.TaskRoot == nil then
+        return;
+    end
+
+    local isShow = data;
+    if type(data) == "table" then
+        -- Lua调用
+        isShow = data[1]
+    end
+    if isShow then
+        local mapType = GameManager.Instance:GetCurMapType()
+        if mapType ~= CS.ProtoMsg.SpaceType.Space10V10 then
+            isShow = false;
+        end
+    end
+
+    if isShow then
+        local pvpWidgetCS = UIManager.Instance:OpenWidget(PvpWidgetPath, false, nil, self.TaskRoot.transform,
+            CS.StarProjectDef.MainPageCommond.HideNone, false, true)
+        if self.pvpWidgetView == nil then
+            self.pvpWidgetView = pvpWidgetCS:GetLuaPanel().ScriptTable
+            self.pvpWidgetView:BindModule(self)
+            self.pvpWidgetView:InitControls();
+        end
+    end
+
+    if self.pvpWidgetView ~= nil then
+        self.pvpWidgetView.gameObject:SetActive(isShow);
+        if isShow then
+            if self.runData ~= nil then
+                self.pvpWidgetView:Init(self.runData);
+            else
+                self.pvpWidgetView:InitWithoutSrv();
+            end
+        end
+    end
+end
+
+function PvpModule:OnShowCountDownTips(data)
+    local countDownTipsCS = UIManager.Instance:OpenWidget(CountDownTipsPath, false, nil, nil,
+        CS.StarProjectDef.MainPageCommond.HideNone, false, true)
+    if self.countDownTipsView == nil then
+        self.countDownTipsView = countDownTipsCS:GetLuaPanel().ScriptTable
+        self.countDownTipsView:BindModule(self)
+        self.countDownTipsView:InitControls();
+    end
+
+    if data ~= nil then
+        self.countDownTipsView:ShowCountDown(data.ct, data.t);
+    end
+end
+
+function PvpModule:OnShowBattleTips(data)
+    local battleTipsCS = UIManager.Instance:OpenWidget(BattleTipsPath, false, nil, nil,
+        CS.StarProjectDef.MainPageCommond.HideNone, true, false);
+    if self.battleTipsView == nil then
+        self.battleTipsView = battleTipsCS:GetLuaPanel().ScriptTable
+        self.battleTipsView:BindModule(self)
+        self.battleTipsView:InitControls();
+    end
+
+    if data ~= nil then
+        self.battleTipsView:AddTips(data.data, data.status);
+    end
+end
+
+function PvpModule:OnShowMarqueeWidget(data)
+    local marqueeWidgetCS = UIManager.Instance:OpenWidget(MarqueeWidgetPath, false, nil, nil,
+        CS.StarProjectDef.MainPageCommond.HideNone, true, false);
+    if self.marqueeWidgetView == nil then
+        self.marqueeWidgetView = marqueeWidgetCS:GetLuaPanel().ScriptTable
+        self.marqueeWidgetView:BindModule(self)
+        self.marqueeWidgetView:InitControls();
+    end
+
+    if data ~= nil then
+        self.marqueeWidgetView:Init(data);
+    end
+end
+
+function PvpModule:OnShowResult(data)
+    -- local resultWindowCS = UIManager.Instance:OpenWindow(ResultWindowPath, nil,
+    --     CS.StarProjectDef.MainPageCommond.HideNone);
+    -- if self.resultWindow == nil then
+    --     self.resultWindow = resultWindowCS:GetLuaPanel().ScriptTable;
+    --     self.resultWindow:BindModule(self);
+    --     self.resultWindow:InitControls();
+    -- end
+    -- self.resultWindow:Init(data);
+
+    self:OnShowBattleWidget(false);
+
+    self.AsyncLoadResultWindowWindowCb = function(ui)
+        if ui ~= nil then
+            if self.resultWindow == nil then
+                self.resultWindow = ui:GetLuaPanel().ScriptTable;
+                self.resultWindow:BindModule(self);
+                self.resultWindow:InitControls();
+            end
+        end
+        self.resultWindow:Init(data);
+        self.AsyncLoadResultWindowWindowCb = nil;
+    end
+    UIManager.Instance:OpenWindowAsync(ResultWindowPath, self.AsyncLoadResultWindowWindowCb, nil,
+        CS.StarProjectDef.MainPageCommond.HideNone);
+end
+
+function PvpModule:OnShowPvpEntryWindow(data)
+    -- local pvpEntryWindowCS = UIManager.Instance:OpenWindow(PvpEntryWindowPath, nil,
+    --     CS.StarProjectDef.MainPageCommond.HideNone);
+    -- if self.pvpEntryWindow == nil then
+    --     self.pvpEntryWindow = pvpEntryWindowCS:GetLuaPanel().ScriptTable;
+    --     self.pvpEntryWindow:BindModule(self);
+    --     self.pvpEntryWindow:InitControls();
+    -- end
+
+    self.AsyncLoadPvpEntryWindowWindowCb = function(ui)
+        if ui ~= nil then
+            if self.pvpEntryWindow == nil then
+                self.pvpEntryWindow = ui:GetLuaPanel().ScriptTable;
+                self.pvpEntryWindow:BindModule(self);
+                self.pvpEntryWindow:InitControls();
+            end
+        end
+        self.AsyncLoadPvpEntryWindowWindowCb = nil;
+    end
+    UIManager.Instance:OpenWindowAsync(PvpEntryWindowPath, self.AsyncLoadPvpEntryWindowWindowCb, nil,
+        CS.StarProjectDef.MainPageCommond.HideNone);
+end
+
+function PvpModule:OnShowRewardWindow(data)
+    -- local rewardsWindowCS = UIManager.Instance:OpenWindow(RewardsWindowPath, nil,
+    --     CS.StarProjectDef.MainPageCommond.HideNone);
+    -- if self.rewardsWindow == nil then
+    --     self.rewardsWindow = rewardsWindowCS:GetLuaPanel().ScriptTable;
+    --     self.rewardsWindow:BindModule(self);
+    --     self.rewardsWindow:InitControls();
+    -- end
+
+    self.AsyncLoadRewardWindowCb = function(ui)
+        if ui ~= nil then
+            if self.rewardsWindow == nil then
+                self.rewardsWindow = ui:GetLuaPanel().ScriptTable;
+                self.rewardsWindow:BindModule(self);
+                self.rewardsWindow:InitControls();
+            end
+        end
+        self.AsyncLoadRewardWindowCb = nil;
+    end
+    UIManager.Instance:OpenWindowAsync(RewardsWindowPath, self.AsyncLoadRewardWindowCb, nil,
+        CS.StarProjectDef.MainPageCommond.HideNone);
+end
+
+-- LuaModule 消息处理
+function PvpModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...);
+end
+
+-- LuaModule 释放
+function PvpModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.PVPModule)
+end
+
+function PvpModule:OnLeavePvp()
+    if self.pvpWidgetView ~= nil then
+        self.pvpWidgetView.gameObject:SetActive(false);
+    end
+
+    self:OnShowBattleWidget(false);
+    if self.battleInfoWindow ~= nil then
+        self.battleInfoWindow.gameObject:SetActive(false);
+    end
+    if self.resultWindow ~= nil then
+        self.resultWindow.gameObject:SetActive(false);
+    end
+
+    if self.battleTipsView ~= nil then
+        self.battleTipsView:OnLeaveEctype();
+    end
+end
+
+return PvpModule

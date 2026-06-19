@@ -1,0 +1,496 @@
+--[[
+*文件名   :   MailModule
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/06/15 13:46:24"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]] MailModule = class("MailModule", BaseLuaModule)
+local maiPath = "Mail/Prefab/MailWidget"
+local maiDeatailPath = "Mail/Prefab/MailDeatailWidget"
+-- 键值MailID ,Value 邮件内容
+MailModule.MailMap = {}
+-- 键值MailID,Vaule 是否已读 ,是否有奖励未领取
+MailModule.MailStatusMap = {}
+MailModule.MailKeys = {}
+MailModule.MaxQueryCount = 20; ---最大请求数据
+
+local content =
+    "1921年7月，中国共产党成立了。百年来，中国共产党穿过惊涛骇浪，引领中国行稳致远。无数中国共产党党员乘承为中国人民谋幸福、为中华民族谋复兴的初心与使命，追着前路的光辉勇毅前行。旧日炮火中，旧日炮火中革命先烈用清激的爱护佑山河安定，用甘将热血沃中华的坚毅谋求民族独立；而今，青年党员们投身于乡村振兴，扎根农村，用劳苦耕耘托举起中国经济的逆势上扬。清记住这个让中国焕然一新的党的纪念日，懂得立党为公、忠诫为民的奉献，懂得永葆初心，不忘来路的情怀，我们也必将不忘初心、接力前行。"
+
+-- LuaModule 消息模块
+MailModule.ModuleMessages = {
+    -- 打开邮件界面
+    ["OnOpenMailWidget"] = function(...)
+        MailModule:OnOpenMailWidget(...)
+    end,
+
+    -- 打开邮件详情
+    ["OnOpenMailDeatailWidget"] = function(...)
+        MailModule:OnOpenMailDeatailWidget(...);
+    end,
+
+    ["OnFreshMailDeatailWidget"] = function(...)
+        MailModule:OnFreshMailDeatailWidget(...);
+    end,
+
+    -- 关闭邮件附件
+    ["OnCloseMailDeatailWidget"] = function(...)
+        MailModule:OnCloseMailDeatailWidget(...);
+    end,
+
+    -- 一键领取附件
+    ["OnGetAllMail"] = function(...)
+        MailModule:OnGetAllMail(...);
+    end,
+
+    -- 一键删除已读
+    ["OnDeleteAllReadMail"] = function(...)
+        MailModule:OnDeleteAllReadMail(...);
+    end,
+
+    -- 删除单个邮件
+    ["OnDeleteSingleMail"] = function(...)
+        MailModule:OnDeleteSingleMail(...);
+    end,
+
+    -- 领取单个邮件
+    ["OnGetSingleMail"] = function(...)
+        MailModule:OnGetSingleMail(...);
+    end,
+
+    ["OnMailGetInfosReq"] = function(...)
+        MailModule:MailGetInfosReq(...);
+    end,
+
+    ["OnMailMarkReadedReq"] = function(...)
+        MailModule:OnMailMarkReadedReq(...)
+    end
+}
+
+-- LuaModule 创建
+function MailModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.MailModule, self)
+
+    self.MailListNtf = function(data)
+        self:OnMailListNtf(data)
+    end
+    ---邮件ID列表推送
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.MailListNtfID, self.MailListNtf, self);
+
+    self.MailGetInfosRet = function(data)
+        self:OnMailGetInfosRet(data)
+    end
+    ---回复邮件详细信息 、收到新邮件
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.MailGetInfosRetID, self.MailGetInfosRet, self);
+
+    self.MailGetRewardRet = function(data)
+        self:OnMailGetRewardRet(data)
+    end
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.MailGetRewardRetID, self.MailGetRewardRet, self);
+
+    self.MailDeleteRet = function(data)
+        self:OnMailDeleteRet(data)
+    end
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.MailDeleteRetID, self.MailDeleteRet, self);
+
+    self.MailsMarkReadedRet = function(data)
+        self:OnMailsMarkReadedRet(data)
+    end
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.MailsMarkReadedRetID, self.MailsMarkReadedRet, self);
+
+    self.GetMailAttachedContentNtf = function(data)
+        self:OnGetMailAttachedContentNtf(data)
+    end
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.GetMailAttachedContentNtfID, self.GetMailAttachedContentNtf, self);
+end
+
+-- LuaModule 消息处理
+function MailModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...);
+end
+
+-- LuaModule显示
+function MailModule:OnModuleShow(arg)
+
+end
+
+-- LuaModule 释放
+function MailModule:OnModuleRelease()
+    ---邮件ID列表推送
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.MailListNtfID, self.MailListNtf, self);
+
+    ---回复邮件详细信息 、收到新邮件
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.MailGetInfosRetID, self.MailGetInfosRet, self);
+
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.MailGetRewardRetID, self.MailGetRewardRet, self);
+
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.MailDeleteRetID, self.MailDeleteRet, self);
+
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.MailsMarkReadedRetID, self.MailsMarkReadedRet, self);
+
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.GetMailAttachedContentNtfID, self.GetMailAttachedContentNtf,
+        self);
+
+    self.MailListNtf = nil;
+    self.MailGetInfosRet = nil;
+    self.MailGetRewardRet = nil;
+    self.MailDeleteRet = nil;
+    self.MailsMarkReadedRet = nil;
+    self.GetMailAttachedContentNtf = nil;
+    LuaModuleDispatcher:UnRegister(ModuleDef.MailModule)
+end
+
+function MailModule:IsNewMail(uid)
+    for i = 1, #self.MailKeys do
+        if self.MailKeys[i] == uid then
+            return true;
+        end
+    end
+    return false;
+end
+
+function MailModule:OnMailGetInfosRet(data)
+    local msg = data.data
+    local change = false;
+    for i = 0, msg.DataList.Count - 1 do
+        local mail = msg.DataList[i]
+        if self:IsNewMail(mail.ID) == false then
+            -- 新推送邮件
+            table.insert(self.MailKeys, mail.ID)
+            self.MailStatusMap[mail.ID] = {
+                IsRead = false,
+                Reward = self:HasAttachment(mail)
+            }
+            self:SortMailKey();
+        end
+        self.MailMap[mail.ID] = mail;
+        change = true
+    end
+    if change then
+        CS.StarProject.GlobalEvent.OnFreshMail:Invoke(self:GetMails());
+    end
+    self:UpdateRedPoint();
+end
+
+function MailModule:OnMailGetRewardRet(data)
+    local msg = data.data;
+    local change = false;
+    for i = 0, msg.ListIDs.Count - 1 do
+        if self.MailMap[msg.ListIDs[i]] ~= nil then
+            self.MailMap[msg.ListIDs[i]].IsRead = true
+            self.MailMap[msg.ListIDs[i]].IsGetReward = true
+            change = true;
+        end
+
+        if self.MailStatusMap[msg.ListIDs[i]] ~= nil then
+            self.MailStatusMap[msg.ListIDs[i]].IsRead = true
+            self.MailStatusMap[msg.ListIDs[i]].Reward = true
+        end
+    end
+
+    if change then
+        CS.StarProject.GlobalEvent.OnFreshMail:Invoke(self:GetMails());
+    end
+    self:UpdateRedPoint();
+end
+function MailModule:GetMailIndex(uid)
+    for i, v in ipairs(self.MailMap) do
+        if v == uid then
+            return i;
+        end
+    end
+    return -1;
+end
+
+function MailModule:OnMailDeleteRet(data)
+    local msg = data.data;
+    local change = false;
+    for i = 0, msg.ListIDs.Count - 1 do
+        self.MailMap[msg.ListIDs[i]] = nil;
+        self.MailStatusMap[msg.ListIDs[i]] = nil;
+        local index = self:GetMailIndex(msg.ListIDs[i]);
+        if index > -1 then
+            table.remove(self.MailKeys, index);
+        end
+        CS.StarProject.GlobalEvent.OnDeleteMail:Invoke(msg.ListIDs[i]);
+        change = true;
+    end
+
+    if change then
+        self:SortMailKey();
+        CS.StarProject.GlobalEvent.OnFreshMail:Invoke(self:GetMails());
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_24"))
+    end
+    self:UpdateRedPoint();
+end
+
+function MailModule:SortMailKey()
+    table.sort(self.MailKeys, function(m1, m2)
+        return m1 > m2;
+    end)
+end
+
+function MailModule:OnMailListNtf(data)
+    local msg = data.data;
+    self.MailMap = {}
+    self.MailKeys = {}
+    self.MailStatusMap = {}
+
+    for i = 0, msg.ListIDs.Count - 1 do
+        table.insert(self.MailKeys, msg.ListIDs[i]);
+        self.MailStatusMap[msg.ListIDs[i]] = {
+            IsRead = msg.ReadList[i],
+            Reward = msg.GetList[i]
+        }
+    end
+    self:UpdateRedPoint();
+    self:SortMailKey();
+    self:MailGetInfosReq();
+end
+
+function MailModule:HasAttachment(mail)
+
+    if mail.Addbc ~= nil and mail.Addbc.Data ~= nil and mail.Addbc.Data.Count > 0 then
+        return false;
+    end
+
+    if mail.ItemList ~= nil and mail.ItemList.ItemList ~= nil and mail.ItemList.ItemList.Count > 0 then
+        return false;
+    end
+
+    return true;
+end
+
+function MailModule:UpdateRedPoint()
+    -- 未读个数
+    local hasNew = 0;
+    -- 未领取 
+    local Reward = false;
+    if self.MailStatusMap ~= nil then
+        for k, v in pairs(self.MailStatusMap) do
+            if not v.IsRead then
+                hasNew = hasNew + 1;
+            end
+
+            if not v.Reward then
+                Reward = true;
+            end
+        end
+    end
+
+    RedPointManager.Instance:RefreshRedPointCount(RedPointType.Mail_New, hasNew);
+
+    RedPointManager.Instance:TriggerConditionTypeBoolValue(RedPointConditionType.Mail_Red, (hasNew == 0 and Reward));
+
+end
+
+function MailModule:OnMailsMarkReadedRet(data)
+    local msg = data.data;
+    local change = false;
+    for i = 0, msg.ListIDs.Count - 1 do
+        if self.MailMap[msg.ListIDs[i]] ~= nil then
+            self.MailMap[msg.ListIDs[i]].IsRead = true;
+        end
+
+        if self.MailStatusMap[msg.ListIDs[i]] ~= nil then
+            self.MailStatusMap[msg.ListIDs[i]].IsRead = true;
+        end
+
+        change = true
+    end
+    if change then
+        CS.StarProject.GlobalEvent.OnFreshMail:Invoke(self:GetMails());
+    end
+    self:UpdateRedPoint();
+end
+
+function MailModule:OnGetMailAttachedContentNtf(data)
+    local msg = data.data;
+    local rewardsList = {}
+    for i = 0, msg.List.Count - 1 do
+        local rw = {};
+        rw.BaseID = msg.List[i].Index;
+        rw.Num = msg.List[i].Num;
+        rw.EntityID = msg.List[i].EID;
+        table.insert(rewardsList, rw);
+    end
+    LuaModuleDispatcher:SendMessage(ModuleDef.RewardsPopModule, "OnOpenRewardsPop", {rewardsList});
+
+end
+
+function MailModule:OnOpenMailDeatailWidget(...)
+    local tb = ...
+    local mailID = 0
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        mailID = tb[1]
+    else
+        -- C#调用
+        mailID = tb[0]
+    end
+    if mailID == nil or mailID < 1 or self.MailMap[mailID] == nil then
+        return
+    end
+
+    -- if self.MailDeatailWidget==nil then
+    -- 	self.MailDeatailWidget=UIManager.Instance:OpenWidget(maiDeatailPath, false, self.MailMap[mailID], nil, CS.StarProjectDef.MainPageCommond.WidgetHide, false, false):GetLuaPanel().ScriptTable;
+    -- end
+
+    -- if self.MailDeatailWidget~=nil then
+    -- 	self.MailDeatailWidget:SetDetail(self.MailMap[mailID])
+    -- end
+    self.AsyncLoadmaiDeatailCb = function(ui)
+        if ui ~= nil then
+            if self.MailDeatailWidget == nil then
+                self.MailDeatailWidget = ui:GetLuaPanel().ScriptTable;
+            end
+            if self.MailDeatailWidget ~= nil then
+                self.MailDeatailWidget:SetDetail(self.MailMap[mailID])
+            end
+        end
+        self.AsyncLoadmaiDeatailCb = nil;
+    end
+    UIManager.Instance:OpenWidgetAsync(maiDeatailPath, self.AsyncLoadmaiDeatailCb, false, self.MailMap[mailID], nil,
+        CS.StarProjectDef.MainPageCommond.WidgetHide, false, false);
+end
+
+function MailModule:OnFreshMailDeatailWidget(...)
+    local tb = ...
+    local mailID = 0
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        mailID = tb[1]
+    else
+        -- C#调用
+        mailID = tb[0]
+    end
+    if mailID == nil or mailID < 1 or self.MailMap[mailID] == nil then
+        return
+    end
+
+    if self.MailDeatailWidget ~= nil then
+        self.MailDeatailWidget:SetInfo(self.MailMap[mailID])
+    end
+end
+
+function MailModule:OnCloseMailDeatailWidget(...)
+    UIManager.Instance:CloseWidget(maiDeatailPath);
+    self.MailDeatailWidget = nil;
+end
+
+function MailModule:GetMails()
+    local list = {}
+    for k, v in pairs(self.MailMap) do
+        if v ~= nil then
+            table.insert(list, v)
+        end
+    end
+
+    table.sort(list, function(m1, m2)
+        return m1.CreateTime > m2.CreateTime;
+    end)
+
+    return list;
+end
+
+function MailModule:OnOpenMailWidget(...)
+    -- UIManager.Instance:OpenWidget(maiPath, true, self:GetMails(), nil, CS.StarProjectDef.MainPageCommond.HideBoth, false, false);
+    UIManager.Instance:OpenWidgetAsync(maiPath, nil, true, self:GetMails(), nil,
+        CS.StarProjectDef.MainPageCommond.HideBoth, false, false);
+
+end
+
+-- 一键领取附件
+function MailModule:OnGetAllMail(...)
+    local msg = CS.ProtoMsg.MailGetRewardAllReq();
+    local gameSocket = NetworkManager.Instance.gameSocket;
+    gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, msg, false, 0, false);
+end
+
+-- 一键删除已读邮件
+function MailModule:OnDeleteAllReadMail(...)
+    local msg = CS.ProtoMsg.MailDeleteReadReq();
+    local gameSocket = NetworkManager.Instance.gameSocket;
+    gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, msg, false, 0, false);
+end
+
+---删除单封邮件
+function MailModule:OnDeleteSingleMail(...)
+    local tb = ...
+    local mailID = 0
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        mailID = tb[1]
+    else
+        -- C#调用
+        mailID = tb[0]
+    end
+    local msg = CS.ProtoMsg.MailDeleteReq();
+    msg.UID = mailID;
+    local gameSocket = NetworkManager.Instance.gameSocket;
+    gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, msg, false, 0, false);
+end
+
+---领取单个邮件附件
+function MailModule:OnGetSingleMail(...)
+    local tb = ...
+    local mailID = 0
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        mailID = tb[1]
+    else
+        -- C#调用
+        mailID = tb[0]
+    end
+    local msg = CS.ProtoMsg.MailGetRewardReq();
+    msg.UID = mailID;
+    local gameSocket = NetworkManager.Instance.gameSocket;
+    gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, msg, false, 0, false);
+end
+
+function MailModule:MailGetInfosReq()
+    local msg = CS.ProtoMsg.MailGetInfosReq();
+
+    for i = 1, #self.MailKeys do
+        if self.MailMap[self.MailKeys[i]] == nil then
+            msg.ListIDs:Add(self.MailKeys[i])
+        end
+        if msg.ListIDs.Count >= self.MaxQueryCount then
+            break
+        end
+    end
+    if msg.ListIDs.Count == 0 then
+        return
+    end
+    local gameSocket = NetworkManager.Instance.gameSocket;
+    gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, msg, false, 0, false);
+end
+
+function MailModule:OnMailMarkReadedReq(...)
+    local tb = ...
+    local mailID = 0
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        mailID = tb[1]
+    else
+        -- C#调用
+        mailID = tb[0]
+    end
+    if self.MailMap[mailID] ~= nil then
+        if not self.MailMap[mailID].IsRead then
+            local msg = CS.ProtoMsg.MailMarkReadedReq();
+            msg.UID = mailID;
+            local gameSocket = NetworkManager.Instance.gameSocket;
+            gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, msg, false, 0, false);
+        end
+    end
+end
+
+return MailModule
+

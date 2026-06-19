@@ -1,0 +1,855 @@
+--[[
+*文件名   :   ObjectInteractiveWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/15 11:30:37"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+ObjectInteractiveWidget = class("ObjectInteractiveWidget", UIPanel)
+ObjectInteractiveWidget.Items = {};
+
+local ObjectPool = require("Common/Helper/ObjectPool")
+
+function ObjectInteractiveWidget:Awake()
+	self.transform = self.prefab.transform;
+	self.gameObject = self.prefab;
+
+	local _go = self.transform:Find("Grid/ObjectInteractiveItem").gameObject;
+	self.objectInteractivePool = ObjectPool:New(3, "View/Item/ObjectInteractiveItem", _go, _go.transform.parent,
+		--生成回调
+		function(ritem)
+			ritem:InitItem(
+			);
+		end,
+		--回收回调
+		function(ritem)
+			ritem:SetUse(false);
+		end
+	)
+end
+
+--清空全部
+function ObjectInteractiveWidget:ClearAllItem()
+	self.objectInteractivePool:RecycleAll();
+end
+
+--刷新客户端的本地服务
+-- Type     -- 本地实体类型
+-- ID       -- 交互物件ID
+-- TriggerKey  -- 交互回调key
+-- EntityKey  -- 特殊的实体key
+function ObjectInteractiveWidget:RefeshLocalInteractive(Type, ID, TriggerKey, EntityKey)
+	if ID == 0 then
+		return;
+	end
+	local item = self.objectInteractivePool:Spawn();
+	local cfg = ConfigDataAccessor.Interact[ID]; --配置
+	if cfg ~= nil then
+		local name = cfg.ModeltalkeName;
+		local hasService = false;
+		--选项图标（待完成）
+		local icon = "Icon_Submit_01";
+
+		if Type== 1 then
+			--// 宝箱
+			icon = "Icon_Interactive";
+
+		elseif Type== 2 then
+			--// 传送门
+
+		elseif Type== 3 then
+			--// 通缉实体
+			icon = "Icon_Talk_01";
+		elseif Type== 3 then
+			--// 召唤物
+			icon = "Icon_Talk_01";
+		end
+		
+		local light=false;
+		if cfg.IsAutoInter ==2 then
+			light=true
+		end
+		
+		item:SetItem(name, icon, ID, function(ritem)
+				CS.StarProject.GlobalEvent.onClickLocalEntity:Invoke(Type, ID, TriggerKey, EntityKey);
+			end, hasService,0,light);
+	else
+		print("找不到本地的交互物件配置", ID);
+	end
+end
+
+--刷新某个Entity身上的服务
+function ObjectInteractiveWidget:RefeshAimInteractive(entityID)
+	if entityID ~= 0 then
+		local BaseID = GameManager.Instance:GetEntityCfgID(entityID);
+		local EntityType = GameManager.Instance:GetEntityType(entityID);
+		if EntityType == CS.StarProjectDef.E_EntityType.Npc then
+			--npc
+			local cfg = ConfigDataAccessor.Npc[BaseID]; --配置
+			if cfg ~= nil then
+				local name = cfg.Name;
+				--选项图标（待完成）
+				local icon = "Icon_Talk_01";
+
+				if BusinessManager.Instance:IsNpcCanService(BaseID) then
+					--npc身上有服务
+					local commonEffect = cfg.CommonEffect;
+					local commonCondition = cfg.CommonCondition;
+					--任务服务
+					local services = BusinessManager.Instance:GetNpcOtherService(BaseID);
+
+					--基础服务
+					for i = 1, #commonEffect do
+						if commonEffect[i] ~= 0 then
+							local canShow = false;
+							--没有条件
+							if commonCondition[i] == 0 then
+								canShow = true;
+							else
+								--local cc=LocalDataManager.Instance:GetCMconditionDataCell(commonCondition[i]);
+
+								--local cc = ConfigDataAccessor.CMcondition[commonCondition[i]];
+								--local isMete = GameManager.Instance:IsConditionMete(cc.GroupID); --判断是否满足
+								local isMete = GameManager.Instance:IsConditionMete(commonCondition[i]); --判断是否满足
+								if isMete then
+									canShow = true;
+								else
+									--不满足时显示
+									--if cc.IsShow then
+									--	canShow = true;
+									--end
+								end
+							end
+							if canShow then
+								if commonEffect[i] ~= 0 then
+									--local ce=LocalDataManager.Instance:GetCMeffectDataCell(commonEffect[i]);
+									local ce = ConfigDataAccessor.CMeffect[commonEffect[i]];
+									local tex = ce.Name;
+									local serviceType = ce.Effecttype;
+									--[[
+									1.释放技能
+									2.添加buff
+									3.移除buff
+									4.接受任务
+									5.完成任务
+									6.进入副本
+									7.触发对话
+									8.播放黑幕
+									9.任务进度增加
+									10播放timeline
+									11播放章节效果
+									12剧情播放图片
+									13打开商店
+									14发送事件
+									]]
+									local isShow = true
+
+									--判断是否拥有模型
+									if serviceType == 7 then
+										local npccfg = ConfigDataAccessor.Npc[BaseID];
+										if npccfg ~= nil then
+											if tonumber(npccfg.AvatarID) == 1 then
+												isShow = false;
+											end
+										end
+									end
+
+
+									if isShow then
+										if serviceType == 13 then
+											icon = "Icon_Sell_01";
+										elseif serviceType == 1 or serviceType == 2 or serviceType == 3 then
+											icon = "Icon_Submit_01";
+										elseif serviceType == 7 or serviceType == 8 or serviceType == 10 or serviceType == 11 or serviceType == 12 then
+											icon = "Icon_Talk_01";
+										elseif serviceType == 4 or serviceType == 5 or serviceType == 9 or serviceType == 13 then
+											icon = "Icon_Task_01";
+										elseif serviceType == 6 then
+											icon = "Icon_Transfer_01";
+										else
+											icon = "Icon_Talk_01";
+										end
+
+										local item = self.objectInteractivePool:Spawn();
+
+										--如果有任务服务就不显示类型为18的基础服务(凯哥要求：环任务验收文档第一条)
+										if serviceType == 18 and services.Count >= 0 then
+
+										else
+											if serviceType == 18 then
+												--发送Module服务
+												item:SetItem(tex, icon, entityID, function(ritem)
+														--CS.StarProject.Service.Function.GlobalFunctionManager.Instance:DoFunction(ritem.EffectId);
+														GameManager.Instance:DoFunction(ritem.EffectId, entityID);
+													end, false, commonEffect[i]);
+											else
+												item:SetItem(tex, icon, entityID, function(ritem)
+														self:OnInteractiveToNpcClick(ritem)
+													end, false,false);
+											end
+										end
+
+										--[[
+										--日常副本
+										if serviceType==18 then
+										item:SetItem(tex,icon,entityID,function (ritem)
+										LuaModuleDispatcher:SendMessage(ModuleDef.EctypeEntranceModule, "OnOpenEctypeEntrance",{});
+										end,false);
+										--环任务
+										elseif serviceType==19 then
+										item:SetItem(tex,icon,entityID,function (ritem)
+										--如果没有领取就领取，否则就打开UI
+										GameManager.Instance:CkeckAndOpenRingTaskWindow();
+										end,false);
+										else
+										item:SetItem(tex,icon,entityID,function (ritem)
+										self:OnInteractiveToNpcClick(ritem)
+										end,false);
+										end
+
+										]]
+
+
+										item.NPCEnityID = entityID;
+										item.BaseID = BaseID;
+										item.IsBaseService = true;
+										item.Service = nil;
+										item.IsJustTalk = false;
+										item.Index = i;
+									end
+								end
+							end
+						end
+					end
+
+
+					for i = 0, services.Count - 1 do
+						local service = services[i];
+
+						--local ce=LocalDataManager.Instance:GetCMeffectDataCell(service.EffectID);
+						local ce = ConfigDataAccessor.CMeffect[service.EffectID];
+
+						local tex = "";
+						local serviceType = 4;
+						if ce ~= nil then
+							tex = ce.Name
+							serviceType = ce.Effecttype;
+						end
+						if service.ServiceName ~= nil and service.ServiceName ~= "" then
+							tex = service.ServiceName;
+						end
+						local isShow = true
+
+						--判断是否拥有模型
+						if serviceType == 7 then
+							local npccfg = ConfigDataAccessor.Npc[BaseID];
+							if npccfg ~= nil then
+								if tonumber(npccfg.AvatarID) == 1 then
+									isShow = false;
+								end
+							end
+						end
+						if isShow then
+							if serviceType == 13 then
+								icon = "Icon_Sell_01";
+							elseif serviceType == 1 or serviceType == 2 or serviceType == 3 then
+								icon = "Icon_Submit_01";
+							elseif serviceType == 7 or serviceType == 8 or serviceType == 10 or serviceType == 11 or serviceType == 12 then
+								icon = "Icon_Talk_01";
+							elseif serviceType == 4 or serviceType == 5 or serviceType == 9 or serviceType == 13 then
+								icon = "Icon_Task_01";
+							elseif serviceType == 6 then
+								icon = "Icon_Transfer_01";
+							else
+								icon = "Icon_Talk_01";
+							end
+
+							local item = self.objectInteractivePool:Spawn();
+							item:SetItem(tex, icon, entityID, function(ritem)
+									self:OnInteractiveToNpcClick(ritem)
+								end, service.IsTaskServer,false);
+
+							item.NPCEnityID = entityID;
+							item.BaseID = BaseID;
+							item.IsBaseService = false;
+							item.Service = service;
+							item.IsJustTalk = false;
+							item.Index = 0;
+						end
+					end
+				else
+					--npc身上没服务
+					local item = self.objectInteractivePool:Spawn();
+					item.NPCEnityID = entityID;
+					item.BaseID = BaseID;
+					item.Index = 1;
+					item.IsBaseService = true;
+					item.Service = nil;
+					item.IsJustTalk = true;
+					local str = LanguageHelp:GetLanguageByKey("Local_Str_Dialogue");
+					--检测是否为日常副本
+					local commonEffect = cfg.CommonEffect;
+					local commonCondition = cfg.CommonCondition;
+					--只有一个通用效果
+					if #commonEffect == 1 then
+						if commonEffect[1] ~= 0 then
+							local ce = ConfigDataAccessor.CMeffect[commonEffect[1]];
+							local canShow = false;
+							--没有条件
+							if commonCondition[1] == 0 then
+								canShow = true;
+							else
+								local isMete = GameManager.Instance:IsConditionMete(commonCondition[1]); --判断是否满足
+								if isMete then
+									canShow = true;
+								else
+									--不满足时显示
+									--if cc.IsShow then
+									--	canShow = true;
+									--end
+								end
+							end
+							if canShow then
+								if ce.Effecttype == 18 then
+									str = ce.Name;
+									item:SetItem(str, icon, entityID, function(ritem)
+											--发送Module服务
+											--CS.StarProject.Service.Function.GlobalFunctionManager.Instance:DoFunction(ritem.EffectId);
+											GameManager.Instance:DoFunction(ritem.EffectId, entityID);
+										end, false, commonEffect[1]);
+									return;
+								else
+									str = ce.Name;
+	
+	
+	
+	
+									item:SetItem(str, icon, entityID, function(ritem)
+											self:OnInteractiveToNpcClick(ritem)
+										end, true,false)
+								end
+							end
+						else
+							local isShow = true
+							--判断是否拥有模型
+							local npccfg = ConfigDataAccessor.Npc[BaseID];
+							if npccfg ~= nil then
+								if tonumber(npccfg.AvatarID) == 1 then
+									isShow = false;
+								end
+							end
+
+
+							--[[
+							if isShow and not(item.IsJustTalk and #cfg.Dialog>0 and cfg.Dialog[1]==0) then
+							local hasService = false;
+							item:SetItem(str, icon, entityID, function(ritem)
+							self:OnInteractiveToNpcClick(ritem)
+							end, hasService)
+							end
+							]]
+							if isShow and item.IsJustTalk then
+								if (#cfg.Dialog>0 and cfg.Dialog[1]>0) or #cfg.DialogGroup>0 then
+
+									local hasService = false;
+									item:SetItem(str, icon, entityID, function(ritem)
+											self:OnInteractiveToNpcClick(ritem)
+										end, hasService,false)
+
+								end
+							end
+						end
+
+						return;
+					end
+					--local hasService2=BusinessManager.Instance:IsObjectCanService(BaseID);
+
+
+					--基础服务
+					for i = 1, #commonEffect do
+						if commonEffect[i] ~= 0 then
+							local canShow = false;
+							--没有条件
+							if commonCondition[i] == 0 then
+								canShow = true;
+							else
+								--local cc=LocalDataManager.Instance:GetCMconditionDataCell(commonCondition[i]);
+								--local cc = ConfigDataAccessor.CMcondition[commonCondition[i]];
+								--local isMete = GameManager.Instance:IsConditionMete(cc.GroupID); --判断是否满足
+								local isMete = GameManager.Instance:IsConditionMete(commonCondition[i]); --判断是否满足
+								if isMete then
+									canShow = true;
+								else
+									--不满足时显示
+									--if cc.IsShow then
+									--	canShow = true;
+									--end
+								end
+							end
+							if canShow then
+								if commonEffect[i] ~= 0 then
+									--local ce=LocalDataManager.Instance:GetCMeffectDataCell(commonEffect[i]);
+									local ce = ConfigDataAccessor.CMeffect[commonEffect[i]];
+									local tex = ce.Name;
+									local serviceType = ce.Effecttype;
+									--[[
+									1.释放技能
+									2.添加buff
+									3.移除buff
+									4.接受任务
+									5.完成任务
+									6.进入副本
+									7.触发对话
+									8.播放黑幕
+									9.任务进度增加
+									10播放timeline
+									11播放章节效果
+									12剧情播放图片
+									13打开商店
+									14发送事件
+									]]
+
+									if serviceType == 13 then
+										icon = "Icon_Sell_01";
+									elseif serviceType == 1 or serviceType == 2 or serviceType == 3 then
+										icon = "Icon_Submit_01";
+									elseif serviceType == 7 or serviceType == 8 or serviceType == 10 or serviceType == 11 or serviceType == 12 then
+										icon = "Icon_Talk_01";
+									elseif serviceType == 4 or serviceType == 5 or serviceType == 9 or serviceType == 13 then
+										icon = "Icon_Task_01";
+									elseif serviceType == 6 then
+										icon = "Icon_Transfer_01";
+									else
+										icon = "Icon_Talk_01";
+									end
+									
+									local isShow = true;
+									--判断是否拥有模型
+									--[[
+									if serviceType == 7 then
+										local npccfg = ConfigDataAccessor.Npc[BaseID];
+										if npccfg ~= nil then
+											if tonumber(npccfg.AvatarID) == 1 then
+												isShow = false;
+											end
+										end
+									end
+									]]
+
+
+									if isShow then
+										local item = self.objectInteractivePool:Spawn();
+
+										--如果有任务服务就不显示类型为18的基础服务(凯哥要求：环任务验收文档第一条)
+										if serviceType == 18 then
+											--发送Module服务
+											item:SetItem(tex, icon, entityID, function(ritem)
+													--CS.StarProject.Service.Function.GlobalFunctionManager.Instance:DoFunction(ritem.EffectId);
+													GameManager.Instance:DoFunction(ritem.EffectId, entityID);
+												end, false, commonEffect[i]);
+										else
+											item:SetItem(tex, icon, entityID, function(ritem)
+													self:OnInteractiveToNpcClick(ritem)
+												end, false,false);
+										end
+
+										--[[
+										--日常副本
+										if serviceType==18 then
+										item:SetItem(tex,icon,entityID,function (ritem)
+										LuaModuleDispatcher:SendMessage(ModuleDef.EctypeEntranceModule, "OnOpenEctypeEntrance",{});
+										end,false);
+										--环任务
+										elseif serviceType==19 then
+										item:SetItem(tex,icon,entityID,function (ritem)
+										--如果没有领取就领取，否则就打开UI
+										GameManager.Instance:CkeckAndOpenRingTaskWindow();
+										end,false);
+										else
+										item:SetItem(tex,icon,entityID,function (ritem)
+										self:OnInteractiveToNpcClick(ritem)
+										end,false);
+										end
+
+										]]
+
+
+										item.NPCEnityID = entityID;
+										item.BaseID = BaseID;
+										item.IsBaseService = true;
+										item.Service = nil;
+										item.IsJustTalk = false;
+										item.Index = i;
+									end
+								end
+							end
+						end
+					end
+
+
+					if item.IsJustTalk and #cfg.Dialog>0 and cfg.Dialog[1]==0 then
+						item:SetUse(false);
+					end
+				end
+			else
+				print("找不到怪物配置", BaseID)
+			end
+		else
+			--交互物
+			local cfg = ConfigDataAccessor.Interact[BaseID]; --配置
+			if cfg ~= nil then
+				local name = cfg.ModeltalkeName;
+				--选项图标（待完成）
+				local icon = "Icon_Submit_01";
+				local hasService = false;
+				if BusinessManager.Instance:IsObjectCanService(BaseID) then
+					icon = "Icon_Task_01";
+					hasService = true;
+				end
+
+				---通用服务
+				local isdrain=false;
+				local  mineid=false;
+				local objCtr= GameManager.Instance:GetEntityCtr(entityID)
+				if objCtr~=nil then
+					isdrain=objCtr.MineIsDrain;
+					mineid=objCtr.MineID;
+				end
+
+				local light=false
+				if cfg.IsAutoInter==2 then
+					light=true
+				end
+				---资源是否枯竭
+				if mineid>0 then
+					local item = self.objectInteractivePool:Spawn();
+					icon="Icon_LifeSkillBook";
+					item:SetItem(LanguageHelp:GetLanguageByKey("Local_Str_Tips69"), icon, entityID, function(ritem)
+							local config=ConfigDataAccessor.LifeSkillMineList[mineid];
+							local JobID=1;
+							if config~=nil then
+								JobID=config.SkillID
+							end
+							LuaModuleDispatcher:SendMessage(ModuleDef.LivingSkillsModule, "OpenLivingSkillsWindow", {mineid,JobID,1});
+						end, hasService,0,light)
+				end
+				---查看图鉴
+
+				if  isdrain then
+					icon="Icon_LifeSkillNext";
+					local item = self.objectInteractivePool:Spawn();
+					item:SetItem(LanguageHelp:GetLanguageByKey("Local_Str_Tips70"), icon, entityID, function(ritem)
+							local config=ConfigDataAccessor.LifeSkillMineList[mineid];
+							if config~=nil then
+								local	MaxCnt=config.PersonReserve
+								local CallBack=function(mapID,pos)
+									if mapID==GameManager.Instance:GetCurMapId() then
+										TaskHelper.FindPostion(mapID,pos);
+									else
+										UIAPI.ShowMsgBox(54, function(EventName)
+												if EventName == "SURE" then
+													TaskHelper.FindPostion(mapID,pos);
+													UIManager.Instance.CloseWindow(UIDef.MiniMapWindow);
+												end
+											end
+										,config.Name);
+									end
+								end
+								LuaModuleDispatcher:SendMessage(ModuleDef.LivingSkillsModule, "OnGetMinePosition", {mineid,MaxCnt,CallBack});
+							end
+							--self:OnInteractiveToInteractClick(ritem)
+						end, hasService,0,light)
+
+				else
+					if mineid>0 then
+						icon="Icon_LifeSkillGet";
+						hasService=true;
+					end
+					
+					local item = self.objectInteractivePool:Spawn();
+					item:SetItem(name, icon, entityID, function(ritem)
+							self:OnInteractiveToInteractClick(ritem)
+						end, hasService,0,light)
+				end
+
+
+
+			else
+				print("找不到交互物件配置", BaseID)
+			end
+		end
+	end
+end
+
+--刷新交互列表
+function ObjectInteractiveWidget:RefeshInteractive(list)
+	self.objectInteractivePool:RecycleAll();
+	for i = 0, list.Count - 1 do
+		local item = self.objectInteractivePool:Spawn();
+
+		local entityID = list[i];
+
+		local BaseID = GameManager.Instance:GetEntityCfgID(entityID);
+
+		local EntityType = GameManager.Instance:GetEntityType(entityID);
+
+		if EntityType == CS.StarProjectDef.E_EntityType.Npc then
+			local cfg = ConfigDataAccessor.Npc[BaseID]; --配置
+			if cfg ~= nil then
+				local name = cfg.Name;
+				--选项图标（待完成）
+				local icon = "Icon_Talk_01";
+				if BusinessManager.Instance:IsNpcCanService(BaseID) then
+					icon = "Icon_Task_01";
+				end
+
+				item:SetItem(name, icon, list[i], function(ritem)
+						self:OnInteractiveToNpcClick(ritem)
+					end, false)
+			else
+				print("找不到怪物配置", BaseID)
+			end
+		else
+			local cfg = ConfigDataAccessor.Interact[BaseID]; --配置
+			if cfg ~= nil then
+				local name = cfg.ModeltalkeName;
+				local hasService = false;
+				local light=false
+				if cfg.IsAutoInter==2 then
+					light=true
+				end
+				--选项图标（待完成）
+				local icon = "Icon_Submit_01";
+				if BusinessManager.Instance:IsObjectCanService(BaseID) then
+					icon = "Icon_Task_01";
+					hasService = true;
+				end
+
+				item:SetItem(name, icon, list[i], function(ritem)
+						self:OnInteractiveToInteractClick(ritem)
+					end, hasService,0,light)
+			else
+				print("找不到交互物件配置", BaseID)
+			end
+		end
+
+
+
+
+
+
+
+		--item:SetItemBak(list[i]);
+	end
+end
+
+--点击交互按钮
+function ObjectInteractiveWidget:OnInteractiveToInteractClick(ritem)
+	if ritem ~= nil then
+		--旋转面向交互物
+
+		BusinessManager.Instance:TurnToEntity(ritem.EntityID);
+		LuaModuleDispatcher:SendMessage(ModuleDef.InterActionModule, "QueryInter", ritem.EntityID);
+
+		--[[
+
+		BusinessManager.Instance:MoveToEntity(ritem.EntityID,function (isFindPath)
+		if isFindPath then
+		LuaModuleDispatcher:SendMessage(ModuleDef.InterActionModule, "QueryInter",ritem.EntityID);
+		end
+		end);
+
+		]]
+	end
+end
+
+--选择NPC的服务
+function ObjectInteractiveWidget:CheckNpcInteractiveEffect(ri)
+	--基础服务
+	if ri.IsBaseService then
+		local lobbyServiceReq = CS.ProtoMsg.LobbyServiceReq();
+		lobbyServiceReq.MapID = GameManager.Instance:GetCurMapId();
+		lobbyServiceReq.UID = ri.NPCEnityID;
+		lobbyServiceReq.ObjID = ri.BaseID;
+		lobbyServiceReq.Index = ri.Index;
+		lobbyServiceReq.ObjType=CS.ProtoMsg.ServiceObjEnum.ObjNpc
+		CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+			lobbyServiceReq, false);
+	else
+		--注册的服务
+
+		if ri.Service ~= nil then
+			local lobbyService = CS.ProtoMsg.LobbyServiceReq();
+			lobbyService.MapID = GameManager.Instance:GetCurMapId();
+			lobbyService.UID = ri.NPCEnityID;
+			lobbyService.ObjID = ri.BaseID;
+			lobbyService.SourceType = CS.ProtoMsg.MapServiceSourceTypeEnum.Task;
+			lobbyService.SourceID = ri.Service.ServiceSourceID;
+			lobbyService.SourceSubID = ri.Service.ServiceSourceSubID;
+			lobbyService.ObjType=CS.ProtoMsg.ServiceObjEnum.ObjNpc
+			CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+				lobbyService, false);
+		end
+	end
+end
+
+--点击寻路到npc
+function ObjectInteractiveWidget:OnInteractiveToNpcClick(ritem)
+	if ritem ~= nil then
+		--对话测试
+		--LuaModuleDispatcher:SendMessage(ModuleDef.AvgLuaModule, "OnOpenAvgPopBox", { 10149,ritem.EntityID});
+		--do return; end
+
+
+
+		BusinessManager.Instance:MoveToEntity(ritem.EntityID, function()
+				local BaseID = GameManager.Instance:GetEntityCfgID(ritem.EntityID);
+				local cfg = ConfigDataAccessor.Npc[BaseID]; --配置
+				if cfg ~= nil then
+					if ritem.IsJustTalk then
+						if self:CheckIsHaveOnlyOneCommonService(BaseID) and ((#cfg.Dialog == 1 and cfg.Dialog[1] == 0) or #cfg.Dialog == 0) then
+							--直接发请求（只有一个基础服务,并且对话为空的时候）
+							local lobbyServiceReq = CS.ProtoMsg.LobbyServiceReq();
+							lobbyServiceReq.MapID = GameManager.Instance:GetCurMapId();
+							lobbyServiceReq.UID = ritem.EntityID;
+							lobbyServiceReq.ObjID = BaseID;
+							lobbyServiceReq.Index = 1;
+							lobbyServiceReq.ObjType=CS.ProtoMsg.ServiceObjEnum.ObjNpc
+							CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(
+								CS.SGF.Network.ServerType.ServerTypeLobby, lobbyServiceReq, false);
+						else
+							--显示开场白
+							--随机对话聊天
+
+
+							if cfg.DialogGroup ~= {} and #cfg.DialogGroup>0 then
+								local talkId=ConfigDataAccessor.GetNpcDialogIdByGroupID(cfg.DialogGroup[1]);
+								if talkId>0 then
+									LuaModuleDispatcher:SendMessage(ModuleDef.AvgLuaModule, "OnOpenAvgTalkBox",{talkId,nil,ritem.EntityID,true,ritem.Index});
+								end
+							else
+								if cfg.Dialog ~= {} and #cfg.Dialog>0 then
+									local talkIdx=math.random(1,#cfg.Dialog);
+									LuaModuleDispatcher:SendMessage(ModuleDef.AvgLuaModule, "OnOpenAvgTalkBox",{cfg.Dialog[talkIdx],nil,ritem.EntityID,true,ritem.Index});
+								else
+									print("ObjectInteractiveWidget OnInteractiveToNpcClick cfg.Dialog ={} 没有对话服务配置 配置没找到");
+								end
+							end
+
+						end
+					else
+						self:CheckNpcInteractiveEffect(ritem);
+					end
+				else
+					print("ObjectInteractiveWidget OnInteractiveToNpcClick ritem" .. ritem.EntityID .. ",,NPC 配置没找到");
+				end
+			end);
+	end
+end
+
+
+
+
+--判断是否只有唯一服务
+function ObjectInteractiveWidget:CheckIsHaveOnlyOneCommonService(BaseID)
+	local isHave = false;
+
+
+	--local cfg=LocalDataManager.Instance:GetNPCDataCell(self.module.BaseID);--配置
+	local cfg = ConfigDataAccessor.Npc[BaseID];
+
+	local commonEffect = cfg.CommonEffect;
+
+	local commonCondition = cfg.CommonCondition;
+
+
+	if #commonEffect > 1 or #commonEffect == 0 then
+		return isHave;
+	end
+
+	--基础服务
+	for i = 1, #commonEffect do
+		local canShow = false;
+		--没有条件
+		if commonCondition[i] == 0 then
+			canShow = true;
+		else
+			--local cc=LocalDataManager.Instance:GetCMconditionDataCell(commonCondition[i]);
+			--local cc = ConfigDataAccessor.CMcondition[commonCondition[i]];
+			local isMete = GameManager.Instance:IsConditionMete(commonCondition[i]); --判断是否满足
+			--local isMete = GameManager.Instance:IsConditionMete(cc.GroupID); --判断是否满足
+			if isMete then
+				canShow = true;
+			else
+				--不满足时显示
+				--if cc.IsShow then
+				--	canShow = true;
+				--end
+			end
+		end
+
+		if canShow then
+			if commonEffect[i] ~= 0 then
+				isHave = true;
+			end
+		end
+	end
+
+	--[[
+	--任务服务
+	local services=BusinessManager.Instance:GetNpcOtherService(self.module.BaseID);
+
+	for i=0,services.Count-1 do
+	local service=services[i];
+
+	--local ce=LocalDataManager.Instance:GetCMeffectDataCell(service.EffectID);
+	local ce=ConfigDataAccessor.CMeffect[service.EffectID];
+	local selectItem = self.effectSelectPool:Spawn();
+	local tex="";
+	local serviceType=4;
+	if ce~=nil then
+	tex=ce.Name
+	serviceType =ce.Effecttype;
+	end
+	if service.ServiceName~=nil and service.ServiceName~="" then
+	tex=service.ServiceName;
+	end
+	selectItem:SetItem(tex,0,false,service,serviceType);
+	end
+	]]
+
+
+	return isHave;
+end
+
+function ObjectInteractiveWidget:BindModule(m)
+	print("ObjectInteractiveWidget:BindModule")
+	self.module = m;
+end
+
+function ObjectInteractiveWidget:Start()
+
+end
+
+function ObjectInteractiveWidget:OnEnable()
+
+end
+
+function ObjectInteractiveWidget:OnDisable()
+
+end
+
+function ObjectInteractiveWidget:OnDestroy()
+
+end
+
+function ObjectInteractiveWidget:OnOpen(arg)
+
+end
+
+function ObjectInteractiveWidget:OnClose(arg)
+
+end
+
+return ObjectInteractiveWidget

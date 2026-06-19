@@ -1,0 +1,452 @@
+--[[
+*文件名   :   EquipWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/18 16:36:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+EquipWindow = class("EquipWindow", UIPanel)
+EquipWindow.IsOpen = false
+
+local EquipItem = require("View.Item.EquipItem")
+local CurrencyBar = require("View/Item/CurrencyBar")
+
+function EquipWindow:Awake()
+end
+
+function EquipWindow:InitItems()
+    self.transform = self.prefab.transform
+    self.gameObject = self.prefab
+    self.IsOpen = false
+
+    --动画相关
+    self.anim = self.transform:GetComponent(typeof(Animator))
+
+    self.go_bg = self.transform:Find("Click").gameObject
+    self.go_bg2 = self.transform:Find("Cut4Cam90/AssemblyRatio2/LeftMenu/BG").gameObject
+
+    self.tips_anchor = self.transform:Find("Cut4Cam90/AssemblyRatio2/LeftMenu/TipsAnchor").transform
+
+    self.rect_tips_anchor = self.tips_anchor:GetComponent(typeof(RectTransform))
+    self.rect_leftMenu = self.transform:Find("Cut4Cam90/AssemblyRatio2/LeftMenu"):GetComponent(typeof(RectTransform))
+
+    self.equips = {}
+    --for i=1,10 do
+    for i = 1, 8 do
+        local _go = self.transform:Find("Cut4Cam90/AssemblyRatio2/LeftMenu/EquipGrid" .. i)
+        local equip = EquipItem:New(_go)
+
+        equip:InitItem(
+            true,
+            function(it, idx)
+                self:OnItemClick(it, idx)
+            end
+        )
+
+        table.insert(self.equips, equip)
+    end
+
+    self.amulets = {}
+    for i = 1, 2 do
+        local _go = self.transform:Find("Cut4Cam90/AssemblyRatio2/LeftMenu/Amulet" .. i)
+        local amulet = EquipItem:New(_go)
+
+        amulet:InitItem(
+            true,
+            function(it, idx)
+                self:OnAmuletItemClick(it, idx)
+            end
+        )
+
+        table.insert(self.amulets, amulet)
+    end
+
+    self.currencyBar = CurrencyBar:New(nil, self.transform:Find("Cut4Cam90/AssemblyRatio2/CurrencyAhchor")) --module里有两行也要打开
+
+    self.IsShowPerfect = 0
+end
+
+--创建一个背包格子
+function EquipWindow:CreateEquipSlot(baseID, entityID, num, state, maxStack)
+    local equipSlot = EquipSlot() --新建一个格子
+    equipSlot:Init(1, state, maxStack) --初始化格子(正在使用)
+    equipSlot:PutIn(baseID, entityID, num)
+    return equipSlot
+end
+
+function EquipWindow:RefeshEquips()
+    self.currencyBar:OnListener()
+    local coins = {4, 3, 2, 1}
+    self.currencyBar:RefeshBar(coins, true)
+    self.currencyBar:PlayAnim(true)
+
+    self.anim:Play("EquipWidgetAnim_Enter")
+
+    if self.module.OpenFrom == 1 then
+        self.go_bg:SetActive(false)
+        self.go_bg2:SetActive(false)
+        self.rect_tips_anchor.anchoredPosition = Vector2(814, 401)
+        self.rect_leftMenu.anchorMin = Vector2(0, 0.5)
+        self.rect_leftMenu.anchorMax = Vector2(0, 0.5)
+
+        self.rect_leftMenu.anchoredPosition = Vector2(502, 0)
+
+        self.isShowRedPoint = false
+    else
+        self.go_bg:SetActive(true)
+        self.go_bg2:SetActive(true)
+        self.rect_tips_anchor.anchoredPosition = Vector2(-767, 401)
+
+        self.rect_leftMenu.anchorMin = Vector2(1, 0.5)
+        self.rect_leftMenu.anchorMax = Vector2(1, 0.5)
+        self.rect_leftMenu.anchoredPosition = Vector2(-498, 0)
+
+        self.isShowRedPoint = true
+    end
+
+    DOVirtual.DelayedCall(
+        0.1,
+        function()
+            self.transform:SetAsLastSibling()
+        end
+    )
+
+    --另外两个饰品暂时没有用
+    for i = 1, #self.equips do
+        local data = BusinessManager.Instance:GetHeroEquipedEquip(i)
+        if data == nil then
+            local equipSlot = self:CreateEquipSlot(0, 0, 0, 0, 0) --空格子
+            self.equips[i]:SetItem(equipSlot, i, self.IsShowPerfect, true)
+
+            --local temp={};
+            --temp.BaseID=0;
+            --self.equips[i]:SetItem(temp,i,self.IsShowPerfect,true);
+
+            --红点
+            local isHaveRedPoint = BusinessManager.Instance:CheckIsHaveCanEquipedEquip(i)
+            --检查背包里是否有装备的
+            if not (self.isShowRedPoint) then
+                isHaveRedPoint = false
+            end
+
+            self.equips[i]:ShowRedPoint(isHaveRedPoint)
+        else
+            --self.equips[i]:SetItem(data,i,self.IsShowPerfect,true);
+            local equipSlot = self:CreateEquipSlot(data.BaseID, data.EntityID, 0, 1, 0) --装备格子
+            self.equips[i]:SetItem(equipSlot, i, self.IsShowPerfect, true)
+
+            --红点
+            local isHaveRedPoint = false
+            if not (self.isShowRedPoint) then
+                isHaveRedPoint = false
+            end
+            self.equips[i]:ShowRedPoint(false)
+        end
+    end
+
+    --两个纹章
+    for i = 1, #self.amulets do
+        local data = BusinessManager.Instance:GetHeroEquipedAmulet(i)
+
+        if data == nil then
+            --冒险等级
+            --[[
+            local unlockLv = 0
+            local RiskInfo = GameManager.Instance.M_MainPlayerCtrlBase.Data.Attrs:GetProtoValue(CS.StarProjectDef.AOIAttrDefine.RiskInfo)
+            local curRiskLevel = RiskInfo.CurRiskLevel
+            if i == 1 then
+                unlockLv = SystemConstConfigs.AtkAmulet_Unlock
+            elseif i == 2 then
+                unlockLv = SystemConstConfigs.DefAmulet_Unlock
+            end
+
+            self.amulets[i]:SetItem(equipSlot, i, false, true, true)
+
+            local cfg = ConfigDataAccessor.AdvGradeExp[unlockLv]
+            if cfg ~= nil then
+                --self.amulets[i]:SetSysLock(unlockLv>curRiskLevel,"冒险等级达到"..cfg.AdvClass..GetRomaNum(cfg.AdvOrder).."开放");
+                self.amulets[i]:SetSysLock(unlockLv > curRiskLevel, StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Tips66"), {cfg.AdvClass .. GetRomaNum(cfg.AdvOrder)}))
+			end
+                --红点
+                local isHaveRedPoint = false
+                self.amulets[i]:ShowRedPoint(isHaveRedPoint)
+
+
+			]]
+            --local temp={};
+            --temp.BaseID=0;
+            --self.equips[i]:SetItem(temp,i,self.IsShowPerfect,true);
+            local equipSlot = self:CreateEquipSlot(0, 0, 0, 0, 0) --空格子
+            --等级
+            local unlockLv = 0
+            local playerLv = GameManager.Instance:GetPlayerLevel()
+            if i == 1 then
+                unlockLv = SystemConstConfigs.AtkAmulet_Unlock
+            elseif i == 2 then
+                unlockLv = SystemConstConfigs.DefAmulet_Unlock
+            end
+
+            self.amulets[i]:SetItem(equipSlot, i, false, true, true)
+
+            self.amulets[i]:SetSysLock(unlockLv > playerLv, StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Tips64"), {unlockLv}))
+
+            --红点
+            local isHaveRedPoint = false
+            self.amulets[i]:ShowRedPoint(isHaveRedPoint)
+        else
+            --[[
+
+
+		
+            local unlockLv = 0
+            local RiskInfo = GameManager.Instance.M_MainPlayerCtrlBase.Data.Attrs:GetProtoValue(CS.StarProjectDef.AOIAttrDefine.RiskInfo)
+            local curRiskLevel = RiskInfo.CurRiskLevel
+            if i == 1 then
+                unlockLv = SystemConstConfigs.AtkAmulet_Unlock
+            elseif i == 2 then
+                unlockLv = SystemConstConfigs.DefAmulet_Unlock
+            end
+
+            self.amulets[i]:SetItem(equipSlot, i, false, true, true)
+            local cfg = ConfigDataAccessor.AdvGradeExp[unlockLv]
+            if cfg ~= nil then
+                --self.amulets[i]:SetSysLock(unlockLv>curRiskLevel,"冒险等级达到"..cfg.AdvClass..GetRomaNum(cfg.AdvOrder).."开放");
+                self.amulets[i]:SetSysLock(unlockLv > curRiskLevel, StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Tips66"), {cfg.AdvClass .. GetRomaNum(cfg.AdvOrder)}))
+            end
+
+	]]
+            --self.equips[i]:SetItem(data,i,self.IsShowPerfect,true);
+            local equipSlot = self:CreateEquipSlot(data.BaseID, data.EntityID, 0, 1, 0) --装备格子
+
+            --等级
+            local unlockLv = 0
+            local playerLv = GameManager.Instance:GetPlayerLevel()
+            if i == 1 then
+                unlockLv = SystemConstConfigs.AtkAmulet_Unlock
+            elseif i == 2 then
+                unlockLv = SystemConstConfigs.DefAmulet_Unlock
+            end
+
+            self.amulets[i]:SetItem(equipSlot, i, false, true, true)
+
+            self.amulets[i]:SetSysLock(unlockLv > playerLv, StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Tips64"), {unlockLv}))
+        end
+    end
+
+    --清空所有选中
+    for j = 1, #self.equips do
+        self.equips[j]:MakeSelected(false)
+    end
+    for j = 1, #self.amulets do
+        self.amulets[j]:MakeSelected(false)
+    end
+end
+
+function EquipWindow:SelectEquipByEntityID(eid)
+    if eid == 0 or eid == nil then
+        for j = 1, #self.equips do
+            self.equips[j]:MakeSelected(false)
+        end
+        for j = 1, #self.amulets do
+            self.amulets[j]:MakeSelected(false)
+        end
+        return
+    end
+
+    --另外两个饰品暂时没有用
+    for i = 1, #self.equips do
+        local data = BusinessManager.Instance:GetHeroEquipedEquip(i)
+        if data ~= nil then
+            if eid == data.EntityID then
+                for j = 1, #self.equips do
+                    self.equips[j]:MakeSelected(false)
+                end
+                self.equips[i]:MakeSelected(true)
+                break
+            end
+        end
+    end
+
+    for i = 1, #self.amulets do
+        local data = BusinessManager.Instance:GetHeroEquipedAmulet(i)
+        if data ~= nil then
+            if eid == data.EntityID then
+                for j = 1, #self.amulets do
+                    self.amulets[j]:MakeSelected(false)
+                end
+                self.amulets[i]:MakeSelected(true)
+                break
+            end
+        end
+    end
+end
+
+function EquipWindow:SelectEquipByIdx(idx)
+    for j = 1, #self.amulets do
+        self.amulets[j]:MakeSelected(false)
+    end
+    for j = 1, #self.equips do
+        self.equips[j]:MakeSelected(false)
+    end
+    self.equips[idx]:MakeSelected(true)
+end
+
+function EquipWindow:SetIsShowPerfect(num)
+    self.IsShowPerfect = num
+    self:RefeshEquips()
+end
+
+function EquipWindow:OnItemClick(ritem, idx)
+    print("EquipItem:OnItemClick")
+
+    if ritem == nil then
+        --装备升级界面不跳转
+        if self.module.OpenFrom == 20 then
+            for i = 1, #self.equips do
+                self.equips[i]:MakeSelected(false)
+            end
+            for i = 1, #self.amulets do
+                self.amulets[i]:MakeSelected(false)
+            end
+            LuaModuleDispatcher:SendMessage(ModuleDef.EquipUpgradeModule, "OnRefeshEquipUpgrade", {nil, idx})
+            return
+        end
+        LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips", {})
+        self.module:OpenEquipBagTag(idx)
+    else
+        --装备升级界面不跳转
+        if self.module.OpenFrom == 20 then
+            for i = 1, #self.equips do
+                self.equips[i]:MakeSelected(false)
+            end
+            for i = 1, #self.amulets do
+                self.amulets[i]:MakeSelected(false)
+            end
+            ritem:MakeSelected(true)
+
+            LuaModuleDispatcher:SendMessage(ModuleDef.EquipUpgradeModule, "OnRefeshEquipUpgrade", {ritem.EntityID, ritem.Idx})
+            return
+        end
+
+        self.module:OpenEquipBagTag(idx)
+
+        for i = 1, #self.amulets do
+            self.amulets[i]:MakeSelected(false)
+        end
+        for j = 1, #self.equips do
+            self.equips[j]:MakeSelected(false)
+        end
+
+        ritem:MakeSelected(true)
+
+        --设置道具Tips
+        self.module.IsOpenTips = true
+        self.module:OpenItemTips(ritem.BaseID, ritem.EntityID)
+    end
+end
+
+function EquipWindow:OnAmuletItemClick(ritem, idx)
+    print("EquipItem:OnAmuletItemClick")
+
+    if ritem == nil then
+        --装备升级界面不跳转
+        if self.module.OpenFrom == 20 then
+            for i = 1, #self.amulets do
+                self.amulets[i]:MakeSelected(false)
+            end
+            for j = 1, #self.equips do
+                self.equips[j]:MakeSelected(false)
+            end
+            LuaModuleDispatcher:SendMessage(ModuleDef.EquipUpgradeModule, "OnRefeshEquipUpgrade", {nil, idx})
+            return
+        end
+        LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips", {})
+        self.module:OpenAmuletBagTag()
+    else
+        --装备升级界面不跳转
+        if self.module.OpenFrom == 20 then
+            for i = 1, #self.amulets do
+                self.amulets[i]:MakeSelected(false)
+            end
+            for j = 1, #self.equips do
+                self.equips[j]:MakeSelected(false)
+            end
+            ritem:MakeSelected(true)
+
+            LuaModuleDispatcher:SendMessage(ModuleDef.EquipUpgradeModule, "OnRefeshEquipUpgrade", {ritem.EntityID, ritem.Idx})
+            return
+        end
+
+        self.module:OpenAmuletBagTag()
+
+        for i = 1, #self.amulets do
+            self.amulets[i]:MakeSelected(false)
+        end
+        for j = 1, #self.equips do
+            self.equips[j]:MakeSelected(false)
+        end
+
+        ritem:MakeSelected(true)
+
+        --设置道具Tips
+        self.module.IsOpenTips = true
+        self.module:OpenItemTips(ritem.BaseID, ritem.EntityID)
+    end
+end
+
+function EquipWindow:BindModule(m)
+    print(".............")
+    self.module = m
+    self.onCloseDestroy(false)
+end
+
+function EquipWindow:Start()
+end
+
+function EquipWindow:OnEnable()
+    LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OnForceTab", 4)
+end
+
+function EquipWindow:OnDisable()
+end
+
+function EquipWindow:OnDestroy()
+    self.module.equipWindowView = nil;
+end
+
+function EquipWindow:OnOpen(arg)
+    self.IsOpen = true
+end
+
+function EquipWindow:OnClose(arg)
+    self.IsOpen = false
+end
+
+function EquipWindow:CloseWindow()
+    self.currencyBar:OffListener()
+    self.currencyBar:PlayAnim(false)
+    self.anim:Play("EquipWidgetAnim_Exit")
+    DOVirtual.DelayedCall(
+        0.1,
+        function()
+            --关闭道具Tips
+            if self.module.IsOpenTips then
+                self.module.IsOpenTips = false
+                self.module:CloseItemTips()
+            end
+
+            --关闭所有选择框
+            for i = 1, #self.equips do
+                self.equips[i]:MakeSelected(false)
+            end
+            self.IsShowPerfect = 0
+
+            self.Close()
+            --UIManager.Instance:CloseWindow("Equip/EquipWindow",nil,true);
+            self.module:OnCloseEquip()
+        end
+    )
+end
+
+return EquipWindow

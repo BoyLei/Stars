@@ -1,0 +1,77 @@
+---@class TaskScrolIItem
+--[[
+*文件名   :   TaskScrolIItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/10/25 11:09:17"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+TaskScrolIItem=class("TaskScrolIItem",UIPanel)
+
+TaskScrolIItem.Task=nil;
+TaskScrolIItem.TaskName=nil;
+TaskScrolIItem.TaskState=nil;
+
+TaskScrolIItem.select=nil;
+TaskScrolIItem.SelectBtn=nil;
+TaskScrolIItem.TaskBG=nil;
+TaskScrolIItem.IsSelect=false;
+
+local Info=nil;
+
+local OnClickHandlerFunc=nil;
+function TaskScrolIItem:ctor(go,atlas)
+	self.prefab = go;
+	self.AtlasPath = atlas;
+	self.select=self:Find("Select").gameObject
+	self.TaskBG=self:Find("Image").gameObject
+	self.TaskName=self:Find("TaskName"):GetComponent(typeof(Text));
+	self.TaskState=self:Find("ImageState/state"):GetComponent(typeof(Image));
+	self.SelectBtn=self.prefab:GetComponent(typeof(JButton));
+	
+	OnClickHandlerFunc=function()
+		self:OnSelectHandler()
+	end
+	self.IsSelect=false;
+	self.SelectBtn.OnClick = OnClickHandlerFunc;
+	CS.StarProject.GlobalEvent.ShowTaskInfo:AddListener(function (task)
+			self:OnTaskSelect(task);
+		end);
+end
+
+function TaskScrolIItem:FreshSelect()
+	if self.IsSelect then
+		self.select.gameObject:SetActive(true);
+	else
+		self.select.gameObject:SetActive(false);
+	end
+end
+
+function TaskScrolIItem:OnTaskSelect(task)
+	self.IsSelect=self.Info.TaskID==task.TaskID
+	self:FreshSelect()
+end
+
+function  TaskScrolIItem:OnSelectHandler()
+	CS.StarProject.GlobalEvent.ShowTaskInfo:Invoke(self.Info)
+end
+
+function TaskScrolIItem:SetItemSize()
+	return  Vector2(300, 200);
+end
+
+function TaskScrolIItem:OnShow(data)
+	self.Info=data
+	self.TaskName.text=self.Info:GetTaskTypeNoColor()..self.Info.TaskTitle	
+	self.IsSelect=false;
+	self:FreshSelect()
+	self.prefab:SetActive(true)
+end
+
+
+function TaskScrolIItem:OnHide()
+	self.prefab:SetActive(false)
+end
+
+return  TaskScrolIItem

@@ -1,0 +1,93 @@
+
+function SetGOActive(go, active)
+    if not go then
+        LogError("SetGOActive go is null")
+        return
+    end
+    GameUtils.SetGameObjectActive(go.gameObject, active)
+end
+
+function SetGoListActive(goList,active) --将list中的go全部进行SetGoActive
+    if not goList then
+        LogError("SetGoListActive goList is null")
+        return
+    end
+    for i = 1,#goList do
+        if not goList[i] then
+            LogError("goList["..i.."] is null")
+            break
+        end
+        SetGOActive(goList[i],active)
+    end
+end
+
+function SetAnchoredPosition(go, x, y)
+    GameUtils.SetAnchoredPosition(go.gameObject, x, y)
+end
+
+function SetGOLayer(go,layerName,includeChild)
+    if not go then
+        LogError("SetGOLayer go is null!")
+        return
+    end
+    GameUtils.SetGameObjectLayer(go,layerName,includeChild)
+
+end
+
+function ClearAllChild(parentContent)
+    if parentContent.transform.childCount > 0 then
+        for i = 0, parentContent.transform.childCount - 1 do
+            local obj = parentContent.transform:GetChild(i).gameObject
+            --CS.ClickEventListener.Get(obj).onClick = nil
+            CS.UnityEngine.GameObject.Destroy(obj)
+        end
+    end
+end
+
+function CaculateVerticalLayoutGroup(go)
+    GameUtils.CaculateVerticalLayoutGroup(go.gameObject)
+end
+
+local fxDirPath = "Assets/Res/Effect/Prefab/Common/"
+function PlayUIFx(fxName, parentObj, layerId, orderInLayer, scope, len, callback)
+    local path = fxName
+    if nil == parentObj then
+        parentObj = GameObject.Find("_FX_ROOT")
+    end
+    
+    if nil ~= parentObj then
+        ResMgr.LoadAsset(path, parentObj.transform, function(go)
+            if go == nil then
+                LogError("PlayUIEffect failed, effect name is "..tostring(fxName))
+                return
+            end
+            SetGOActive(go, true)
+
+            if orderInLayer ~= nil and layerId ~= nil then
+                GameUtils.SetParticleSortOrder(go, layerId, orderInLayer)
+            end
+
+            if nil ~= callback then
+                callback(go)
+            end
+
+            if nil ~= scope then
+                scope:Invoke(len, function()
+                    GameObject.Destroy(go)
+                end)
+            elseif nil ~= len then
+                local timeScope = scopeMgr:AddChild("globe.gameobjecthelper", "fx_des_time_scope")
+                if nil ~= timeScope then
+                    timeScope:Invoke(len, function()
+                        GameObject.Destroy(go)
+                        timeScope:Clear()
+                    end)
+                end
+            end
+        end)
+    end
+end
+
+function PlaySound(soundName)
+    AudioMgr.PlaySound(soundName)
+end

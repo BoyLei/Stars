@@ -1,0 +1,34 @@
+--[[
+*文件名   :   AnnouncementLeftTabItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/18 18:36:49"
+*创建人   :   "dl"
+*版权所有 :   游卡网络科技技术有限公司
+]] local AnnouncementLeftTabItem = {}
+
+AnnouncementLeftTabItem.__index = AnnouncementLeftTabItem
+
+function AnnouncementLeftTabItem:New(_go)
+    local self = {}
+    setmetatable(self, AnnouncementLeftTabItem)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.UnSelectText = self.transform:Find("unselect/Text"):GetComponent(typeof(Text));
+    self.SelectText = self.transform:Find("select/Text"):GetComponent(typeof(Text));
+
+    self.RedPoint = self.transform:Find("RedPoint").gameObject;
+
+    return self; -- 返回自身
+end
+
+-- 更新对应的 tab 数据, 目前结构 只需要包含 {tabTitle 文本,redPointState 红点状态}
+function AnnouncementLeftTabItem:UpdateData(data)
+    self.SelectText.text = data.tabTitle;
+    self.UnSelectText.text = data.tabTitle;
+    self.RedPoint:SetActive(data.redPointState);
+end
+
+return AnnouncementLeftTabItem;

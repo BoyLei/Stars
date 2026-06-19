@@ -1,0 +1,278 @@
+--[[
+*文件名   :   ItemTipsItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 10:33:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local ItemTipsItem = {}
+
+ItemTipsItem.__index = ItemTipsItem
+
+local ObjectPool = require("Common/Helper/ObjectPool")
+
+function ItemTipsItem:New(_go, needJump)
+    local self = {}
+    setmetatable(self, ItemTipsItem)
+
+    self.needJump = needJump
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.m_Desc = self.transform:Find("Info/Mask/List/Desc"):GetComponent(typeof(Text))
+
+    self.m_LvLimit = self.transform:Find("LvLimit"):GetComponent(typeof(Text))
+    self.m_Type = self.transform:Find("Type"):GetComponent(typeof(Text))
+
+    self.m_TreasurePos = self.transform:Find("Info/Mask/List/TreasurePos/pos"):GetComponent(typeof(Text))
+
+    self.go_TreasurePos = self.transform:Find("Info/Mask/List/TreasurePos").gameObject
+
+    self.m_Name = self.transform:Find("Name"):GetComponent(typeof(Text))
+    self.Icon = self.transform:Find("ItemGrid/Have/Icon"):GetComponent(typeof(Image))
+    self.m_BgRare = self.transform:Find("ItemGrid/Have/BgRare"):GetComponent(typeof(Image))
+
+    self.m_RareTop = self.transform:Find("RareTop"):GetComponent(typeof(Image))
+    self.go_isbind = self.transform:Find("IsBind").gameObject
+    self.go_notbind = self.transform:Find("NotBind").gameObject
+
+    self.go_leftTimes = self.transform:Find("LeftTimes").gameObject
+    self.leftTimes = self.transform:Find("LeftTimes/tt"):GetComponent(typeof(Text))
+    self.ItemContentSizeFitter = self.transform:Find("Info/Mask/List"):GetComponent(typeof(ContentSizeFitter))
+    --跳转列表
+    self.IsHaveJump = false
+    if self.transform:Find("Info/Mask/List/JumpList") ~= nil then
+        self.IsHaveJump = true
+        local _go = self.transform:Find("Info/Mask/List/JumpItem").gameObject
+        self.jumpItemPool =
+            ObjectPool:New(
+            30,
+            "View/Item/ItemTipsJumpItem",
+            _go,
+            _go.transform.parent,
+            --生成回调
+            function(ritem)
+                ritem:InitItem(
+                    --点击回调
+                    function(ritem)
+                        self:OnJumpClick(ritem)
+                    end
+                )
+            end,
+            --回收回调
+            function(ritem)
+                ritem:SetUse(false)
+            end
+        )
+
+        --跳转列表超过三个
+        self.go_jumpList = self.transform:Find("Info/Mask/List/JumpList").gameObject
+        local tr = self.transform:Find("Info/Mask/List/JumpList/Viewport/Content")
+        local _go2 = self.transform:Find("Info/Mask/List/JumpList/Viewport/Content/JumpItem").gameObject
+        self.jumpItemPool2 =
+            ObjectPool:New(
+            3,
+            "View/Item/ItemTipsJumpItem",
+            _go2,
+            tr,
+            --生成回调
+            function(ritem)
+                ritem:InitItem(
+                    --点击回调
+                    function(ritem)
+                        self:OnJumpClick(ritem)
+                    end
+                )
+            end,
+            --回收回调
+            function(ritem)
+                ritem:SetUse(false)
+            end
+        )
+    end
+
+    self:Show(false)
+
+    return self --返回自身
+end
+
+function ItemTipsItem:Show(b)
+    self.gameObject:SetActive(b)
+end
+
+function ItemTipsItem:Refesh(cfg, EntityID)
+    self:Show(true)
+    self.BaseID = cfg.Id
+    if cfg.Dealid > 0 then
+        cfg = ConfigDataAccessor.Item[cfg.Dealid]
+    end
+
+    self.m_Name.text = cfg.Name
+
+    self.m_Desc.text = cfg.Desc
+
+    --self.m_Type.text="稀有子类/大类";
+    --self.m_LvLimit.text="等级限制："..cfg.Level.."级";
+
+    --物品品质
+    local quality = cfg.Quality
+    if quality == 99 then
+        quality = 1
+    end
+    --self.m_RareTop.sprite= AtlasManager.Instance:GetSprite("ui/common/atlas/commonitem","Tips_Equipbg_l"..quality);
+    ResourceHelper:LoadIconByAtlasAsync(self.m_RareTop, ResourceHelper.AtlasPathCommonItem, "Tips_Equipbg_l" .. quality, false)
+    --self.m_BgRare.sprite= AtlasManager.Instance:GetSprite("ui/common/atlas/commonitem","Bag_Grid_sq"..quality);
+    ResourceHelper:LoadIconByAtlasAsync(self.m_BgRare, ResourceHelper.AtlasPathCommonItem, "Bag_Grid_sq" .. quality, false)
+    self.m_Name.color = GetQualityColorRGB(quality)
+
+    --物品图标
+    --local icon=cfg.Icon;
+    --LoadIcon(self.Icon,icon);
+    ResourceHelper:LoadIconAsync(self.Icon, "", cfg.Icon, false)
+
+    --物品类型
+    local type = cfg.ItemType
+
+    self.m_Type.text = ConfigDataAccessor.ItemType[GetSubItemID(tonumber(cfg.ItemType), tonumber(cfg.SubType))].Name
+
+    --物品排序
+    local order = cfg.SortProp
+
+    local item = nil
+
+    if EntityID ~= nil then
+        item = BusinessManager.Instance:GetItemByItemEntityId(EntityID)
+    end
+
+    if type == 20 then
+        if item ~= nil then
+            --type
+            if item.TData ~= nil then
+                local mapconfig = ConfigDataAccessor.SceneMap[item.TData.TreasureMapID]
+                if mapconfig ~= nil then
+                    local pos = item.TData.TreasurePos or {X=0,Y=0,Z=0}
+                    if cfg.SubType == 0 or cfg.SubType == 2 then
+                        --self.m_TreasurePos.text = "坐标:" .. mapconfig.SceneName .. "(" .. math.floor(pos.X) .. "," .. math.floor(pos.Z) .. ")"
+                        self.m_TreasurePos.text = mapconfig.SceneName .. "(" .. math.floor(pos.X) .. "," .. math.floor(pos.Z) .. ")"
+                    else
+                        --self.go_TreasurePos:SetActive(false);
+                        --self.m_TreasurePos.text = "坐标:" .. mapconfig.SceneName
+                        self.m_TreasurePos.text = mapconfig.SceneName
+                    end
+                    self.go_TreasurePos:SetActive(true)
+                else
+                    self.go_TreasurePos:SetActive(false)
+                end
+            end
+        end
+    else
+        self.go_TreasurePos:SetActive(false)
+    end
+
+    if item ~= nil then
+        --是否是已绑定
+        if item.IsBind then
+            self.go_isbind:SetActive(true)
+            self.go_notbind:SetActive(false)
+            self.go_leftTimes:SetActive(false)
+        else
+            self.go_isbind:SetActive(false)
+
+            if cfg.MaxTradeCount > 0 then
+                local leftTimes = cfg.MaxTradeCount - item.TradedCount
+                --self.leftTimes.text="可交易"..leftTimes.."次";
+                self.leftTimes.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_leftTimes"), {leftTimes})
+                self.go_leftTimes:SetActive(true)
+                self.go_notbind:SetActive(false)
+            else
+                self.go_notbind:SetActive(true)
+                self.go_leftTimes:SetActive(false)
+            end
+        end
+    else
+        self.go_isbind:SetActive(false)
+        self.go_notbind:SetActive(false)
+        self.go_leftTimes:SetActive(false)
+    end
+
+    --刷新跳转
+    if self.needJump then
+        self:RefeshJumpItems(cfg.Source)
+    end
+
+    self.ItemContentSizeFitter:SetLayoutVertical()
+end
+
+--刷新跳转
+function ItemTipsItem:RefeshJumpItems(jumpIds)
+    if not (self.IsHaveJump) then
+        return
+    end
+    local items = {}
+    for i = 1, #jumpIds do
+        local it = {}
+
+        --需要根据跳转表来定义
+
+        --跳转类型
+        it.Type = jumpIds[i]
+
+        --是否可以跳转的判断
+        it.CanJump = true
+
+        local cfg = ConfigDataAccessor.ItemGetJump[it.Type]
+
+        -- 判断是否系统开启
+        local sysOpen = cfg.SysOpen
+        if sysOpen > 0 then
+            if not (CheckPlayerGuidanceOpen(sysOpen, "", false)) then
+                -- 不满足开放条件
+                it.CanJump = false
+            end
+        end
+
+        --跳转的描述
+        if cfg ~= nil then
+            it.Desc = cfg.WayName
+            it.Icon = cfg.Icon
+        end
+
+        table.insert(items, it)
+    end
+
+    self.jumpItemPool:RecycleAll()
+    self.jumpItemPool2:RecycleAll()
+    if #items > 3 then
+        self.go_jumpList:SetActive(true)
+        --对象池
+
+        for i = 1, #items do
+            local item = self.jumpItemPool2:Spawn()
+            item:SetItem(items[i])
+        end
+    else
+        self.go_jumpList:SetActive(false)
+        --对象池
+
+        for i = 1, #items do
+            local item = self.jumpItemPool:Spawn()
+            item:SetItem(items[i])
+        end
+    end
+end
+
+function ItemTipsItem:OnJumpClick(ji)
+    --公会领地不处理
+    local sceneType = GameManager.Instance:GetCurMapType()
+    if sceneType == CS.ProtoMsg.SpaceType.SpaceGuildTerritory or sceneType == CS.ProtoMsg.SpaceType.SpaceScene then
+        --处理跳转事件
+        print("处理跳转事件" .. ji.JumpType)
+        JumpByJumpType(ji.JumpType, self.BaseID, self.FromModule, self.FromArgs)
+    else
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_252"))
+    end
+end
+
+return ItemTipsItem

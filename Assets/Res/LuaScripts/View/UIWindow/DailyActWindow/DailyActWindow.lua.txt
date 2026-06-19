@@ -1,0 +1,250 @@
+DailyActWindow = class("DailyActWindow", UIPanel)
+
+local DailyActItem = require("View/UIWindow/DailyActWindow/DailyActItem")
+local DailyActTips = require("View/UIWindow/DailyActWindow/DailyActTips")
+
+function DailyActWindow:Awake()
+
+end
+
+function DailyActWindow:BindModule(m)
+	DailyActWindow.module = m;
+end
+
+function DailyActWindow:InitControls()
+	self.transform = self.prefab.transform;
+	self.gameObject = self.transform.gameObject;
+
+	self.curAct = self.transform:Find("Root/Top/CurActNum"):GetComponent(typeof(Text));
+
+
+	self.line = self.transform:Find("Root/Top/Progress"):GetComponent(typeof(RectTransform));
+	self.line.sizeDelta = Vector2(0, 13);
+
+	local dailyPlayActivRewardList = ConfigDataAccessor.DailyPlayActivRewardList;
+	local keys = {}
+	for k,v in pairs(dailyPlayActivRewardList) do
+		table.insert(keys, k)
+	end
+	table.sort(keys)
+	self.allItemIcons = {};
+	self.allItemQualitys = {};
+	self.allItemNums = {};
+	self.allItemGets = {};
+
+	local i = 1;
+	for _,v in pairs(keys) do
+		local itemBtn = self.transform:Find("Root/Btn"..i):GetComponent(typeof(Button));
+		itemBtn.onClick:AddListener(function()
+				--显示tips
+				--self.dailyActTips:Show(v,itemBtn.transform.position);
+				--local dailyPlayActivRewardList = ConfigDataAccessor.DailyPlayActivRewardList;
+				local cfg=dailyPlayActivRewardList[v]
+				if cfg~=nil then
+					local itemID=cfg.Reward[1]
+					LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",
+						{ itemID, false, nil, itemBtn.transform, 0 });
+				end
+
+			end);
+
+		local rewardGo = self.transform:Find("Root/Top/Reward"..i).gameObject;
+		local numText = rewardGo.transform:Find("Num"):GetComponent(typeof(Text));
+		numText.text = v;
+
+		local icon=rewardGo.transform:Find("Item/Icon"):GetComponent(typeof(Image));
+		local num=rewardGo.transform:Find("Item/Num"):GetComponent(typeof(Text));
+		local get=rewardGo.transform:Find("Item/Get").gameObject;
+		local qua=rewardGo.transform:Find("Item/Rare"):GetComponent(typeof(Image));
+
+		self.allItemIcons[i] =icon;
+		self.allItemNums[i]=num;
+		self.allItemGets[i]=get;
+		self.allItemQualitys[i]=qua;
+
+		i = i + 1;
+	end
+
+	self.itemGO = self.transform:Find("Root/SV/Viewport/Content/Item").gameObject;
+
+	self.allItems = {};
+
+
+	local tipsGO = self.transform:Find("Root/Tips").gameObject;
+	self.dailyActTips = DailyActTips:New(tipsGO);
+
+
+end
+
+function DailyActWindow:Init()
+	local data = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.DailyActivity):GetDailyActivityMD();
+	if data == nil then
+		return;
+	end
+
+	local dailyPlayActivRewardList = ConfigDataAccessor.DailyPlayActivRewardList;
+	local keys = {}
+	for k,v in pairs(dailyPlayActivRewardList) do
+		table.insert(keys, k)
+	end
+	table.sort(keys)
+	local lastValue = keys[#keys];
+	self.curAct.text = data.ActiveValue .. "/" .. lastValue;
+
+	local progress = data.ActiveValue / lastValue;
+	local w = 678 * progress;
+	self.line.sizeDelta = Vector2(w, 15);
+
+	local dailyPlayActivTaskList = ConfigDataAccessor.DailyPlayActivTaskList;
+
+	for _,v in pairs(self.allItems) do
+		GameObject.Destroy(v.gameObject);
+	end
+	self.allItems = {};
+
+	if data == nil then
+		return;
+	end
+
+	local configDats={}
+	for k,v in pairs(dailyPlayActivTaskList) do
+		configDats[v.Sort]=v
+	end
+	table.sort(configDats,function(a,b)
+			local cli1 = dailyPlayActivTaskList[a.TaskEvent];
+			local srv1 = data.EventList.List[a.TaskEvent];
+
+			local cli2 = dailyPlayActivTaskList[b.TaskEvent];
+			local srv2 = data.EventList.List[b.TaskEvent];
+
+			local isFinish1 =0;
+			if(srv1.EventProgress == cli1.MaxCompProgress) then
+				isFinish1=1;
+			end
+
+			local isFinish2 =0;
+			if (srv2.EventProgress == cli2.MaxCompProgress) then
+				isFinish2=1;
+			end
+
+			if isFinish1>isFinish2 then
+				return false
+			end
+			
+			if isFinish1<isFinish2 then
+				return true
+			end
+			
+			return a.Sort<b.Sort;
+		end)
+
+	for _,v in pairs(configDats) do
+		local go = newObject(self.itemGO);
+		go.transform:SetParent(self.itemGO.transform.parent);
+		go.transform.localPosition = Vector3.zero;
+		go.transform.localScale = Vector3.one;
+		go:SetActive(true);
+		local item = DailyActItem:New(go);
+
+		item:InitData(v,data.EventList.List[v.TaskEvent],data.ActiveValue>=lastValue);
+		table.insert(self.allItems, item);
+	end
+
+
+	local tb = {};
+	local index = 1;
+	for _,v in pairs(keys) do
+		if data.ActiveValue >= v then
+			local f = false;
+			local cl = data.CountList.CountList;
+			for i=0, cl.Count-1 do
+				if cl[i] == v then
+					f = true;
+				end
+			end
+			if not f then
+				table.insert(tb, index);
+			end
+		end
+
+		local cfg= dailyPlayActivRewardList[v]
+		if cfg~=nil then
+			local itemID=cfg.Reward[1]
+			local itemNum=cfg.RewardNum[1]
+
+			local itemcfg= ConfigDataAccessor.Item[itemID];
+			if itemcfg~=nil then
+				ResourceHelper:LoadIconAsync(self.allItemIcons[index], "",itemcfg.Icon , false)
+
+				local quality = itemcfg.Quality;
+				if quality==99 then
+					quality=1;
+				end
+
+				ResourceHelper:LoadIconByAtlasAsync(
+					self.allItemQualitys[index],
+					ResourceHelper.AtlasPathCommonItem,
+					"Bag_Grid_sq" .. quality,
+					false,
+					nil
+				)
+			end
+
+			self.allItemNums[index].text=tostring(itemNum)
+		end
+		index = index + 1;
+	end
+
+	for i=1, 5 do
+		self.allItemGets[i]:SetActive(false);
+	end
+
+	for i,v in pairs(keys) do
+		local f = false;
+		local cl = data.CountList.CountList;
+		for i=0, cl.Count-1 do
+			if cl[i] == v then
+				f = true;
+			end
+		end
+		self.allItemGets[i]:SetActive(f)
+	end
+end
+
+function DailyActWindow:ShowTips(data)
+	self.dailyActTips:Show(data);
+end
+
+function DailyActWindow:OnShow()
+end
+
+function DailyActWindow:Start()
+end
+
+function DailyActWindow:OnEnable()
+
+end
+
+function DailyActWindow:OnDisable()
+
+end
+
+function DailyActWindow:OnDestroy()
+
+end
+
+function DailyActWindow:OnOpen(arg)
+	self.IsOpen = true;
+end
+
+function DailyActWindow:OnClose(arg)
+	self:CloseWindow();
+
+	self.module.dailyActWindowView = nil;
+end
+
+function DailyActWindow:CloseWindow()
+	self.IsOpen = false;
+end
+
+return DailyActWindow

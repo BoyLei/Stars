@@ -1,0 +1,202 @@
+EctypeEntranceModule = class("EctypeEntranceModule", BaseLuaModule)
+
+local EctypeEntranceWindowPath = "Ectype/Prefab/EctypeEntranceWindow"
+
+-- LuaModule 消息模块
+EctypeEntranceModule.ModuleMessages = {
+	["OnDisable"] = function(...)
+		EctypeEntranceModule:OnDisable(...)
+	end,
+    ["OnOpenEctypeEntrance"] = function(...)
+        EctypeEntranceModule:OnOpenWnd(...)
+    end,
+    ["OnCustomEnterEctype"] = function(...)
+        EctypeEntranceModule:OnCustomEnterEctype(...)
+    end,
+    ["OnShowEnterDungeonMenu"] = function(...)
+        EctypeEntranceModule:OnShowEnterDungeonMenu(...)
+    end,
+    ["OnCustomLevelEctype"] = function(...)
+        EctypeEntranceModule:OnCustomLevelEctype(...)
+    end
+}
+
+function EctypeEntranceModule:OnShowEnterDungeonMenu(...)
+    local tb = ...
+    self.CfgId = 0
+    --列表
+    if type(tb) == "table" then
+        --Lua调用
+        self.CfgId = tb[1]
+    else
+        --C#调用
+        self.CfgId = tb[0]
+    end
+    UIManager.Instance:OpenWidgetAsync("Plot/EnterDungeonWidget", nil, false, self.CfgId, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, true)
+end
+
+function EctypeEntranceModule:OnCustomEnterEctype(...)
+    -- 公会领地不处理
+    local sceneType = GameManager.Instance:GetCurMapType()
+    if sceneType == CS.ProtoMsg.SpaceType.SpaceGuildTerritory then
+        CS.StarProject.GlobalEvent.OnSetTaskWidgetShow:Invoke(true)
+        CS.StarProject.GlobalEvent.OnEntityEctype:Invoke(false)
+        return
+    end
+
+    CS.StarProject.GlobalEvent.OnSetTaskWidgetShow:Invoke(false)
+    CS.StarProject.GlobalEvent.OnEntityEctype:Invoke(true)
+end
+
+function EctypeEntranceModule:OnCustomLevelEctype(...)
+    CS.StarProject.GlobalEvent.OnSetTaskWidgetShow:Invoke(true)
+    CS.StarProject.GlobalEvent.OnEntityEctype:Invoke(false)
+
+    LuaModuleDispatcher:SendMessage(ModuleDef.EctypeSettleModule, "OnCustomLevelEctype", {})
+end
+
+-- 监听打开出战界面事件
+function EctypeEntranceModule:OnOpenWnd(...)
+    -- local ectypeEntranceWindowCS = UIManager.Instance:OpenWindow(EctypeEntranceWindowPath, nil,
+    --     CS.StarProjectDef.MainPageCommond.HideBoth);
+    -- if self.ectypeEntranceWindow == nil then
+    --     self.ectypeEntranceWindow = ectypeEntranceWindowCS:GetLuaPanel().ScriptTable;
+    --     self.ectypeEntranceWindow:BindModule(self);
+    --     self.ectypeEntranceWindow:InitControls();
+    -- end
+    -- self.ectypeEntranceWindow:Refresh();
+
+    self.AsyncLoadEctypeEntranceWindowCb = function(ui)
+        if ui ~= nil then
+            if self.ectypeEntranceWindow == nil then
+                self.ectypeEntranceWindow = ui:GetLuaPanel().ScriptTable
+                self.ectypeEntranceWindow:BindModule(self)
+                self.ectypeEntranceWindow:InitControls()
+            end
+            self.ectypeEntranceWindow:Refresh()
+        end
+        self.AsyncLoadEctypeEntranceWindowCb = nil
+    end
+    UIManager.Instance:OpenWindowAsync(EctypeEntranceWindowPath, self.AsyncLoadEctypeEntranceWindowCb, nil, CS.StarProjectDef.MainPageCommond.HideBoth)
+end
+
+function EctypeEntranceModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.EctypeEntranceModule, self)
+    NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.DailyInstanceEnterRetID,
+        function(data)
+            self:OnDailyInstanceEnterRet(data)
+        end,
+        nil
+    )
+
+    -- 监听差量更新变化
+    FixMessageManager.Instance:OnMessage(
+        FixUpdateDef.ComCount,
+        function(data)
+            self:OnAllComCountInfos(data)
+        end,
+        nil
+    )
+
+    NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.DailyInstanceSyncListID,
+        function(data)
+            self:OnDailyInstanceSyncList(data)
+        end,
+        nil
+    )
+
+    NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.AllDailyInstanceListID,
+        function(data)
+            self:OnAllDailyInstanceList(data)
+        end,
+        nil
+    )
+
+    self.allDailyDatas = {}
+end
+
+function EctypeEntranceModule:OnDailyInstanceEnterRet(data)
+    if data == nil or data.data == nil then
+        return
+    end
+
+    if data.data.Ret == CS.ProtoMsg.DailyInstanceReason.DinstanceReasonDefault then
+        print("进入副本正常")
+        if self.ectypeEntranceWindow ~= nil then
+            UIManager.Instance:CloseWindow("Ectype/Prefab/EctypeEntranceWindow")
+        end
+        return
+    else
+        print(data.data.Ret)
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Tips2"))
+    end
+end
+
+function EctypeEntranceModule:OnAllComCountInfos(data)
+    for i = 0, data.Changes.Count - 1 do
+        if data.Changes[i].BaseId == 8 then
+            -- 刷新数据
+            if self.ectypeEntranceWindow ~= nil then
+                self.ectypeEntranceWindow:SetCount()
+            end
+        end
+    end
+end
+
+function EctypeEntranceModule:OnDailyInstanceSyncList(data)
+    if data == nil or data.data == nil then
+        return
+    end
+
+    for k, v in pairs(data.data.DailyDatas) do
+        self.allDailyDatas[k] = true
+    end
+
+    if self.ectypeEntranceWindow ~= nil then
+        self.ectypeEntranceWindow:SetCount()
+    end
+end
+
+function EctypeEntranceModule:OnAllDailyInstanceList(data)
+    if data == nil or data.data == nil then
+        return
+    end
+
+    for k, v in pairs(data.data.DailyDatas) do
+        self.allDailyDatas[k] = true
+    end
+
+    if self.ectypeEntranceWindow ~= nil then
+        self.ectypeEntranceWindow:SetCount()
+    end
+end
+
+-- LuaModule 消息处理
+function EctypeEntranceModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...)
+end
+
+-- LuaModule显示
+function EctypeEntranceModule:OnModuleShow(arg)
+end
+
+-- LuaModule 释放
+function EctypeEntranceModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.EctypeEntranceModule)
+end
+
+function EctypeEntranceModule:GetCurDifficult()
+    if self.ectypeEntranceWindow ~= nil then
+        return self.ectypeEntranceWindow.curDif
+    end
+    return 1
+end
+
+function EctypeEntranceModule:OnDisable()
+	self.allDailyDatas = {}
+end
+
+return EctypeEntranceModule

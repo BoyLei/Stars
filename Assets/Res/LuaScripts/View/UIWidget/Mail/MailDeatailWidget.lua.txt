@@ -1,0 +1,192 @@
+--[[
+*文件名   :   MailDeatailWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/06/13 18:11:02"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+MailDeatailWidget=class("MailDeatailWidget",UIPanel)
+MailDeatailWidget.Title=nil;
+MailDeatailWidget.m_Close=nil;
+MailDeatailWidget.m_Text=nil;
+MailDeatailWidget.m_TextRect=nil;
+MailDeatailWidget.m_List=nil;
+MailDeatailWidget.m_ItemPreviewGo=nil;
+MailDeatailWidget.m_GetAllward=nil;
+MailDeatailWidget.m_ItemPreview=nil
+MailDeatailWidget.m_Delete=nil;
+MailDeatailWidget.MailID=0;
+MailDeatailWidget.m_GetAllwardText=nil;
+MailDeatailWidget.m_SendTime=nil;
+MailDeatailWidget.m_Award=nil;
+MailDeatailWidget.m_Sender=nil;
+MailDeatailWidget.IsGetReward=false;
+MailDeatailWidget.HasArard=false;
+local MailDeleteFunc=nil;
+
+function MailDeatailWidget:Awake()
+	self.m_Close=self:Find("Center/TopCenter/Close"):GetComponent(typeof(JButton));
+	self.m_Text=self:Find("Center/ScrollView/Mask/List/Text"):GetComponent(typeof(TextMeshProUGUI));
+	self.m_TextRect=self:Find("Center/ScrollView/Mask/List/Text"):GetComponent(typeof(RectTransform));
+	self.m_List=self:Find("Center/ScrollView/Mask/List"):GetComponent(typeof(RectTransform));
+	self.m_ItemPreviewGo=self:Find("Center/ItemPreview").gameObject
+	self.m_GetAllward=self:Find("Center/Buttons/GetAllward"):GetComponent(typeof(JButton));
+	self.m_GetAllwardText=self:Find("Center/Buttons/GetAllward/Text"):GetComponent(typeof(Text));
+	self.m_Delete=self:Find("Center/Buttons/Delete"):GetComponent(typeof(JButton));
+	self.Title=self:Find("Center/TopCenter/Title"):GetComponent(typeof(Text));
+	self.m_SendTime=self:Find("Center/SendTime"):GetComponent(typeof(Text));
+	self.m_Award=self:Find("Center/Award").gameObject
+	self.m_Sender=self:Find("Center/Sender"):GetComponent(typeof(Text));
+	self.m_ItemPreview=StructAccessor.ItemPreview.new(self.m_ItemPreviewGo);
+	self.m_Close.OnClick=(function()
+			LuaModuleDispatcher:SendMessage(ModuleDef.MailModule, "OnCloseMailDeatailWidget");
+		end);
+
+	self.m_GetAllward.OnClick=(function()
+			self:GetAwardHanlder();
+		end);
+
+	self.m_Delete.OnClick=(function()
+			self:DeleteHanlder();
+		end);
+	self.m_ItemPreview:SetSize(660,128,10)
+	MailDeleteFunc=function(id)
+		self:OnMailDeleteHandler(id)
+	end
+end
+
+
+function MailDeatailWidget:OnMailDeleteHandler(id)
+	if self.MailID==id then
+		LuaModuleDispatcher:SendMessage(ModuleDef.MailModule, "OnCloseMailDeatailWidget");
+	end
+end
+
+function MailDeatailWidget:DeleteHanlder()
+	if self.HasArard and (not self.IsGetReward) then
+		--有附件且未领取
+		UIAPI.ShowMsgBox(22,function (EventName)
+				if EventName == "SURE" then
+					LuaModuleDispatcher:SendMessage(ModuleDef.MailModule, "OnDeleteSingleMail", self.MailID);
+				end
+			end)
+	else
+		LuaModuleDispatcher:SendMessage(ModuleDef.MailModule, "OnDeleteSingleMail", self.MailID);
+	end
+end
+
+function MailDeatailWidget:GetAwardHanlder()
+	LuaModuleDispatcher:SendMessage(ModuleDef.MailModule, "OnGetSingleMail", self.MailID);
+end
+
+function MailDeatailWidget:ReadMail()
+	LuaModuleDispatcher:SendMessage(ModuleDef.MailModule, "OnMailMarkReadedReq", self.MailID);
+end
+function MailDeatailWidget:Start()
+
+end
+
+function MailDeatailWidget:OnEnable()
+	CS.StarProject.GlobalEvent.OnDeleteMail:AddListener(MailDeleteFunc);
+end
+
+function MailDeatailWidget:OnDisable()
+	CS.StarProject.GlobalEvent.OnDeleteMail:RemoveListener(MailDeleteFunc);
+end
+
+function MailDeatailWidget:OnDestroy(arg)
+
+end
+
+
+function MailDeatailWidget:SetMailTitleAndContent(arg)
+
+	local useServer=true;
+	local isSystem=arg.Mtype==CS.ProtoMsg.MailTypeEnum.System
+	if isSystem then
+		local config=ConfigDataAccessor.Mail[tonumber(arg.Title)]
+		if config~=nil then
+			self.Title.text=CS.RichTextUtils.ParseMailText(config.MailTitle,arg.Text);
+			self.m_Text.text=CS.RichTextUtils.ParseMailText(config.MailTxt,arg.Text);
+			useServer=false;
+		end
+	end
+
+	if useServer then
+		self.Title.text=arg.Title
+		self.m_Text.text=arg.Text
+	end
+end
+
+function MailDeatailWidget:SetInfo(arg)
+	self:SetMailTitleAndContent(arg)
+	self.MailID=arg.ID;
+	self.IsGetReward=arg.IsGetReward
+	DelayInvoker.DelayInvoke(self,0.5,function ()
+			if self.m_List~=nil and self.m_TextRect~=nil then
+				self.m_List:SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, (self.m_TextRect.sizeDelta.y+100));
+			end
+		end)
+
+	self:ReadMail();
+	local CostItems={}
+	if arg.Addbc~=nil and arg.Addbc.Data~=nil and  arg.Addbc.Data.Count>0 then
+		for k, v in pairs(arg.Addbc.Data) do
+			table.insert(CostItems,{ItemID=k,ItemNum=v})
+		end
+	end
+
+	if arg.ItemList~=nil and  arg.ItemList.ItemList~=nil and arg.ItemList.ItemList.Count>0 then
+		local items=arg.ItemList.ItemList
+		if items~=nil and items.Count>0 then
+			for i = 1, items.Count do
+				local v=items[i-1]
+				table.insert(CostItems,{ItemID=v.BaseID,ItemNum=v.Num,EntityItem=v})
+			end
+		end
+	end
+
+	--FromName
+	self.HasArard=#CostItems>0;
+	self.m_ItemPreview:SetItems(CostItems);
+
+	self.m_GetAllward.gameObject:SetActive(self.HasArard);
+	self.m_Award:SetActive(self.HasArard);
+	if arg.IsGetReward then
+		self.m_GetAllwardText.text=LanguageHelp:GetLanguageByKey("Local_Str_AlreadyReceived")
+		self.m_GetAllward.UnClick=true;
+	else
+		self.m_GetAllwardText.text=LanguageHelp:GetLanguageByKey("Local_Str_GetReward")
+		self.m_GetAllward.UnClick=false;
+
+		--self.m_GetAllward.Image:SetGray(false)
+	end
+	--self.m_Sender.text="发件人:"..arg.FromName
+	self.m_Sender.text=StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Sender"), {arg.FromName});
+
+
+	--self.m_SendTime.text="发送时间:"..MillsSecToFullString(arg.CreateTime)
+	self.m_SendTime.text=StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_SendTime"), {MillsSecToFullString(arg.CreateTime)});
+
+end
+
+function MailDeatailWidget:SetDetail(arg)
+	self:SetInfo(arg)
+	self.PlayAnimation("MailDeatailWidget_Open",function ()
+
+		end)
+end
+
+
+function MailDeatailWidget:OnOpen(arg)
+
+end
+
+function MailDeatailWidget:OnClose(arg)
+
+end
+
+
+
+return  MailDeatailWidget

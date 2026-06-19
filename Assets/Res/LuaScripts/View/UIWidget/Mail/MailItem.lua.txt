@@ -1,0 +1,128 @@
+---------------------------------------------------------------------
+-- NewStar (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-06-15 14:18:58
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class MailItem
+MailItem = class("MailItem",UIPanel)
+MailItem.Tile=nil;
+MailItem.Icon=nil;
+MailItem.Select=nil;
+MailItem.Desc=nil;
+MailItem.Attachment=nil;
+MailItem.Button=nil;
+MailItem.MailID=0;
+MailItem.SelectCall=nil;
+MailItem.Time=nil;
+MailItem.Back=nil;
+function MailItem:ctor(go,atlas)
+	self.prefab=go;
+	self.AtlasPath=atlas;
+	self.Tile=self:Find("Tile"):GetComponent(typeof(Text));
+	self.Icon=self:Find("Icon"):GetComponent(typeof(Image));
+	self.Select=self:Find("select"):GetComponent(typeof(Image));
+	self.Desc=self:Find("Desc"):GetComponent(TTextMeshProUGUI);
+	self.Attachment=self:Find("Attachment").gameObject;
+	self.Time=self:Find("Time"):GetComponent(typeof(Text));
+	self.Back=self:Find("Back"):GetComponent(typeof(Image));
+	self.Button=self.prefab:GetComponent(typeof(JButton));
+
+	self.Button.OnClick=(function()
+			self:OnSelectMail();
+		end);
+end
+
+function MailItem:OnSelect(active)
+	self.Select.gameObject:SetActive(active)
+end
+
+function MailItem:OnSelectMail()
+	if self.SelectCall~=nil then
+		self.SelectCall(self.MailID)
+	end
+
+	self:OnSelect(true);
+end
+
+--有无附件
+function MailItem:HasAttachment(mail)
+
+	if mail.Addbc~=nil and mail.Addbc.Data~=nil and  mail.Addbc.Data.Count>0 then
+		return true;
+	end
+
+	if mail.ItemList~=nil and  mail.ItemList.ItemList~=nil and mail.ItemList.ItemList.Count>0 then
+		return true;
+	end
+
+	return  false;
+end
+function MailItem:SetMailTitleAndContent(arg)
+
+	local useServer=true;
+	local isSystem=arg.Mtype==CS.ProtoMsg.MailTypeEnum.System
+	if isSystem then
+		local config=ConfigDataAccessor.Mail[tonumber(arg.Title)]
+		if config~=nil then
+			self.Tile.text=CS.RichTextUtils.ParseMailText(config.MailTitle,arg.Text);
+			self.Desc.text=CS.RichTextUtils.ParseMailText(config.MailTxt,arg.Text);
+			useServer=false;
+		end
+	end
+
+	if useServer then
+		self.Tile.text=arg.Title
+		self.Desc.text=arg.Text
+	end
+end
+
+
+--数据更新
+function MailItem:UpdateContent(mail,selectid,cb)
+
+	if mail==nil then
+		return
+	end
+	self.SelectCall=cb;
+	self.MailID=mail.ID
+	self:SetMailTitleAndContent(mail);
+	--self.Tile.text=mail.Title
+	--self.Desc.text=mail.Text
+
+	local hasAt=self:HasAttachment(mail)
+	self:OnSelect(self.MailID==selectid);
+	local spritename="Mail_icon_mail01";
+	if mail.IsRead then
+		spritename="Mail_icon_mail02"
+	end
+	--local isGray=false;
+	if mail.IsRead then
+		if  hasAt  then
+			if mail.IsGetReward then
+				hasAt=false;
+			end
+		end
+
+	end
+	--没有附件或者附件已领取 则隐藏附件按钮
+	self.Attachment:SetActive(hasAt)
+
+	--local color=ColorDefine.Instance:GetColor("ffffeb");
+	--if isGray then
+		--color=ColorDefine.Instance:GetColor("D4D4D4");
+	--end
+	--self.Back.color=color;
+	--self.Select.color=color;
+	
+	self:GetSprite(spritename,function (sp)
+			self.Icon.sprite=sp
+	end);
+	local now=TimeUtils.GetServerTimeNow()
+	self.Time.text=LossTimeSecToString((now-mail.CreateTime)/1000)
+end
+
+return  MailItem;

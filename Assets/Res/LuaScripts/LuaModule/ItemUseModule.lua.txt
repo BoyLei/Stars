@@ -1,0 +1,144 @@
+--[[
+*文件名   :   ItemUseModule
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/09 17:14:39"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+ItemUseModule = class("ItemUseModule",BaseLuaModule)
+
+local ItemUseWidgetPath = "Item/ItemUseWidget"
+
+ItemUseModule.IsOpenTips=false;
+
+--LuaModule 消息模块
+ItemUseModule.ModuleMessages=
+{
+	--打开
+	--ModuleManager.Instance.SendMessage(ModuleDef.ItemUseModule, "OnOpenItemUse", new object[] { xxxx }); 
+	["OnOpenItemUse"]=function(...)
+		ItemUseModule:OnOpenItemUse(...);
+	end,
+
+}
+
+
+--监听打开奖励面板
+function ItemUseModule:OnOpenItemUse(...)
+	local tb=...
+	local item=nil;
+	--列表
+	if type(tb)=="table" then
+		--Lua调用
+		item=tb[1];
+	else
+		--C#调用
+		item=tb[0];
+	end
+	
+	-- local itemUseWidgetCs =UIManager.Instance:OpenWidget(ItemUseWidgetPath,false,nil,nil,CS.StarProjectDef.MainPageCommond.HideNone,false,true);
+	-- if self.itemUseWidgetView == nil then
+	-- 	self.itemUseWidgetView=itemUseWidgetCs:GetLuaPanel().ScriptTable;	
+	-- 	self.itemUseWidgetView:BindModule(self);
+	-- 	self.itemUseWidgetView:InitItems();
+	-- 	self.evtOnCloseItemUse = LuaModuleDispatcher:Event(ModuleDef.ItemUseModule, "OnCloseItemUseEvt")
+	-- end
+	-- self.IsOpenTips=false
+	-- --显示
+	-- self.itemUseWidgetView:RefeshItem(item);
+
+	self.AsyncLoadItemUseWidgetCb = function(ui)
+		if ui ~= nil then
+			if self.itemUseWidgetView == nil then
+				self.itemUseWidgetView=ui:GetLuaPanel().ScriptTable;	
+				self.itemUseWidgetView:BindModule(self);
+				self.itemUseWidgetView:InitItems();
+				self.evtOnCloseItemUse = LuaModuleDispatcher:Event(ModuleDef.ItemUseModule, "OnCloseItemUseEvt")
+			end
+			self.IsOpenTips=false
+			--显示
+			self.itemUseWidgetView:RefeshItem(item);
+		end
+		self.AsyncLoadItemUseWidgetCb = nil;
+	end
+	UIManager.Instance:OpenWidgetAsync(ItemUseWidgetPath,self.AsyncLoadItemUseWidgetCb,false,nil,nil,CS.StarProjectDef.MainPageCommond.HideNone,false,true);
+end
+
+
+function ItemUseModule:OpenItemTips(baseID,entityID,tr)
+	--print("ItemUseModule:OpenItemTips:"..baseID);
+	LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",{ baseID,false ,entityID,tr,0});
+end
+
+function ItemUseModule:CloseItemTips()
+	print("ItemUseModule:CloseItemTips");
+	LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips",{  });
+end
+
+
+--关闭回调
+function ItemUseModule:OnCloseItemUseEvt(arg)
+	self.evtOnCloseItemUse:Invoke()
+end
+
+
+--关闭
+function ItemUseModule:OnCloseItemUse()
+	self:OnCloseItemUseEvt();
+
+	--所有的New置空
+	--BusinessManager.Instance:UnNewAllItems();
+
+end
+
+--使用道具
+function ItemUseModule:UseItem(entityID,spaceId,num,isBox)
+	--BusinessManager.Instance:SendUseItem(self.EntityID,self.cfg.SpaceId,1)
+
+	if isBox then
+		local openBoxReq = CS.ProtoMsg.OpenBoxReq()
+		openBoxReq.BoxEid = entityID
+		openBoxReq.RandomBoxNum = num
+		CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, openBoxReq, false)
+	
+	else
+		local itemUseReq = CS.ProtoMsg.ItemUseReq();
+		itemUseReq.ItemEntityID = entityID;
+		itemUseReq.ItemSpaceId = spaceId;
+		itemUseReq.Count = num;
+		CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, itemUseReq, false);
+	end
+
+	--关闭UI
+	self:CloseItemTips()
+end
+
+
+
+--LuaModule 创建
+function ItemUseModule:OnModuleCreate(arg)
+	LuaModuleDispatcher:Register(ModuleDef.ItemUseModule,self)
+
+end
+
+
+--LuaModule 消息处理
+function ItemUseModule:OnModuleMessage(msg,...)
+	self.ModuleMessages[msg](...);
+end
+
+
+--LuaModule显示
+function ItemUseModule:OnModuleShow(arg)
+
+end
+
+--LuaModule 释放
+function ItemUseModule:OnModuleRelease()
+	LuaModuleDispatcher:UnRegister(ModuleDef.ItemUseModule)
+end
+
+
+return  ItemUseModule
+

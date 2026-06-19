@@ -1,0 +1,138 @@
+SevenDaysSignModule = class("SevenDaysSignModule",BaseLuaModule)
+
+
+--self， unity映射过来了，看你是否要调用unity
+--function SevenDaysSignModule:Main(args)
+print("SevenDays Sign Module Init")
+module = {}
+module.a = 1;
+print(module.a)
+SevenDaysSignModule.LuaEventTable = SevenDaysSignModuleEvtTable --我的系统事件组
+print(SevenDaysSignModuleEvtTable.m_mapEvents)--nil
+
+
+SevenDaysSignModule.LuaEventTable:GetEvent("OnShow"):AddListener(OnShow);
+
+
+
+
+function SevenDaysSignModule:OnShow(arg)
+	print("arg:"..arg)
+end
+--function OnModuleCreate(...)
+	--SevenDaysSignModule:OnModuleCreate(...)
+--end
+
+function OnModuleCreate(arg)
+	--print(SevenDaysSignModule.LuaEventTable)--nil
+	--SevenDaysSignModule.LuaEventTable:GetEvent("OnShow"):AddListener(function (a)
+			--print("arg:"..a)
+			
+			--SevenDaysSignModule:OnShow(a);
+		--end);
+
+	print("SevenDaysSignModule:OnModuleCreate")
+end
+
+
+function SevenDaysSignModule:OnLoginMessageCall(a)
+		if	a then
+		print("login::---"..type(a).."---success")
+		--print(a)boolean没法转String在lua里面
+		else 
+		print("login::---"..type(a).."---false")
+		end
+	end
+
+	function SevenDaysSignModule:OnUIMgrMessageCall(obj)
+			print("OnUIMgrMessageCall--"..type(obj)..obj)
+	end
+
+
+	function SevenDaysSignModule:TestLoginModuleEvt(a)
+		print("a:"..a)
+		end
+
+
+--local _SGF = SGF.Module.Framework --1link 写了这一层--2上一层并没有映射进去--3
+--local _MMgr = SGF.Module.Framework.ModuleManager:Instance
+
+--[1--不设计为可行--通过Message进行通讯]---通知Lua对Cs单程通知（不可逆）--ServiceModule,ModuleMgr,MessageObject都要注入，框架注入没必要
+--print("ModuleMgrInst"..ModuleMgrInst)
+--mm:Instance.SendMessage("LoginModule", "MessageFromA_2", "abc", 123);--不需要A_1/A_2
+
+--[2获取全局事件]
+--1通过传值的方式获取
+--loginEvt:AddListener(OnLoginMessageCall);
+--1通过全局映射的方式获取
+--Local 是本文本的 并不是本类的
+--local LocOnLogin = CS.StarProject.GlobalEvent.onLogin
+SevenDaysSignModule.LocOnLogin = CS.StarProject.GlobalEvent.onLogin
+SevenDaysSignModule.LocOnLogin:AddListener(OnLoginMessageCall);
+
+
+--[3获取Service事件]
+SevenDaysSignModule.UIMgrSerEvtTest = CS.SGF.UI.Framework.UIManager.Instance.onServiceModuleEventTest
+SevenDaysSignModule.UIMgrSerEvtTest:AddListener(OnUIMgrMessageCall);
+
+--如何找到别人的Event直接调用到 -下面
+--[4--监听-单程-找CS--获取模块间事件--如果没有找到就在别人的模块下--事件列表下--创建事件]，等人触发时就会响应
+SevenDaysSignModule.evt11 = LuaModuleDispatcher:Event(ModuleDef.LoginModule, "testLoginModuleEvt")--约定给CS端--注意不是反射，就是"testLoginModuleEvt"stringKeyName
+--特点1：这里被封装但依然会执行不必调用启动函数，2基类设置在Cs中被设置为G，3封装成类后必须通过类调用
+
+--如果不反射，lua要持有自己event，lua可以直接调用--不用
+
+print("evt11"..type(SevenDaysSignModule.evt11))
+----CS通过事件的方式--响应到Lua的（一参）方法中
+----evt11:AddListener(TestLoginModuleEvt);
+--lua通过事件的方式--响应到CS的（一参）方法中
+SevenDaysSignModule.evt11:Invoke("stringValue")--CS的响应，lua的stringValue-obj
+--stringValue13，在此完成了双方的event通讯，相互之间的响应
+
+
+--获取创建参数todo之后要用方法取得，lua模块首次创建时的参数
+
+--print(SevenDaysSignModuleCreateArgs) --lua端口，获取Cs创建参数，最后根据实际情况进行不同分支的处理
+--Self传递进来，Self在Cs定义为LuaModule的CS类，可通过Self调用Cs，同样拥有基类G的能力
+function  SevenDaysSignModule:OnCreateModule(_sevenDaysSignModuleCreateArgs) 
+print("In The Module Create Para is -- :".._sevenDaysSignModuleCreateArgs)
+	--GlobalEvent[_sevenDaysSignModuleCreateArgs]();
+end
+
+
+--xlua执行说明：1首先以包作为代码片段会被执行本包中内容，2会执行赋值语句，声明，调用语句，3函数的声明只用做声明并不会执行
+--1可以把lua当作所有代码chunk当作嵌入到C中Main函数中的语句，2包也会被穿透执行，但不同的的包必须有返回值需要require相当于nameplace.3也就【表】+【函数】+【包】+【自定义usrdata】+【重写运算符】
+SevenDaysSignModule:OnCreateModule(SevenDaysSignModuleCreateArgs)--并非声明，而是函数调用，找这个串在整个luaEnv.G表中查找
+--，本文本未定义，那就去C#端LuaTable（C#模拟KV）.g.set，Lua文件的KV绑定和G（LuaTable）的setKV绑定本同一理
+--, 所以LuaG表里面查找，能找到就找到C#Set的Value，找不到就Nil
+
+
+
+--获取返回参数
+
+
+
+
+
+
+--errorTest???!!!
+
+--这里需要理解，1注册方在-{模块}--他事件表的事件{名}中注册了lua端的{1参响应函数}
+--被注册端通过get，之定明文的方式获取事件，响应invoke！，可以实现 luaC#之间相互的事件相互沟通响应
+
+
+--  self:GetComponent("Button").onClick:AddListener(function()
+--	print("clicked, you input is '" ..input:GetComponent("InputField").text .."'")
+--	end)
+
+
+SevenDaysSignModule.w = 1
+
+--function OnModuleCreate(...)
+	--SevenDaysSignModule:OnModuleCreate(...)
+--end
+
+
+
+--返回是lua包的要求
+return SevenDaysSignModule

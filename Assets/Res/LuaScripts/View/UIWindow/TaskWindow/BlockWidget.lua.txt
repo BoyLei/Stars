@@ -1,0 +1,114 @@
+--[[
+*文件名   :   BlockWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/01 21:48:06"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+BlockWidget=class("BlockWidget",UIPanel)
+BlockWidget.m_Content=nil;
+BlockWidget.DelayTime=0;
+BlockWidget.NextID=0;
+BlockWidget.EffectID=0;
+
+function BlockWidget:Awake()
+	self.m_Content=self:Find("Content"):GetComponent(typeof(CS.PrintEffect));
+	self.m_ContentText=self:Find("Content"):GetComponent(typeof(Text));
+
+end
+
+function BlockWidget:Start()
+
+end
+
+function BlockWidget:OnEnable()
+
+end
+
+function BlockWidget:OnDisable()
+
+end
+
+function BlockWidget:OnDestroy()
+
+end
+
+function BlockWidget:PlayEnd()
+	DelayInvoker.DelayInvoke(self,self.DelayTime,function ()
+			if self.NextID ==0 then
+				self:CloseSelf();
+				CS.StarProject.GlobalEvent.OnEffectEnd:Invoke(self.EffectID)				
+			else
+				local config = ConfigDataAccessor.BlackMovie[self.NextID]
+				if config==nil then
+					self:CloseSelf();
+					CS.StarProject.GlobalEvent.OnEffectEnd:Invoke(self.EffectID)
+				else
+					self:Fresh(config)
+				end
+			end
+		end)
+end
+
+function BlockWidget:CloseSelf()
+	UIManager.Instance:CloseWidget("TaskWindow/Prefab/BlockWidget",nil,true)
+end
+
+function BlockWidget:OnOpen(arg)
+	local config=arg[1]
+	local EffectID=arg[2]
+	
+	self.EffectID=EffectID;
+
+	GameManager.Instance:RegisterMainPlayerClientBattleStates();
+
+	self:Fresh(config)
+end
+
+function BlockWidget:Fresh(config)
+	
+	self.DelayTime=config.Time*0.001
+	self.NextID=config.Next_id
+
+
+
+
+	if config.Align==2 then
+		self.m_ContentText.alignment= CS.UnityEngine.TextAnchor.MiddleCenter;
+	else
+		self.m_ContentText.alignment= CS.UnityEngine.TextAnchor.MiddleLeft;
+	end
+
+	if config.Show_type==1 then
+		self.m_Content:Show(self:PlayerName(config.Desc));
+		self:PlayEnd();
+	elseif config.Show_type==2 then
+		self.m_Content:Print(self:PlayerName(config.Desc),function ()
+				self:PlayEnd()
+			end)
+
+	end
+end
+
+function BlockWidget:PlayerName(desc)	
+	local result =desc;
+	local targetID=GameManager.Instance.mainPlayerId;
+	if targetID~= nil and targetID~=0 then
+		local playerName=GameManager.Instance:GetEntityNameById(targetID);
+		if playerName~= nil and playerName~="" then
+			result= string.gsub(desc, "@player",playerName)
+		end
+	end
+	return result
+end
+
+
+function BlockWidget:OnClose(arg)
+	GameManager.Instance:UnRegisterMainPlayerClientBattleStates();
+	
+end
+
+
+
+return  BlockWidget

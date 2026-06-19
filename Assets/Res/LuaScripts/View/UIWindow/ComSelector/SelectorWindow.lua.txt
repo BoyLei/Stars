@@ -1,0 +1,600 @@
+SelectorWindow = class("SelectorWindow", UIPanel)
+
+local SortList = require("View/Item/SortList")
+local SelectorWords = require("View/Uiwindow/ComSelector/SelectorWords")
+
+function SelectorWindow:Awake()
+
+end
+
+function SelectorWindow:BindModule(m)
+	SelectorWindow.module = m;
+	self.onCloseDestroy(false);
+end
+
+function SelectorWindow:InitControls()
+	self.transform = self.prefab.transform;
+	self.gameObject = self.transform.gameObject;
+
+	self.filterAllTypes = {};
+	local rootTrans = self.transform:Find("ScrollView/Viewport/Content");
+	-- 通用设置
+	self.commonSel = {}
+	for i = 1, 3 do
+		self.commonSel[i] = PlayerPrefs.GetInt("commonSel"..i, 0);
+	end
+	self.commonSettingsGo = rootTrans:Find("CommonSettings").gameObject;
+	self.filterAllTypes[1] = self.commonSettingsGo;
+	--self.onlyHas = false;
+	self.commonSettingsSelect = {};
+	self.go_onlyHasSelect = rootTrans:Find("CommonSettings/Image/OnlyHas/selected").gameObject;
+	self.go_onlyHasSelect:SetActive(self.commonSel[1]==1);
+	table.insert(self.commonSettingsSelect, self.go_onlyHasSelect);
+	rootTrans:Find("CommonSettings/Image/OnlyHas"):GetComponent(typeof(JButton)).OnClick = (function()
+			self:OnOnlyHasClick();
+		end);
+	--self.onlyLevel = false;
+	self.go_onlyLevelSelect = rootTrans:Find("CommonSettings/Image/OnlyLevel/selected").gameObject;
+	self.go_onlyLevelSelect:SetActive(self.commonSel[2]==1);
+	table.insert(self.commonSettingsSelect, self.go_onlyLevelSelect);
+	rootTrans:Find("CommonSettings/Image/OnlyLevel"):GetComponent(typeof(JButton)).OnClick = (function()
+			self:OnOnlyLevelClick();
+		end);
+	--self.onlyUse = false;
+	self.go_onlyUseSelect = rootTrans:Find("CommonSettings/Image/OnlyUse/selected").gameObject;
+	self.go_onlyUseSelect:SetActive(self.commonSel[3]==1);
+	table.insert(self.commonSettingsSelect, self.go_onlyUseSelect);
+	rootTrans:Find("CommonSettings/Image/OnlyUse"):GetComponent(typeof(JButton)).OnClick = (function()
+			self:OnOnlyUseClick();
+		end);
+
+	-- 选择等级下拉框
+	-- self.EquipLevel = {0, 10, 20, 30, 40, 50}; -- 加入等级下拉框
+	self.levelSelectGo = rootTrans:Find("LevelSelect").gameObject;
+	self.filterAllTypes[2] = self.levelSelectGo;
+	self.SortList = SortList:New(self.transform:Find("SortList/SV/Viewport").gameObject);
+	self.SortListRoot = self.transform:Find("SortList").gameObject;
+	self.closeSLBtn=self.SortListRoot.transform:Find("BtnClose"):GetComponent(typeof(JButton));
+	self.closeSLBtn.OnClick=(function()
+			self.SortListRoot:SetActive(false);
+		end);
+
+	-- self.SortList:Init(
+	--     {LanguageHelp:GetLanguageByKey("Local_Str_SelectorWindow_LV"), "等级10以上", "等级20以上", "等级30以上", "等级40以上",
+	--      "等级50以上"}, function(idx)
+	--         self:OnSelectSortList(idx);
+	--     end)
+	self.SortListTex = rootTrans:Find("LevelSelect/SortMenu/BtnSort/tex"):GetComponent(typeof(Text));
+	self.SortListIdx = 1;
+	-- self.SortListTex.text = self.SortList.SortNames[self.SortListIdx];
+	rootTrans:Find("LevelSelect/SortMenu/BtnSort"):GetComponent(typeof(JButton)).OnClick = (function()
+			self.SortListRoot:SetActive(true);
+			self.SortList:Show(true, self.SortListIdx);
+		end);
+	self.SortListRoot:SetActive(false);
+
+	self.SelectedSortLv = 0; -- 选择的等级
+
+	-- 稀有度选择多选
+	-- self.go_SelectedQuality = {};
+	-- self.selectedQuality = {}
+	-- self.qualitySelectGo = rootTrans:Find("QualitySelect").gameObject;
+	-- self.filterAllTypes[3] = self.qualitySelectGo;
+	-- for i = 1, 5 do
+	--     self.selectedQuality[i] = 1;
+	--     table.insert(self.go_SelectedQuality,
+	--         rootTrans:Find("QualitySelect/QualityPart/Image/QualityCheckItem" .. i .. "/selected").gameObject);
+	--     rootTrans:Find("QualitySelect/QualityPart/Image/QualityCheckItem" .. i):GetComponent(typeof(JButton)).OnClick =
+	--         (function()
+	--             self:OnQualityClick(i);
+	--         end);
+	-- end
+
+	self.qualitySelectGo = rootTrans:Find("QualitySelect").gameObject;
+	self.filterAllTypes[3] = self.qualitySelectGo;
+	self.QualitySortList = SortList:New(self.transform:Find("SortListQuality").gameObject);
+	self.QualitySortListTex = rootTrans:Find("QualitySelect/SortMenu/BtnSort/tex"):GetComponent(typeof(Text));
+	self.QualitySortListIdx = 1;
+	rootTrans:Find("QualitySelect/SortMenu/BtnSort"):GetComponent(typeof(JButton)).OnClick = (function()
+			self.QualitySortList:Show(true, self.QualitySortListIdx);
+		end);
+	self.QualitySortList:Show(false)
+	self.QualitySelectedSortLv = 0;
+
+	-- 部位选择多选
+	self.equipGo = rootTrans:Find("Equip").gameObject;
+	self.filterAllTypes[4] = self.equipGo;
+	self.go_SelectedSubType = {};
+	self.selectedSubType = {};
+	for i = 201, 208 do
+		self.selectedSubType[i] = 0;
+		self.go_SelectedSubType[i] = rootTrans:Find("Equip/EquipPart/EquipCheckItem" .. i .. "/selected").gameObject;
+		rootTrans:Find("Equip/EquipPart/EquipCheckItem" .. i):GetComponent(typeof(JButton)).OnClick = (function()
+				self:OnSubTypeClick(i);
+			end);
+
+		local nameStr = ConfigDataAccessor.ItemTypeList[i].Name;
+		local txt1 = rootTrans:Find("Equip/EquipPart/EquipCheckItem" .. i .. "/selected/tt"):GetComponent(typeof(Text));
+		local txt2 = rootTrans:Find("Equip/EquipPart/EquipCheckItem" .. i .. "/noselected/tt"):GetComponent(typeof(Text));
+		txt1.text = nameStr;
+		txt2.text = nameStr;
+	end
+	for i = 401, 403 do
+		self.selectedSubType[i] = 0;
+		self.go_SelectedSubType[i] = rootTrans:Find("Equip/EquipPart/EquipCheckItem" .. i .. "/selected").gameObject;
+		rootTrans:Find("Equip/EquipPart/EquipCheckItem" .. i):GetComponent(typeof(JButton)).OnClick = (function()
+				self:OnSubTypeClick(i);
+			end);
+			
+		local nameStr = ConfigDataAccessor.ItemTypeList[i].Name;
+		local txt1 = rootTrans:Find("Equip/EquipPart/EquipCheckItem" .. i .. "/selected/tt"):GetComponent(typeof(Text));
+		local txt2 = rootTrans:Find("Equip/EquipPart/EquipCheckItem" .. i .. "/noselected/tt"):GetComponent(typeof(Text));
+		txt1.text = nameStr;
+		txt2.text = nameStr;
+	end
+
+	for k, v in pairs(self.selectedSubType) do
+		self.go_SelectedSubType[k]:SetActive(false);
+		self.selectedSubType[k] = 0;
+	end
+
+	-- 词条选择多选
+	self.wordsGo = rootTrans:Find("Words").gameObject;
+	self.filterAllTypes[5] = self.wordsGo;
+	self.selectorWords = SelectorWords:New(self.transform:Find("SelectedBox").gameObject, self);
+	local wordsSelectBtn = rootTrans:Find("Words/WordsSelect"):GetComponent(typeof(Button));
+	wordsSelectBtn.onClick:AddListener(function()
+			self.selectorWords:Show(true, self.wordsType);
+		end);
+
+	-- 点击空白关闭
+	local btnCloseEmpty = self.transform:Find("Cover"):GetComponent(typeof(JButton));
+	btnCloseEmpty.OnClick = (function()
+			--self:Show(false);
+			self.Close();
+		end);
+
+	-- 点击关闭
+	local btnClose = self.transform:Find("BtnClose"):GetComponent(typeof(JButton));
+	btnClose.OnClick = (function()
+			--self:Show(false);
+			self.Close();
+		end);
+
+	-- 点击重置
+	local btnReset = self.transform:Find("BtnReset"):GetComponent(typeof(JButton));
+	btnReset.OnClick = (function()
+			self:OnBtnResetClick();
+		end);
+
+	-- 点击确认
+	local btnConfirm = self.transform:Find("BtnConfirm"):GetComponent(typeof(JButton));
+	btnConfirm.OnClick = (function()
+			self:OnBtnConfirmClick();
+		end);
+
+	--self:Show(false);
+
+	self.selectorData = {}; -- 所有数据
+
+	return self;
+end
+
+function SelectorWindow:OnOnlyHasClick()
+	self.commonSel[1] = 1-self.commonSel[1];
+	self.go_onlyHasSelect:SetActive(self.commonSel[1]==1);
+
+	PlayerPrefs.SetInt("commonSel1",self.commonSel[1]);
+	-- if self.onlyHas then
+	-- 	self.commonSel[1] = 1
+	-- else
+	-- 	self.commonSel[1] = 0
+	-- end
+	
+	--self.commonSel[1] = 1 - self.commonSel[1];
+end
+
+function SelectorWindow:OnOnlyLevelClick()
+	self.commonSel[2] = 1-self.commonSel[2];
+	self.go_onlyLevelSelect:SetActive(self.commonSel[2]==1);
+
+	PlayerPrefs.SetInt("commonSel2",self.commonSel[2]);
+
+	-- self.onlyLevel = not self.onlyLevel
+	-- self.go_onlyLevelSelect:SetActive(self.onlyLevel);
+	
+	-- if self.onlyLevel then
+	-- 	self.commonSel[2] = 1
+	-- else
+	-- 	self.commonSel[2] = 0
+	-- end
+	--self.commonSel[2] = 1 - self.commonSel[2];
+end
+
+function SelectorWindow:OnOnlyUseClick()
+	self.commonSel[3] = 1-self.commonSel[3];
+	self.go_onlyUseSelect:SetActive(self.commonSel[3]==1);
+
+	PlayerPrefs.SetInt("commonSel3",self.commonSel[3]);
+	-- self.onlyUse = not self.onlyUse
+	-- self.go_onlyUseSelect:SetActive(self.onlyUse);
+	
+	-- if self.onlyUse then
+	-- 	self.commonSel[3] = 1
+	-- else
+	-- 	self.commonSel[3] = 0
+	-- end
+	--self.commonSel[3] = 1 - self.commonSel[3];
+end
+
+function SelectorWindow:OnSubTypeClick(idx)
+	if self.selectedSubType[idx] == 1 then
+		self.selectedSubType[idx] = 0;
+		self.go_SelectedSubType[idx]:SetActive(false);
+	else
+		self.selectedSubType[idx] = 1;
+		self.go_SelectedSubType[idx]:SetActive(true);
+	end
+end
+
+function SelectorWindow:OnQualityClick(idx)
+	if self.selectedQuality[idx] == 1 then
+		self.selectedQuality[idx] = 0;
+		self.go_SelectedQuality[idx]:SetActive(false);
+	else
+		self.selectedQuality[idx] = 1;
+		self.go_SelectedQuality[idx]:SetActive(true);
+	end
+end
+
+-- 重置
+function SelectorWindow:ResetSort()
+	self.SelectedSortLv = 0;
+
+	for k, v in pairs(self.selectedQuality) do
+		self.selectedQuality[k] = 1;
+	end
+
+	for k, v in pairs(self.selectedSubType) do
+		self.selectedSubType[k] = 0;
+	end
+
+	self:CleanSelectedSubAttr();
+end
+
+-- 重置
+function SelectorWindow:OnBtnResetClick()
+	-- self:ResetSort();
+	self:Refesh();
+
+	self.commonSel[1] = 0;
+	self.go_onlyHasSelect:SetActive(self.commonSel[1]==1);
+	PlayerPrefs.SetInt("commonSel1",self.commonSel[1]);
+
+	self.commonSel[2] = 0;
+	self.go_onlyLevelSelect:SetActive(self.commonSel[2]==1);
+	PlayerPrefs.SetInt("commonSel2",self.commonSel[2]);
+
+	self.commonSel[3] = 0;
+	self.go_onlyUseSelect:SetActive(self.commonSel[3]==1);
+	PlayerPrefs.SetInt("commonSel3",self.commonSel[3]);
+end
+
+function SelectorWindow:IsAllSelect()
+	for _, v in pairs(self.selectorData.selectQuality) do
+	end
+end
+
+-- 确认
+function SelectorWindow:OnBtnConfirmClick()
+	--self:Show(false);
+	self.Close();
+
+	self.selectorData.commonSelector = self.commonSel; -- 通用设置（有货，符合等级，能使用）
+	self.selectorData.levelRange = self.SelectedSortLv; -- 等级选择(>=levelRange)
+	self.selectorData.selectQuality = self.QualitySelectedSortLv; -- 品质选择(>=selectQuality 1-5)
+
+	local tb = {};
+	for k, v in pairs(self.selectedSubType) do
+		if v == 1 then
+			table.insert(tb, k);
+		end
+	end
+	self.selectorData.equipType = tb; -- 装备类型
+	self.selectorData.wordsData = self.selectorWords.wordsData; -- 词条
+
+	self.selectorData.ItemType = self.ItemType;
+
+	-- self.selectorData.wordsData.quality 词条品质
+	-- self.selectorData.wordsData.wordsNum  词条数量
+	-- self.selectorData.wordsData.words 所有词条
+
+	self.module:OnClickOkEvent(self.selectorData);
+
+	-- local bankQueryListReq = CS.ProtoMsg.BankQueryListReq();
+	-- bankQueryListReq.QualityMin = self.selectorData.selectQuality;
+	-- --bankQueryListReq.QualityMax = 10;
+	-- bankQueryListReq.PlayerLv = self.selectorData.levelRange;
+	-- bankQueryListReq.SubType = self.selectedSubType;
+	-- bankQueryListReq.EntryQuality = self.selectorData.wordsData.quality;
+	-- bankQueryListReq.EntryNum = self.selectorData.wordsData.wordsNum;
+	-- bankQueryListReq.Entrys = self.selectorData.wordsData.words;
+	-- bankQueryListReq.OrderBy = 10;
+	-- bankQueryListReq.PageNum = 10;
+	-- CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+	--     bankQueryListReq, false);
+end
+
+-- 下拉框筛选
+function SelectorWindow:OnSelectSortList(idx)
+	self.SortListIdx = idx;
+	self.SortListTex.text = self.SortList.SortNames[idx];
+	self.SelectedSortLv = self.EquipLevel[self.SortListIdx - 1];
+	
+	self.SortListRoot:SetActive(false);
+end
+
+function SelectorWindow:OnSelectQualitySortList(idx)
+	self.QualitySortListIdx = idx;
+	self.QualitySortListTex.text = self.QualitySortList.SortNames[idx];
+	self.QualitySelectedSortLv = self.QualityLevel[self.QualitySortListIdx - 1];
+end
+
+function SelectorWindow:Show(b)
+	self.gameObject:SetActive(b);
+	self.SortListRoot:SetActive(false);
+	--self.SortList:Show(false);
+
+	if b then
+		self:Refesh();
+		--LayoutRebuilder.ForceRebuildLayoutImmediate(self.transform:GetComponent(typeof(RectTransform)));
+	else
+		self.module:OnClickCancleEvent();
+	end
+end
+
+function SelectorWindow:Refesh()
+	-- for i = 1, 3 do
+	-- 	self.commonSettingsSelect[i]:SetActive(false);
+	-- 	self.commonSel[i] = 0;
+	-- end
+
+	self.SelectedSortLv = 0;
+	if self.EquipLevel ~= nil then
+		for i = 0, #self.EquipLevel do
+			if self.EquipLevel[i] == self.SelectedSortLv then
+				self.SortListIdx = i + 1;
+				self.SortListTex.text = self.SortList.SortNames[i + 1];
+			end
+		end
+	end
+
+	self.QualitySelectedSortLv = 0;
+	if self.QualityLevel ~= nil then
+		for k, v in pairs(self.QualityLevel) do
+			if self.QualityLevel[k] == self.QualitySelectedSortLv then
+				self.QualitySortListIdx = k + 1;
+				self.QualitySortListTex.text = self.QualitySortList.SortNames[k + 1];
+			end
+		end
+	end
+
+	for k, v in pairs(self.selectedSubType) do
+		self.go_SelectedSubType[k]:SetActive(false);
+		self.selectedSubType[k] = 0;
+	end
+	-- 词条
+	-- self:RefeshItems();
+
+	self.selectorData.commonSelector = self.commonSel;
+	self.selectorData.levelRange = self.SelectedSortLv;
+	self.selectorData.selectQuality = self.selectedQuality;
+	self.selectorData.equipType = self.selectedSubType;
+	if self.selectorData.wordsData == nil then
+		self.selectorData.wordsData = {};
+		local tb = {};
+		for i = 1, 5 do
+			tb[i] = 0;
+		end
+		self.selectorData.wordsData.quality = tb;
+		self.selectorData.wordsData.wordsNum = -1;
+		self.selectorData.wordsData.words = {};
+	end
+	self.selectorWords:OnBtnResetClick();
+end
+
+function SelectorWindow:RefeshItems()
+
+	self:ClearItemData();
+
+	for k, v in pairs(self.selectedSubAttr) do
+		table.insert(self.ItemDataList, v);
+	end
+
+	for i = #self.ItemDataList + 1, 7 do
+		table.insert(self.ItemDataList, 0);
+	end
+
+	self:SortItem(self.ItemDataList);
+
+	self.EquipedAmuletScorllView:ContinueScroll(#self.ItemDataList);
+end
+
+function SelectorWindow:OnItemClick(bitem)
+	self.selectorWords:Show(true);
+end
+
+function SelectorWindow:ClearItemData()
+
+	if self.ItemDataList == nil then
+		self.ItemDataList = {}
+	else
+		for k, _ in pairs(self.ItemDataList) do
+			self.ItemDataList[k] = nil
+		end
+	end
+end
+
+function SelectorWindow:SortItem(tbl)
+	if #tbl > 1 then
+		table.sort(tbl, function(a, b)
+				if a.Data.Heroid > b.Data.Heroid then
+					return true
+				elseif a.Data.Heroid == b.Data.Heroid then
+					return a.Quality > b.Quality
+				end
+				return false
+			end)
+	end
+end
+
+function SelectorWindow:SetType(t, it)
+	if t == nil then
+		return;
+	end
+
+	if self.ItemType == it then
+		return;
+	end
+
+	for k, v in pairs(self.filterAllTypes) do
+		v:SetActive(false);
+	end
+
+	self.wordsType = {};
+
+	for _, v in pairs(t) do
+		local itemfilter = ConfigDataAccessor.Itemfilter[v];
+		local pt = itemfilter.FilterType;
+		if self.filterAllTypes[pt] ~= nil then
+			self.filterAllTypes[pt]:SetActive(true);
+			local op = itemfilter.OperaOption;
+			if pt == 1 then
+				self:SetCommonSettings(op);
+			elseif pt == 2 then
+				self:SetLevel(op);
+			elseif pt == 3 then
+				self:SetQualityLevel(op);
+			elseif pt == 4 then
+				self:SetEquip(op);
+			end
+		else
+			table.insert(self.wordsType, v);
+		end
+	end
+
+	self.ItemType = it;
+	self:Refesh();
+end
+
+function SelectorWindow:SetCommonSettings(t)
+	for i = 1, #self.commonSettingsSelect do
+		self.commonSettingsSelect[i].transform.parent.gameObject:SetActive(false);
+	end
+
+	for k, v in pairs(t) do
+		self.commonSettingsSelect[v].transform.parent.gameObject:SetActive(true);
+	end
+end
+
+function SelectorWindow:SetLevel(t)
+	self.EquipLevel = {}
+	for k,v in pairs(t) do
+		self.EquipLevel[k] = v;
+	end
+
+	local tb = {};
+	table.insert(tb, LanguageHelp:GetLanguageByKey("Local_Str_SelectorWindow_LV"));
+	for k, v in pairs(t) do
+		--table.insert(tb, "等级" .. v .. "以上");
+		table.insert(tb, StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_SelectorWindow_LV2"), {v}));
+	end
+	
+	self.EquipLevel[0] = 0;
+	self.SortList:Init(tb, function(idx)
+			self:OnSelectSortList(idx);
+		end)
+	self.SortListIdx = 1;
+	self.SortListTex.text = self.SortList.SortNames[self.SortListIdx];
+end
+
+function SelectorWindow:GetQualityName(t)
+	if t == 1 then
+		return LanguageHelp:GetLanguageByKey("Local_Str_QualityName1");
+	elseif t == 2 then
+		return LanguageHelp:GetLanguageByKey("Local_Str_QualityName2");
+	elseif t == 3 then
+		return LanguageHelp:GetLanguageByKey("Local_Str_QualityName3");
+	elseif t == 4 then
+		return LanguageHelp:GetLanguageByKey("Local_Str_QualityName4");
+	elseif t == 5 then
+		return LanguageHelp:GetLanguageByKey("Local_Str_QualityName5");
+	end
+	return "";
+end
+
+function SelectorWindow:SetQualityLevel(t)
+	self.QualityLevel = t;
+
+	local tb = {};
+	table.insert(tb, LanguageHelp:GetLanguageByKey("Local_Str_SelectorWindow_Quality"));
+	for i = 1, #t do
+		--table.insert(tb, "品质" .. self:GetQualityName(t[i]) .. "以上");
+		table.insert(tb, StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_SelectorWindow_Quality2"), {self:GetQualityName(t[i])}));
+	end
+	self.QualitySortList:Init(tb, function(idx)
+			self:OnSelectQualitySortList(idx);
+		end)
+
+	self.QualityLevel[0] = 0;
+	self.QualitySortListIdx = 1;
+	self.QualitySortListTex.text = self.QualitySortList.SortNames[self.QualitySortListIdx];
+end
+
+function SelectorWindow:SetQuality(t)
+	for i = 1, #self.selectedQuality do
+		self.go_SelectedQuality[i].transform.parent.gameObject:SetActive(false);
+	end
+
+	for k, v in pairs(t) do
+		self.go_SelectedQuality[v].transform.parent.gameObject:SetActive(true);
+	end
+end
+
+function SelectorWindow:SetEquip(t)
+	for k, v in pairs(self.go_SelectedSubType) do
+		v.transform.parent.gameObject:SetActive(false);
+	end
+
+	for k, v in pairs(t) do
+		self.go_SelectedSubType[v].transform.parent.gameObject:SetActive(true);
+	end
+end
+
+function SelectorWindow:OnEnable()
+
+end
+
+function SelectorWindow:OnDisable()
+
+end
+
+function SelectorWindow:OnDestroy()
+
+end
+
+function SelectorWindow:OnOpen(arg)
+	self.IsOpen = true;
+end
+
+function SelectorWindow:OnClose(arg)
+	self:CloseWindow();
+	--self.module.bankWindowView = nil
+end
+
+function SelectorWindow:CloseWindow()
+	self.IsOpen = false;
+	--self.module.bankWindowView = nil
+end
+
+return SelectorWindow

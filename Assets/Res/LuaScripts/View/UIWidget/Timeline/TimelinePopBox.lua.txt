@@ -1,0 +1,67 @@
+--[[
+*文件名   :   TimelinePopBox
+*内  容   :
+*说  明   :
+*创建日期 :   "2024/05/22 14:22:52"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+TimelinePopBox=class("TimelinePopBox",UIPanel)
+TimelinePopBox.m_Item=nil;
+
+local ObjectPool= require("Common/Helper/ObjectPool")
+
+function TimelinePopBox:Awake()
+		self.m_Item=self:Find("Item").gameObject;
+	--对象池
+	self.avgPopItemPool=ObjectPool:New(
+		2,
+		"View.UIWidget.Timeline.TimelinePopItem",
+		self.m_Item,
+		self.m_Item.transform.parent,
+		function (it)
+			it:InitItem();
+		end,
+		--回收回调
+		function (ritem)
+			ritem:SetUse(false);
+		end,
+		nil
+	)
+end
+
+function TimelinePopBox:Start()
+	
+end
+
+function TimelinePopBox:OnEnable()
+
+end
+
+function TimelinePopBox:OnDisable()
+
+end
+
+function TimelinePopBox:OnDestroy()
+
+end
+
+function TimelinePopBox:OnOpen(arg)
+	local info={};
+	local item=self.avgPopItemPool:Spawn();
+	item:SetItem(arg);
+
+	DelayInvoker.DelayInvoke(self, arg.Item3, function()
+			item:SetUse(false);
+
+		end );
+	
+end
+
+function TimelinePopBox:OnClose(arg)
+
+end
+
+
+
+return  TimelinePopBox

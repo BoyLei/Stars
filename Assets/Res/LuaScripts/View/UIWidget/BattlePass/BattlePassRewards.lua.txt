@@ -1,0 +1,234 @@
+--[[
+*文件名   :   BattlePassRewards
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] local BattlePassRewards = {}
+
+BattlePassRewards.__index = BattlePassRewards
+local BattlePassRewardLvItem = require("View/UIWidget/BattlePass/BattlePassRewardLvItem")
+
+function BattlePassRewards:New(_go, BattlePassWidget)
+    local self = {}
+    setmetatable(self, BattlePassRewards)
+
+    self.BattlePassWidget = BattlePassWidget
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    -- 购买通行证
+    self.transform:Find("BtnRoot/BtnBuy"):GetComponent(typeof(JButton)).OnClick = (function()
+        UIManager.Instance:OpenWidget("Shop/BattlePassBuyWidget", false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, false)
+    end)
+    self.go_btnBuy = self.transform:Find("BtnRoot/BtnBuy").gameObject
+
+    -- 全部领取
+    self.transform:Find("BtnRoot/BtnGetAll"):GetComponent(typeof(JButton)).OnClick = (function()
+        if self.CanGetAll then
+            -- 发送领取消息
+            local battlePassGetLevelRewardReq = CS.ProtoMsg.BattlePassGetLevelRewardReq()
+            battlePassGetLevelRewardReq.IsBatch = true
+            battlePassGetLevelRewardReq.BPLevel = self.Lv
+            CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, battlePassGetLevelRewardReq, false)
+        else
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_117"))
+        end
+    end)
+
+    self.GetAllBg = self.transform:Find("BtnRoot/BtnGetAll/bg"):GetComponent(typeof(Image))
+
+    self.ItemNow = BattlePassRewardLvItem:New(self.transform:Find("View").gameObject)
+
+    -- 道具列表
+    self.BagItemList = {}
+    -- 无限列表
+    self.go_BagItem = self.transform:Find("RewardItem").gameObject
+
+    self.tr_ItemRoot = self.transform:Find("ItemRoot/Mask/List")
+    self.go_BagItem:SetActive(false)
+    self.go_BagItem.transform:SetParent(self.transform)
+    self.BagScorllView = self.transform:Find("ItemRoot"):GetComponent(typeof(SuperScrollViewController))
+    self.BagScorllView:NewScroll(
+        self.go_BagItem,
+        0,
+        function(tr, idx)
+            self:OnBagItemRefesh(tr, idx)
+        end
+    )
+
+    self.rect_grid = self.transform:Find("ItemRoot/Mask/List"):GetComponent(typeof(RectTransform))
+
+    self.goLock = self.transform:Find("Start/Lock").gameObject
+    self.message1 = function(data)
+        self:OnBattlePassGetLevelRewardReqRet(data)
+    end
+    self.gameObject:SetActive(false)
+
+    return self -- 返回自身
+end
+
+function BattlePassRewards:SetMessage(b)
+    if b then
+        -- 领取回调
+        CS.SGF.Network.MsgRetManager.Instance:OnMessageEnum(self.message1, CS.MsgIDEnum.BattlePassGetLevelRewardReqID)
+    else
+        CS.SGF.Network.MsgRetManager.Instance:OffMessageEnum(self.message1, CS.MsgIDEnum.BattlePassGetLevelRewardReqID)
+    end
+end
+
+function BattlePassRewards:RefeshNowItem()
+    -- 无限列表
+    local maxLv = 0
+    for i = 1, #self.BagItemList do
+        if self.BagItemList[i].Lv > maxLv then
+            maxLv = self.BagItemList[i].Lv
+        end
+    end
+
+    local idx = (math.floor(maxLv / 5) + 1) * 5
+
+    if idx > self.MaxLv then
+        idx = self.MaxLv
+    end
+
+    self.ItemNow:SetItem(self.ItemDataList[idx])
+end
+
+function BattlePassRewards:OnBagItemRefesh(tr, idx)
+    self:RefeshNowItem()
+
+    for i = 1, #self.BagItemList do
+        if self.BagItemList[i].transform == tr then
+            self.BagItemList[i]:SetItem(self.ItemDataList[idx + 1]) -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+        end
+    end
+
+    local bi = BattlePassRewardLvItem:New(tr.gameObject)
+
+    bi.gameObject:SetActive(true)
+    bi:SetItem(self.ItemDataList[idx + 1]) -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+
+    table.insert(self.BagItemList, bi)
+end
+
+function BattlePassRewards:Show(b)
+    self.gameObject:SetActive(b)
+    if b then
+        self:Refesh()
+    end
+end
+
+function BattlePassRewards:OnBattlePassGetLevelRewardReqRet(args)
+    local RetMsgID = args.MsgRet.RetMsgID -- 对应的消息号(这个可以判断是哪个协议)
+
+    local RetCode = args.MsgRet.RetCode
+    if RetCode == 0 then
+        -- 成功
+        DOVirtual.DelayedCall(
+            0.3,
+            function()
+                self:Refesh()
+            end
+        )
+    else
+        -- 不需要处理，交给上层去处理
+        -- args.IsDialog=true
+        -- Util.ShowMessage(Local_Str_Auto_Tips_83);
+    end
+end
+
+function BattlePassRewards:Refesh()
+    if self.ItemDataList == nil then
+        self.ItemDataList = {}
+    else
+        for k, _ in pairs(self.ItemDataList) do
+            self.ItemDataList[k] = nil
+        end
+    end
+
+    self.BattlePassInfo = GameManager.Instance.BattlePassInfo
+
+    self.CanGetAll = false
+
+    -- 上面的信息
+    if self.BattlePassInfo ~= nil then
+        local SeasonId = self.BattlePassInfo.SeasonId
+        local seasonCfg = ConfigDataAccessor.BPSeason[SeasonId]
+
+        local awardGroup = seasonCfg.AwardGroup
+
+        self.MaxLv = ConfigDataAccessor.GetBPGradeMaxLv(awardGroup) -- 最大等级
+        self.LvNow = self.BattlePassInfo.BPLevel
+        self.GotFullAwardLv = self.BattlePassInfo.GotFullAwardLv -- 在这个等级以及它之前的全部是已经领取完的
+
+        self.goLock:SetActive(self.BattlePassInfo.BPType == CS.ProtoMsg.BPTypeEnum.FreePass)
+
+        self.go_btnBuy:SetActive(self.BattlePassInfo.BPType ~= CS.ProtoMsg.BPTypeEnum.PaySenior)
+        -- 判断是否开启支付
+        if not (GameManager.Instance:IsUnLockPayFunction()) then
+            self.go_btnBuy:SetActive(false)
+        end
+
+        for i = 1, self.MaxLv do
+            local data = {}
+            --[[
+			if i<=self.GotFullAwardLv then
+				data.CanGet=false;
+			end
+			]]
+            data.CanGet = false -- 是否可以领取
+            data.IsLockAdvance = (self.BattlePassInfo.BPType == CS.ProtoMsg.BPTypeEnum.FreePass) -- 是否没解锁高级通行证
+
+            data.Lv = i
+            data.AwardGroup = awardGroup
+            data.IsNowLv = (i == self.LvNow)
+            data.IsInRange = (i <= self.LvNow)
+
+            data.Progress = 0
+
+            table.insert(self.ItemDataList, data)
+        end
+
+        for k, v in pairs(self.BattlePassInfo.OtherAwardLv) do
+            self.ItemDataList[k].Progress = v
+            if self.BattlePassInfo.BPType == CS.ProtoMsg.BPTypeEnum.FreePass then
+                -- 没有付费
+                if v == 1 then
+                    self.ItemDataList[k].CanGet = true
+                    self.CanGetAll = true
+                end
+            elseif self.BattlePassInfo.BPType == CS.ProtoMsg.BPTypeEnum.PayJunior or self.BattlePassInfo.BPType == CS.ProtoMsg.BPTypeEnum.PaySenior then
+                -- 付费了
+                if v == 1 then
+                    self.ItemDataList[k].CanGet = true
+                    self.CanGetAll = true
+                elseif v == 3 then
+                    self.ItemDataList[k].CanGet = true
+                    self.CanGetAll = true
+                end
+            end
+        end
+
+        local posx = -(self.LvNow - 1) * 175
+
+        if posx < -9696 then
+            posx = -9696
+        end
+
+        self.rect_grid.anchoredPosition = Vector2(posx, 0.5)
+
+        self.BagScorllView:ContinueScroll(#self.ItemDataList, false)
+    end
+
+    if self.CanGetAll then
+        self.GetAllBg.color = Color(1, 1, 1)
+    else
+        self.GetAllBg.color = Color(0.67, 0.67, 0.67)
+    end
+end
+
+return BattlePassRewards

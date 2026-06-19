@@ -1,0 +1,259 @@
+--[[
+*文件名   :   PersonalTowerSuccessWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/08/18 16:18:02"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+---@class PersonalTowerSuccessWindow
+PersonalTowerSuccessWindow=class("PersonalTowerSuccessWindow",UIPanel)
+PersonalTowerSuccessWindow.m_NoAward=nil;
+PersonalTowerSuccessWindow.m_NormalItemPreviewGo=nil;
+PersonalTowerSuccessWindow.m_QuitBtn=nil;
+PersonalTowerSuccessWindow.m_QuitTime=nil;
+PersonalTowerSuccessWindow.m_NormalItemPreview=nil;
+PersonalTowerSuccessWindow.m_Win=nil;
+
+PersonalTowerSuccessWindow.Second=0;
+PersonalTowerSuccessWindow.QuitCallBack=nil;
+
+local QuitBtnFunc=nil
+local ContinueBtnFunc = nil
+
+local ObjectPool= require("Common/Helper/ObjectPool")
+function PersonalTowerSuccessWindow:Awake()
+    self.m_Win=self:Find("Cut4Cam90/AssemblyRatio2/Center/Win").gameObject;
+    self.m_NoAward=self:Find("Cut4Cam90/AssemblyRatio2/Center/Win/NoAward").gameObject;
+    self.m_NormalItemPreviewGo=self:Find("Cut4Cam90/AssemblyRatio2/Center/Win/Award/Normal/ItemPreview").gameObject;
+    self.m_QuitBtn=self:Find("Cut4Cam90/AssemblyRatio2/Center/QuitBtn"):GetComponent(typeof(JButton));
+    self.m_BtnContinue=self:Find("Cut4Cam90/AssemblyRatio2/Center/BtnContinue"):GetComponent(typeof(JButton));
+    self.m_QuitTime=self:Find("Cut4Cam90/AssemblyRatio2/Center/QuitTime"):GetComponent(typeof(Text));
+    self.TxtNext = self.m_Win.transform:Find("NextTower/Title/Next"):GetComponent(typeof(Text));
+    self.TxtMine = self.m_Win.transform:Find("NextTower/Title/Mine"):GetComponent(typeof(Text));
+    self.TxtLevel= self.m_Win.transform:Find("NextTower/TxtLevel"):GetComponent(typeof(TextMeshProUGUI));
+    self.BgReward = self.m_Win.transform:Find("Award/GameObject/ImagBg"):GetComponent(typeof(RectTransform));
+    self.m_NormalItemPreview=StructAccessor.ItemPreview.new(self.m_NormalItemPreviewGo);
+    self.m_NormalItemPreview:SetSize(1500,120,20)
+
+    local ConventionRewardItemPreviewGo = self.m_Win.transform:Find("Award/Normal/ItemPreview").gameObject
+    self.ConventionRewardItemPreview = StructAccessor.ItemPreview.new(ConventionRewardItemPreviewGo)
+
+    QuitBtnFunc=function()
+        self:OnClickQuitBtn();
+    end;
+    ContinueBtnFunc=function()
+        self:OnClickContinueBtn();
+    end;
+    self.OnSecTimeUpdate=function()
+        self:OnSecTimeUpdateHandler()
+    end
+end
+
+function PersonalTowerSuccessWindow:Start()
+    self.m_QuitBtn.OnClick= QuitBtnFunc;
+    self.m_BtnContinue.OnClick= ContinueBtnFunc;
+end
+
+function PersonalTowerSuccessWindow:OnEnable()
+
+end
+
+function PersonalTowerSuccessWindow:OnDisable()
+
+end
+function PersonalTowerSuccessWindow:OnSecTimeUpdateHandler()
+    self:ShowTime();
+end
+
+function PersonalTowerSuccessWindow:ShowTime()
+    self.Second=self.Second-1;
+    if self.Second<=0 then
+        self:OnClickQuitBtn();
+    else
+        --self.m_QuitTime.text=self.Second.."秒后离开场景"
+        self.m_QuitTime.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_QuitTime"), {self.Second});
+
+    end
+end
+
+function PersonalTowerSuccessWindow:OnDestroy()
+
+end
+
+function PersonalTowerSuccessWindow:OnOpen(arg)
+    local data=arg;
+    self.CurFloor=data.CurFloor
+    self.m_nextFloorCfg = ConfigDataAccessor.TowerCopy[self.CurFloor + 1]
+    self.m_CurrentFloorCfg = ConfigDataAccessor.TowerCopy[self.CurFloor]
+    local CanvasGroupComp = self.m_BtnContinue.gameObject:GetComponent(typeof(CanvasGroup))
+    self.TxtLevel.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_PersonalTowerFailWindow_title"), {self.CurFloor});
+    local playerLevel = GameManager.Instance:GetPlayerLevel();
+    if self.m_nextFloorCfg.ConditionID == 0 then
+        self.m_BtnContinue.enabled = true
+        CanvasGroupComp.alpha = 1
+        self.TxtMine.text = string.format("<color=#FFF6B8>%s</color>" ,playerLevel)
+        self.TxtNext.text = "--"
+    else
+        if self.m_nextFloorCfg and GameManager.Instance:IsConditionMete(self.m_nextFloorCfg.ConditionID) then
+            self.m_BtnContinue.enabled = true
+            CanvasGroupComp.alpha = 1
+        else
+            self.m_BtnContinue.enabled = false
+            CanvasGroupComp.alpha = 0.3
+        end
+        local conditionCfg
+        ---- 推荐战力
+        for i, v in pairs(ConfigDataAccessor.CMcondition) do
+            if v.GroupID == self.m_nextFloorCfg.ConditionID then
+                conditionCfg = v
+            end
+        end
+
+        if conditionCfg then
+            self.TxtNext.text = conditionCfg.Args1;
+        end
+
+        if tonumber(conditionCfg.Args1) > playerLevel then
+            self.TxtMine.text = string.format("<color=#c06666>%d</color>" ,playerLevel)
+        else
+            self.TxtMine.text = string.format("<color=#FFF6B8>%d</color>",playerLevel)
+        end
+    end
+
+
+    self:SetConventionReward()
+    self.Second = 20
+    self:ShowTime();
+    if self.Second~=nil and self.Second >0 then
+        MonoHelper.AddSecTimeUpdateListener(self.OnSecTimeUpdate);
+    end
+end
+-- 设置常规奖励显示
+function PersonalTowerSuccessWindow:SetConventionReward()
+    if self.m_CurrentFloorCfg == nil then
+        return
+    end
+    -- 获取道具信息
+    --local sortTempList = self:GetRewardList(self.m_CurrentFloorCfg.RewardID, self.m_CurrentFloorCfg.RewardNum)
+    local sortTempList = self:GetRewardList(self.m_CurrentFloorCfg.CommonAward, self.m_CurrentFloorCfg.CommonAwardNum)
+    -- 设置奖励信息
+    -- 发送获得奖励消息
+    for i, v in pairs(sortTempList) do
+        LuaModuleDispatcher:SendMessage(ModuleDef.ChatModule, "ShowRewardTips", {v.BaseID,v.Num})
+    end
+
+
+
+    if #sortTempList > 8 then
+        self:SetRewardItemPreview(self.ConventionRewardItemPreview, sortTempList);
+        self.BgReward.sizeDelta = Vector2(1440,300)
+    else
+        if #sortTempList > 4 then
+            self.BgReward.sizeDelta = Vector2(1440,350)
+        else
+            self.BgReward.sizeDelta = Vector2(1440,300)
+        end
+        local _go=self.m_Win.transform:Find("ItemGrid").gameObject;
+        local _parent=self.m_Win.transform:Find("Grid");
+        self.rewardItemPool=ObjectPool:New(#sortTempList,"View/Item/ItemGrid",_go,_parent,
+        --生成回调
+                function (ritem)
+                    ritem:InitItem(
+                            false,--不使用底板
+                    --点击回调
+                            function (ritem)
+                                self:OnItemClick(ritem);
+                            end
+                    );
+                end,
+        --回收回调
+                function (ritem)
+                    ritem:SetUse(false);
+                end
+        )
+        self.rewardItemPool:RecycleAll();
+        for i=1,#sortTempList do
+            local item=self.rewardItemPool:Spawn();
+            item:SetItem(sortTempList[i]);
+        end
+    end
+end
+function PersonalTowerSuccessWindow:SetRewardItemPreview(ItemPreview, CostItems)
+    ItemPreview:SetItems(CostItems)
+end
+-- 获取奖励信息
+function PersonalTowerSuccessWindow:GetRewardList(rewards, rewardNums)
+    local tempList = {}
+    for i = 1, #rewards do
+        local itemId = rewards[i]
+        local itemNum = 1
+        if i <= #rewardNums then
+            itemNum = rewardNums[i]
+        end
+        local itemCfg = ConfigDataAccessor.Item[itemId]
+        if itemCfg then
+            if tempList[itemId] == nil then
+                local quality = 1
+                if itemCfg ~= nil then
+                    quality = itemCfg.Quality
+                end
+                local item = { BaseID = itemId, Num = itemNum, Quality = quality }
+                tempList[itemId] = item
+            else
+                tempList[itemId] = tempList[itemId].Num + itemNum
+            end
+        end
+    end
+    -- 奖励排序，高-》低
+    local sortTempList = self:SortReward(tempList)
+    return sortTempList
+end
+-- 奖励排序，高-》低
+function PersonalTowerSuccessWindow:SortReward(rewardList)
+    -- 生成一个用于排序的临时数组
+    local tempArray = {}
+    for key, value in pairs(rewardList) do
+        table.insert(tempArray, value)
+    end
+    -- 定义比较函数，按照Quality从大到小排序
+    local function compare(a, b)
+        if a.Quality ~= b.Quality then
+            return a.Quality > b.Quality
+        end
+        return false
+    end
+    -- 对临时数组进行排序
+    table.sort(tempArray, compare)
+    return tempArray
+end
+function PersonalTowerSuccessWindow:OnClose(arg)
+    MonoHelper.RemoveSecTimeUpdateListener(self.OnSecTimeUpdate);
+end
+
+function PersonalTowerSuccessWindow:OnClickQuitBtn()
+    self.Close()
+    GameManager.Instance:BackToWorld();
+end
+function PersonalTowerSuccessWindow:OnClickContinueBtn()
+    self.Close()
+    if ConfigDataAccessor.TowerCopy[self.CurFloor+1] then
+        local directorObj = GameObject.Find("Map_FB_PaT_Platform01_Stc (3)")
+        if directorObj then
+            local directorComp = directorObj:GetComponent(TPlayableDirector)
+            if directorComp then
+                directorComp:Play()
+            end
+        end
+        LuaModuleDispatcher:SendMessage(ModuleDef.PersonalTowerModule, "SendEnterPersonTowerLevelReq", self.CurFloor+1)
+    end
+end
+function PersonalTowerSuccessWindow:OnItemClick(ritem)
+
+    print("RewardItem:OnItemClick")
+    self.module.IsOpenTips=true;
+    self.module:OpenItemTips(ritem.BaseID,ritem.EntityID,ritem.transform);
+
+end
+
+return  PersonalTowerSuccessWindow

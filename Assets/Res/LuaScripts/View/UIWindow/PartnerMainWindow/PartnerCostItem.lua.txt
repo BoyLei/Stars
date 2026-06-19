@@ -1,0 +1,212 @@
+--[[
+*文件名   :   PartnerCostItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2024/05/17 11:06:43"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+PartnerCostItem=class("PartnerCostItem",UIPanel)
+PartnerCostItem.m_BgRare=nil;
+PartnerCostItem.m_Icon=nil;
+PartnerCostItem.m_Num=nil;
+PartnerCostItem.m_delete=nil;
+PartnerCostItem.m_PartnerCostItem=nil;
+PartnerCostItem.ClickCallBack=nil;
+PartnerCostItem.DelClick=nil;
+PartnerCostItem.UseCnt=0;
+PartnerCostItem.LastItemPress=0;
+PartnerCostItem.LastDelItemPress=0;
+PartnerCostItem.IsPressPartner=false;
+PartnerCostItem.IsPressDelete=false;
+PartnerCostItem.IsOpen=false;
+
+local PartnerCostItemFunc=nil;
+local DeleteCostItemFunc=nil;
+
+local PartnerCostItemPressFunc=nil;
+local DeleteCostItemPressFunc=nil;
+local PartnerCostItemOnLongPressUpFunc=nil;
+local DeleteCostItemOnLongPressUpFunc=nil;
+
+function PartnerCostItem:ctor(go)
+	self.prefab=go;
+	self.m_BgRare=self:Find("BgRare"):GetComponent(typeof(Image));
+	self.m_Icon=self:Find("Icon"):GetComponent(typeof(Image));
+	self.m_Num=self:Find("Num"):GetComponent(typeof(Text));
+	self.m_delete=self:Find("delete"):GetComponent(typeof(JButton));
+	self.m_PartnerCostItem=self:Find("RayCast"):GetComponent(typeof(JButton));
+	PartnerCostItemFunc=function() self:OnClickPartnerCostItem(); end;
+	DeleteCostItemFunc=function() self:OnDeleteCostItem(); end
+
+	PartnerCostItemPressFunc=function() self:OnPartnerCostItemPress(); end
+	DeleteCostItemPressFunc=function() self:OnDeleteCostItemPress(); end
+
+	PartnerCostItemOnLongPressUpFunc=function()
+		self:OnPartnerCostItemOnLongPressUp();
+	end;
+
+	DeleteCostItemOnLongPressUpFunc=function()
+		self:OnDeleteCostItemOnLongPressUp();
+	end;
+	self.IsPressPartner=false;
+	self.IsPressDelete=false;
+
+	self:Start();
+
+end
+
+function PartnerCostItem:Start()
+	self.m_PartnerCostItem.OnTouchDownAction= PartnerCostItemFunc;
+	self.m_delete.OnTouchDownAction= DeleteCostItemFunc;
+
+	self.m_PartnerCostItem.OnLongPressDown= PartnerCostItemPressFunc;
+	self.m_delete.OnLongPressDown= DeleteCostItemPressFunc;
+	self.m_PartnerCostItem.OnLongPressUp= PartnerCostItemOnLongPressUpFunc;
+	self.m_delete.OnLongPressUp= DeleteCostItemOnLongPressUpFunc;
+end
+
+
+
+function PartnerCostItem:OnEnable()
+
+end
+
+function PartnerCostItem:OnDisable()
+	self.IsOpen=false;
+end
+
+function PartnerCostItem:OnDestroy()
+
+end
+
+function PartnerCostItem:OnOpen(config,click,dclick)
+	self.ItemID = config.Id
+	self.ClickCallBack=click;
+	self.DelClick=dclick;
+	self.UseCnt=0;
+	self.LastItemPress=0;
+	self.LastDelItemPress=0;
+	self.IsOpen=true;
+	self.m_delete.gameObject:SetActive(false)
+	local cfg = ConfigDataAccessor.Item[config.Id];
+	if cfg~=nil then
+		local quality = cfg.Quality;
+		if quality==99 then
+			quality=1;
+		end
+		ResourceHelper:LoadIconByAtlasAsync(
+			self.m_BgRare,
+			ResourceHelper.AtlasPathCommonItem,
+			"Bag_Grid_sq" .. quality,
+			false,
+			function (s)
+				self.m_BgRare.gameObject:SetActive(true)
+			end
+		)
+		ResourceHelper:LoadIconAsync(self.m_Icon, "", cfg.Icon, false)
+
+		local itemNum=BusinessManager.Instance:GetCurrencyNum(config.Id)
+		self.m_Num.text=itemNum.."/".."0"
+	end
+end
+
+function PartnerCostItem:SetUseCnt(cnt)
+	if self.IsOpen then
+		self.UseCnt=cnt;
+		local itemNum=BusinessManager.Instance:GetCurrencyNum(self.ItemID)
+		if self.m_Num~=nil then
+			self.m_Num.text=itemNum.."/"..self.UseCnt
+		end
+		if self.m_delete~=nil then
+			self.m_delete.gameObject:SetActive(self.UseCnt>0)
+		end
+		if self.UseCnt<1 then
+			self.IsPressDelete=false;
+		end
+	end
+end
+
+function PartnerCostItem:Clean()
+
+end
+
+function PartnerCostItem:UseCount()
+
+end
+
+function PartnerCostItem:OnClose(arg)
+
+end
+
+function PartnerCostItem:OnClickPartnerCostItem()
+	if self.ClickCallBack~=nil then
+		self.ClickCallBack(self.ItemID);
+	end
+
+end
+
+function PartnerCostItem:OnDeleteCostItem()
+	if self.DelClick~=nil then
+		self.DelClick(self.ItemID);
+	end
+end
+
+
+function PartnerCostItem:OnPartnerCostItemPress()
+	self.IsPressPartner=true;
+	self:OnClickItem();
+end
+
+function PartnerCostItem:OnClickItem()
+	
+	
+	if self.ClickCallBack~=nil then
+		self.ClickCallBack(self.ItemID);
+	end
+
+	if self.IsPressPartner then
+		
+		DelayInvoker.DelayInvoke(self,0.2,function ()
+				if self.IsPressPartner then
+					self:OnClickItem();
+				end
+			end)
+	end
+
+end
+
+function PartnerCostItem:OnPartnerCostItemOnLongPressUp()
+	self.IsPressPartner=false;
+
+end
+
+
+
+
+function PartnerCostItem:OnDeleteCostItemPress()
+	self.IsPressDelete=true;
+	self:OnDeleteClickItem();
+end
+
+
+function PartnerCostItem:OnDeleteClickItem()
+	if self.DelClick~=nil then
+		self.DelClick(self.ItemID);
+	end
+
+	if self.IsPressDelete then
+		DelayInvoker.DelayInvoke(self,0.2,function ()
+				if self.IsPressDelete then
+					self:OnDeleteClickItem();
+				end
+			end)
+	end
+
+end
+
+function PartnerCostItem:OnDeleteCostItemOnLongPressUp()
+	self.IsPressDelete=false;
+end
+
+return  PartnerCostItem

@@ -1,0 +1,47 @@
+--[[
+*文件名   :   AwardItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/10/25 11:09:17"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+AwardItem=class("AwardItem",UIPanel)
+AwardItem.bg=nil;
+AwardItem.icon=nil;
+AwardItem.num=nil;
+AwardItem.Btn=nil;
+AwardItem.Cansell=nil;
+local data=nil;
+
+function AwardItem:Awake()
+	self.bg=self:Find("bg"):GetComponent(typeof(Image));
+	self.icon=self:Find("Icon"):GetComponent(typeof(Image));
+	self.num=self:Find("Image/num"):GetComponent(typeof(Text));
+	self.Btn=self:Find("bg"):GetComponent(typeof(Button));
+	self.Cansell=self:Find("cansell"):GetComponent(typeof(RectTransform));
+	self.Btn.onClick:AddListener(function ()
+			self:OnClickHandler()
+		end);
+end
+
+function  AwardItem:OnClickHandler()
+	--CS.StarProject.GlobalEvent.SelectTaskItem:Invoke(self.TaskInfo.TaskID)
+	Log("on click")
+end
+
+
+function AwardItem:OnUpdateContent(data)
+	self.data=data
+
+	local config=ConfigDataAccessor.Item[self.data.ItemID]
+	if config~=nil then
+		--self.icon=
+		--self.bg=
+	end
+
+	self.num.text=data.ItemNum
+	self.Cansell.gameObject:SetActive(self.data.CanSell)
+end
+
+return  AwardItem

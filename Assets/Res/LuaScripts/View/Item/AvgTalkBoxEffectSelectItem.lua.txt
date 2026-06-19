@@ -1,0 +1,111 @@
+--[[
+*文件名   :   AvgTalkBoxEffectSelectItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/16 15:39:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local AvgTalkBoxEffectSelectItem = {}
+
+AvgTalkBoxEffectSelectItem.__index = AvgTalkBoxEffectSelectItem
+
+function AvgTalkBoxEffectSelectItem:New(_go)
+    local self = {}
+    setmetatable(self, AvgTalkBoxEffectSelectItem)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.m_content = self.transform:Find("content"):GetComponent(typeof(Text))
+
+    self.m_idx = self.transform:Find("idx"):GetComponent(typeof(Text))
+
+    self.icon = self.transform:Find("icon"):GetComponent(typeof(Image))
+
+    self.Idx = 0
+
+    self.IsUsed = false
+    self.gameObject:SetActive(false)
+
+    return self --返回自身
+end
+
+function AvgTalkBoxEffectSelectItem:InitItem(onItemCkick)
+    --点击事件
+    local btnClick = self.transform:GetComponent(typeof(Button))
+    btnClick.onClick:AddListener(
+        function()
+            if onItemCkick ~= nil then
+                onItemCkick(self)
+            end
+        end
+    )
+
+    self:SetUse(false)
+end
+
+
+
+
+function AvgTalkBoxEffectSelectItem:SetItem(contentText, idx, isBaseService, service, serviceType)
+    self.Service = service
+    self.IsBaseService = isBaseService
+    self:SetUse(true)
+
+    self.m_content.text = contentText
+
+    if isBaseService then
+        self.m_idx.text = LanguageHelp:GetLanguageByKey("Local_Str_idx_Service")
+
+        --[[
+        1.释放技能
+        2.添加buff
+        3.移除buff
+        4.接受任务
+        5.完成任务
+        6.进入副本
+        7.触发对话
+        8.播放黑幕
+        9.任务进度增加
+        10播放timeline
+        11播放章节效果
+        12剧情播放图片
+        13打开商店
+        14发送事件
+        ]]
+        if serviceType == 13 then
+            --self.icon.sprite = AtlasManager.Instance:GetSprite("ui/commonatlas/commonatlas", "Icon_Sell_01")
+            ResourceHelper:LoadIconByAtlasAsync(self.icon, ResourceHelper.AtlasPathCommon, "Icon_Sell_01", false)
+        elseif serviceType == 1 or serviceType == 2 or serviceType == 3 then
+            --self.icon.sprite = AtlasManager.Instance:GetSprite("ui/commonatlas/commonatlas", "Icon_Submit_01")
+            ResourceHelper:LoadIconByAtlasAsync(self.icon, ResourceHelper.AtlasPathCommon, "Icon_Submit_01", false)
+        elseif serviceType == 7 or serviceType == 8 or serviceType == 10 or serviceType == 11 or serviceType == 12 then
+            --self.icon.sprite = AtlasManager.Instance:GetSprite("ui/commonatlas/commonatlas", "Icon_Talk_01")
+            ResourceHelper:LoadIconByAtlasAsync(self.icon, ResourceHelper.AtlasPathCommon, "Icon_Talk_01", false)
+        elseif serviceType == 4 or serviceType == 5 or serviceType == 9 or serviceType == 13 then
+            --self.icon.sprite = AtlasManager.Instance:GetSprite("ui/commonatlas/commonatlas", "Icon_Task_01")
+            ResourceHelper:LoadIconByAtlasAsync(self.icon, ResourceHelper.AtlasPathCommon, "Icon_Task_01", false)
+        elseif serviceType == 6 then
+            --self.icon.sprite = AtlasManager.Instance:GetSprite("ui/commonatlas/commonatlas", "Icon_Transfer_01")
+            ResourceHelper:LoadIconByAtlasAsync(self.icon, ResourceHelper.AtlasPathCommon, "Icon_Transfer_01", false)
+        else
+            --self.icon.sprite = AtlasManager.Instance:GetSprite("ui/commonatlas/commonatlas", "Icon_Talk_01")
+            ResourceHelper:LoadIconByAtlasAsync(self.icon, ResourceHelper.AtlasPathCommon, "Icon_Talk_01", false)
+        end
+    else
+        self.m_idx.text = LanguageHelp:GetLanguageByKey("Local_Str_idx_Service2")
+
+        --self.icon.sprite = AtlasManager.Instance:GetSprite("ui/commonatlas/commonatlas", "Icon_Task_01")
+        ResourceHelper:LoadIconByAtlasAsync(self.icon, ResourceHelper.AtlasPathCommon, "Icon_Task_01", false)
+    end
+
+    self.Idx = idx
+end
+
+function AvgTalkBoxEffectSelectItem:SetUse(b)
+    self.IsUsed = b
+    self.gameObject:SetActive(b)
+end
+
+return AvgTalkBoxEffectSelectItem

@@ -1,0 +1,279 @@
+--[[
+*文件名   :   PlayerInfoWidget2
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/02 11:43:21"
+*创建人   :   "quzhenxin"
+*版权所有 :   游卡网络科技技术有限公司
+]] PlayerInfoWidget2 = class("PlayerInfoWidget2", UIPanel)
+
+
+PlayerInfoWidget2.attrLuaKey = "PlayerInfoWidget2";
+PlayerInfoWidget2.M_ExpBar = nil
+PlayerInfoWidget2.M_ExpText = nil
+PlayerInfoWidget2.M_LevelText = nil
+PlayerInfoWidget2.M_UidText = nil
+
+---------- 主角数据
+PlayerInfoWidget2.M_EntityBase = nil
+
+PlayerInfoWidget2.m_EXPSum = 100
+PlayerInfoWidget2.m_EXPCur = 50
+
+PlayerInfoWidget2.m_LevelCur = 1
+PlayerInfoWidget2.LevelUpgradeWidgetPath = "StarWorld/LevelUpgradeWidget" -- 升级提示界面
+
+PlayerInfoWidget2.m_IsCanRotateCamera = true
+
+PlayerInfoWidget2.m_net_type = "Wifi";
+
+function PlayerInfoWidget2:Awake()
+    self.transform = self.prefab.transform
+    self.gameObject = self.transform.gameObject
+    -- 主角等级面板
+    self.M_ExpBar = self:Find("ProgressExp/BarExp"):GetComponent(typeof(Image))
+    self.M_ExpText = self:Find("ProgressExp/TextExp"):GetComponent(typeof(Text))
+    self.M_UidText = self:Find("UID"):GetComponent(typeof(Text))
+
+    self.CanRotate = self:Find("JBtnRotateCamera/CanRotate").gameObject
+    self.NoRotate = self:Find("JBtnRotateCamera/NoRotate").gameObject
+    self.JBtnRotateCamera = self:Find("JBtnRotateCamera"):GetComponent(typeof(JButton))
+    self.JBtnRotateCameraFun = function()
+        self:OnClickRotateCameraJBtn()
+    end
+    self.JBtnRotateCamera.OnClick = self.JBtnRotateCameraFun
+
+    self.Time = self:Find("Bg/Time"):GetComponent(typeof(Text))
+    self.NetType = self:Find("Bg/NetType"):GetComponent(typeof(Image))
+    self.BatteryCapacity = self:Find("Bg/BatteryCapacityBg/BatteryCapacity"):GetComponent(typeof(Image))
+
+    --------------------------------------------- 事件
+
+    ----------------- AOI修改回调
+
+    self.AoiPlayerExpFun = function(key, value)
+        self:UpdatePlayerExp(value)
+    end
+
+    self.AoiPlayerLevelFun = function(key, value)
+        self:SetLevel(value)
+    end
+
+    self.SceneMapLoadComplete = function(mapid)
+        self:OnSceneMapLoadComplete(mapid)
+    end
+    CS.StarProject.GlobalEvent.OnSceneMapConfigLoad:AddListener(self.SceneMapLoadComplete)
+    CS.StarProject.GlobalEvent.onSetRotateCamera:AddListener(self.SceneMapLoadComplete);
+
+    -- update事件
+    self.MinutesTimeUpdateListener = function()
+        self:MinutesTimeUpdate();
+    end
+
+end
+
+function PlayerInfoWidget2:Start()
+end
+
+function PlayerInfoWidget2:OnEnable()
+end
+
+function PlayerInfoWidget2:OnDisable()
+end
+
+function PlayerInfoWidget2:OnDestroy()
+    CS.StarProject.GlobalEvent.OnSceneMapConfigLoad:RemoveListener(self.SceneMapLoadComplete)
+    CS.StarProject.GlobalEvent.onSetRotateCamera:RemoveListener(self.SceneMapLoadComplete);
+    MonoHelper.RemoveMinutesTimeUpdateListener(self.MinutesTimeUpdateListener);
+end
+
+function PlayerInfoWidget2:OnOpen(arg)
+    self.M_EntityBase = arg
+    if self.M_EntityBase == nil then
+        Log("PlayerInfoWidget2:OnOpen() arg is nil error!!!")
+        return
+    end
+    MonoHelper.RemoveMinutesTimeUpdateListener(self.MinutesTimeUpdateListener);
+
+    self.m_LevelCur = self.M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Int,
+        CS.StarProjectDef.AOIAttrDefine.PlayerLevel)
+    self:SetLevel(self.m_LevelCur)
+    self.m_EXPSum = self:GetCurLevelExp()
+    self.m_EXPCur = self.M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Int,
+        CS.StarProjectDef.AOIAttrDefine.PlayerExp)
+    self:UpdatePlayerExp(self.m_EXPCur)
+    local uid = self.M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Ulong,
+        CS.StarProjectDef.AOIAttrDefine.UserID)
+    -- self.M_UidText.text = "UID:" .. tostring(uid);
+    self.M_UidText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_UID"), {uid})
+
+    self:OnSceneMapLoadComplete(0)
+
+    -- 绑定属性同步回调  START
+    self:InitAttribute()
+    -- 绑定属性同步回调----- END
+
+    self:SetDeviceInfo();
+    self:SetTimeInfo();
+
+    MonoHelper.AddMinutesTimeUpdateListener(self.MinutesTimeUpdateListener);
+end
+
+function PlayerInfoWidget2:OnClose(arg)
+    self:ReleaseInfo()
+end
+
+function PlayerInfoWidget2:InitAttribute()
+    -- self.M_EntityBase.Data:RegisterAttribute(CS.StarProjectDef.AOIAttrDefine.PlayerExp, self.AoiPlayerExpFun)
+    -- self.M_EntityBase.Data:RegisterAttribute(CS.StarProjectDef.AOIAttrDefine.PlayerLevel, self.AoiPlayerLevelFun)
+
+    self.M_EntityBase.Data:AddAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.PlayerExp, self.attrLuaKey, self.AoiPlayerExpFun);
+    self.M_EntityBase.Data:AddAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.PlayerLevel, self.attrLuaKey, self.AoiPlayerLevelFun);
+
+end
+
+function PlayerInfoWidget2:DelAttribute()
+    -- self.M_EntityBase.Data:UnRegisterAttribute(CS.StarProjectDef.AOIAttrDefine.PlayerExp, self.AoiPlayerExpFun)
+    -- self.M_EntityBase.Data:UnRegisterAttribute(CS.StarProjectDef.AOIAttrDefine.PlayerLevel, self.AoiPlayerLevelFun)
+
+    self.M_EntityBase.Data:DelAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.PlayerExp, self.attrLuaKey);
+    self.M_EntityBase.Data:DelAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.PlayerLevel, self.attrLuaKey);
+
+end
+
+function PlayerInfoWidget2:SetDeviceInfo()
+    local sdkDeviceInfo = SDKManager.Instance:GetDeviceInfo();
+    local battery_capacity = 100;
+    local net_type = "Wifi";
+    if sdkDeviceInfo ~= nil and sdkDeviceInfo ~= "" then
+        if sdkDeviceInfo.battery_capacity ~= nil and sdkDeviceInfo.battery_capacity ~= "" then
+            battery_capacity = sdkDeviceInfo.battery_capacity;
+        end
+        if battery_capacity == -100 then
+            battery_capacity = 100;
+        end
+
+        net_type = sdkDeviceInfo.net_type;
+        --Log("电量 获取="..battery_capacity);
+    end
+    self.BatteryCapacity.fillAmount = battery_capacity / 100;
+    --Log("电量2222 获取="..self.BatteryCapacity.fillAmount);
+
+    if self.m_net_type ~= net_type then
+        local path = "NetType_1";
+        if net_type ~= "Wifi" then
+            path = "NetType_2";
+        end
+        ResourceHelper:LoadIconByAtlasAsync(self.NetType, ResourceHelper.AtlasPathHud, path, false)
+        self.m_net_type = net_type;
+    end
+end
+
+function PlayerInfoWidget2:SetTimeInfo()
+    self.Time.text = TimeUtils.FormatShowTimeHM(0, ":");
+end
+
+---------------- [更新/设置] [属性变化] [START]------------
+
+function PlayerInfoWidget2:UpdatePlayerExp(value)
+    if self.M_EntityBase == nil or self.M_EntityBase.Data == nil then
+        return
+    end
+    self.m_EXPCur = value
+    -- if PlayerInfoWidget2.m_EXPCur > PlayerInfoWidget2.m_EXPSum then
+    -- PlayerInfoWidget2.m_EXPSum = PlayerInfoWidget2.m_MPCur;
+    -- end
+    self:SetExpUI()
+end
+
+function PlayerInfoWidget2:UpdatePlayerExpSum(value)
+    if self.M_EntityBase == nil or self.M_EntityBase.Data == nil then
+        return
+    end
+    self.m_EXPSum = value
+    -- if PlayerInfoWidget2.m_EXPCur > PlayerInfoWidget2.m_EXPSum then
+    -- PlayerInfoWidget2.m_EXPSum = PlayerInfoWidget2.m_MPCur;
+    -- end
+    self:SetExpUI()
+end
+
+function PlayerInfoWidget2:SetExpUI()
+    local ratio = 0
+    if self.m_EXPSum > 0 then
+        ratio = self.m_EXPCur / self.m_EXPSum
+        if ratio > 1 then
+            ratio = 1
+        end
+    end
+    self.M_ExpBar.fillAmount = ratio
+    self.M_ExpText.text = tostring(self.m_EXPCur) .. "/" .. tostring(self.m_EXPSum)
+end
+
+function PlayerInfoWidget2:GetCurLevelExp()
+    if self.m_LevelCur == 0 then
+        return 0
+    end
+    local cfg = ConfigDataAccessor.LevelExp[self.m_LevelCur]
+    if cfg ~= nil then
+        return cfg.Exp
+    end
+    return 0
+end
+
+function PlayerInfoWidget2:SetLevel(value)
+    if self.M_EntityBase == nil or self.M_EntityBase.Data == nil then
+        return
+    end
+    local isUpgrade = self.m_LevelCur ~= tonumber(value)
+    if isUpgrade then
+        self:UpgradeLevel(self.m_LevelCur, value)
+    end
+    self.m_LevelCur = tonumber(value)
+end
+
+function PlayerInfoWidget2:UpgradeLevel(lastLevel, curLevel)
+    local data = {
+        LastLevel = lastLevel,
+        CurLevel = curLevel
+    }
+    UIManager.Instance:OpenWidgetAsync(self.LevelUpgradeWidgetPath, nil, false, data)
+
+    -- UIManager.Instance:OpenWidget(self.LevelUpgradeWidgetPath, false, data, nil,
+    --     CS.StarProjectDef.MainPageCommond.HideNone, false, false)
+    local expSum = self:GetCurLevelExp()
+    self:UpdatePlayerExpSum(expSum)
+end
+
+---------------- [更新/设置] [属性变化] [END]------------
+
+----------------------------------------------------- 按钮点击事件 【STAR】 ------------------------------------------
+function PlayerInfoWidget2:OnClickRotateCameraJBtn()
+    if GameManager.Instance:GetMapIsCameraRotate() then
+        self.m_IsCanRotateCamera = not self.m_IsCanRotateCamera
+        GameManager.Instance:SetRotateCameraState(self.m_IsCanRotateCamera)
+        self.CanRotate:SetActive(self.m_IsCanRotateCamera)
+        self.NoRotate:SetActive(not self.m_IsCanRotateCamera)
+    end
+end
+----------------------------------------------------- 按钮点击事件 【END】 ------------------------------------------
+
+function PlayerInfoWidget2:OnSceneMapLoadComplete(mapid)
+    self.m_IsCanRotateCamera = GameManager.Instance:GetIsCanRotateCamera()
+    self.CanRotate:SetActive(self.m_IsCanRotateCamera)
+    self.NoRotate:SetActive(not self.m_IsCanRotateCamera)
+end
+
+function PlayerInfoWidget2:MinutesTimeUpdate()
+    self:SetTimeInfo();
+    self:SetDeviceInfo();
+end
+
+function PlayerInfoWidget2:ReleaseInfo()
+    if self.M_EntityBase ~= nil and self.M_EntityBase.Data ~= nil then
+        -- 解绑属性同步回调
+        self:DelAttribute()
+    end
+    MonoHelper.RemoveMinutesTimeUpdateListener(self.MinutesTimeUpdateListener);
+end
+
+return PlayerInfoWidget2

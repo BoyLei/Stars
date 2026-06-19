@@ -1,0 +1,1599 @@
+--[[
+*文件名   :   FriendModule
+*内  容   :
+*说  明   :	  好友模块
+*创建日期 :   ""
+*创建人   :   ""
+*版权所有 :   游卡网络科技技术有限公司
+]] FriendModule = class("FriendModule", BaseLuaModule);
+
+local FriendWindowPath = "Friends/Prefab/FriendWindow"; -- 好友界面
+local FriendApplyListWidgetPath = "Friends/Prefab/FriendApplyListWidget"; -- 好友申请列表挂件
+local FriendTipsWidgetPath = "Friends/Prefab/FriendTipsWidget"; -- 打开好友Tips
+
+
+FriendModule.mainPlayerPID = 0;
+
+-------------- key:监听的回调key
+-------------- MsgName:监听的协议名
+-------------- CB:回调方法
+-------------- Count:监听次数
+FriendModule.Client2ThirdReqList = {}; -- 监听协议的回复列表
+
+FriendModule.m_ApplyFriends = {}; -- 申请好友列表
+FriendModule.m_ApplyFriendsRead = {}; -- 申请好友列表已读的
+FriendModule.FriendList = {}; -- 好友列表
+FriendModule.BlackList = {}; -- 黑名单列表
+FriendModule.ApplyFinishPIDList = {}; -- 缓存已经申请过的PID
+
+FriendModule.m_CacheRecentlyPIDList = nil;
+FriendModule.m_CacheAllPrivateChatMsgs = {};
+FriendModule.m_UnreadFriendChatRedPoint = {};
+FriendModule.selectPlayerId = 0;
+
+FriendModule.m_CfgInterval = 10; -- 定时器时间秒
+FriendModule.m_Countdown = 10; -- 好友定时加载的藐视
+
+------------------ui异步加载回调----------------------------
+FriendModule.AsyncLoadFriendApplyListWidgetCb = nil;
+FriendModule.AsyncLoadFriendWindowCb = nil;
+
+----------------------------------------------
+
+-- LuaModule 消息模块
+FriendModule.ModuleMessages = {
+    ["OnDisable"] = function(...)
+        FriendModule:OnDisable(...);
+    end,
+    -- 发送中转协议
+    ["OnSendClient2ThirdReq"] = function(...)
+        FriendModule:OnSendClient2ThirdReq(...);
+    end,
+
+    -- 打开好友界面
+    ["OnOpenFriendWindow"] = function(...)
+        FriendModule:OnOpenFriendWindow(...);
+    end,
+
+    -- 添加好友缓存
+    ["OnAddFriendListByPID"] = function(...)
+        FriendModule:OnAddFriendListByPID(...);
+    end,
+
+    -- 删除好友缓存
+    ["OnDelFriendListByPID"] = function(...)
+        FriendModule:OnDelFriendListByPID(...);
+    end,
+
+    -- 删除黑名单缓存
+    ["OnDelBlackListByPID"] = function(...)
+        FriendModule:OnDelBlackListByPID(...);
+    end,
+
+    -- 添加黑名单缓存
+    ["OnAddBlackListByPID"] = function(...)
+        FriendModule:OnAddBlackListByPID(...);
+    end,
+
+    -- 删除本地申请好友列表
+    ["OnDelApplyListByPID"] = function(...)
+        FriendModule:OnDelApplyListByPID(...);
+    end,
+
+    -- 发起聊天
+    ["OnInitiateChat"] = function(...)
+        FriendModule:OnInitiateChat(...);
+    end,
+
+    ----------------------------------------- 发送协议
+    -- 发送 对好友申请响应（同意或拒绝）
+    ["OnSendRespondFriendApply"] = function(...)
+        FriendModule:OnSendRespondFriendApply(...);
+    end,
+    -- 发送 删除好友
+    ["OnSendDeleteFriendReq"] = function(...)
+        FriendModule:OnSendDeleteFriendReq(...);
+    end,
+    -- 发送 加入黑名单好友
+    ["OnSendAddBlackReq"] = function(...)
+        FriendModule:OnSendAddBlackReq(...);
+    end,
+    -- 发送 移出黑名单
+    ["OnSendRemoveBlackReq"] = function(...)
+        FriendModule:OnSendRemoveBlackReq(...);
+    end,
+    -- 发送 申请加好友
+    ["OnSendApplyToAddFriendReq"] = function(...)
+        FriendModule:OnSendApplyToAddFriendReq(...);
+    end,
+    ----------------------------------------- 发送协议
+
+    ["OnInput2Channel"] = function(...)
+        FriendModule:SyncInput2Channel(...);
+    end,
+
+    ["OnSyncMsgData"] = function(...)
+        FriendModule:OnSyncMsgData(...);
+    end,
+
+    ["SendDataByChatInput"] = function(...)
+        FriendModule:SendDataByChatInput(...);
+    end,
+    
+    -- 打开好友申请列表
+    ["OnOpenFriendApplyListWidget"] = function(...)
+        FriendModule:OnOpenFriendApplyListWidget(...);
+    end,
+
+    -- 打开好友Tips
+    ["OnOpenFriendTipsWidget"] = function(...)
+        FriendModule:OnOpenFriendTipsWidget(...);
+    end,
+    
+    ["OnOtherOpenFriendTipsWidget"] = function(...)
+        FriendModule:OnOtherOpenFriendTipsWidget(...);
+    end,
+
+    ---------好友数据缓存
+
+    -- 缓存已读的好友申请列表
+    ["CacheReadApplyList"] = function(...)
+        FriendModule:CacheReadApplyList(...);
+    end,
+
+    --- 缓存好友列表
+    ["CacheFriendList"] = function(...)
+        FriendModule:CacheFriendList(...);
+    end,
+
+    --- 缓存黑名单列表
+    ["CacheBlackList"] = function(...)
+        FriendModule:CacheBlackList(...);
+    end,
+
+    --- 缓存已经申请过的PID
+    ["AddFriendApplyListByPID"] = function(...)
+        FriendModule:AddFriendApplyListByPID(...);
+    end,
+
+    --- 清除好友列表
+    ["ClearApplyList"] = function(...)
+        FriendModule:ClearApplyList(...);
+    end,
+
+    ["OnSetRecentlyPid"] = function(...)
+        FriendModule:OnSetRecentlyPid(...);
+    end
+
+}
+
+-- LuaModule 创建
+function FriendModule:OnModuleCreate(arg)
+    --------------------------------  【监听协议】 -------------------------------------
+    self.OnClient2ThirdRetCmd = function(msgName, data)
+        self:OnClient2ThirdRet(msgName, data)
+    end
+    Client2ThirdMsgManager.Instance:OnMessageEnum(CS.MsgIDEnum.Client2ThirdRetID, self.OnClient2ThirdRetCmd, self);
+
+    --------------------------------  【注册模块的事件】 -------------------------------------
+    LuaModuleDispatcher:Register(ModuleDef.FriendModule, self);
+
+    --------------------------------  【注册模块的事件】 -------------------------------------
+    -- update事件
+    self.UpdateFun = function()
+        self:UpdateData();
+    end
+
+    ------------------------------- 【初始化模块的本地变量】----------------------
+    self.Client2ThirdReqList = {};
+
+    --------------- 好友申请
+    self.m_Countdown = self.m_CfgInterval
+    self.m_ApplyFriends = {};
+    self.m_ApplyFriendsRead = {}
+    self.FriendList = {}
+    self.BlackList = {}
+    self.ApplyFinishPIDList = {}
+    self.selectPlayerId = 0;
+    -- 全量数据回调
+    self.OnFullFriendsApplyToRespFun = function(data)
+        self:OnFullFriendsApplyToResp(data);
+    end
+    -- 差量数据回调
+    self.OnDispersionFriendsApplyToRespFun = function(data)
+        self:OnDispersionFriendsApplyToResp(data);
+    end
+
+    -- 获取黑名单列表的回调
+    self.OnGetPageBlacksRespFun = function(data)
+        self:OnGetPageBlacksResp(data);
+    end
+    self.OnGetPageBlacksResp2Fun = function(data)
+        self:OnGetPageBlacksResp2(data);
+    end
+    --------------- 好友申请
+    	-- 申请加好友 事件
+	self.OnApplyToAddFriendRespFun = function(data)
+		self:OnApplyToAddFriendResp(data);
+	end
+end
+
+-- LuaModule 释放
+function FriendModule:OnModuleRelease()
+    --------------------------------  【监听协议】 -------------------------------------
+    Client2ThirdMsgManager.Instance:OffMessageEnum(CS.MsgIDEnum.Client2ThirdRetID, self.OnClient2ThirdRetCmd, nil);
+    --------------------------------  【注册模块的事件】 -------------------------------------
+    LuaModuleDispatcher:UnRegister(ModuleDef.FriendModule);
+
+    ------------------------------- 【初始化模块的本地变量】----------------------
+    self.Client2ThirdReqList = {};
+end
+
+-- LuaModule显示
+function FriendModule:OnModuleShow(arg)
+    self.m_ApplyFriends = {};
+    self.m_ApplyFriendsRead = {}
+    self.mainPlayerPID = BusinessManager.Instance:GetUserPID();
+
+    MonoHelper.RemoveUpdateListener(self.UpdateFun);
+    self:GetFriendsApplyList();
+    self:GetPageBlacksList();
+    self:GetCacheRecentlyPIDList();
+    
+    MonoHelper.AddUpdateListener(self.UpdateFun);
+end
+
+--
+function FriendModule:OnDisable(...)
+    self.m_CacheRecentlyPIDList = nil;
+    self.m_CacheAllPrivateChatMsgs = {};
+    self.m_UnreadFriendChatRedPoint = {};
+    self.selectPlayerId = 0;
+    self.mainPlayerPID = 0;
+    self:ClearAllFriendChatRedPoint();
+    MonoHelper.RemoveUpdateListener(self.UpdateFun);
+end
+
+-- LuaModule 消息处理
+function FriendModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...);
+end
+
+--------------------------------------- 【↓↓↓↓↓协议回复↓↓↓↓↓】 --------------------------------
+-- 第三方回复客户端
+function FriendModule:OnClient2ThirdRet(msgName, data)
+    -- 判断有无监听
+    local isHave = self:GetIsHaveCacheListenByMsgName(msgName);
+    if not isHave then
+        Log("FriendModule:OnClient2ThirdRet() msg=" .. msgName .. "<-这个协议名，我居然没有监听 err!!!");
+        return;
+    end
+    -- Log("收到 第三方回复客户端 协议 =》" .. msgName);
+    -- 执行回调
+    for i, v in ipairs(self.Client2ThirdReqList) do
+        -- if v ~= nil and v.MsgName == msgName and v.Count > 0 then
+        -- v.CB(data);	-- 执行回调
+        -- v.Count = v.Count - 1;
+        -- end
+        if v ~= nil and v.MsgName == msgName and v.CB ~= nil then
+            v.CB(data); -- 执行回调
+            v.CB = nil;
+        end
+    end
+end
+
+--------------------------------------- 【↑↑↑↑↑协议回复↑↑↑↑↑】 --------------------------------
+
+--------------------------------------- 【↓↓↓↓↓模块事件↓↓↓↓↓】 --------------------------------
+
+-- 发送协议
+--- 协议名、协议参数信息、协议的回复key、协议回复要监听的协议名、协议的回复执行回调
+function FriendModule:OnSendClient2ThirdReq(...)
+    local tb = ...
+
+    local msgName = nil; -- 协议名
+    local data = nil; -- 协议参数信息
+    local key = nil; -- 协议的回复key
+    local revertMsgName = nil; -- 协议回复要监听的协议名
+    local cb = nil; -- 协议的回复执行回调
+
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        msgName = tb[1]; -- 协议名
+        data = tb[2]; -- 协议参数信息
+        key = tb[3]; -- 协议的回复key
+        revertMsgName = tb[4]; -- 协议回复要监听的协议名
+        cb = tb[5]; -- 协议的回复执行回调
+    else
+        -- C#调用
+        msgName = tb[0]; -- 协议名
+        data = tb[1]; -- 协议参数信息
+        key = tb[2]; -- 协议的回复key
+        revertMsgName = tb[3]; -- 协议回复要监听的协议名
+        cb = tb[4]; -- 协议的回复执行回调
+    end
+
+    self:SendClient2ThirdReq(msgName, data, key, revertMsgName, cb);
+end
+
+-- 发送 对好友申请响应（同意或拒绝）
+function FriendModule:OnSendRespondFriendApply(...)
+    local tb = ...
+    local pids = {};
+    local res = -2;
+    local key = "";
+    local cb = nil;
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        pids = tb[1];
+        res = tb[2];
+        key = tb[3];
+        cb = tb[4];
+    else
+        -- C#调用
+        pids = tb[0];
+        res = tb[1];
+        key = tb[2];
+        cb = tb[3];
+    end
+
+    local message = CS.ProtoMsg.RespondFriendApplyReq();
+    message.ToUserPID = self.mainPlayerPID;
+    for i = 1, #pids do
+        local pid = pids[i];
+        message.FromUserPID:Add(pid);
+    end
+    message.HandleResult = res;
+
+    local msgName = "RespondFriendApplyReq";
+    local data = ExtraData.ToByteString(message);
+    local revertMsgName = "RespondFriendApplyResp";
+
+    self:SendClient2ThirdReq(msgName, data, key, revertMsgName, cb);
+end
+
+-- 发送 删除好友
+function FriendModule:OnSendDeleteFriendReq(...)
+    local tb = ...
+
+    local pid = 0;
+    local key = "";
+    local cb = nil;
+
+    if type(tb) == "table" then
+        -- Lua调用
+        pid = tb[1];
+        key = tb[2];
+        cb = tb[3];
+    else
+        -- C#调用
+        pid = tb[0];
+        key = tb[1];
+        cb = tb[2];
+    end
+
+    local message = CS.ProtoMsg.DeleteFriendReq();
+    message.OwnerUserPID = self.mainPlayerPID;
+    message.FriendUserPID = pid;
+
+    local msgName = "DeleteFriendReq";
+    local data = ExtraData.ToByteString(message);
+    local revertMsgName = "DeleteFriendResp";
+
+    self:SendClient2ThirdReq(msgName, data, key, revertMsgName, cb);
+end
+
+-- 发送 加入黑名单好友
+function FriendModule:OnSendAddBlackReq(...)
+    local tb = ...
+
+    local pid = 0;
+    local key = "";
+    local cb = nil;
+
+    if type(tb) == "table" then
+        -- Lua调用
+        pid = tb[1];
+        key = tb[2];
+        cb = tb[3];
+    else
+        -- C#调用
+        pid = tb[0];
+        key = tb[1];
+        cb = tb[2];
+    end
+
+    local message = CS.ProtoMsg.AddBlackReq();
+    message.OwnerUserPID = self.mainPlayerPID;
+    message.BlackUserPID = pid;
+
+    local msgName = "AddBlackReq";
+    local data = ExtraData.ToByteString(message);
+    local revertMsgName = "AddBlackResp";
+
+    self:SendClient2ThirdReq(msgName, data, key, revertMsgName, cb);
+end
+
+-- 发送 移出黑名单
+function FriendModule:OnSendRemoveBlackReq(...)
+    local tb = ...
+
+    local pid = 0;
+    local key = "";
+    local cb = nil;
+
+    if type(tb) == "table" then
+        -- Lua调用
+        pid = tb[1];
+        key = tb[2];
+        cb = tb[3];
+    else
+        -- C#调用
+        pid = tb[0];
+        key = tb[1];
+        cb = tb[2];
+    end
+
+    local message = CS.ProtoMsg.RemoveBlackReq();
+    message.OwnerUserPID = self.mainPlayerPID;
+    message.BlackUserPID = pid;
+
+    local msgName = "RemoveBlackReq";
+    local data = ExtraData.ToByteString(message);
+    local revertMsgName = "RemoveBlackResp";
+
+    self:SendClient2ThirdReq(msgName, data, key, revertMsgName, cb);
+end
+
+-- 发送 申请加好友
+function FriendModule:OnSendApplyToAddFriendReq(...)
+    local tb = ...
+
+    local pids = {};
+    local key = "";
+    local cb = nil;
+
+    if type(tb) == "table" then
+        -- Lua调用
+        pids = tb[1];
+        key = tb[2];
+        cb = tb[3];
+    else
+        -- C#调用
+        pids = tb[0];
+        key = tb[1];
+        cb = tb[2];
+    end
+
+    local message = CS.ProtoMsg.ApplyToAddFriendReq();
+    message.FromUserPID = self.mainPlayerPID;
+    for i = 1, #pids do
+        local pid = pids[i];
+        message.ToUserPID:Add(pid);
+    end
+    local msgName = "ApplyToAddFriendReq";
+    local data = ExtraData.ToByteString(message);
+    local revertMsgName = "ApplyToAddFriendResp";
+
+    self:SendClient2ThirdReq(msgName, data, key, revertMsgName, cb);
+
+    --  成功发送好友申请的时候，通知一下lobby，我这边监听下
+    -- FriendApplyClientNtf
+    local friendApplyClientNtf = CS.ProtoMsg.FriendApplyClientNtf();
+    friendApplyClientNtf.Num = #pids;
+    NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, friendApplyClientNtf, false)
+
+end
+
+-- 添加好友缓存
+function FriendModule:OnAddFriendListByPID(...)
+    local tb = ...
+
+    local pid = 0;
+    local userName = "";
+    local modelID = 0;
+    local level = 0;
+    local guildName = "";
+    local jobID = 0;
+
+    if type(tb) == "table" then
+        -- Lua调用
+        pid = tb[1];
+        userName = tb[2];
+        modelID = tb[3];
+        level = tb[4];
+        guildName = tb[5];
+        jobID = tb[6];
+    else
+        -- C#调用
+        pid = tb[0];
+        userName = tb[1];
+        modelID = tb[2];
+        level = tb[3];
+        guildName = tb[4];
+        jobID = tb[5];
+    end
+
+    if pid ~= 0 then
+        self:AddFriendByPID(pid, userName, modelID, level, guildName, jobID);
+    end
+end
+
+-- 删除好友缓存
+function FriendModule:OnDelFriendListByPID(...)
+    local tb = ...
+
+    local pid = 0;
+
+    if type(tb) == "table" then
+        -- Lua调用
+        pid = tb[1];
+    else
+        -- C#调用
+        pid = tb[0];
+    end
+
+    if pid ~= 0 then
+        self:DelFriendByPID(pid);
+    end
+end
+
+-- 删除黑名单缓存
+function FriendModule:OnDelBlackListByPID(...)
+    local tb = ...
+    local pid = 0;
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        pid = tb[1];
+    else
+        -- C#调用
+        pid = tb[0];
+    end
+
+    if pid ~= 0 then
+        self:DelBlackListByPID(pid);
+    end
+end
+
+-- 添加黑名单缓存
+function FriendModule:OnAddBlackListByPID(...)
+    local tb = ...
+    local pid = 0;
+    local JobID = 0;
+    local Level = 0;
+    local UserName = "";
+    local GuildName = "";
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        pid = tb[1];
+        JobID = tb[2];
+        Level = tb[3];
+        UserName = tb[4];
+        GuildName = tb[5];
+    else
+        -- C#调用
+        pid = tb[0];
+        JobID = tb[1];
+        Level = tb[2];
+        UserName = tb[3];
+        GuildName = tb[4];
+    end
+
+    if pid ~= 0 then
+        self:AddBlackListByPID(pid, JobID, Level, UserName, GuildName);
+    end
+end
+
+-- 发起聊天
+function FriendModule:OnInitiateChat(...)
+    local tb = ...
+    local pid = 0;
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        pid = tb[1];
+    else
+        -- C#调用
+        pid = tb[0];
+    end
+
+    if self.FriendWindow ~= nil and pid ~= 0 then
+        self.FriendWindow:InitiateChat(pid);
+    end
+end
+
+-- 删除本地缓存的申请列表pid
+function FriendModule:OnDelApplyListByPID(...)
+    local tb = ...
+    local pid = 0;
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        pid = tb[1];
+    else
+        -- C#调用
+        pid = tb[0];
+    end
+
+    if pid ~= 0 then
+        self:DelApplyListByPID(pid);
+    end
+end
+
+function FriendModule:SyncInput2Channel(...)
+    local tb = ...
+    local ip = nil;
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        ip = tb[1];
+    else
+        -- C#调用
+        ip = tb[0];
+    end
+    if self.FriendWindow ~= nil then
+        self.FriendWindow:SyncInput(ip);
+    end
+end
+
+function FriendModule:SendDataByChatInput(...)
+    local tb = ...
+    local ip = nil;
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        ip = tb[1];
+    else
+        -- C#调用
+        ip = tb[0];
+    end
+    if self.FriendWindow ~= nil then
+        self.FriendWindow:SendDataByChatInput(ip);
+    end
+end
+
+function FriendModule:OnSyncMsgData(...)
+    local tb = ...
+    local msgDatas = nil;
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        msgDatas = tb[1];
+    else
+        -- C#调用
+        msgDatas = tb[0];
+    end
+    local curChatList = {};
+    if msgDatas ~= nil and msgDatas ~= {} and #msgDatas > 0 then
+        local isSavePid = false;
+        if self.m_CacheRecentlyPIDList == nil then
+            self:GetCacheRecentlyPIDList();
+        end
+        for k, v in pairs(msgDatas) do
+            if v ~= nil then
+                local isContains = self.m_CacheRecentlyPIDList:Contains(v.PID);
+                if isContains == false then
+                    self:SetRecentlyPid(v.PID, false, false);
+					self:SetRecentlyPid(v.AcceptPID, false, false);
+                    isSavePid = true;
+                end
+
+                self:CacheFriendChatRecords(v);
+                self:CacheFriendChatRedPointRecords(v);
+                
+                local pid = v.AcceptPID;
+                if pid == self.mainPlayerPID then
+                    pid = v.PID;
+                end
+                if curChatList[pid] == nil then
+                    curChatList[pid] = {};
+                end
+                table.insert(curChatList[pid], v);
+            end
+        end
+        if isSavePid then
+            self:CacheRecentlyPIDList();
+        end
+    end
+    if self.FriendWindow ~= nil then
+        self.FriendWindow:OnSyncMsgData(curChatList);
+    end
+    RedPointManager.Instance:RefreshRedPointCount(RedPointType.FriendNotice, self:GetAllFriendChatRedPointCount());
+end
+
+
+------------------------- 好友聊天记录
+
+function FriendModule:CacheFriendChatRecords(msgData)
+    if self.m_CacheAllPrivateChatMsgs == nil then
+        self.m_CacheAllPrivateChatMsgs = {};
+    end
+    local pid = msgData.AcceptPID;
+    if pid == self.mainPlayerPID then
+        pid = msgData.PID;
+    end
+    if self.m_CacheAllPrivateChatMsgs[pid] == nil then
+        self.m_CacheAllPrivateChatMsgs[pid] = {};
+    end
+    table.insert(self.m_CacheAllPrivateChatMsgs[pid], msgData);
+end
+
+------------------------- 好友聊天记录
+
+---------------------------------- 好友聊天记录红点
+
+function FriendModule:CacheFriendChatRedPointRecords(msgData)
+    if self.m_UnreadFriendChatRedPoint == nil then
+        self.m_UnreadFriendChatRedPoint = {};
+    end
+    if msgData.PID == self.mainPlayerPID then
+        return;
+    end
+	local pid = msgData.AcceptPID;
+	if pid == self.mainPlayerPID then
+		pid = msgData.PID;
+	end
+    if self.m_UnreadFriendChatRedPoint[pid] == nil then
+        self.m_UnreadFriendChatRedPoint[pid] = 1;
+    else
+        local count = self.m_UnreadFriendChatRedPoint[pid];
+        self.m_UnreadFriendChatRedPoint[pid] = count + 1;
+    end
+end
+
+function FriendModule:GetAllFriendChatRedPointCount()
+    if self.m_UnreadFriendChatRedPoint == nil or self.m_UnreadFriendChatRedPoint == {} then
+        return 0;
+    end
+    local count = 0;
+    for k, v in pairs(self.m_UnreadFriendChatRedPoint) do
+        count = count + v;
+    end
+    return count;
+end
+
+function FriendModule:GetFriendChatRedPointCountByPid(pid)
+    if self.m_UnreadFriendChatRedPoint == nil then
+        return 0;
+    end
+    if self.m_UnreadFriendChatRedPoint[pid] == nil then
+        return 0;
+    else
+        local count = self.m_UnreadFriendChatRedPoint[pid];
+        return count;
+    end
+end
+
+function FriendModule:ClearFriendChatRedPointCountByPid(pid)
+    if self.m_UnreadFriendChatRedPoint == nil then
+        return;
+    end
+	self.m_UnreadFriendChatRedPoint[pid] = 0;
+    RedPointManager.Instance:RefreshRedPointCount(RedPointType.FriendNotice, self:GetAllFriendChatRedPointCount());
+end
+
+function FriendModule:ClearAllFriendChatRedPoint()
+    self.m_UnreadFriendChatRedPoint = {};
+    RedPointManager.Instance:RefreshRedPointCount(RedPointType.FriendNotice, self:GetAllFriendChatRedPointCount());
+end
+
+--------------------------------- 好友聊天记录红点
+
+---------------------- 最近发起的好友聊天PID
+
+function FriendModule:GetCacheRecentlyPIDList()
+    local key = E_FriendLocalCacheKey.RecentlyPIDs .. self.mainPlayerPID;
+    self.m_CacheRecentlyPIDList = SaveManager.Instance:Load(key, "FriendModule", "data");
+end
+
+function FriendModule:CacheRecentlyPIDList()
+    local key = E_FriendLocalCacheKey.RecentlyPIDs .. self.mainPlayerPID;
+    SaveManager.Instance:Save(key, self.m_CacheRecentlyPIDList, "FriendModule", "data");
+end
+
+function FriendModule:OnSetRecentlyPid(...)
+    local tb = ...;
+    local pid = 0;
+    local isDel = false;
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        pid = tb[1];
+        isDel = tb[2];
+    else
+        -- C#调用
+        pid = tb[0];
+        isDel = tb[1];
+    end
+    self:SetRecentlyPid(pid, isDel, true);
+end
+
+function FriendModule:SetRecentlyPid(pid, isDel, isSave)
+    if isDel then
+        if self.m_CacheRecentlyPIDList ~= nil and self.m_CacheRecentlyPIDList.Count > 0 then
+            local isRemove = self.m_CacheRecentlyPIDList:Remove(pid);
+            if isRemove and isSave then
+                self:CacheRecentlyPIDList();
+            end
+        end
+    else
+        if pid ~= self.mainPlayerPID then
+            local isContains = self.m_CacheRecentlyPIDList:Contains(pid);
+            if isContains == false then
+                self.m_CacheRecentlyPIDList:Add(pid);
+                if isSave then
+                    self:CacheRecentlyPIDList();
+                end
+            end
+        end
+    end
+end
+
+---------------------- 最近发起的好友聊天PID
+
+
+--------------------------------------- 【↑↑↑↑↑模块事件↑↑↑↑↑】 --------------------------------
+
+--------------------------------------- 【↓↓↓↓↓ 好友数据缓存 ↓↓↓↓↓】 -------------------------------
+
+-- 判断与该玩家PID的关系
+------ 判断是否好友关系和在不在双方黑名单中
+-------- 0没有任何关系 1只有好友关系 2在我的黑名单中
+function FriendModule:GetFriendRelation(PID)
+    local isFriend = false;
+    local isBlack = false;
+    local res = 0;
+    -- 判断是否好友
+    if self.FriendList ~= nil and self.FriendList ~= {} and #self.FriendList > 0 then
+        for i = 1, #self.FriendList do
+            local friendInfo = self.FriendList[i];
+            if friendInfo ~= nil and friendInfo.FriendUser.PID == PID then
+                isFriend = true;
+                break
+            end
+        end
+    end
+
+    -- 判断是否在黑名单中
+    if self.BlackList ~= nil and self.BlackList ~= {} and #self.BlackList > 0 then
+        for i = 1, #self.BlackList do
+            local blackInfo = self.BlackList[i];
+            if blackInfo ~= nil and blackInfo.BlackUserInfo.UserPID == PID then
+                isBlack = true;
+                break
+            end
+        end
+    end
+
+    if isBlack then
+        res = 2;
+    elseif isFriend and isBlack == false then
+        res = 1;
+    else
+        res = 0;
+    end
+    return res;
+end
+
+---------------------- 好友列表
+
+function FriendModule:CacheFriendList(...)
+    local tb = ...
+    local list = {};
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        list = tb[1];
+    else
+        -- C#调用
+        list = tb[0];
+    end
+    self.FriendList = list;
+end
+
+-- 添加好友
+function FriendModule:AddFriendByPID(pid, userName, modelID, level, guildName, jobID)
+    local index = self:GetFriendListIndexByPID(pid);
+    if index ~= -1 then
+        return;
+    end
+    local friendUser = {
+        PID = pid,
+        EID = 0,
+        UserName = userName,
+        ModelID = modelID,
+        Level = level,
+        IsOnline = false,
+        LogOutTime = TimeUtils.GetServerTimeNow(),
+        GuildID = 0,
+        GuildName = guildName,
+        JobID = jobID,
+        ServerID = 1
+    };
+    local FriendInfo = {
+        ID = 99,
+        CreateTime = TimeUtils.GetServerTimeNow(),
+        FriendUser = friendUser
+    };
+    table.insert(self.FriendList, FriendInfo);
+    LuaModuleDispatcher:SendMessage(ModuleDef.ChatModule, "OnSyncCurrentSelect", {pid});
+    self:DelApplyListByPID(pid);
+end
+
+-- 删除好友
+function FriendModule:DelFriendByPID(PID)
+    local index = self:GetFriendListIndexByPID(PID);
+    if index == -1 then
+        return;
+    end
+    table.remove(self.FriendList, index);
+end
+
+-- 获取在好友列表中的下标
+function FriendModule:GetFriendListIndexByPID(PID)
+    if self.FriendList == nil or self.FriendList == {} or #self.FriendList <= 0 then
+        return -1;
+    end
+    for i = 1, #self.FriendList do
+        local item = self.FriendList[i];
+        if item ~= nil and item.FriendUser.PID == PID then
+            return i;
+        end
+    end
+    return -1;
+end
+
+---------------------- 黑名单列表
+
+function FriendModule:CacheBlackList(...)
+    local tb = ...
+    local list = {};
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        list = tb[1];
+    else
+        -- C#调用
+        list = tb[0];
+    end
+    self.BlackList = list;
+end
+
+-- 添加黑名单
+function FriendModule:AddBlackListByPID(PID, JobID, Level, UserName, GuildName)
+    local BlackInfo = {
+        OwnerUserPID = self.mainPlayerPID,
+        CreateTime = TimeUtils.GetServerTimeNow(),
+        BlackUserInfo = nil
+    };
+    local blackUserInfo = {
+        UserPID = PID,
+        JobID = JobID,
+        Level = Level,
+        UserName = UserName,
+        GuildName = GuildName
+    };
+    BlackInfo.BlackUserInfo = blackUserInfo;
+
+    table.insert(self.BlackList, BlackInfo);
+
+    self:DelApplyListByPID(PID);
+end
+
+-- 删除黑名单
+function FriendModule:DelBlackListByPID(PID)
+    local index = self:GetBlackListIndexByPID(PID);
+    if index == -1 then
+        return;
+    end
+    table.remove(self.BlackList, index);
+end
+
+-- 获取在黑名单列表中的下标
+function FriendModule:GetBlackListIndexByPID(PID)
+    if self.BlackList == nil or self.BlackList == {} or #self.BlackList <= 0 then
+        return -1;
+    end
+    for i = 1, #self.BlackList do
+        local item = self.BlackList[i];
+        if item ~= nil and item.BlackUserInfo.UserPID == PID then
+            return i;
+        end
+    end
+    return -1;
+end
+
+---------------------- 申请完成Pid列表
+
+function FriendModule:CacheApplyFinishPIDList(list)
+    self.ApplyFinishPIDList = list;
+end
+
+-- 清空申请列表
+function FriendModule:ClearApplyList(...)
+    self.ApplyFinishPIDList = {};
+end
+
+-- 本地缓存的申请列表pid
+function FriendModule:AddFriendApplyListByPID(...)
+    local tb = ...
+    local PID = 0;
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        PID = tb[1];
+    else
+        -- C#调用
+        PID = tb[0];
+    end
+    if PID == 0 then
+        return
+    end
+    for i = 1, #self.ApplyFinishPIDList do
+        local item = self.ApplyFinishPIDList[i];
+        if item == PID then
+            return; -- 已经有缓存了
+        end
+    end
+
+    table.insert(self.ApplyFinishPIDList, PID);
+end
+
+-- 删除本地缓存的申请列表pid
+function FriendModule:DelApplyListByPID(PID)
+    if self.ApplyFinishPIDList == nil or self.ApplyFinishPIDList == {} or #self.ApplyFinishPIDList <= 0 then
+        return;
+    end
+    for i = 1, #self.ApplyFinishPIDList do
+        local item = self.ApplyFinishPIDList[i];
+        if item == PID then
+            table.remove(self.ApplyFinishPIDList, i);
+            return;
+        end
+    end
+end
+
+-- 获取缓存列表有无pid
+function FriendModule:GetIsHasCacheApplyFinishPIDListByPID(PID)
+    if self.ApplyFinishPIDList == nil or self.ApplyFinishPIDList == {} or #self.ApplyFinishPIDList <= 0 then
+        return false;
+    end
+    for i = 1, #self.ApplyFinishPIDList do
+        local item = self.ApplyFinishPIDList[i];
+        if item == PID then
+            return true;
+        end
+    end
+    return false;
+end
+
+--------------------------------------- 【↑↑↑↑↑ 好友数据缓存 ↑↑↑↑↑】 --------------------------------
+
+--------------------------------------- 【↓↓↓↓↓界面操作↓↓↓↓↓】 -------------------------------
+-- 打开好友界面
+function FriendModule:OnOpenFriendWindow(...)
+    self.AsyncLoadFriendWindowCb = function(ui)
+        if ui ~= nil then
+            if self.FriendWindow == nil then
+                self.FriendWindow = ui:GetLuaPanel().ScriptTable;
+                self.FriendWindow:BindModule(self)
+            end
+            self.FriendWindow:InitData()
+        end
+        self.AsyncLoadFriendWindowCb = nil;
+    end
+    UIManager.Instance:OpenWindowAsync(FriendWindowPath, self.AsyncLoadFriendWindowCb, nil,
+        CS.StarProjectDef.MainPageCommond.HideBoth);
+
+    -- local friendWindow = UIManager.Instance:OpenWindow(FriendWindowPath, nil, CS.StarProjectDef.MainPageCommond
+    -- 	.HideBoth, false);
+    -- if self.FriendWindow == nil then
+    -- 	self.FriendWindow = friendWindow:GetLuaPanel().ScriptTable;
+    -- 	self.FriendWindow:BindModule(self)
+    -- end
+end
+
+-- 刷新黑名单面板的列表
+function FriendModule:RefreshBlackList()
+    if self.FriendWindow ~= nil and self.FriendWindow.IsOpen then
+        self.FriendWindow:RefreshBlackList(self.BlackList);
+    end
+end
+
+-- 关闭好友界面
+function FriendModule:CloseFriendWindow()
+    if self.FriendWindow ~= nil and self.FriendWindow.IsOpen then
+        self.FriendWindow.Close();
+    end
+end
+
+-- 打开好友申请列表挂件
+function FriendModule:OnOpenFriendApplyListWidget(...)
+    self.AsyncLoadFriendApplyListWidgetCb = function(ui)
+        if ui ~= nil then
+            if self.FriendApplyListWidget == nil then
+                self.FriendApplyListWidget = ui:GetLuaPanel().ScriptTable;
+                self.FriendApplyListWidget:BindModule(self);
+            end
+            self.FriendApplyListWidget:RefreshData(self.m_ApplyFriends, self.m_ApplyFriendsRead);
+        end
+        self.AsyncLoadFriendApplyListWidgetCb = nil;
+    end
+
+    UIManager.Instance:OpenWidgetAsync(FriendApplyListWidgetPath, self.AsyncLoadFriendApplyListWidgetCb, true, nil, nil,
+        CS.StarProjectDef.MainPageCommond.HideNone);
+
+    -- local friendApplyListWidget = UIManager.Instance:OpenWidget(FriendApplyListWidgetPath, true, nil, nil,
+    -- 	CS.StarProjectDef.MainPageCommond.HideNone, true, false);
+    -- if self.FriendApplyListWidget == nil then
+    -- 	self.FriendApplyListWidget = friendApplyListWidget:GetLuaPanel().ScriptTable;
+    -- end
+    -- self.FriendApplyListWidget:RefreshData(self.m_ApplyFriends, self.m_ApplyFriendsRead);
+end
+
+function FriendModule:SendFriendApplyListWidget()
+    -- 红点通知
+    local newCount = #self.m_ApplyFriends;
+    local readCount = #self.m_ApplyFriendsRead;
+    local count = newCount - readCount;
+    RedPointManager.Instance:RefreshRedPointCount(RedPointType.FriendRequest, count);
+
+    if self.FriendApplyListWidget ~= nil and self.FriendApplyListWidget.IsOpen == true then
+        self.FriendApplyListWidget:RefreshData(self.m_ApplyFriends, self.m_ApplyFriendsRead);
+    end
+end
+
+function FriendModule:CacheReadApplyList(...)
+    self.m_ApplyFriendsRead = {};
+    for key, value in pairs(self.m_ApplyFriends) do
+        table.insert(self.m_ApplyFriendsRead, value)
+    end
+end
+
+-- 打开好友Tips
+function FriendModule:OnOpenFriendTipsWidget(...)
+    local tb = ...;
+    ---- userInfo 用户信息
+    local userInfo = nil;
+    local btnStrs = nil;
+    local btnCBs = nil;
+    local rectTr = nil;
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        userInfo = tb[1];
+        btnStrs = tb[2];
+        btnCBs = tb[3];
+        rectTr = tb[4];
+    else
+        -- C#调用
+        userInfo = tb[0];
+        btnStrs = tb[1];
+        btnCBs = tb[2];
+        rectTr = tb[3];
+    end
+    if userInfo == nil then
+        -- return;
+    end
+    -- local friendTipsWidget = UIManager.Instance:OpenWidget(FriendTipsWidgetPath, false, nil, nil,
+    -- 	CS.StarProjectDef.MainPageCommond.HideNone, true, false);
+    -- if self.FriendTipsWidget == nil then
+    -- 	self.FriendTipsWidget = friendTipsWidget:GetLuaPanel().ScriptTable;
+    -- end
+    -- self.FriendTipsWidget:InitData2(userInfo, btnStrs, btnCBs, rectTr);
+
+    self.AsyncLoadFriendTipsWidgetCb = function(ui)
+        if ui ~= nil then
+            if self.FriendTipsWidget == nil then
+                self.FriendTipsWidget = ui:GetLuaPanel().ScriptTable;
+            end
+            self.FriendTipsWidget:InitData2(userInfo, btnStrs, btnCBs, rectTr);
+        end
+        self.AsyncLoadFriendTipsWidgetCb = nil;
+    end
+    UIManager.Instance:OpenWidgetAsync(FriendTipsWidgetPath, self.AsyncLoadFriendTipsWidgetCb, false, nil, nil,
+        CS.StarProjectDef.MainPageCommond.HideNone);
+end
+
+function FriendModule:OnOtherOpenFriendTipsWidget(...)
+    local tb = ...;
+    ---- userInfo 用户信息
+    local playerPID = nil;
+    local btnStrs = nil;
+    local btnCBs = nil;
+    local rectTr = nil;
+    local isGuildSetting = false;
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        playerPID = tb[1];
+        btnStrs = tb[2];
+        btnCBs = tb[3];
+        rectTr = tb[4];
+        isGuildSetting = tb[5];
+    else
+        -- C#调用
+        playerPID = tb[0];
+        btnStrs = tb[1];
+        btnCBs = tb[2];
+        rectTr = tb[3];
+        isGuildSetting = tb[4];
+    end
+    local isSelf = BusinessManager.Instance:GetUserPID() == playerPID;
+    -- 玩家信息
+    if not isSelf then
+        table.insert(btnStrs, LanguageHelp:GetLanguageByKey("Local_Str_Player_Info"))
+        table.insert(btnCBs, function()
+            self:OnPlayerInfo(playerPID)
+        end)
+    end
+    -- 添加好友
+    if not isSelf then
+        if BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.Friend) then
+            table.insert(btnStrs, LanguageHelp:GetLanguageByKey("Local_Str_add_friends"))
+            table.insert(btnCBs, function()
+                self:AddFriend(playerPID)
+            end)
+        end
+    end
+    -- 邀请加入冒险团
+    if isGuildSetting == false then
+        if BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.Guild) then
+            if BusinessManager.Instance:IsHaveGuildPower(3) and not isSelf then
+                table.insert(btnStrs, LanguageHelp:GetLanguageByKey("Local_Str_GuildInvite"))
+                table.insert(btnCBs, function()
+                    self:OnGuildInvite(playerPID)
+                end)
+            end
+        end
+    end
+
+    self.AsyncLoadFriendTipsWidgetCb = function(ui)
+        if ui ~= nil then
+            if self.FriendTipsWidget == nil then
+                self.FriendTipsWidget = ui:GetLuaPanel().ScriptTable;
+            end
+            self.FriendTipsWidget:InitData2(nil, btnStrs, btnCBs, rectTr);
+        end
+        self.AsyncLoadFriendTipsWidgetCb = nil;
+    end
+    UIManager.Instance:OpenWidgetAsync(FriendTipsWidgetPath, self.AsyncLoadFriendTipsWidgetCb, false, nil, nil,
+        CS.StarProjectDef.MainPageCommond.HideNone);
+end
+
+-- 玩家信息
+function FriendModule:OnPlayerInfo(PID)
+    if PID == nil then
+        return;
+    end
+    LuaModuleDispatcher:SendMessage(ModuleDef.PlayerPreviewModule, "SendGetOtherPlayerNameplateReq", {PID})
+end
+
+function FriendModule:AddFriend(PID)
+    if PID == nil then
+        return;
+    end
+    local friendRelation = self:GetFriendRelation(PID);
+    if friendRelation == 0 then
+        local pids = {PID};
+        local key = "FriendModule_" .. PID;
+        self:OnSendApplyToAddFriendReq({pids, key, self.OnApplyToAddFriendRespFun});
+    elseif friendRelation == 1 then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_PlayerIsFriend"));
+    elseif friendRelation == 2 then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_friend_request_fail_5"));
+    end
+end
+
+-- 点击申请加好友
+function FriendModule:OnApplyToAddFriendResp(data)
+	if data == nil then
+		return;
+	end
+
+	if data.Result.Code == 0 then
+		CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(LanguageHelp:GetLanguageByKey("Local_Str_friend_request_repeat"));
+	elseif data.Result.Code == E_FriendReqErrCodeType.BlockedByPeer then
+		CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(LanguageHelp:GetLanguageByKey("Local_Str_friend_request_fail_6"));
+	elseif data.Result.Code == E_FriendReqErrCodeType.BlockedUser then
+		CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(LanguageHelp:GetLanguageByKey("Local_Str_friend_request_fail_5"));
+	elseif data.Result.Code == E_FriendReqErrCodeType.FromFriendCountExceeded then
+		CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(LanguageHelp:GetLanguageByKey("Local_Str_friend_request_fail_1"));
+	elseif data.Result.Code == E_FriendReqErrCodeType.ToFriendCountExceeded then
+		CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(LanguageHelp:GetLanguageByKey("Local_Str_friend_request_fail_2"));
+	elseif data.Result.Code == E_FriendReqErrCodeType.FromFriendReqCountExceeded then
+		CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(LanguageHelp:GetLanguageByKey("Local_Str_friend_request_fail_3"));
+	elseif data.Result.Code == E_FriendReqErrCodeType.ToFriendReqCountExceeded then
+		CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(LanguageHelp:GetLanguageByKey("Local_Str_friend_request_fail_4"));
+	end
+end
+
+function FriendModule:OnGuildInvite(PID)
+    if PID == nil then
+        return;
+    end
+    LuaModuleDispatcher:SendMessage(ModuleDef.GuildModule, "OnInviteToGuild", {PID})
+end
+
+--------------------------------------- 【↑↑↑↑↑界面操作↑↑↑↑↑】 -------------------------------
+
+--------------------------------------- 【↓↓↓↓↓ 定时器 ↓↓↓↓↓】 -------------------------------
+
+-- 定时器
+function FriendModule:UpdateData()
+    if self.m_Countdown > 0 then
+        local deltaTime = Time.deltaTime;
+        self.m_Countdown = self.m_Countdown - deltaTime;
+        if self.m_Countdown <= 0 then
+            self:GetFriendsApplyList();
+            self:GetPageBlacksList();
+            self.m_Countdown = self.m_CfgInterval;
+        end
+    end
+end
+
+-- 获取黑名单列表
+function FriendModule:GetPageBlacksList()
+    -- if self.BlackList ~= nil and self.BlackList ~= {} and #self.BlackList > 0 then
+    -- 	-- 获取【差量】
+    -- 	local lastId = self:GetBackListLastId();
+    -- 	self:GetPageBlacksReq(lastId, self.OnGetPageBlacksResp2Fun);
+    -- else
+    -- 	-- 获取【全量】
+    -- 	self:GetPageBlacksReq(0, self.OnGetPageBlacksRespFun);
+    -- end
+    -- 获取【全量】
+    self:GetPageBlacksReq(0, self.OnGetPageBlacksRespFun);
+end
+
+-- 获取黑名单列表
+function FriendModule:GetPageBlacksReq(lastid, cb)
+    local message = CS.ProtoMsg.GetPageBlacksReq();
+    message.UserPID = self.mainPlayerPID;
+    local query = CS.ProtoMsg.RequestQuery();
+    query.LastId = lastid; -- 大于0就是差异
+    query.Limit = 200;
+    message.Query = query;
+    self:OnSendClient2ThirdReq({"GetPageBlacksReq", ExtraData.ToByteString(message), "FriendModule",
+                                "GetPageBlacksResp", cb});
+end
+
+-- 获取黑名单列表回调 执行全量数据
+function FriendModule:OnGetPageBlacksResp(data)
+    if data == nil then
+        return;
+    end
+
+    self.BlackList = {};
+    for i = 0, data.Blacks.Count - 1 do
+        local item = data.Blacks[i];
+        if item ~= nil then
+            table.insert(self.BlackList, item);
+        end
+    end
+    self:RefreshBlackList()
+end
+
+-- 获取黑名单列表回调 执行差量数据
+function FriendModule:OnGetPageBlacksResp2(data)
+    if data == nil then
+        return;
+    end
+    -- 差量更新全量的数据
+    local isRefresh = false
+    for i = 0, data.Blacks.Count - 1 do
+        local child = data.Blacks[i];
+        if child ~= nil and child.BlackUserInfo ~= nil then
+            local isHave = false;
+            for j = 1, #self.BlackList do
+                local item = self.BlackList[j];
+                if item ~= nil and item.BlackUserInfo ~= nil then
+                    if child.BlackUserInfo.UserPID == item.BlackUserInfo.UserPID then
+                        self.BlackList[j] = child;
+                        isHave = true;
+                        isRefresh = true;
+                    end
+                end
+            end
+
+            if isHave == false then
+                table.insert(self.BlackList, child);
+                isRefresh = true;
+            end
+        end
+    end
+    if isRefresh then
+        self:RefreshBlackList()
+    end
+end
+
+-- 获取黑名单列表最后一个id
+function FriendModule:GetBackListLastId()
+    if self.BlackList == nil or self.BlackList == {} or #self.BlackList <= 0 then
+        return 0;
+    end
+    local lastid = 0;
+    for i = 1, #self.BlackList do
+        local item = self.BlackList[i];
+        if item ~= nil and item.ID ~= nil and item.ID > lastid then
+            lastid = item.ID;
+        end
+    end
+    return lastid;
+end
+
+-- 获取申请列表
+function FriendModule:GetFriendsApplyList()
+    -- if self.m_ApplyFriends ~= nil and self.m_ApplyFriends ~= {} and #self.m_ApplyFriends > 0 then
+    -- 	-- 获取【差量】
+    -- 	local lastId = self:GetFriendsApplyListLastId();
+    -- 	self:GetPageFriendsApplyToReq(lastId, self.OnDispersionFriendsApplyToRespFun);
+    -- else
+    -- 	-- 获取【全量】
+    -- 	self:GetPageFriendsApplyToReq(0, self.OnFullFriendsApplyToRespFun);
+    -- end
+    -- 获取【全量】
+    self:GetPageFriendsApplyToReq(0, self.OnFullFriendsApplyToRespFun);
+end
+
+-- 获取收到的好友申请列表
+function FriendModule:GetPageFriendsApplyToReq(lastid, cb)
+    if lastid == 0 then
+        self.m_ApplyFriends = {};
+    end
+    local message = CS.ProtoMsg.GetPageFriendsApplyToReq();
+    message.UserPID = self.mainPlayerPID;
+    local query = CS.ProtoMsg.RequestQuery();
+    query.LastId = lastid; -- 大于0就是差异
+    query.Limit = 200;
+    message.Query = query;
+    self:OnSendClient2ThirdReq({"GetPageFriendsApplyToReq", ExtraData.ToByteString(message), "FriendModule",
+                                "GetPageFriendsApplyToResp", cb});
+end
+
+-- 执行全量申请数据
+function FriendModule:OnFullFriendsApplyToResp(data)
+    if data == nil then
+        return;
+    end
+    self.m_ApplyFriends = {}
+    for i = 0, data.FriendRequests.Count - 1 do
+        table.insert(self.m_ApplyFriends, data.FriendRequests[i]);
+    end
+    -- 排序
+    if self.m_ApplyFriends ~= nil and self.m_ApplyFriends ~= {} and #self.m_ApplyFriends > 1 then
+        -- 定义比较函数，按照id从大到小排序
+        local function compare(a, b)
+            return a.CreateTime > b.CreateTime
+        end
+        -- 对values进行排序
+        table.sort(self.m_ApplyFriends, compare);
+    end
+    -- 通知界面
+    self:SendFriendApplyListWidget()
+end
+
+-- 执行差量申请数据
+function FriendModule:OnDispersionFriendsApplyToResp(data)
+    if data == nil then
+        return;
+    end
+    -- 差量更新全量的数据
+    local isHaveNew = false
+    for i = 0, data.FriendRequests.Count - 1 do
+        local child = data.FriendRequests[i];
+        if child ~= nil then
+            local isHave = false;
+            for j = 1, #self.m_ApplyFriends do
+                local item = self.m_ApplyFriends[j];
+                if item ~= nil and item.FriendInfo ~= nil then
+                    if child.FromUserPID == item.FromUserPID then
+                        self.m_ApplyFriends[j] = child;
+                        isHave = true;
+                    end
+                end
+            end
+            if isHave == false then
+                table.insert(self.m_ApplyFriends, child);
+                isHaveNew = true;
+            end
+        end
+    end
+    -- 排序
+    if self.m_ApplyFriends ~= nil and self.m_ApplyFriends ~= {} and #self.m_ApplyFriends > 1 then
+        -- 定义比较函数，按照id从大到小排序
+        local function compare(a, b)
+            return a.CreateTime > b.CreateTime
+        end
+        -- 对values进行排序
+        table.sort(self.m_ApplyFriends, compare);
+    end
+    -- 通知界面
+    if isHaveNew == true then
+        self:SendFriendApplyListWidget()
+    end
+end
+
+-- 【好友申请列表】 获取最后一个id
+function FriendModule:GetFriendsApplyListLastId()
+    local lastid = 0;
+
+    for i = 1, #self.m_ApplyFriends do
+        local item = self.m_ApplyFriends[i];
+        if item ~= nil then
+            if item.ID > lastid then
+                lastid = item.ID;
+            end
+        end
+    end
+    return lastid;
+end
+
+--------------------------------------- 【↑↑↑↑↑ 定时器 ↑↑↑↑↑】 -------------------------------
+
+--------------------------------------- 【↓↓↓↓↓其他方法↓↓↓↓↓】 -------------------------------
+
+-- 发送协议
+--- 协议名、协议参数信息、协议的回复key、协议回复要监听的协议名、协议的回复执行回调
+function FriendModule:SendClient2ThirdReq(msgName, data, key, revertMsgName, cb)
+    -- Log("发送 第三方回复客户端 协议 =》" .. msgName);
+    local battleSocket = NetworkManager.Instance.gameSocket;
+    if battleSocket == nil then
+        Log("FriendModule:OnClient2ThirdReq() battleSocket=nil err!!!!");
+        return;
+    end
+    local message = CS.ProtoMsg.Client2ThirdReq();
+    message.MsgName = msgName;
+    message.MsgData = data;
+    -- battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message, false);
+    battleSocket:SendEnumPbByteMsg(CS.MsgIDEnum.Client2ThirdReqID, message, false);
+    -- 缓存监听协议名的回调
+    self:CacheListenMsgCB(key, revertMsgName, cb);
+end
+
+-- 缓存监听协议名的回调
+function FriendModule:CacheListenMsgCB(key, msgName, cb)
+    if cb == nil then
+        return;
+    end
+    -- 查找如果有相同的key,相同的msgName,那就监听次数+1
+    for i, v in ipairs(self.Client2ThirdReqList) do
+        if v ~= nil and v.Key == key and v.MsgName == msgName then
+            -- v.Count = v.Count + 1;
+            v.CB = cb;
+            return;
+        end
+    end
+    -- 如果没有就新加一个
+    -------------- key:监听的回调key
+    -------------- MsgName:监听的协议名
+    -------------- CB:回调方法
+    -------------- Count:监听次数
+    local data = {
+        Key = key,
+        MsgName = msgName,
+        CB = cb,
+        Count = 1
+    };
+    table.insert(self.Client2ThirdReqList, data);
+end
+
+-- 获取是否有该协议名的监听的缓存
+function FriendModule:GetIsHaveCacheListenByMsgName(msgName)
+    for i, v in ipairs(self.Client2ThirdReqList) do
+        -- if v ~= nil and v.MsgName == msgName and v.Count > 0 then
+        if v ~= nil and v.MsgName == msgName then
+            return true;
+        end
+    end
+
+    return false;
+end
+
+--------------------------------------- 【↑↑↑↑↑其他方法↑↑↑↑↑】 -------------------------------
+
+return FriendModule;

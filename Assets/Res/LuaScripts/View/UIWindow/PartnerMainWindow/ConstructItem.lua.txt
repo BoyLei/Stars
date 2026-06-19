@@ -1,0 +1,130 @@
+--[[
+*文件名   :   ConstructItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2024/05/29 14:01:14"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+ConstructItem=class("ConstructItem",UIPanel)
+ConstructItem.m_Icon=nil;
+ConstructItem.m_Text=nil;
+ConstructItem.m_Value=nil;
+ConstructItem.m_Exp=nil;
+ConstructItem.m_Exp1=nil;
+ConstructItem.m_Exp1Image=nil;
+ConstructItem.m_uparrow=nil;
+ConstructItem.m_downarrow=nil;
+ConstructItem.m_btn=nil;
+ConstructItem.ID=0;
+ConstructItem.OnClickCall=nil;
+
+function ConstructItem:ctor(go,id,click)
+	self.prefab=go;
+	self.ID=id;
+	self.OnClickCall=click;
+	self.m_Icon=self:Find("Icon"):GetComponent(typeof(Image));
+	self.m_Text=self:Find("Text"):GetComponent(typeof(Text));
+	self.m_Value=self:Find("Value"):GetComponent(typeof(Text));
+	self.m_Exp=self:Find("Exp"):GetComponent(typeof(Slider));
+	self.m_Exp1=self:Find("Exp1"):GetComponent(typeof(Slider));
+	self.m_Exp1Image=self:Find("Exp1/Fill Area/Fill"):GetComponent(typeof(Image));
+	self.m_arrow=self:Find("uparrow").gameObject
+	self.m_downarrow=self:Find("downarrow").gameObject
+	self.m_btn=self.prefab:GetComponent(typeof(JButton));
+	self.m_btn.OnClick=function()
+		self:OnItemClick()
+	end
+	self:Init();
+
+end
+
+function ConstructItem:OnItemClick()
+	if self.OnClickCall~=nil then
+		self.OnClickCall(self.ID);
+	end
+end
+function ConstructItem:Init()
+	local config=	ConfigDataAccessor.GetAttrByID(self.ID)
+	local attrName = "";
+	--if config ~= nil then
+		--attrName = config.Name;
+	--end
+	
+	local AoiAttr= ConfigDataAccessor.ParConversion[self.ID]
+	if AoiAttr~=nil then
+		attrName = AoiAttr.Name;
+	end
+
+	self.m_Text.text=attrName;
+
+	ResourceHelper:LoadIconByAtlasAsync(self.m_Icon, ResourceHelper.AtlasPathIconAttribute, config.Icon, false)
+
+end
+
+function ConstructItem:OnEnable()
+
+end
+
+function ConstructItem:OnDisable()
+
+end
+
+function ConstructItem:OnDestroy()
+
+end
+
+function ConstructItem:OnOpen(data,isEmpty)
+	self.m_arrow:SetActive(false)
+	self.m_downarrow:SetActive(false)
+	self.m_Exp1.gameObject:SetActive(false)
+
+	local isFull=(data.OldValue==data.PropMax) and (data.PropMax>0)
+
+	if isFull then
+		self.m_Value.text=data.PropMax..LanguageHelp:GetLanguageByKey("partner_sys_2")
+		self.m_Exp.value=1
+	else
+		if isEmpty then
+			self.m_Value.text=data.OldValue.."/"..data.PropMax
+			self.m_Exp.value=data.OldValue/data.PropMax
+		else
+			if data.OldValue>data.PropValue then
+				--下降
+				self.m_arrow:SetActive(false)
+				self.m_downarrow:SetActive(true)
+				self.m_Value.text="-"..(data.OldValue-data.PropValue)
+				self.m_Exp.value=data.PropValue/data.PropMax
+				self.m_Exp1.value=data.OldValue/data.PropMax
+				self.m_Exp1Image.color=Color(1,1,1);
+			else
+				if data.OldValue<data.PropValue then
+					--上升
+					self.m_arrow:SetActive(true)
+					self.m_downarrow:SetActive(false)
+					self.m_Value.text="+"..(data.PropValue-data.OldValue)
+
+					self.m_Exp.value=data.OldValue/data.PropMax
+					self.m_Exp1.value=data.PropValue/data.PropMax
+					self.m_Exp1Image.color=Color(0,1,0,1);
+				else
+					self.m_Value.text="0"
+					self.m_Exp.value=data.OldValue/data.PropMax
+				end
+			end
+		end
+
+	end
+end
+
+function ConstructItem:OnClose(arg)
+
+end
+
+function ConstructItem:OnValueChangeExp(vaule)
+
+end
+
+
+
+return  ConstructItem

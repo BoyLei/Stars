@@ -1,0 +1,95 @@
+--[[
+*文件名   :   GngEffectBigItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/18 18:36:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local GngEffectBigItem = {}
+
+GngEffectBigItem.__index = GngEffectBigItem
+
+function GngEffectBigItem:New(_go,onItemClick) 
+    local self = {};    
+    setmetatable(self, GngEffectBigItem); 
+    
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+    if onItemClick~= nil then
+        self.OnItemClick=onItemClick;
+    end
+
+    self.Name=self.transform:Find("Root/Name"):GetComponent(typeof(Text));
+    self.Num=self.transform:Find("Root/Num"):GetComponent(typeof(Text));
+    self.Desc=self.transform:Find("Root/BuffName"):GetComponent(typeof(Text));
+    self.Icon=self.transform:Find("Root/BuffName"):GetComponent(typeof(Image));
+
+    self.tr_Root = self.transform:Find("Root");
+
+    self.go_Selected = self.transform:Find("Root/Selected").gameObject
+    self.IsSelected = false
+
+    --点击事件
+    self.btnClick=self.transform:GetComponent(typeof(JButton));
+    self.btnClick.OnClick=(function() 
+        if self.OnItemClick ~= nil then
+            self.OnItemClick(self); 
+        end
+    end);
+
+
+    return self;    --返回自身
+end
+
+
+function GngEffectBigItem:SetItem(buffID)
+    self.BuffID=buffID;
+    if buffID~=0 then
+
+
+        local cfg=ConfigDataAccessor.GNActivPassive[buffID];
+        self.Name.text=cfg.PassiveName;
+        self.Num.text=cfg.PassiveNum;
+        self.Desc.text=cfg.PassiveDesc;
+
+        ResourceHelper:LoadIconByAtlasAsync(self.Icon, ResourceHelper.AtlasPathCopyTeam, cfg.PassiveBigIcon, false)
+
+
+--[[
+
+
+        --local cfg=ConfigDataAccessor.BuffDescList[buffID][1];
+		--BuffDescDataCell
+		local cfg = LocalDataManager.Instance:GetBuffDescDataCellBySkillIdAndLevel(buffID, 1);
+        self.Name.text=cfg.SkillName;
+        self.Num.text=cfg.Decs;
+        self.Desc="";
+
+]]
+
+    
+
+    end
+end
+
+
+--是否被选中
+function GngEffectBigItem:MakeSelected(b)
+    self.IsSelected = b
+    self.go_Selected:SetActive(b)
+    if b then
+        self.tr_Root.localScale=Vector3.one;
+    else
+        self.tr_Root.localScale=Vector3(0.9,0.9,0.9);
+    end
+end
+
+
+
+
+
+
+return GngEffectBigItem;

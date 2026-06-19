@@ -1,0 +1,300 @@
+--[[
+*文件名   :   AvgZoneBox
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/10/25 15:57:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+AvgZoneBox = class("AvgZoneBox", UIPanel)
+AvgZoneBox.m_TalkBoxContent = nil
+AvgZoneBox.m_TalkBoxName = nil
+
+function AvgZoneBox:Awake()
+    self.m_rectBg = self:Find("bg"):GetComponent(typeof(RectTransform))
+    self.m_TalkBoxContent = self:Find("bg/TalkBoxContent"):GetComponent(typeof(TextMeshProUGUI))
+    self.m_typewriter = self:Find("bg/TalkBoxContent"):GetComponent(typeof(CS.KoganeUnityLib.TMP_Typewriter))
+
+    self.m_TalkBoxName = self:Find("bg/TalkBoxName"):GetComponent(typeof(Text))
+    self.m_TalkBoxHead = self:Find("HeadBg/Head"):GetComponent(typeof(Image))
+
+    self.go_Head = self:Find("HeadBg").gameObject
+
+    self.headName = ""
+
+    self.tw_content = nil
+    self.talkConetntNow = nil
+    self.text_speed = 40
+    self.module = nil
+end
+
+function AvgZoneBox:BindModule(m)
+    print(".............")
+    self.module = m
+end
+
+function AvgZoneBox:Start()
+end
+
+function AvgZoneBox:OnEnable()
+end
+
+function AvgZoneBox:OnDisable()
+end
+
+function AvgZoneBox:OnDestroy()
+end
+
+function AvgZoneBox:OnOpen(arg)
+end
+
+function AvgZoneBox:OnClose(arg)
+end
+
+function AvgZoneBox:StartTalkBox(idx)
+    --清空选项记录
+    self.IsFirstIn = true
+    self:GetTalkContentById(idx)
+end
+
+function AvgZoneBox:GetTalkContentById(idx)
+    --self.talkConetntNow = LocalDataManager.Instance:GetCommonDialogDataCell(idx);
+    self.talkConetntNow = self.module:CommonDialogDataCellById(idx)
+
+    self:RefeshTalkInfo()
+end
+
+function AvgZoneBox:GetNextTalkContent()
+    --等待时间
+    local waitTime = self.talkConetntNow.Show_time / 1000
+
+    if self.tw ~= nil then
+        self.tw:Kill()
+    end
+    --延迟一段时间后调用
+    self.tw =
+        DOVirtual.DelayedCall(
+        waitTime,
+        function()
+            local nextIds = self.talkConetntNow.Next_dialog_id
+
+            if #nextIds > 1 then
+                --有问题直接结束
+                self:FinishTalk()
+            else
+                if not (self.IsPlayVoice) then
+                    --结束对话
+                    if nextIds[1] == 0 then
+                        self:FinishTalk()
+                    else
+                        --切换到下一句对话
+                        self:GetTalkContentById(nextIds[1])
+                    end
+                end
+            end
+        end
+    )
+end
+
+function AvgZoneBox:RefeshTalkInfo()
+    --显示名字
+
+    self.m_TalkBoxName.text = self.talkConetntNow.Name2
+
+    --显示内容
+
+    if self.tw_content ~= nil then
+        self.tw_content:Kill()
+    end
+    --[[
+        self.m_TalkBoxContent.text = ""
+    self.tw_content =
+        self.m_TalkBoxContent:DOText(self.talkConetntNow.Dialog_desc2, self.text_speed):SetSpeedBased():SetEase(Ease.Linear):OnComplete(
+        function()
+            self:GetNextTalkContent()
+        end
+    )
+
+        self.m_TalkBoxContent.text = ""
+    self.tw_content =
+        DOTween.To(
+        function()
+            return self.m_TalkBoxContent.text
+        end,
+        function(t)
+            self.m_TalkBoxContent.text = t
+        end,
+        self.talkConetntNow.Dialog_desc2,
+        self.text_speed
+    ):SetSpeedBased():SetEase(Ease.Linear):OnComplete(
+        function()
+            self:GetNextTalkContent()
+        end
+    )
+    ]]
+    self.m_TalkBoxContent.text = ""
+    self.m_typewriter:Play(
+        self.talkConetntNow.Dialog_desc2,
+        self.text_speed,
+        function()
+            self:GetNextTalkContent()
+        end
+    )
+
+    --播放语音
+    if self.talkConetntNow.Voice_id ~= 0 then
+    --Util.PlayAvgVoice("Weapon_sword__pickup");
+    end
+    self.m_TalkBoxHead.gameObject:SetActive(false)
+    --加载头像
+    if self.talkConetntNow.Spine_id ~= nil and self.talkConetntNow.Spine_id ~= "" and self.talkConetntNow.Spine_id ~= "0" then
+        self.go_Head:SetActive(true)
+        self.m_rectBg.anchoredPosition = Vector2(-136, self.m_rectBg.anchoredPosition.y)
+
+        local faceID = self.talkConetntNow.Face_id
+        local id_face = self.talkConetntNow.Spine_id .. "_" .. faceID
+
+        if self.headName ~= id_face then
+            self.headName = id_face
+
+            local sid = math.floor(tonumber(self.talkConetntNow.Spine_id))
+            local AvatarID = sid
+
+            if sid == 1 then
+                local jobDataCell = ConfigDataAccessor.Job[GameManager.Instance:GetPlayerJob()]
+                if jobDataCell ~= nil then
+                    local avatarDataCell = ConfigDataAccessor.Avatar[jobDataCell.AvatarID]
+                    if avatarDataCell ~= nil then
+                        local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID]
+
+                        if headCfg ~= nil then
+                            local atlasName = headCfg.HeadAtlasName
+                            local imageName = headCfg.MinHead
+                            if faceID > 0 then
+                                atlasName = ResourceHelper.HeadIconAtlasPath
+                                imageName = headCfg.MinHead .. "_" .. faceID
+                            end
+
+                            if not (self.IsFirstIn) then
+                                self.m_TalkBoxHead.gameObject:SetActive(true)
+                            end
+                            self:GetSpriteByAtlas(
+                                atlasName,
+                                imageName,
+                                function(sp)
+                                    if self.IsFirstIn then
+                                        self.IsFirstIn = false
+                                        self.m_TalkBoxHead.gameObject:SetActive(true)
+                                    end
+                                    self.m_TalkBoxHead.sprite = sp
+                                    self.m_TalkBoxHead:SetNativeSize()
+                                end
+                            )
+                        end
+                    end
+                end
+            else
+                local avatarDataCell = ConfigDataAccessor.Avatar[sid]
+                if avatarDataCell ~= nil then
+                    local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID]
+                    if headCfg ~= nil then
+                        local atlasName = headCfg.HeadAtlasName
+                        local imageName = headCfg.MinHead
+                        if faceID > 0 then
+                            atlasName = ResourceHelper.HeadIconAtlasPath
+                            imageName = headCfg.MinHead .. "_" .. faceID
+                        end
+                        if not (self.IsFirstIn) then
+                            self.m_TalkBoxHead.gameObject:SetActive(true)
+                        end
+                        self:GetSpriteByAtlas(
+                            atlasName,
+                            imageName,
+                            function(sp)
+                                if self.IsFirstIn then
+                                    self.IsFirstIn = false
+                                    self.m_TalkBoxHead.gameObject:SetActive(true)
+                                end
+                                self.m_TalkBoxHead.sprite = sp
+                                self.m_TalkBoxHead:SetNativeSize()
+                            end
+                        )
+                    end
+                end
+            end
+        else
+            self.m_TalkBoxHead.gameObject:SetActive(true)
+        end
+    else
+        self.go_Head:SetActive(false)
+        self.m_rectBg.anchoredPosition = Vector2(-136, self.m_rectBg.anchoredPosition.y)
+    end
+
+    self.IsPlayVoice = false
+    if self.SoundKey ~= nil then
+        SoundManager.Instance:StopVoice(self.SoundKey)
+        self.SoundKey = nil
+    end
+    -- 播放语音
+    if self.talkConetntNow.Voice_id ~= "" and self.talkConetntNow.Voice_id ~= "0" then
+        local rest =
+            SoundManager.Instance:PlayVoice(
+            self.talkConetntNow.Voice_id,
+            self.gameObject,
+            function(key)
+                --Play Complete
+                if self.IsPlayVoice and key == self.SoundKey then
+                    self.IsPlayVoice = false
+                    self:GetNextTalkContent()
+                end
+            end
+        )
+
+        --超时保底
+        if self.tw_back ~= nil then
+            self.tw_back:Kill()
+            self.tw_back = nil
+        end
+        self.tw_back =
+            DOVirtual.DelayedCall(
+            20,
+            function()
+                self.IsPlayVoice = false
+                self:GetNextTalkContent()
+            end
+        )
+
+        self.IsSoundSuccess = rest.Item1
+        self.SoundKey = rest.Item2
+
+        if self.IsSoundSuccess then
+            self.IsPlayVoice = true
+        end
+    end
+end
+
+function AvgZoneBox:FinishTalk()
+    if self.tw_content ~= nil then
+        self.tw_content:Kill()
+    end
+
+    if self.tw ~= nil then
+        self.tw:Kill()
+    end
+    if self.tw_back ~= nil then
+        self.tw_back:Kill()
+        self.tw_back = nil
+    end
+    if self.SoundKey ~= nil then
+        SoundManager.Instance:StopVoice(self.SoundKey)
+        self.SoundKey = nil
+    end
+    self.IsPlayVoice = false
+
+    self.headName = ""
+    UIManager.Instance:CloseWidget("Avg/AvgZoneBox")
+
+    self.module:OnFinishAvgZoneBox()
+end
+
+return AvgZoneBox

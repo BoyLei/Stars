@@ -1,0 +1,108 @@
+-- 技能位条目
+local SkillPosItemNew = {}
+SkillPosItemNew.__index = SkillPosItemNew
+
+function SkillPosItemNew:New(obj)
+    local self = {}
+    setmetatable(self, SkillPosItemNew)
+
+    self:InitControls(obj)
+
+    return self
+end
+
+function SkillPosItemNew:InitControls(obj)
+    self.gameObject = obj
+    self.transform = obj.transform
+
+    self.skillBg = self.transform:GetComponent(typeof(Image))
+    self.skillIcon = self.transform:Find("SkillIcon"):GetComponent(typeof(Image))
+    -- self.skillType = self.transform:Find("SkillType"):GetComponent(typeof(Text));
+    self.SkillJb = self.transform:Find("SkillIcon"):GetComponent(typeof(JButton))
+
+    self.Select = self.transform:Find("Select").gameObject
+    self.HighLight = self.transform:Find("HighLight").gameObject
+    self.LockRoot = self.transform:Find("LockRoot").gameObject
+
+    -- self.SkillJb.OnLongPressDown = function()
+    --     self.skillWindow:OnLongPressDown(self)
+    -- end
+
+    -- self.SkillJb.OnLongPressUp = function()
+    --     self.skillWindow:OnLongPressUp(self)
+    -- end
+
+    self.SkillJb.OnClick = function()
+        self.skillWindow:OnSkillPosClick(self)
+    end
+end
+
+function SkillPosItemNew:Refresh(posId, skillId, talentId, lv, w)
+    self.skillWindow = w
+    self.gameObject:SetActive(true)
+    self.skillId = skillId
+    self.posId = posId
+
+    self:SetSel(false)
+    self:MarkHighLight(false)
+
+    local data = nil
+    local playerJob = GameManager.Instance:GetPlayerJob()
+    for _, v in pairs(ConfigDataAccessor.SkillPosSetList) do
+        if v.ID == posId then
+            data = v
+            break
+        end
+    end
+    if data == nil then
+        return
+    end
+    self.skillType = data.SkillType
+
+    self.transform:SetSiblingIndex(data.Sort)
+
+    ResourceHelper:LoadIconByAtlasAsync(self.skillBg, ResourceHelper.AtlasPathSkill, data.SkillBg, false)
+
+    local talentCfg = ConfigDataAccessor.TalentList[talentId];
+    -- 摇杆 技能icon 显示的 skillDesc配置的icon
+    local id = talentCfg.BattleActive[1]
+    for _, v in pairs(ConfigDataAccessor.SkillDescList) do
+        if v.SkillID == id and v.Level == lv then
+            ResourceHelper:LoadIconByAtlasAsync(self.skillIcon, ResourceHelper.AtlasPathSkill, v.IconPath, false)
+            break
+        end
+    end
+
+    local playerLevel = GameManager.Instance:GetPlayerLevel();
+    if playerLevel >= talentCfg.LimitLv then
+        self:RefreshIsLock(false);
+    else
+        self:RefreshIsLock(true);
+    end
+
+end
+
+function SkillPosItemNew:RefreshIsLock(lock)
+    self.LockRoot:SetActive(lock)
+end
+
+function SkillPosItemNew:Show(b)
+    self.gameObject:SetActive(b)
+end
+
+function SkillPosItemNew:SetSel(isSelect)
+    -- TODO
+    self.Select:SetActive(isSelect)
+end
+
+function SkillPosItemNew:MarkHighLight(isHighLight)
+    -- TODO
+    self.HighLight:SetActive(isHighLight)
+end
+
+function SkillPosItemNew:IsNormalSkill()
+    -- return self.posId == 2;
+    return (self.skillType == 1) or (self.skillType == 4) or (self.skillType == 5)
+end
+
+return SkillPosItemNew

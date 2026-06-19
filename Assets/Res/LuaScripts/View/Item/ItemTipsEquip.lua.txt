@@ -1,0 +1,1263 @@
+--[[
+*文件名   :   ItemTipsEquip
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 10:36:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local ItemTipsEquip = {}
+
+ItemTipsEquip.__index = ItemTipsEquip
+local EquipAttrItem = require("View/Item/EquipAttrItem")
+local EquipSubAttrItem = require("View/Item/EquipSubAttrItem")
+local EquipSubAttrItemSimple = require("View/Item/EquipSubAttrItemSimple")
+
+local AmuletAttr = require("View/Item/AmuletAttr")
+local ItemTipsEmblemItem = require("View/Item/ItemTipsEmblemItem")
+
+local ObjectPool = require("Common/Helper/ObjectPool")
+
+function ItemTipsEquip:New(_go, needJump)
+    local self = {}
+    setmetatable(self, ItemTipsEquip)
+
+    self.needJump = needJump
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    --self.m_Desc=self.transform:Find("Desc"):GetComponent(typeof(Text));
+
+    self.go_root = self.transform:Find("Root").gameObject
+    self.m_Lv = self.transform:Find("Level/tt"):GetComponent(typeof(Text))
+    self.m_LvLimit = self.transform:Find("Root/LevelLimit"):GetComponent(typeof(Text))
+    self.m_Type = self.transform:Find("Root/Type"):GetComponent(typeof(Text))
+
+    --self.ContentSizeFitter1= self.m_LvLimit:GetComponent(typeof(ContentSizeFitter));
+    --self.ContentSizeFitter2= self.m_Type:GetComponent(typeof(ContentSizeFitter));
+    self.ItemContentSizeFitter = self.transform:Find("Info/Mask/List"):GetComponent(typeof(ContentSizeFitter))
+
+    self.m_JobRoot = self.transform:Find("Job").gameObject
+    self.m_Job = self.transform:Find("Job/tt"):GetComponent(typeof(Text))
+    self.m_Star = self.transform:Find("Star/tt"):GetComponent(typeof(Text))
+
+    self.m_isbind = self.transform:Find("IsBind/tt"):GetComponent(typeof(Text))
+    self.go_isbind = self.transform:Find("IsBind").gameObject
+    self.go_notbind = self.transform:Find("NotBind").gameObject
+    self.go_equiped = self.transform:Find("Equiped").gameObject
+
+    self.m_Name = self.transform:Find("Name"):GetComponent(typeof(Text))
+    self.Icon = self.transform:Find("ItemGrid/Have/Icon"):GetComponent(typeof(Image))
+    self.m_BgRare = self.transform:Find("ItemGrid/Have/BgRare"):GetComponent(typeof(Image))
+    self.m_RareTop = self.transform:Find("RareTop"):GetComponent(typeof(Image))
+
+    self.m_PartnerHead = self.transform:Find("PartnerHead"):GetComponent(typeof(Image))
+
+    self.go_leftTimes = self.transform:Find("LeftTimes").gameObject
+    self.leftTimes = self.transform:Find("LeftTimes/tt"):GetComponent(typeof(Text))
+
+    --信标强度
+    self.go_score = self.transform:Find("Info/Mask/List/Score").gameObject
+    self.m_Score = self.transform:Find("Info/Mask/List/Score/layout/score"):GetComponent(typeof(Text))
+    self.m_ScoreUp = self.transform:Find("Info/Mask/List/Score/layout/Up").gameObject
+    self.m_ScoreUp:SetActive(false)
+    self.m_ScoreDown = self.transform:Find("Info/Mask/List/Score/layout/down").gameObject
+    self.m_ScoreDown:SetActive(false)
+
+    --完美度：暂时隐藏
+    self.go_Perfect = self.transform:Find("Info/Mask/List/Perfect").gameObject
+    self.m_PerfectVal = self.transform:Find("Info/Mask/List/Perfect/Perfect/perfect"):GetComponent(typeof(Text))
+    self.m_PerfectBar = self.transform:Find("Info/Mask/List/Perfect/Perfect/perfectBar"):GetComponent(typeof(RectTransform))
+    self.m_PerfectBar_w = self.m_PerfectBar.sizeDelta.x
+    self.m_PerfectBar_h = self.m_PerfectBar.sizeDelta.y
+
+    --装备基础属性
+    self.go_attrPower = self.transform:Find("Info/Mask/List/AttrPower").gameObject
+    self.m_attrPower = self.transform:Find("Info/Mask/List/AttrPower/score"):GetComponent(typeof(Text))
+    self.m_attrPowerUp = self.transform:Find("Info/Mask/List/AttrPower/up").gameObject
+    self.m_attrPowerDown = self.transform:Find("Info/Mask/List/AttrPower/down").gameObject
+
+    --装备基础属性
+    self.attrs = {}
+    for i = 1, 5 do
+        local eai = EquipAttrItem:New(self.transform:Find("Info/Mask/List/Attr" .. i).gameObject)
+        table.insert(self.attrs, eai)
+    end
+
+    --装备基础属性和随机属性的间隔
+    self.go_Line = self.transform:Find("Info/Mask/List/Line").gameObject
+
+    --装备随机属性
+    self.go_subAttrPower = self.transform:Find("Info/Mask/List/SubAttrPower").gameObject
+    self.m_subAttrPower = self.transform:Find("Info/Mask/List/SubAttrPower/score"):GetComponent(typeof(Text))
+    self.m_subAttrPowerUp = self.transform:Find("Info/Mask/List/SubAttrPower/up").gameObject
+    self.m_subAttrPowerDown = self.transform:Find("Info/Mask/List/SubAttrPower/down").gameObject
+
+    --伙伴武器副属性
+    self.partnersubattrs = {}
+    for i = 1, 2 do
+        local eai = EquipSubAttrItem:New(self.transform:Find("Info/Mask/List/PartnerSubAttr" .. i).gameObject)
+        table.insert(self.partnersubattrs, eai)
+    end
+
+    --装备随机属性
+    self.subattrs = {}
+    for i = 1, 6 do
+        local eai = EquipSubAttrItemSimple:New(self.transform:Find("Info/Mask/List/SubAttr" .. i).gameObject)
+        table.insert(self.subattrs, eai)
+    end
+
+    --护符效果
+    self.go_AmuletEffect = self.transform:Find("Info/Mask/List/AmuletEffect").gameObject
+    self.AmuletEffectNum = self.transform:Find("Info/Mask/List/AmuletEffect/score"):GetComponent(typeof(Text))
+
+    --纹章属性
+    self.amuletattrs = {}
+    for i = 1, 7 do
+        if self.transform:Find("Info/Mask/List/AmuletAttr" .. i) ~= nil then
+            local eai = AmuletAttr:New(self.transform:Find("Info/Mask/List/AmuletAttr" .. i).gameObject)
+            table.insert(self.amuletattrs, eai)
+        end
+    end
+
+    --护符和星次石的间隔
+    self.go_Line2 = self.transform:Find("Info/Mask/List/Line2").gameObject
+
+    --护符的星次石属性
+    self.go_RuneEffect = self.transform:Find("Info/Mask/List/RuneEffect").gameObject
+    self.emblemItems = {}
+    for i = 1, 4 do
+        local eai = ItemTipsEmblemItem:New(self.transform:Find("Info/Mask/List/RuneItem" .. i).gameObject)
+        table.insert(self.emblemItems, eai)
+    end
+
+    --单星次石的属性
+    self.go_EmbEchoEffect = self.transform:Find("Info/Mask/List/EmbEchoEffect").gameObject
+    self.embEchoItem = EquipAttrItem:New(self.transform:Find("Info/Mask/List/EmbEchoAttr").gameObject)
+
+    --是否可以装备
+    if self.transform:Find("Info/Mask/List/CanEquip") ~= nil then
+        self.go_canEquip = self.transform:Find("Info/Mask/List/CanEquip").gameObject
+        self.go_canEquip:SetActive(false)
+        self.tex_canEquip = self.transform:Find("Info/Mask/List/CanEquip/info"):GetComponent(typeof(Text))
+    end
+
+    --跳转列表
+    if self.transform:Find("Info/Mask/List/jumpLine") ~= nil then
+        self.go_jumpItemLine = self.transform:Find("Info/Mask/List/jumpLine").gameObject
+        local _go = self.transform:Find("Info/Mask/List/JumpItem").gameObject
+        self.jumpItemPool =
+            ObjectPool:New(
+            3,
+            "View/Item/ItemTipsJumpItem",
+            _go,
+            _go.transform.parent,
+            --生成回调
+            function(ritem)
+                ritem:InitItem(
+                    --点击回调
+                    function(ritem)
+                        self:OnJumpClick(ritem)
+                    end
+                )
+            end,
+            --回收回调
+            function(ritem)
+                ritem:SetUse(false)
+            end
+        )
+
+        --跳转列表超过三个
+        self.go_jumpList = self.transform:Find("Info/Mask/List/JumpList").gameObject
+        self.go_jumpList:SetActive(false)
+        local tr = self.transform:Find("Info/Mask/List/JumpList/Viewport/Content")
+        local _go2 = self.transform:Find("Info/Mask/List/JumpList/Viewport/Content/JumpItem").gameObject
+        self.jumpItemPool2 =
+            ObjectPool:New(
+            3,
+            "View/Item/ItemTipsJumpItem",
+            _go2,
+            tr,
+            --生成回调
+            function(ritem)
+                ritem:InitItem(
+                    --点击回调
+                    function(ritem)
+                        self:OnJumpClick(ritem)
+                    end
+                )
+            end,
+            --回收回调
+            function(ritem)
+                ritem:SetUse(false)
+            end
+        )
+    end
+
+    if self.go_jumpItemLine ~= nil then
+        self.go_jumpItemLine:SetActive(false)
+    end
+
+    --遮罩相关
+    self.RectMask = self.transform:Find("Info/Mask"):GetComponent(typeof(RectMask2D))
+    self.ScrollRect = self.transform:Find("Info"):GetComponent(typeof(ScrollRect))
+    self.MaskBg = self.transform:Find("Info/MaskBg").gameObject
+    self.ListImage = self.transform:Find("Info/Mask/List"):GetComponent(typeof(Image))
+    self.ListRect = self.transform:Find("Info/Mask/List"):GetComponent(typeof(RectTransform))
+    self.MaxMaskHigh = self.MaskBg:GetComponent(typeof(RectTransform)).sizeDelta.y
+
+    --战力对比相关
+    self.PowerAll = 0
+    self.Power_AttrAll = 0
+    self.Power_SubAttrAll = 0
+
+    self:Show(false)
+
+    return self --返回自身
+end
+
+--判断是否出现up
+function ItemTipsEquip:CheckUp(sunItem)
+    self.m_ScoreUp:SetActive(self.PowerAll > sunItem.PowerAll)
+    self.m_ScoreDown:SetActive(self.PowerAll < sunItem.PowerAll)
+    self.m_attrPowerUp:SetActive(self.Power_AttrAll > sunItem.Power_AttrAll)
+    self.m_attrPowerDown:SetActive(self.Power_AttrAll < sunItem.Power_AttrAll)
+    self.m_subAttrPowerUp:SetActive(self.Power_SubAttrAll > sunItem.Power_SubAttrAll)
+    self.m_subAttrPowerDown:SetActive(self.Power_SubAttrAll < sunItem.Power_SubAttrAll)
+end
+
+function ItemTipsEquip:CheckNeedShowMask()
+    local listHight = self.ListRect.sizeDelta.y
+    local b = (listHight > self.MaxMaskHigh)
+    if b then
+        self.RectMask.enabled = true
+        self.ScrollRect.enabled = true
+        self.MaskBg:SetActive(true)
+        self.ListImage.enabled = false
+    else
+        self.RectMask.enabled = false
+        self.ScrollRect.enabled = false
+        self.MaskBg:SetActive(false)
+        self.ListImage.enabled = true
+        self.ListRect.anchoredPosition = Vector2(8, 10)
+    end
+end
+
+function ItemTipsEquip:Show(b)
+    self.gameObject:SetActive(b)
+    if not (b) then
+        if self.go_canEquip ~= nil then
+            self.go_canEquip:SetActive(false)
+        end
+    end
+end
+
+--刷新玩家装备
+function ItemTipsEquip:RefeshPlayerEquipByData(cfg, itemData, isPlayerEquip)
+    self.go_root:SetActive(false)
+
+    self.itemData = itemData
+    self.m_Name.text = cfg.Name
+    self.BaseID = cfg.Id
+    if itemData ~= nil then
+        --刷新服务器属性
+
+        --主属性
+        local MainProps = self.itemData.EquipProps.MainPropList
+
+        for i = 0, MainProps.Count - 1 do
+            self.attrs[i + 1].gameObject:SetActive(true)
+
+            self.attrs[i + 1]:RefeshAttrProb(MainProps[i], self.itemData.SpaceId == 1, tonumber(cfg.SubType), i + 1)
+        end
+
+        --副属性
+        local SubProps = {}
+        for i = 0, self.itemData.EquipProps.SubPropList.Count - 1 do
+            table.insert(SubProps, self.itemData.EquipProps.SubPropList[i])
+        end
+
+        --排序
+        self:SortItem(SubProps)
+
+        for i = 1, #SubProps do
+            self.subattrs[i].gameObject:SetActive(true)
+            self.subattrs[i]:RefeshAttrProb(SubProps[i])
+        end
+
+        --计算完美度
+        local perfectAllValue = 0
+        local eCfg = ConfigDataAccessor.Equip[cfg.Id]
+        if eCfg == nil then
+            LogError("道具没有在装备表里配置")
+            return
+        end
+        --主属性
+        local MainProps = self.itemData.EquipProps.MainPropList
+        for i = 0, MainProps.Count - 1 do
+            local maxAttr = eCfg.NumMax[i + 1]
+            perfectAllValue = perfectAllValue + (MainProps[i].Value / maxAttr)
+        end
+
+        --这里要计算平均完美度（不完美的话上面就变成false）
+        local Perfection = math.floor(perfectAllValue / MainProps.Count * 100)
+        self.m_PerfectVal.text = "" .. Perfection .. "%"
+
+        local per = Perfection / 100
+        self.m_PerfectBar.sizeDelta = Vector2(self.m_PerfectBar_w * per, self.m_PerfectBar_h)
+
+        self.go_score:SetActive(true)
+        --self.m_Score.text="评分 ???";
+        --计算战力
+        --装备战力
+        local equipPower = FightPowerManager.Instance:GetShowEquipPower(self.itemData)
+        --全部槽位战力，共鸣战力
+        --local allPower,slotPower,slotResonancePower=FightPowerManager.Instance:GetEquipSlotsPower();
+        --单个槽位战力
+        --local singleSlotPower=FightPowerManager.Instance:GetEquipSlotsPowerBySlotID(cfg.SubType);
+        self.m_Score.text = equipPower
+
+        self.PowerAll = equipPower
+        self.Power_AttrAll = FightPowerManager.Instance:GetEquipMDPropsPower(self.itemData)
+        self.Power_SubAttrAll = FightPowerManager.Instance:GetEquipSubAttack(self.itemData)
+        --计算基础属性战力
+        self.m_attrPower.text = LanguageHelp:GetLanguageByKey("ItemTipsWidget_33") .. self.Power_AttrAll
+        self.m_attrPowerUp:SetActive(false)
+        self.m_attrPowerDown:SetActive(false)
+
+        --计算随机属性战力
+        self.m_subAttrPower.text = LanguageHelp:GetLanguageByKey("ItemTipsWidget_33") .. self.Power_SubAttrAll
+        self.m_subAttrPowerUp:SetActive(false)
+        self.m_subAttrPowerDown:SetActive(false)
+
+        --已装备的
+        if self.itemData.SpaceId == 1 then
+            local equipSlotData = GameManager.Instance:GetEquipSlotData(tonumber(cfg.SubType))
+            local satrLv = 0
+            if equipSlotData ~= nil then
+                satrLv = equipSlotData.UpLv
+            end
+            if satrLv > 0 then
+                self.m_Star.transform.parent.gameObject:SetActive(true)
+                self.m_Star.text = "+" .. satrLv
+            else
+                self.m_Star.transform.parent.gameObject:SetActive(false)
+            end
+        else
+            self.m_Star.transform.parent.gameObject:SetActive(false)
+        end
+
+        --是否是已装备
+        self.go_equiped:SetActive(self.itemData.SpaceId == 1)
+        --是否是已绑定
+        if self.itemData.IsBind then
+            self.go_isbind:SetActive(true)
+            self.go_notbind:SetActive(false)
+            self.go_leftTimes:SetActive(false)
+        else
+            self.go_isbind:SetActive(false)
+
+            if cfg.MaxTradeCount > 0 then
+                local leftTimes = cfg.MaxTradeCount - self.itemData.TradedCount
+
+                --self.leftTimes.text="可交易"..leftTimes.."次";
+                self.leftTimes.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_leftTimes"), {leftTimes})
+
+                self.go_leftTimes:SetActive(true)
+                self.go_notbind:SetActive(false)
+            else
+                self.go_isbind:SetActive(false)
+                self.go_notbind:SetActive(true)
+                self.go_leftTimes:SetActive(false)
+            end
+        end
+    else
+        local checkid = cfg.Dealid ~= 0 and cfg.Dealid or cfg.Id
+        local eCfg = ConfigDataAccessor.Equip[checkid]
+        if eCfg == nil then
+            LogError("道具没有在装备表里配置 id == " .. cfg.Id)
+            return
+        end
+
+        --刷新配置表属性
+
+        --主属性
+        local MainProps = eCfg.Nature
+
+        for i = 1, #MainProps do
+            self.attrs[i].gameObject:SetActive(true)
+
+            self.attrs[i]:RefeshCfgAttrProb(MainProps[i])
+        end
+
+        --副属性
+        local SubProps = eCfg.Group
+        self.go_subAttrPower:SetActive(false)
+        if #SubProps > 0 then
+            self.subattrs[1].gameObject:SetActive(true)
+            self.subattrs[1]:RefeshCfgAttrProb(#SubProps)
+        end
+
+        --完美度
+
+        self.m_PerfectVal.text = "??"
+        self.m_PerfectBar.sizeDelta = Vector2(0, self.m_PerfectBar_h)
+
+        --星级D
+        self.m_Star.transform.parent.gameObject:SetActive(false)
+
+        --评分暂时临时的
+
+        --self.m_Score.text="评分 ???";
+        self.m_Score.text = LanguageHelp:GetLanguageByKey("Local_Str_Score")
+
+        --是否已经绑定
+        self.go_isbind:SetActive(false)
+        self.go_equiped:SetActive(false)
+        self.go_leftTimes:SetActive(false)
+    end
+
+    self.CanEquip = true
+
+    -- local eCfg = ConfigDataAccessor.Equip[cfg.Id]
+    -- if eCfg == nil then
+    --     LogError("道具没有在装备表里配置")
+    --     return
+    -- end
+    local checkid = cfg.Dealid ~= 0 and cfg.Dealid or cfg.Id
+    local eCfg = ConfigDataAccessor.Equip[checkid]
+    if eCfg == nil then
+        LogError("道具没有在装备表里配置 id == " .. cfg.Id)
+        return
+    end
+    --装备等级
+    local lvLimit = eCfg.Level
+    local playerLv = GameManager.Instance:GetPlayerLevel()
+    if lvLimit > playerLv then
+        --self.m_LvLimit.text="<color=#eb7664>"..lvLimit.."</color>级可穿戴";
+        self.m_LvLimit.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit"), {"<color=#eb7664>" .. lvLimit .. "</color>"})
+        self.CanEquip = false
+        if self.go_canEquip ~= nil then
+            self.go_canEquip:SetActive(true)
+            --self.tex_canEquip.text="未达到可穿戴的等级"
+            self.tex_canEquip.text = LanguageHelp:GetLanguageByKey("Local_Str_canEquip")
+        end
+    else
+        --self.m_LvLimit.text=""..lvLimit.."级可穿戴";
+        self.m_LvLimit.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit"), {lvLimit})
+    end
+
+    --self.m_Lv.text="" .. eCfg.Equip_Level .. "级";
+    self.m_Lv.text = LanguageHelp:GetLanguageByKey("ItemTipsWidget_27") .. eCfg.Equip_Level
+    --暂时隐藏
+    self.m_Lv.text = ""
+
+    --装备职业
+    local JobType = eCfg.JobBaseType
+    local playerJob = GameManager.Instance:GetPlayJobBaseID()
+    local isMarchPlayerJob = false
+    if JobType == 0 or JobType == playerJob then
+        isMarchPlayerJob = true
+    end
+
+    if isMarchPlayerJob then
+        if JobType == 0 then
+            --self.m_Job.text="全职业";
+            self.m_Job.text = LanguageHelp:GetLanguageByKey("Local_Str_Job")
+            self.m_JobRoot:SetActive(true)
+        else
+            self.m_Job.text = ConfigDataAccessor.Job[playerJob].Name
+            self.m_JobRoot:SetActive(true)
+        end
+    else
+        self.m_Job.text = "<color=#eb7664>" .. ConfigDataAccessor.Job[JobType].Name .. "</color>"
+        self.m_JobRoot:SetActive(true)
+        self.CanEquip = false
+
+        if self.go_canEquip ~= nil then
+            self.go_canEquip:SetActive(true)
+            --self.tex_canEquip.text="职业不符不可穿戴"
+            self.tex_canEquip.text = LanguageHelp:GetLanguageByKey("Local_Str_canEquip2")
+        end
+    end
+
+    --装备类型
+    self.m_Type.text = ConfigDataAccessor.ItemType[GetSubItemID(tonumber(cfg.ItemType), tonumber(cfg.SubType))].Name
+
+    --物品品质
+    local quality = cfg.Quality
+
+    self.m_Name.color = GetQualityColorRGB(quality)
+    if quality == 99 then
+        quality = 1
+    end
+    --self.m_RareTop.sprite= AtlasManager.Instance:GetSprite("ui/common/atlas/commonitem","Tips_Equipbg_l"..quality);
+    ResourceHelper:LoadIconByAtlasAsync(self.m_RareTop, ResourceHelper.AtlasPathCommonItem, "Tips_Equipbg_l" .. quality, false)
+    --self.m_BgRare.sprite= AtlasManager.Instance:GetSprite("ui/common/atlas/commonitem","Bag_Grid_sq"..quality);
+    ResourceHelper:LoadIconByAtlasAsync(self.m_BgRare, ResourceHelper.AtlasPathCommonItem, "Bag_Grid_sq" .. quality, false)
+
+    --物品图标
+    --local icon=cfg.Icon;
+    --LoadIcon(self.Icon,icon);
+    ResourceHelper:LoadIconAsync(self.Icon, "", cfg.Icon, false)
+    self.go_root:SetActive(true)
+    --self.ContentSizeFitter1:SetLayoutHorizontal();
+    --self.ContentSizeFitter2:SetLayoutHorizontal();
+
+    if not (isPlayerEquip) then
+        self.go_equiped:SetActive(false)
+        if self.go_canEquip ~= nil then
+            self.go_canEquip:SetActive(false)
+        end
+    end
+end
+
+--刷新伙伴装备
+function ItemTipsEquip:RefeshPartnerEquipByData(cfg, itemData, isPlayerEquip)
+    self.go_root:SetActive(false)
+
+    self.itemData = itemData
+
+    self.BaseID = cfg.Id
+    if itemData ~= nil then
+        --评分暂时临时的
+        --self.m_Score.text="评分 ???";
+        self.m_Score.text = LanguageHelp:GetLanguageByKey("Local_Str_Score")
+
+        local isEquiped = (self.itemData.SpaceId == 20)
+
+        if isEquiped then
+            --设置装备头像
+
+            local config = ConfigDataAccessor.Partner[self.partnerBaseID]
+            if config ~= nil then
+                self.m_PartnerHead.gameObject:SetActive(true)
+                local avatarDataCell = ConfigDataAccessor.Avatar[config.AvatarID]
+                if avatarDataCell ~= nil then
+                    local headcfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID]
+                    if headcfg ~= nil then
+                        --self.m_PartnerHead.sprite=AtlasManager.Instance:GetSprite(headcfg.HeadAtlasName,headcfg.MinHead);
+                        ResourceHelper:LoadIconByAtlasAsync(self.m_PartnerHead, headcfg.HeadAtlasName, headcfg.MinHead, false)
+                    --self.m_PartnerHead:SetNativeSize()
+                    end
+                end
+            end
+        end
+
+        self.go_score:SetActive(true)
+        --self.m_Score.text="评分 ???";
+        --计算战力
+        --装备战力
+        local equipPower = FightPowerManager.Instance:GetShowEquipPower(self.itemData)
+        --全部槽位战力，共鸣战力
+        --local allPower,slotPower,slotResonancePower=FightPowerManager.Instance:GetEquipSlotsPower();
+        --单个槽位战力
+        --local singleSlotPower=FightPowerManager.Instance:GetEquipSlotsPowerBySlotID(cfg.SubType);
+        self.m_Score.text = equipPower
+
+        --是否是已装备
+        self.go_equiped:SetActive(isEquiped)
+        --是否是已绑定
+        if self.itemData.IsBind then
+            self.go_isbind:SetActive(true)
+            self.go_notbind:SetActive(false)
+            self.go_leftTimes:SetActive(false)
+        else
+            if cfg.MaxTradeCount > 0 then
+                local leftTimes = cfg.MaxTradeCount - self.itemData.TradedCount
+                --local LanguageHelp:GetLanguageByKey("Local_Str_leftTimes") = "可交易{0}次";
+
+                --self.leftTimes.text="可交易"..leftTimes.."次";
+                self.leftTimes.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_leftTimes"), {leftTimes})
+
+                self.go_leftTimes:SetActive(true)
+                self.go_isbind:SetActive(false)
+                self.go_notbind:SetActive(false)
+            else
+                self.go_isbind:SetActive(false)
+                self.go_notbind:SetActive(true)
+                self.go_leftTimes:SetActive(false)
+            end
+        end
+    else
+        --评分暂时临时的
+
+        --self.m_Score.text="评分 ???";
+        self.m_Score.text = LanguageHelp:GetLanguageByKey("Local_Str_Score")
+
+        --是否已经绑定
+        self.go_isbind:SetActive(false)
+        self.go_equiped:SetActive(false)
+        self.go_leftTimes:SetActive(false)
+    end
+
+    local baseID = cfg.Id
+    local parEquipCfg = ConfigDataAccessor.PartnerEquip[baseID]
+    if parEquipCfg == nil then
+        baseID = cfg.Dealid
+        parEquipCfg = ConfigDataAccessor.PartnerEquip[baseID]
+    end
+
+    local Nature = parEquipCfg.Nature
+    local Value = parEquipCfg.Value
+    local Effect = parEquipCfg.Effect
+
+    for i = 1, #Nature do
+        self.attrs[i].gameObject:SetActive(true)
+        local data = {}
+        data.ID = Nature[i]
+        data.Value = Value[i]
+        self.attrs[i]:RefeshAttrProb(data, false)
+    end
+
+    for i = 1, #Effect do
+        if Effect[i] > 0 then
+            self.partnersubattrs[i].gameObject:SetActive(true)
+            self.partnersubattrs[i]:RefeshParEquipAttrProb(Effect[i])
+        end
+    end
+
+    self.CanEquip = true
+
+    --星级
+    self.m_Star.transform.parent.gameObject:SetActive(false)
+
+    --装备等级
+    local equipLv = parEquipCfg.EquipLevel
+
+    --穿戴等级
+    local lvLimit = parEquipCfg.Level
+
+    --获取CanEquip等级
+    local parLv = self.partnerLv or 0
+
+    if parLv > 0 then
+        if lvLimit > parLv then
+            --self.m_LvLimit.text="穿戴条件:<color=#ff0000>"..lvLimit.."</color>级";
+            self.m_LvLimit.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit4"), {"<color=#ff0000>" .. lvLimit .. "</color>"})
+
+            self.CanEquip = false
+
+            if self.go_canEquip ~= nil then
+                self.go_canEquip:SetActive(true)
+                --self.tex_canEquip.text="未达到可穿戴等级"
+                self.tex_canEquip.text = LanguageHelp:GetLanguageByKey("Local_Str_canEquip")
+            end
+        else
+            --self.m_LvLimit.text="穿戴条件:"..lvLimit.."级";
+            self.m_LvLimit.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit4"), {lvLimit})
+        end
+    else
+        --self.m_LvLimit.text="穿戴条件:"..lvLimit.."级";
+        self.m_LvLimit.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit4"), {lvLimit})
+    end
+
+    --self.m_Lv.text="" .. parEquipCfg.EquipLevel .. "级";
+    --self.m_Lv.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {parEquipCfg.EquipLevel})
+    self.m_Lv.text = ""
+
+    --装备职业
+    self.m_Job.text = ""
+    self.m_JobRoot:SetActive(false)
+
+    --装备类型
+    self.m_Type.text = ConfigDataAccessor.ItemType[GetSubItemID(tonumber(cfg.ItemType), tonumber(cfg.SubType))].Name
+
+    self.m_Name.text = cfg.Name
+
+    --物品品质
+    local quality = cfg.Quality
+
+    self.m_Name.color = GetQualityColorRGB(quality)
+    if quality == 99 then
+        quality = 1
+    end
+    --self.m_RareTop.sprite= AtlasManager.Instance:GetSprite("ui/common/atlas/commonitem","Tips_Equipbg_l"..quality);
+    ResourceHelper:LoadIconByAtlasAsync(self.m_RareTop, ResourceHelper.AtlasPathCommonItem, "Tips_Equipbg_l" .. quality, false)
+    --self.m_BgRare.sprite= AtlasManager.Instance:GetSprite("ui/common/atlas/commonitem","Bag_Grid_sq"..quality);
+    ResourceHelper:LoadIconByAtlasAsync(self.m_BgRare, ResourceHelper.AtlasPathCommonItem, "Bag_Grid_sq" .. quality, false)
+    --物品图标
+    --local icon=cfg.Icon;
+    --LoadIcon(self.Icon,icon);
+    ResourceHelper:LoadIconAsync(self.Icon, "", cfg.Icon, false)
+    self.go_root:SetActive(true)
+    --self.ContentSizeFitter1:SetLayoutHorizontal();
+    --self.ContentSizeFitter2:SetLayoutHorizontal();
+
+    if not (isPlayerEquip) then
+        self.go_equiped:SetActive(false)
+        if self.go_canEquip ~= nil then
+            self.go_canEquip:SetActive(false)
+        end
+    end
+end
+
+--刷新纹章信息
+function ItemTipsEquip:RefeshPlayerAmuletByData(cfg, itemData, isPlayerEquip, gemTable)
+    self.go_root:SetActive(false)
+
+    self.itemData = itemData
+
+    self.BaseID = cfg.Id
+    local baseID = cfg.Id
+
+    if itemData ~= nil then
+        local isEquiped = (self.itemData.SpaceId == 13)
+
+        --是否是已装备
+        self.go_equiped:SetActive(isEquiped)
+        --是否是已绑定
+        --是否是已绑定
+        if self.itemData.IsBind then
+            self.go_isbind:SetActive(true)
+            self.go_notbind:SetActive(false)
+            self.go_leftTimes:SetActive(false)
+        else
+            if cfg.MaxTradeCount > 0 then
+                local leftTimes = cfg.MaxTradeCount - self.itemData.TradedCount
+                --self.leftTimes.text="可交易"..leftTimes.."次";
+                self.leftTimes.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_leftTimes"), {leftTimes})
+                self.go_leftTimes:SetActive(true)
+                self.go_isbind:SetActive(false)
+                self.go_notbind:SetActive(false)
+            else
+                self.go_isbind:SetActive(false)
+                self.go_notbind:SetActive(true)
+                self.go_leftTimes:SetActive(false)
+            end
+        end
+
+        --纹章属性
+        local baseID = self.itemData.BaseID
+        local combatSkills = self.itemData.CombatSkills
+
+        local PolishNum = combatSkills.CurPolish --已经铭刻的次数
+
+        local itemCfg = ConfigDataAccessor.Item[baseID]
+        local amuletEquipCfg = ConfigDataAccessor.AmuletEquip[baseID]
+
+        local amuletEquipLevelCfg = ConfigDataAccessor.GetAmuletEquipLevel(amuletEquipCfg.EquipLevel, itemCfg.SubType)
+
+        local maxNum = ConfigDataAccessor.GetMaxPolishNum(itemCfg.Quality) --铭刻次数的上限
+
+        for i = 0, combatSkills.List.Count - 1 do
+            if i + 1 <= #self.amuletattrs then
+                self.amuletattrs[i + 1].gameObject:SetActive(true)
+                local cs = combatSkills.List[i]
+                self.amuletattrs[i + 1]:Refesh(maxNum, cs)
+            end
+        end
+
+        --self.AmuletEffectNum.text="（铭刻阶段"..PolishNum.."/"..maxNum.."）";
+        --self.AmuletEffectNum.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_AmuletEffectNum"), {PolishNum, maxNum})
+        --暂时隐藏
+        self.AmuletEffectNum.text = ""
+
+        --显示星次石信息
+        local gemSlots = self.itemData.GemSlots
+        --查看星次石
+        for i = 0, gemSlots.List.Count - 1 do
+            if i + 1 <= #self.emblemItems then
+                self.emblemItems[i + 1].gameObject:SetActive(true)
+                --刷新星次石槽位信息
+                self.emblemItems[i + 1]:SetInfo(gemSlots.List[i], gemTable)
+            end
+        end
+    else
+        --是否已经绑定
+        self.go_isbind:SetActive(false)
+        self.go_equiped:SetActive(false)
+        self.go_leftTimes:SetActive(false)
+    end
+
+    self.CanEquip = true
+
+    --星级
+    self.m_Star.transform.parent.gameObject:SetActive(false)
+
+    --装备等级
+    local lvLimit = ConfigDataAccessor.AmuletEquip[cfg.Id].Level
+    local playerLv = GameManager.Instance:GetPlayerLevel()
+    if lvLimit > playerLv then
+        --self.m_LvLimit.text="穿戴条件:<color=#ff0000>"..lvLimit.."</color>级";
+        self.m_LvLimit.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit"), {"<color=#ff0000>" .. lvLimit .. "</color>"})
+
+        self.CanEquip = false
+
+        if self.go_canEquip ~= nil then
+            self.go_canEquip:SetActive(true)
+            --self.tex_canEquip.text="未达到可穿戴等级"
+            self.tex_canEquip.text = LanguageHelp:GetLanguageByKey("Local_Str_canEquip")
+        end
+    else
+        --self.m_LvLimit.text="穿戴条件:"..lvLimit.."级";
+        self.m_LvLimit.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit"), {lvLimit})
+    end
+
+    --self.m_Lv.text="" .. ConfigDataAccessor.AmuletEquip[cfg.Id].EquipLevel .. "级";
+    --self.m_Lv.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {ConfigDataAccessor.AmuletEquip[cfg.Id].EquipLevel})
+    self.m_Lv.text = ""
+    --装备职业
+    self.m_Job.text = ""
+    self.m_JobRoot:SetActive(false)
+
+    --装备类型
+    self.m_Type.text = ConfigDataAccessor.ItemType[GetSubItemID(tonumber(cfg.ItemType), tonumber(cfg.SubType))].Name
+
+    self.m_Name.text = cfg.Name
+
+    --物品品质
+    local quality = cfg.Quality
+
+    self.m_Name.color = GetQualityColorRGB(quality)
+    if quality == 99 then
+        quality = 1
+    end
+    --self.m_RareTop.sprite= AtlasManager.Instance:GetSprite("ui/common/atlas/commonitem","Tips_Equipbg_l"..quality);
+    ResourceHelper:LoadIconByAtlasAsync(self.m_RareTop, ResourceHelper.AtlasPathCommonItem, "Tips_Equipbg_l" .. quality, false)
+    --self.m_BgRare.sprite= AtlasManager.Instance:GetSprite("ui/common/atlas/commonitem","Bag_Grid_sq"..quality);
+    ResourceHelper:LoadIconByAtlasAsync(self.m_BgRare, ResourceHelper.AtlasPathCommonItem, "Bag_Grid_sq" .. quality, false)
+    --物品图标
+    --local icon=cfg.Icon;
+    --LoadIcon(self.Icon,icon);
+    ResourceHelper:LoadIconAsync(self.Icon, "", cfg.Icon, false)
+    self.go_root:SetActive(true)
+    --self.ContentSizeFitter1:SetLayoutHorizontal();
+    --self.ContentSizeFitter2:SetLayoutHorizontal();
+
+    if not (isPlayerEquip) then
+        self.go_equiped:SetActive(false)
+        if self.go_canEquip ~= nil then
+            self.go_canEquip:SetActive(false)
+        end
+    end
+end
+
+--刷新符文信息
+function ItemTipsEquip:RefeshPlayerEmblemByData(cfg, itemData, isPlayerEquip)
+    self.go_root:SetActive(false)
+
+    self.itemData = itemData
+
+    self.BaseID = cfg.Id
+    local baseID = cfg.Id
+
+    local heraldryEquipCfg = ConfigDataAccessor.HeraldryEquip[baseID]
+
+    local BaseAttrId = heraldryEquipCfg.BaseAttrId[1]
+    local BaseAttrVal = heraldryEquipCfg.BaseAttrVal[1]
+
+    local ResonanceAttrID = heraldryEquipCfg.ResonanceAttrID[1]
+    local ResonanceAttrVal = heraldryEquipCfg.ResonanceAttrVal[1]
+
+    local config1 = ConfigDataAccessor.GetAttrByID(BaseAttrId)
+    local attrName1 = ""
+    if config1 ~= nil then
+        attrName1 = config1.Name
+    end
+
+    local config2 = ConfigDataAccessor.GetAttrByID(ResonanceAttrID)
+    local attrName2 = ""
+    if config2 ~= nil then
+        attrName2 = config2.Name
+    end
+
+    self.attrs[1].gameObject:SetActive(true)
+    self.attrs[1].Name.text = attrName1
+    self.attrs[1].Add.text = BaseAttrVal
+
+    self.embEchoItem.gameObject:SetActive(true)
+    self.embEchoItem.Name.text = attrName2
+    self.embEchoItem.Add.text = ResonanceAttrVal
+
+    local isEquiped = false
+
+    --是否是已装备
+    self.go_equiped:SetActive(isEquiped)
+
+    if itemData ~= nil then
+        --是否是已绑定
+        --是否是已绑定
+        if self.itemData.IsBind then
+            self.go_isbind:SetActive(true)
+            self.go_notbind:SetActive(false)
+            self.go_leftTimes:SetActive(false)
+        else
+            if cfg.MaxTradeCount > 0 then
+                local leftTimes = cfg.MaxTradeCount - self.itemData.TradedCount
+                --self.leftTimes.text="可交易"..leftTimes.."次";
+                self.leftTimes.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_leftTimes"), {leftTimes})
+
+                self.go_leftTimes:SetActive(true)
+                self.go_isbind:SetActive(false)
+                self.go_notbind:SetActive(false)
+            else
+                self.go_isbind:SetActive(false)
+                self.go_notbind:SetActive(true)
+                self.go_leftTimes:SetActive(false)
+            end
+        end
+    else
+        --是否已经绑定
+        self.go_isbind:SetActive(false)
+        self.go_equiped:SetActive(false)
+        self.go_leftTimes:SetActive(false)
+    end
+
+    self.go_score:SetActive(true)
+    --self.m_Score.text="评分 ???";
+    --计算战力
+    --纹章战力
+    local equipPower = FightPowerManager.Instance:GetShowHeraldryPowerByGemID(baseID)
+    self.m_Score.text = equipPower
+
+    self.CanEquip = true
+
+    --星级
+    self.m_Star.transform.parent.gameObject:SetActive(false)
+
+    self.m_LvLimit.text = ""
+    self.m_Lv.text = ""
+
+    --装备职业
+    self.m_Job.text = ""
+    self.m_JobRoot:SetActive(false)
+
+    --装备类型
+    self.m_Type.text = ConfigDataAccessor.ItemType[GetSubItemID(tonumber(cfg.ItemType), tonumber(cfg.SubType))].Name
+
+    self.m_Name.text = cfg.Name
+
+    --物品品质
+    local quality = cfg.Quality
+
+    self.m_Name.color = GetQualityColorRGB(quality)
+    if quality == 99 then
+        quality = 1
+    end
+    --self.m_RareTop.sprite= AtlasManager.Instance:GetSprite("ui/common/atlas/commonitem","Tips_Equipbg_l"..quality);
+    ResourceHelper:LoadIconByAtlasAsync(self.m_RareTop, ResourceHelper.AtlasPathCommonItem, "Tips_Equipbg_l" .. quality, false)
+    --self.m_BgRare.sprite= AtlasManager.Instance:GetSprite("ui/common/atlas/commonitem","Bag_Grid_sq"..quality);
+    ResourceHelper:LoadIconByAtlasAsync(self.m_BgRare, ResourceHelper.AtlasPathCommonItem, "Bag_Grid_sq" .. quality, false)
+    --物品图标
+    --local icon=cfg.Icon;
+    --LoadIcon(self.Icon,icon);
+    ResourceHelper:LoadIconAsync(self.Icon, "", cfg.Icon, false)
+    self.go_root:SetActive(true)
+    --self.ContentSizeFitter1:SetLayoutHorizontal();
+    --self.ContentSizeFitter2:SetLayoutHorizontal();
+
+    if not (isPlayerEquip) then
+        self.go_equiped:SetActive(false)
+        if self.go_canEquip ~= nil then
+            self.go_canEquip:SetActive(false)
+        end
+    end
+end
+
+--刷新玩家装备
+function ItemTipsEquip:RefeshPlayerEquip(entityID, cfg)
+    self.EntityID = entityID
+    local itemData = nil
+    if self.EntityID ~= nil and self.EntityID ~= 0 then
+        itemData = BusinessManager.Instance:GetItemByItemEntityId(self.EntityID)
+    end
+
+    self:RefeshPlayerEquipByData(cfg, itemData, true)
+end
+
+--刷新伙伴装备
+function ItemTipsEquip:RefeshPartnerEquip(entityID, cfg)
+    self.partnerBaseID = 0
+    self.partnerLv = 0
+
+    self.EntityID = entityID
+    local itemData = nil
+    if self.EntityID ~= nil and self.EntityID ~= 0 then
+        itemData = BusinessManager.Instance:GetItemByItemEntityId(self.EntityID)
+    end
+
+    self:RefeshPartnerEquipByData(cfg, itemData, true)
+end
+
+--刷新纹章信息
+function ItemTipsEquip:RefeshPlayerAmulet(entityID, cfg)
+    self.EntityID = entityID
+    local itemData = nil
+    if self.EntityID ~= nil and self.EntityID ~= 0 then
+        itemData = BusinessManager.Instance:GetItemByItemEntityId(self.EntityID)
+    end
+
+    self:RefeshPlayerAmuletByData(cfg, itemData, true)
+end
+
+--刷新符文信息
+function ItemTipsEquip:RefeshPlayerEmblem(entityID, cfg)
+    self.EntityID = entityID
+    local itemData = nil
+    if self.EntityID ~= nil and self.EntityID ~= 0 then
+        itemData = BusinessManager.Instance:GetItemByItemEntityId(self.EntityID)
+    end
+
+    self:RefeshPlayerEmblemByData(cfg, itemData, true)
+end
+
+--隐藏所有
+function ItemTipsEquip:HideAll()
+    --主属性
+    for i = 1, #self.attrs do
+        self.attrs[i].gameObject:SetActive(false)
+    end
+
+    --副属性
+    for i = 1, #self.subattrs do
+        self.subattrs[i].gameObject:SetActive(false)
+    end
+
+    --伙伴副属性
+    for i = 1, #self.partnersubattrs do
+        self.partnersubattrs[i].gameObject:SetActive(false)
+    end
+
+    --纹章属性
+    for i = 1, #self.amuletattrs do
+        self.amuletattrs[i].gameObject:SetActive(false)
+    end
+
+    --纹章技能
+    for i = 1, #self.emblemItems do
+        self.emblemItems[i].gameObject:SetActive(false)
+    end
+
+    self.embEchoItem.gameObject:SetActive(false)
+
+    self.go_AmuletEffect:SetActive(false)
+
+    self.go_RuneEffect:SetActive(false)
+    self.go_EmbEchoEffect:SetActive(false)
+
+    self.go_Line:SetActive(false)
+    self.go_Line2:SetActive(false)
+
+    self.go_Perfect:SetActive(false)
+
+    self.go_score:SetActive(false)
+
+    self.m_PartnerHead.gameObject:SetActive(false)
+
+    self.m_ScoreUp:SetActive(false)
+    self.m_ScoreDown:SetActive(false)
+
+    self.go_attrPower:SetActive(false)
+    self.m_attrPower.text = ""
+    self.m_attrPowerUp:SetActive(false)
+    self.m_attrPowerDown:SetActive(false)
+
+    self.m_subAttrPowerUp:SetActive(false)
+    self.m_subAttrPowerDown:SetActive(false)
+
+    self.go_subAttrPower:SetActive(false)
+end
+
+--用道具数据刷新玩家装备（除了1和101用这个）
+function ItemTipsEquip:RefeshEquipByData(itemData, gemTable)
+    self:Show(true)
+    if self.go_canEquip ~= nil then
+        self.go_canEquip:SetActive(false)
+    end
+
+    self.EntityID = itemData.EntityID
+
+    self:HideAll()
+
+    local cfg = ConfigDataAccessor.Item[itemData.BaseID]
+
+    if cfg.ItemType == 2 then
+        --玩家装备
+        self.go_attrPower:SetActive(true)
+        self.go_subAttrPower:SetActive(true)
+        self.go_Line:SetActive(true)
+        --self.go_Perfect:SetActive(true)
+        self:RefeshPlayerEquipByData(cfg, itemData, false)
+    elseif cfg.ItemType == 4 then
+        --伙伴装备
+        self.go_attrPower:SetActive(true)
+        self:RefeshPartnerEquipByData(cfg, itemData, false)
+    elseif cfg.ItemType == 5 then
+        --纹章
+        self.go_AmuletEffect:SetActive(true)
+        self.go_RuneEffect:SetActive(true)
+        self.go_Line2:SetActive(true)
+        self:RefeshPlayerAmuletByData(cfg, itemData, false, gemTable)
+    elseif cfg.ItemType == 6 then
+        --星次石
+        self.go_attrPower:SetActive(true)
+        self.go_EmbEchoEffect:SetActive(true)
+        self:RefeshPlayerEmblemByData(cfg, itemData, false)
+    end
+
+    --刷新跳转
+    if self.needJump then
+        self:RefeshJumpItems(cfg.Source, false)
+    end
+    self.ItemContentSizeFitter:SetLayoutVertical()
+
+    DOVirtual.DelayedCall(
+        0.2,
+        function()
+            self:CheckNeedShowMask()
+        end
+    )
+end
+
+function ItemTipsEquip:Refesh(cfg, entityID, partnerLv, partnerBaseID, module)
+    self:Show(true)
+    if self.go_canEquip ~= nil then
+        self.go_canEquip:SetActive(false)
+    end
+    self.BaseID = cfg.Id
+    self.partnerBaseID = partnerBaseID
+    self.partnerLv = partnerLv
+
+    self:HideAll()
+
+    --玩家装备
+    if cfg.ItemType == 2 then
+        --玩家装备
+        self.go_attrPower:SetActive(true)
+        self.go_subAttrPower:SetActive(true)
+        self.go_Line:SetActive(true)
+        --self.go_Perfect:SetActive(true)
+        self:RefeshPlayerEquip(entityID, cfg)
+    elseif cfg.ItemType == 4 then
+        --伙伴装备
+        self.go_attrPower:SetActive(true)
+        self:RefeshPartnerEquip(entityID, cfg)
+    elseif cfg.ItemType == 5 then
+        --纹章
+        self.go_AmuletEffect:SetActive(true)
+        self.go_RuneEffect:SetActive(true)
+        self.go_Line2:SetActive(true)
+        self:RefeshPlayerAmulet(entityID, cfg)
+    elseif cfg.ItemType == 6 then
+        --星次石
+        self.go_attrPower:SetActive(true)
+        self.go_EmbEchoEffect:SetActive(true)
+        self:RefeshPlayerEmblem(entityID, cfg)
+    end
+
+    --刷新跳转
+    if self.needJump then
+        self:RefeshJumpItems(cfg.Source, true)
+    end
+    self.ItemContentSizeFitter:SetLayoutVertical()
+
+    DOVirtual.DelayedCall(
+        0.2,
+        function()
+            self:CheckNeedShowMask()
+        end
+    )
+end
+
+function ItemTipsEquip:SortItem(tbl)
+    if #tbl > 1 then
+        table.sort(
+            tbl,
+            function(a, b)
+                if a.Quality > b.Quality then
+                    -- 按Quality降序
+                    return true
+                end
+                return false
+            end
+        )
+    end
+end
+
+--刷新跳转
+function ItemTipsEquip:RefeshJumpItems(jumpIds, isPlayerEquip)
+    self.go_root:SetActive(false)
+    self.go_root:SetActive(true)
+    --self.ContentSizeFitter1:SetLayoutHorizontal();
+    --self.ContentSizeFitter2:SetLayoutHorizontal();
+
+    if self.go_jumpItemLine == nil then
+        return
+    end
+
+    local items = {}
+    for i = 1, #jumpIds do
+        local it = {}
+
+        --需要根据跳转表来定义
+
+        --跳转类型
+        it.Type = jumpIds[i]
+
+        --是否可以跳转的判断
+        it.CanJump = true
+
+        local cfg = ConfigDataAccessor.ItemGetJump[it.Type]
+        -- 判断是否系统开启
+        local sysOpen = cfg.SysOpen
+        if sysOpen > 0 then
+            if not (CheckPlayerGuidanceOpen(sysOpen, "", false)) then
+                -- 不满足开放条件
+                it.CanJump = false
+            end
+        end
+        --跳转的描述
+        if cfg ~= nil then
+            it.Desc = cfg.WayName
+            it.Icon = cfg.Icon
+        end
+
+        table.insert(items, it)
+    end
+    self.jumpItemPool:RecycleAll()
+    self.jumpItemPool2:RecycleAll()
+    --[[
+
+    if #items > 3 then
+        self.go_jumpList:SetActive(true)
+        --对象池
+
+        for i = 1, #items do
+            local item = self.jumpItemPool2:Spawn()
+            item:SetItem(items[i])
+        end
+    else
+        self.go_jumpList:SetActive(false)
+        --对象池
+
+        for i = 1, #items do
+            local item = self.jumpItemPool:Spawn()
+            item:SetItem(items[i])
+        end
+    end
+    ]]
+    self.go_jumpList:SetActive(false)
+    --对象池
+
+    for i = 1, #items do
+        local item = self.jumpItemPool:Spawn()
+        item:SetItem(items[i])
+    end
+    self.go_jumpItemLine:SetActive(#items > 0)
+end
+
+function ItemTipsEquip:OnJumpClick(ji)
+    --公会领地不处理
+    local sceneType = GameManager.Instance:GetCurMapType()
+    if sceneType == CS.ProtoMsg.SpaceType.SpaceGuildTerritory or sceneType == CS.ProtoMsg.SpaceType.SpaceScene then
+        --处理跳转事件
+        print("处理跳转事件" .. ji.JumpType)
+        JumpByJumpType(ji.JumpType, self.BaseID, self.FromModule, self.FromArgs)
+    else
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_252"))
+    end
+end
+
+return ItemTipsEquip

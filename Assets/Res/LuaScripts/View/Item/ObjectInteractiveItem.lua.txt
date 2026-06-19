@@ -1,0 +1,110 @@
+--[[
+*文件名   :   ObjectInteractiveItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/15 14:49:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local ObjectInteractiveItem = {}
+
+ObjectInteractiveItem.__index = ObjectInteractiveItem
+
+function ObjectInteractiveItem:New(_go) 
+    local self = {};    
+    setmetatable(self, ObjectInteractiveItem); 
+    
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+    self.Name=self.transform:Find("tex"):GetComponent(typeof(Text));
+
+    self.Icon=self.transform:Find("Icon"):GetComponent(typeof(Image));
+	self.Fx=self.transform:Find("bg/FX_UI_ObjectInteractiveWidget_Loop").gameObject
+	
+    --点击事件
+	local btnClick=self.transform:GetComponent(typeof(JButton));
+	btnClick.OnClick=(function() 
+        if self.OnItemCkick ~= nil then
+            local entityCfgID = GameManager.Instance:GetEntityCfgID(self.EntityID)
+            local stepID = "6_" .. entityCfgID
+            GameManager.Instance:EventPreNewPlayerEvent(stepID);
+		    self.OnItemCkick(self); 
+            GameManager.Instance:SetNpcDialogLookAtMainPlayer(self.EntityID);
+        end
+	end);
+
+    
+    self.Service=nil;
+    self.Index=0;
+    self.IsJustTalk=false;
+    
+
+    self.IsUsed=false;
+    self.gameObject:SetActive(false);
+
+    return self;    --返回自身
+end
+
+function ObjectInteractiveItem:SetUse(b)
+    self.IsUsed=b;
+    if self.gameObject ~= nil then
+        self.gameObject:SetActive(b);
+    end
+end
+
+function ObjectInteractiveItem:InitItem(onItemCkick)
+
+    self:SetUse(false);
+end
+
+
+function ObjectInteractiveItem:SetItem(name,icon,entityID,onItemCkick,isTaskServer,effectId,highlight)
+
+    self.EffectId=effectId;
+	self.OnItemCkick=onItemCkick;
+	local hl=highlight or false;
+	self:SetUse(true);
+
+
+	self.EntityID=entityID;
+
+	--改变图标
+	--icon
+    if self.iconName~=icon then
+        self.iconName=icon;
+	    --self.Icon.sprite=AtlasManager.Instance:GetSprite("ui/starworld/atlas/hud",icon);
+        ResourceHelper:LoadIconByAtlasAsync(self.Icon, ResourceHelper.AtlasPathHud, icon, false)
+    end
+	
+
+	self.Name.text=name;
+	
+	local color=ColorDefine.Instance:GetColor("ffffeb");
+	if isTaskServer then
+		color=ColorDefine.Instance:GetColor("f4d6a0");
+	end
+	self.Fx:SetActive(hl)		
+	self.Icon.color=color;
+	self.Name.color=color;	
+end
+
+
+function ObjectInteractiveItem:SetItemBak(entityID)
+
+    self:SetUse(true);
+    
+    local BaseID=GameManager.Instance:GetEntityCfgID(entityID);
+
+    self.EntityID=entityID;
+    --self.cfg=LocalDataManager.Instance:GetNPCDataCell(BaseID);--配置
+	self.cfg = ConfigDataAccessor.Npc[BaseID];
+    self.Name.text=self.cfg.Name;
+
+end
+
+
+
+
+return ObjectInteractiveItem;

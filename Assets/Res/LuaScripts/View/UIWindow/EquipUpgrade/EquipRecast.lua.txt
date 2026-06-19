@@ -1,0 +1,199 @@
+--[[
+*文件名   :   EquipRecast
+*内  容   :	装备熔铸
+*说  明   :
+*创建日期 :   "2023/02/03 13:09:51"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] local EquipRecast = {}
+EquipRecast.__index = EquipRecast
+
+local EquipRecastEquip = require("View/Uiwindow/EquipUpgrade/EquipRecastEquip")
+local EquipRecastInfo = require("View/Uiwindow/EquipUpgrade/EquipRecastInfo")
+local EquipRecastChooseMenu = require("View/Uiwindow/EquipUpgrade/EquipRecastChooseMenu")
+local EquipRecastEventLog = require("View/Uiwindow/EquipUpgrade/EquipRecastEventLog")
+
+function EquipRecast:New(_go, equipUpgradeWindow)
+    local self = {}
+    setmetatable(self, EquipRecast)
+
+    self.transform = _go.transform
+    self.gameObject = _go
+
+    self.EquipUpgradeWindow = equipUpgradeWindow
+
+    self.equipRecastEquip = EquipRecastEquip:New(self.transform:Find("Equip").gameObject, self)
+    self.equipRecastInfo = EquipRecastInfo:New(self.transform:Find("Info").gameObject, self)
+    self.equipRecastChooseMenu = EquipRecastChooseMenu:New(self.transform:Find("ChooseMenu").gameObject, self)
+
+    self.equipRecastEventLog = EquipRecastEventLog:New(self.transform:Find("Log/Cut4Cam90").gameObject, self)
+
+    self.SelectedEntityID = {-1, -1} -- 选中的槽位
+
+    --两个都装备上去的动效
+    self.anim = self.transform:GetComponent(typeof(Animator))
+
+    -- 点击重铸按钮
+    local btnRemake = self.transform:Find("Info/Cut4Cam90/Right/BtnConfirm"):GetComponent(typeof(JButton))
+    btnRemake.OnClick = (function()
+        self:OnRemakeClick()
+    end)
+
+    -- 点击日志按钮
+    local btnLog = self.transform:Find("Equip/Items/Btn1"):GetComponent(typeof(JButton))
+    btnLog.OnClick = (function()
+        self:OnLogClick()
+    end)
+
+    -- 监听重铸回调报
+    self.message1 = function(data)
+        self:OnEqRecastReqRet(data)
+    end
+
+    -- 监听差量更新变化
+    self.message2 = function(data)
+        self:OnEqRecastsChange(data)
+    end
+
+    return self -- 返回自身
+end
+
+function EquipRecast:OnLogClick()
+    self.equipRecastEventLog:Show(true)
+end
+
+-- 重铸回调 因为没有内容，所以可以使用简单回复
+function EquipRecast:OnEqRecastReqRet(args)
+    local RetMsgID = args.MsgRet.RetMsgID -- 对应的消息号(这个可以判断是哪个协议)
+
+    local RetCode = args.MsgRet.RetCode
+    if RetCode == 0 then
+        -- 成功
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_157"))
+
+        -- 刷新面板
+        self:Reset(true)
+    else
+        -- 不需要处理，交给上层去处理
+        -- args.IsDialog=true
+        -- Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_83"));
+    end
+end
+
+function EquipRecast:OnRemakeClick()
+    if not (self.equipRecastInfo.IsMoneyEnough) then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_81"))
+        return
+    end
+
+    if self.SelectedEntityID[1] == -1 or self.SelectedEntityID[2] == -1 then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_160"))
+        return
+    end
+
+    local data1 = BusinessManager.Instance:GetItemByItemEntityId(self.SelectedEntityID[1])
+    local cfg1 = ConfigDataAccessor.Item[data1.BaseID]
+    local name1 = GetQualityColor(cfg1.Quality) .. cfg1.Name .. "</color>"
+
+    local data2 = BusinessManager.Instance:GetItemByItemEntityId(self.SelectedEntityID[2])
+    local cfg2 = ConfigDataAccessor.Item[data2.BaseID]
+    local name2 = GetQualityColor(cfg2.Quality) .. cfg2.Name .. "</color>"
+
+    CS.StarProjectDef.UIAPI.ShowMsgBox(
+        21,
+        function(str)
+            if str == "SURE" then
+                local eqRecastReq = CS.ProtoMsg.EqRecastReq()
+                eqRecastReq.LEID = self.SelectedEntityID[1]
+                eqRecastReq.REID = self.SelectedEntityID[2]
+
+                CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, eqRecastReq, false)
+            end
+        end,
+        name1,
+        name2
+    )
+end
+
+function EquipRecast:GetSelectedEntityIdx(selectedEntityID)
+    for i = 1, #self.SelectedEntityID do
+        if selectedEntityID == self.SelectedEntityID[i] then
+            return i
+        end
+    end
+
+    return 0
+end
+
+function EquipRecast:ChangeSelectedEntity(selectedEntityID)
+    if self.SelectedEntityID[1] == -1 then
+        self.SelectedEntityID[1] = selectedEntityID
+        self.anim:Play("Def")
+    else
+        if self.SelectedEntityID[2] == selectedEntityID then
+            self.SelectedEntityID[2] = -1
+            self.anim:Play("Def")
+        elseif self.SelectedEntityID[1] == selectedEntityID then
+            self.SelectedEntityID[1] = self.SelectedEntityID[2]
+            self.SelectedEntityID[2] = -1
+            self.anim:Play("Def")
+        else
+            self.SelectedEntityID[2] = selectedEntityID
+            self.anim:Play("Recast_Anim")
+        end
+    end
+
+    self.equipRecastEquip:Refesh()
+end
+
+function EquipRecast:OnItemClick(ritem)
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", {ritem.BaseID, false, 0, ritem.transform, 0})
+end
+
+function EquipRecast:OnMessage()
+    CS.SGF.Network.MsgRetManager.Instance:OnMessageEnum(self.message1, CS.MsgIDEnum.EqRecastReqID)
+    FixMessageManager.Instance:OnMessage(FixUpdateDef.EqRecasts, self.message2, nil)
+    self.equipRecastChooseMenu:OnMessage()
+end
+
+function EquipRecast:OffMessage()
+    CS.SGF.Network.MsgRetManager.Instance:OffMessageEnum(self.message1, CS.MsgIDEnum.EqRecastReqID)
+    FixMessageManager.Instance:OffMessage(FixUpdateDef.EqRecasts, self.message2, nil)
+    self.equipRecastChooseMenu:OffMessage()
+end
+
+function EquipRecast:Show(b)
+    self.gameObject:SetActive(b)
+    self.anim:Play("Null")
+    if b then
+        self:Reset(false)
+        self:OnEqRecastsChange()
+    end
+end
+
+function EquipRecast:Reset(noNeedChangeTag)
+    self.SelectedEntityID = {-1, -1} -- 选中的槽位
+    self.equipRecastEquip:Show(true, noNeedChangeTag)
+    self.equipRecastInfo:Show(true)
+end
+
+function EquipRecast:OnEqRecastsChange()
+    -- 判断是否还有没选择的
+    local eqRecastMD = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.EqRecasts):GetEqRecastMD()
+
+    if eqRecastMD ~= nil then
+        local itemInfos = eqRecastMD.RecastEqs.ItemInfos
+        if itemInfos.Count > 0 then
+            self.equipRecastChooseMenu:Show(true)
+        else
+            self.equipRecastChooseMenu:Show(false)
+            self:Reset(true)
+        end
+    end
+end
+
+function EquipRecast:Refesh()
+    self.equipRecastInfo:Refesh()
+end
+
+return EquipRecast

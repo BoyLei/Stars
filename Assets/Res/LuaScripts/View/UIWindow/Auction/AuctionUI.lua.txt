@@ -1,0 +1,1013 @@
+--[[
+*文件名   :   AuctionUI
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/09 09:44:49"
+*创建人   :   "DL"
+*版权所有 :   游卡网络科技技术有限公司
+]] local AuctionUI = {}
+
+AuctionUI.__index = AuctionUI
+local curData = nil;
+local ItemTypeGroupBtn = require("View/UIWindow/Auction/ItemTypeGroupBtn");
+local AuctionGoodsItem = require("View/UIWindow/Auction/AuctionGoodsItem");
+local UnionWarehouse = require("View/UIWindow/Auction/UnionWarehouse");
+local SelectBtn = require("View/Item/SelectBtn");
+
+function AuctionUI:BindModule(m)
+    self.module = m;
+end
+
+function AuctionUI:Create()
+    local self = {};
+    setmetatable(self, AuctionUI);
+
+    return self;
+end
+
+function AuctionUI:Init(_go, _parent)
+    self.gameObject = _go;
+    self.transform = _go.transform;
+
+    if _parent ~= nil then
+        self.transform:SetParent(_parent, false);
+        self.transform:GetComponent(typeof(RectTransform));
+        -- self.transform.localPosition = Vector3.zero
+        self.transform.localScale = Vector3.one
+    end
+
+    -- AuctionContent 世界拍卖/冒险团拍卖 的根节点
+    self.AuctionContent = self.transform:Find("AuctionContent");
+
+    -- self.typeGroupBtnRoot 类型组 按钮的 根节点
+    self.typeGroupBtnRoot = self.AuctionContent:Find("Scroll View/Viewport/Content");
+    self.typeGroupBtnRootSizeFitter = self.typeGroupBtnRoot:GetComponent(typeof(ContentSizeFitter));
+
+    -- 竞拍商品的拷贝
+    self.AuctionGoodsItemCopy = self.AuctionContent:Find("GoodsScrollView/AuctionGoodsItem");
+    self.GoodsScrollView = self.AuctionContent:Find("GoodsScrollView");
+
+    -- 竞拍商品面板 
+    self.GoodsScrollViewController = self.GoodsScrollView:GetComponent(typeof(SuperScrollViewController));
+
+    -- 竞拍品 list 
+    self.auctionGoodsItemList = {};
+
+    self.showGoodsInofs = {};
+
+    self.ItemTypeGroupBtnCopy = self.AuctionContent:Find("Scroll View/ItemTypeGroupBtn");
+
+    -- 先初始化 滑动列表
+    self.GoodsScrollViewController:NewScroll(self.AuctionGoodsItemCopy.gameObject, 0, function(tr, idx)
+        self:OnItemRefesh(tr, idx);
+    end)
+
+    self.ScrollRect = self.GoodsScrollView:GetComponent(typeof(ScrollRect));
+
+    -- 点击我的购买toggle
+    local myBought = self.AuctionContent:Find("MyBought"):GetComponent(typeof(Toggle));
+    myBought.onValueChanged:AddListener(function(buy)
+        self:OnClickMyBought(buy);
+    end);
+
+    self.noneConfirm = self.AuctionContent:Find("NoneConfirm"):GetComponent(typeof(Toggle));
+    self.noneConfirm.onValueChanged:AddListener(function(isOn)
+        self:OnClickNoneConfirm(isOn);
+    end);
+
+    self.isNoneConfirm = self.noneConfirm.isOn;
+
+    -- 世界拍卖按钮 节点
+    local worldGo = self.transform:Find("ToggleGroup/WorldBtn").gameObject;
+    self.worldSelect = SelectBtn:New(worldGo);
+    self.worldSelect:InitItem(1, function(idx)
+        self:OnClickWorldOrUnion(idx);
+    end);
+
+    -- 冒险团拍卖按钮 节点
+    local unionGo = self.transform:Find("ToggleGroup/UnionBtn").gameObject;
+    self.unionSelect = SelectBtn:New(unionGo);
+    self.unionSelect:InitItem(2, function(idx)
+        self:OnClickWorldOrUnion(idx);
+    end);
+
+    -- 冒险团仓库 按钮
+    local unionWarehouseGo = self.transform:Find("ToggleGroup/UnionWarehouseBtn").gameObject;
+    self.unionWarehouseGo = SelectBtn:New(unionWarehouseGo);
+    self.unionWarehouseGo:InitItem(3, function(idx)
+        self:OnClickWorldOrUnion(idx);
+    end);
+
+    local refreshdBtn = self.AuctionContent:Find("RefreshdBtn"):GetComponent(typeof(JButton));
+    refreshdBtn.OnClick = (function()
+        self:OnClickRefresh();
+    end);
+
+    self.TimerLab = self.AuctionContent:Find("RefreshdBtn/tex"):GetComponent(typeof(Text));
+
+    self.noOpenRoot = self.AuctionContent:Find("GoodsScrollView/NoOpenRoot").gameObject;
+    self.noOpenTips = self.noOpenRoot.transform:Find("Tips"):GetComponent(typeof(Text));
+
+    self.resIcon = self.AuctionContent:Find("Resource/Icon"):GetComponent(typeof(Image));
+    self.resPrice = self.AuctionContent:Find("Resource/Price"):GetComponent(typeof(Text));
+
+    self.UnionWarehouseContent = self.transform:Find("UnionWarehouseContent");
+
+    -- 绑定 UnionWarehouse 和 节点 UnionWarehouseContent 
+    self.UnionWarehouse = UnionWarehouse:New(self.UnionWarehouseContent.gameObject);
+
+    -- 创建 类型按钮, 目前是 创建 所有的 配置表的 类型, 后面 看策划需要, 是否改为 产出的物品类型
+    self:InitGoodsType();
+
+    -- 默认 的 数据刷新的 倒计时
+    self.timer = ConfigDataAccessor.SystemList[73].Value;
+
+    self.onceAddPrice = ConfigDataAccessor.SystemList[71].Value;
+
+    -- 默认点击的 刷新按钮事件
+    self.clickRefreshTime = 0;
+
+    self.refreshFunc = function()
+        self:UpdateTime();
+    end
+end
+
+function AuctionUI:GetNew(_parent, _ac)
+
+    -- 数据层先创建, 不管资源有没有异步加载
+    if curData == nil then
+        curData = AuctionUI:Create();
+    end
+
+    -- 判断prefab 有没有加载成功, 不管调用几次, 都应该只返回最后一次
+    if curData.gameObject ~= nil then
+        _ac(curData);
+        return;
+    end
+
+    -- 不管调用几次,  这个接口都会只返回最后一次调用的回调
+    UIRes.LoadPrefabAsyncRepetMutex("Recharge/Prefab/AuctionUI", function(go)
+        curData:Init(go, _parent);
+        _ac(curData);
+    end)
+end
+
+--- ui的刷新 接口
+
+-- 全局 节点
+-- self.Icon
+
+-- self.TimerLab  -- 倒计时lab
+
+-- 全局变量
+-- self.goodsInfos        -- 所有的 商品数据
+-- self.showGoodsInofs    -- 条件过滤后 显示的 所有商品数据
+-- self.otherGoodsInfos   -- 其它类型的商品数据
+
+-- self.itemTypes          -- 道具类型
+
+-- self.isShowMyBought    -- 我的拍卖 是否点击
+-- self.isNoneConfirm     -- 无需确认 是否点击
+-- self.selectAuctionType   -- 选择 冒险团 / 世界  ---> [冒险团是1 / 世界是2] 
+-- self.otherType           -- 其它的 非 AuctionType 枚举的类型
+
+-- self.itemTypeGroupBtnRecord  -- 之前选择的 道具组按钮的 记录
+-- self.itemTypeBtnRecord       -- 之前选择的 道具子类型的 记录
+
+-- self.selectItemType    -- 选择的 道具类型
+-- self.selectItemSubType -- 选择的 道具子类型
+-- self.isAllSubType      -- 选择的 是否是所有子类型
+
+-- self.TimerLab          -- 倒计时 时间
+
+--- 拍卖行 界面的显示接口, 根据 selectAuctionType 决定显示什么界面
+---@param selectAuctionType "默认显示 冒险团/世界 "
+---@param sendReq "发送拉取协议请求"
+function AuctionUI:Show(selectAuctionType, sendReq, otherType)
+    -- 创建 测试 数据
+    -- self:CreateData();
+
+    self.goodsInfos = {};
+
+    self.selectAuctionType = selectAuctionType;
+
+    -- 其它类型 设置为 none
+    self.otherType = AuctionOtherSelectType.None;
+
+    self:RefreshSelectAuctionType();
+
+    -- 如果 otherType 为none, 那就是正常的 AuctionType，刷新对应的 类型的数据
+    -- local hasTypeData = self.module:HasTypeData(selectAuctionType);
+
+    -- 如果没有数据, 就直接发送请求, 之前增加 sendReq 是为了防止多次返回重复刷新界面
+    -- if not hasTypeData then
+    --     -- if sendReq or not hasTypeData then
+    --     -- 向服务器 发送 选择类型的 竞拍活动数据请求 
+    --     self.module:SendAuctionReq(self.selectAuctionType);
+    -- end
+    self.module:SendAuctionReq(self.selectAuctionType);
+
+    -- self:RefreshServerData();
+
+    -- 更新 倒计时
+    MonoHelper.RemoveUpdateListener(self.refreshFunc);
+    MonoHelper.AddUpdateListener(self.refreshFunc);
+
+    self.module:MarkClickActivityTypeRedPoint(self.selectAuctionType);
+end
+
+--- 根据 otherType 显示 对应的类型数据
+---@param otherType "表示的是 非 AuctionType 枚举的类型,比如 冒险团拍卖仓库类型"
+function AuctionUI:ShowOtherType(otherType, sendReq)
+    self.selectAuctionType = CS.ProtoMsg.AuctionType.AtDefault;
+
+    self.otherType = otherType;
+    self.otherGoodsInfos = {};
+
+    self:RefreshSelectAuctionType();
+
+    -- 如果 otherType 为none, 那就是正常的 AuctionType，刷新对应的 类型的数据
+    local hasTypeData = self.module:HasOtherTypeData(otherType);
+
+    -- 如果没有数据, 就直接发送请求, 之前增加 sendReq 是为了防止多次返回重复刷新界面
+    if not hasTypeData then
+        -- if sendReq or not hasTypeData then
+        -- 向服务器 发送 选择类型的 竞拍活动数据请求 
+        self.module:SendOtherTypeReq(self.otherType);
+    end
+
+    self:RefreshServerData();
+
+    -- 更新 倒计时
+    MonoHelper.RemoveUpdateListener(self.refreshFunc);
+    MonoHelper.AddUpdateListener(self.refreshFunc);
+
+end
+
+function AuctionUI:RefreshIsOpenUI()
+    local isOpen = self.module:IsTypeActive(self.selectAuctionType);
+    self.noOpenRoot:SetActive(not isOpen);
+
+    self.noOpenTips.text = LanguageHelp:GetLanguageByKey("Local_Str_Auction_warning1")
+end
+
+function AuctionUI:Close()
+    MonoHelper.RemoveUpdateListener(self.refreshFunc);
+    self.transform.gameObject:SetActive(false);
+end
+
+function AuctionUI:OnDestroy()
+    curData = nil;
+end
+
+function AuctionUI:RefreshSelectAuctionType()
+    local isUnionWarehouse = self.otherType == AuctionOtherSelectType.UnionWarehouse;
+    local isGroup = self.selectAuctionType == CS.ProtoMsg.AuctionType.Group and not isUnionWarehouse;
+    local isWorld = self.selectAuctionType == CS.ProtoMsg.AuctionType.World and not isUnionWarehouse;
+
+    self.unionSelect:MakeSelected(isGroup);
+    self.worldSelect:MakeSelected(isWorld);
+
+    self.unionWarehouseGo:MakeSelected(isUnionWarehouse);
+
+end
+
+function AuctionUI:CreateData()
+    -- 所有的 商品信息
+    self.goodsInfos = {};
+
+    -- TODO
+    -- 临时创建的 所有道具 为商品类型
+    for i, v in pairs(ConfigDataAccessor.Item) do
+
+        local goodsItemInfo = {};
+        -- TODO
+        -- 临时采用 道具 ID 作为 商品的 UniID, 这个数据需要服务器给
+        goodsItemInfo.UniID = i;
+        goodsItemInfo.ItemID = i;
+        goodsItemInfo.count = 1;
+        goodsItemInfo.curPrice = 0;
+        goodsItemInfo.cfg = v;
+
+        table.insert(self.goodsInfos, goodsItemInfo);
+
+    end
+end
+
+-- 刷新 服务器数据
+function AuctionUI:RefreshServerData()
+
+    -- 每次 刷新数据之前  都清空一下 等待期的状态, 不一定合理
+    self.isInWaiting = nil;
+
+    -- 如果当前类型 选择的是 其它的 类型(非AutinType类型) , 那么就调用 其它类型的显示接口
+    if self.otherType ~= AuctionOtherSelectType.None then
+        self:RefreshOtherGoodsUI();
+        return;
+    end
+
+    self.UnionWarehouseContent.gameObject:SetActive(false);
+    self.AuctionContent.gameObject:SetActive(true);
+
+    self.goodsInfos = {};
+
+    if self.module.DataMap[self.selectAuctionType] == nil then
+        self:RefreshGoodsUI();
+        return;
+    end
+
+    local datas = self.module.DataMap[self.selectAuctionType];
+
+    -- 上一次 的刷新时间, 根据这个时间 刷新倒计时
+    local lastRefreshTime = datas.time;
+
+    -- 这玩意 现在是 完整数据的 list了
+    self.goodsInfos = datas.goodsInfo;
+
+    self:RefreshGoodsUI();
+
+    self.module:MarkClickActivityTypeRedPoint(self.selectAuctionType);
+end
+
+function AuctionUI:UpdateData(data)
+    -- 数据 类型 相同的时候,并且 还是 所选择的数据的时候, 才会去 刷新 这个页面的数据
+    if data.type == CS.ProtoMsg.AuctionType.Group or data.type == CS.ProtoMsg.AuctionType.World and data.type ==
+        self.selectAuctionType then
+
+        -- 刷新 对应的服务器数据
+        self:RefreshServerData();
+        return;
+    end
+
+    if data.otherType ~= AuctionOtherSelectType.None and data.otherType == AuctionOtherSelectType.UnionWarehouse then
+        -- 刷新 对应的服务器数据
+        self:RefreshServerData();
+        return;
+    end
+end
+
+-- 刷新 单个 ui 数据的接口
+function AuctionUI:UpdateItemData(type, itemData)
+    if type == CS.ProtoMsg.AuctionType.Group or type == CS.ProtoMsg.AuctionType.World and type == self.selectAuctionType then
+
+        -- 是否 购买
+        local isBuy = self.module:IsBoughtAuctionGoods(self.selectAuctionType, itemData.UniID);
+        local isWaiting = self.module:IsTypeInWaiting(self.selectAuctionType);
+
+        -- 刷新 对应的服务器数据
+        self:RefreshAuctionGoodsItemData(itemData, isBuy, not isWaiting);
+    end
+end
+
+-- 刷新 我参与的拍卖 数据信息 
+function AuctionUI:RefreshmyShopsData()
+
+    self.RefreshGoodsUI();
+
+end
+
+-- 初始化 所有的道具类型 (目前先按道具表的类型分类)
+function AuctionUI:InitGoodsType()
+
+    self.itemTypes = {};
+    -- 道具类型 分类, 需要 给每个大类 生成一个 [全部] 的类型
+
+    -- typeGroupIndex ，按道具类型组分类, 根据 类型组的添加顺序,  sort 排序.
+    local typeGroupIndex = 0;
+
+    for i, v in pairs(ConfigDataAccessor.ItemMainType) do
+        -- 策划要求根据子类型是否显示 反推父类型. 
+        local isShow = true;
+
+        if isShow then
+            local type = v.ItemType;
+            local typeGroup = {};
+
+            -- 先设置 主类型
+            if self.itemTypes[type] == nil then
+                typeGroup.type = type;
+                typeGroup.name = v.Name;
+                typeGroup.groups = {};
+            else
+                typeGroup = self.itemTypes[type];
+            end
+
+            -- 获得所有子类型
+            local subTypeCfg = GetItemTypes(true, type);
+
+            for sk, sv in pairs(subTypeCfg) do
+                if sv.AuctionVisible then
+                    local subType = {};
+                    subType.type = sv.ItemType;
+                    subType.subType = sv.SubType;
+                    subType.name = sv.Name;
+
+                    table.insert(typeGroup.groups, subType);
+                end
+            end
+
+            -- 子类型数量大于0
+            if #typeGroup.groups > 0 then
+
+                -- 提前创建一个 [全部] 的子类型 , 约定 这个 [全部] 类型的 subType == 0 ;
+                local itemType = {};
+                itemType.type = v.ItemType;
+                itemType.subType = -1;
+                itemType.name = LanguageHelp:GetLanguageByKey("Local_Str_Quality_All");
+
+                -- 将子类型 按顺序 插入 group数组中
+                table.insert(typeGroup.groups, 1, itemType);
+
+                self.itemTypes[type] = typeGroup;
+            else
+                print("冒险团 " .. "typeGroup: " .. typeGroup.name .. " 没有可显示的子类型");
+            end
+
+        end
+
+    end
+
+    -- 创建一个 [全部商品] 类型的 类型组, 用来显示所有商品
+    local typeGroupAll = {};
+    typeGroupAll.type = 0;
+    typeGroupAll.groups = {};
+    typeGroupAll.name = LanguageHelp:GetLanguageByKey("Local_Str_Quality_All");
+    -- typeGroupAll.typeGroupIndex = 0;
+
+    self.itemTypes[0] = typeGroupAll;
+
+    self:CreateGodsTypeBtns();
+end
+
+-- 创建 类型按钮
+function AuctionUI:CreateGodsTypeBtns()
+
+    local btnTypes = {};
+
+    for i, v in pairs(self.itemTypes) do
+        table.insert(btnTypes, v);
+    end
+
+    -- 按配置表的 添加类型 从上往下 排序, 而不是 直接依赖 itemType
+    table.sort(btnTypes, function(a, b)
+        if a.type ~= b.type then
+            return a.type < b.type;
+        end
+
+        return false;
+    end);
+
+    -- self.typeGroupBtnRoot:
+    for _, v in pairs(btnTypes) do
+        -- 每一个 道具 组 创建 一个 道具组类型按钮
+        local newitemTypeGroupBtn = ItemTypeGroupBtn:GetNew(self.ItemTypeGroupBtnCopy.gameObject, self.typeGroupBtnRoot);
+
+        -- 传入 clickGroupCB(按钮组 点击回调) , clickTypeItemClick(类型按钮点击回调)
+        newitemTypeGroupBtn:Create(v, function(itemTypeGroupBtn)
+
+            print("点击了 : " .. tostring(_));
+            -- 如果点的是 [全部商品] 的类型组 按钮, 那就显示所有的商品
+            self:OnItemTypeBtnClick(itemTypeGroupBtn, nil);
+
+            -- self.typeGroupBtnRootSizeFitter:SetLayoutVertical();
+            -- 点击按钮组, 目前我的想法 是 关闭 其它的按钮组, 策划没提,不多事
+            local typeGroupBtn = self.typeGroupBtnRoot:GetComponentsInChildren(typeof(RectTransform));
+            for i = 0, typeGroupBtn.Length - 1 do
+                CS.UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(typeGroupBtn[i]);
+            end
+
+        end, function(itemTypeGroupBtn, itemTypeBtn)
+
+            -- 点击 类型 按钮的回调
+            self:OnItemTypeBtnClick(itemTypeGroupBtn, itemTypeBtn);
+
+        end)
+
+        newitemTypeGroupBtn.transform:GetComponent(typeof(CanvasGroup)).alpha = 1;
+
+    end
+
+    self.ItemTypeGroupBtnCopy.gameObject:SetActive(false);
+
+end
+
+-- 刷新 所有道具的信息
+function AuctionUI:RefreshGoodsUI()
+    -- 刷新商品数据之前, 先刷新 这个 [竞拍活动] 是否开启
+    self:RefreshIsOpenUI();
+
+    self:RefreshData();
+
+    self.GoodsScrollViewController:ContinueScroll(#self.showGoodsInofs, false, 0);
+end
+
+-- 刷新数据,根据 对应的 条件 过滤所有的满足条件的数
+function AuctionUI:RefreshData()
+
+    self.showGoodsInofs = {};
+
+    local isActive = self.module:IsTypeActive(self.selectAuctionType);
+
+    -- 先判断活动是否开启, 如果活动没开启, 那就 认为数据 无效
+    if not isActive then
+        return;
+    end
+
+    -- 已经购买的商品
+    local buyGoods = {};
+    -- 普通商品
+    local mormalGoods = {};
+
+    for i, v in ipairs(self.goodsInfos) do
+
+        -- 首先 筛选 是否只显示 我参与的拍卖 , 采用
+        local isBuy = self.module:IsBoughtAuctionGoods(self.selectAuctionType, v.UniID);
+
+        local isGoodsShow = true;
+
+        if self.isShowMyBought and not isBuy then
+            isGoodsShow = false;
+        end
+
+        -- 筛选 道具类型
+        if self.selectItemType ~= nil and v.cfg.ItemType ~= self.selectItemType and self.selectItemType ~= 0 then
+            isGoodsShow = false;
+        end
+
+        -- 然后判断是否是 道具子类型
+        if self.selectItemSubType ~= nil and v.cfg.SubType ~= self.selectItemSubType and not self.isAllSubType then
+            isGoodsShow = false;
+        end
+
+        if isGoodsShow then
+
+            if isBuy then
+                table.insert(buyGoods, #buyGoods + 1, v);
+            else
+                table.insert(mormalGoods, #mormalGoods + 1, v);
+            end
+
+        end
+    end
+
+    table.sort(buyGoods, function(a, b)
+        return self:SortGoods(a, b);
+    end);
+
+    table.sort(mormalGoods, function(a, b)
+        return self:SortGoods(a, b);
+    end);
+
+    for i, v in ipairs(buyGoods) do
+        table.insert(self.showGoodsInofs, #self.showGoodsInofs + 1, v);
+    end
+
+    for i, v in ipairs(mormalGoods) do
+        table.insert(self.showGoodsInofs, #self.showGoodsInofs + 1, v);
+    end
+
+end
+
+-- 按照已出价>未出价；内部品质从高到低；同品质按起拍价从高到低，同起拍价按id排序；
+function AuctionUI:SortGoods(a, b)
+    -- 先按品质从高到低排序
+    if a.cfg.Quality > b.cfg.Quality then
+        return true
+    elseif a.cfg.Quality < b.cfg.Quality then
+        return false;
+    else
+        -- 如果品质相等， 按价格 高--->低
+        if a.curPrice > b.curPrice then
+            return true;
+        elseif a.curPrice < b.curPrice then
+            return false;
+        else
+            -- 如果价格相等, 按 id 从低到高 排序
+            return a.ItemID < b.ItemID;
+        end
+        return false;
+    end
+end
+
+-- 刷新其它类型的 商品信息
+function AuctionUI:RefreshOtherGoodsUI()
+    self.UnionWarehouseContent.gameObject:SetActive(true);
+    self.AuctionContent.gameObject:SetActive(false);
+
+    self.otherGoodsInfos = {};
+
+    -- local isActive = self.module:IsOtherTypeActive(self.otherType);
+
+    -- 先判断活动是否开启, 如果活动没开启, 那就 认为数据 无效
+    -- if not isActive then
+    --     self.UnionWarehouse:MarkOpen(false);
+    --     -- self.UnionWarehouse:OnShow({});
+
+    --     return;
+    -- end
+
+    -- 2023/12/12
+    -- 待拍期 现在不管是否 活动开启,只要有数据就显示
+
+    -- 没有 数据, 那其实需要显示 没数据的界面
+    if not self.module:HasOtherTypeData(self.otherType) then
+        print("冒险团 " .. "冒险团待拍 没有数据!!!");
+        -- self.UnionWarehouse:OnShow({});
+        self.UnionWarehouse:MarkOpen(false);
+        return;
+    end
+
+    local datas = self.module:GetOtherTypeData(self.otherType);
+
+    -- 显示其它类型的 界面商品
+    self.UnionWarehouse:OnShow(datas);
+
+end
+
+-- 点击 我的拍卖
+function AuctionUI:OnClickMyBought(isBuy)
+
+    self.isShowMyBought = isBuy;
+
+    self:RefreshGoodsUI();
+
+end
+
+-- 点击 无需确认按钮
+function AuctionUI:OnClickNoneConfirm(isOn)
+
+    self.isNoneConfirm = isOn;
+
+    -- self:RefreshGoodsUI();
+
+end
+
+-- 点击 冒险团按钮
+function AuctionUI:OnClickUnion(isOn)
+
+    self.unionSelect:MakeSelected(isOn);
+
+    if not isOn then
+        return;
+    end
+
+    -- 选择类型 改为 冒险团类型 1
+    self.selectAuctionType = CS.ProtoMsg.AuctionType.Group;
+    self.otherType = AuctionOtherSelectType.None;
+
+    self.module:SendAuctionReq(self.selectAuctionType);
+    -- self:RefreshServerData();
+
+    self.module:MarkClickActivityTypeRedPoint(self.selectAuctionType);
+
+end
+
+-- 点击 冒险团仓库按钮
+function AuctionUI:OnClickUnionHouse(isOn)
+
+    self.unionWarehouseGo:MakeSelected(isOn);
+
+    if not isOn then
+        return;
+    end
+
+    -- 选择类型 改为 other类型
+    self.selectAuctionType = CS.ProtoMsg.AuctionType.AtDefault;
+    self.otherType = AuctionOtherSelectType.UnionWarehouse;
+
+    self.module:SendAuctionGuildReq();
+    self:RefreshServerData();
+
+    self.module:MarkClickActivityTypeRedPoint(self.selectAuctionType);
+
+end
+
+-- 点击 世界按钮
+function AuctionUI:OnClickWorld(isOn)
+
+    self.worldSelect:MakeSelected(isOn);
+
+    if not isOn then
+        return;
+    end
+
+    -- 选择类型 改为 世界类型 2
+    self.selectAuctionType = CS.ProtoMsg.AuctionType.World;
+    self.otherType = AuctionOtherSelectType.None;
+
+    self.module:SendAuctionReq(self.selectAuctionType);
+    -- self:RefreshServerData();
+
+    self.module:MarkClickActivityTypeRedPoint(self.selectAuctionType);
+
+end
+
+-- 当点击 世界/冒险团 拍卖
+function AuctionUI:OnClickWorldOrUnion(idx)
+    -- 点世界拍卖
+    if idx == 1 then
+        self:OnClickUnion(false);
+        self:OnClickWorld(true);
+        self:OnClickUnionHouse(false);
+    elseif idx == 2 then
+        -- 点 冒险团拍卖
+        self:OnClickUnion(true);
+        self:OnClickWorld(false);
+        self:OnClickUnionHouse(false);
+    elseif idx == 3 then
+        -- 点 冒险团仓库
+        self:OnClickUnion(false);
+        self:OnClickWorld(false);
+        self:OnClickUnionHouse(true);
+    end
+
+end
+
+-- 点击 道具类型 按钮后 按钮触发的回调
+function AuctionUI:OnItemTypeBtnClick(itemTypeGroupBtn, itemTypeBtn)
+
+    -- 先判断是否事 已经选择的 道具类型
+    local isSelected = self.itemTypeBtnRecord ~= nil and self.itemTypeBtnRecord == itemTypeBtn;
+
+    -- 如果类型已经选择, 那就啥点了没效果
+    if isSelected then
+        return;
+    end
+
+    -- 将之前已经选择 的 道具类型组的 选中类型 取消
+    if self.itemTypeGroupBtnRecord ~= nil and self.itemTypeGroupBtnRecord ~= itemTypeGroupBtn then
+        self.itemTypeGroupBtnRecord:SetSelect(false);
+    end
+
+    -- 将 类型组的 按钮设置为 已经选中
+    itemTypeGroupBtn:SetSelect(true);
+    self.itemTypeGroupBtnRecord = itemTypeGroupBtn;
+
+    -- 将之前选中 的 道具子类型 取消
+    if self.itemTypeBtnRecord ~= nil and self.itemTypeBtnRecord ~= itemTypeBtn then
+        self.itemTypeBtnRecord:SetSelect(false);
+    end
+
+    -- 如果选中了 子类型, 那就 按子类型 显示
+    if itemTypeBtn ~= nil then
+        itemTypeBtn:SetSelect(true);
+        self.itemTypeBtnRecord = itemTypeBtn;
+
+        -- 刷新对应 道具类型 的 UI
+        self:OnClickItemType(itemTypeBtn.type, itemTypeBtn.subType);
+
+    end
+
+    -- 如果选中的 [全部商品] 类型按钮, 那就显示所有的 商品
+    if itemTypeBtn == nil and itemTypeGroupBtn.type == 0 then
+        self:OnClickItemType(0, -1);
+    end
+end
+
+-- 点击 具体的道具 分类中的类型 (道具类型/道具子类型/是否包含所有的道具子类型)
+function AuctionUI:OnClickItemType(itemType, itemSubType)
+
+    -- 道具类型
+    self.selectItemType = itemType;
+
+    -- 道具子类型
+    self.selectItemSubType = itemSubType;
+
+    -- 是否是所有的道具子类型
+    self.isAllSubType = itemSubType == -1;
+
+    self:RefreshGoodsUI();
+end
+
+-- 点击 刷新 按钮
+function AuctionUI:OnClickRefresh()
+
+    -- 时间为0 的时候 才需要发送刷新协议
+    -- if self.timer == 0 then
+    --     -- TODO
+    --     Log('假装 发送了 刷新协议');
+    --     self.timer = 60;
+    --     return;
+    -- end
+
+    if self.clickRefreshTime > 0 then
+        Log(' 发送按钮 CDing');
+        return;
+    end
+    self.clickRefreshTime = CS.SGF.Time.TimeUtils.ClientNowStampMilli;
+    -- 发送 请求当前 活动 类型 的数据
+    self.module:SendAuctionReq(self.selectAuctionType);
+
+end
+
+-- 刷新 倒计时的秒
+function AuctionUI:UpdateTime()
+
+    -- 刷新商品的倒计时
+    self:RefreshGoodsItemTimer();
+
+    -- 冷却完毕状态
+    if self.clickRefreshTime == 0 then
+        return;
+    end
+
+    -- 此时正在 CD 过程中...
+    if self.clickRefreshTime > 0 then
+        local now = CS.SGF.Time.TimeUtils.ClientNowStampMilli;
+        local time = self.timer - math.floor((now - self.clickRefreshTime) / 1000);
+
+        if time > 0 then
+            -- self.TimerLab.text = "刷新(" .. time .. "s)";
+            self.TimerLab.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Auction_TimerLab"), {time});
+        else
+            self.clickRefreshTime = 0;
+            self.TimerLab.text = LanguageHelp:GetLanguageByKey("Local_Str_Auction_TimerLab1");
+        end
+    end
+
+end
+
+-- 刷新 单个的 竞品 表现
+
+function AuctionUI:OnItemRefesh(tr, idx)
+
+    local goodsInfo = self.showGoodsInofs[idx + 1];
+
+    -- TODO 临时 数据
+    -- 世界拍卖 还是 冒险团拍卖类型
+    goodsInfo.auctionType = self.selectAuctionType;
+
+    local isBuy = self.module:IsBoughtAuctionGoods(self.selectAuctionType, goodsInfo.UniID);
+    local isWaiting = self.module:IsTypeInWaiting(self.selectAuctionType);
+
+    for i = 1, #self.auctionGoodsItemList, 1 do
+        if self.auctionGoodsItemList[i].transform == tr then
+            self.auctionGoodsItemList[i]:Refresh(goodsInfo, isBuy, not isWaiting);
+
+            self:PlayGoodsAnim(self.auctionGoodsItemList[i], idx);
+            return;
+        end
+    end
+
+    local auctionGoodsItem = AuctionGoodsItem:New(tr.gameObject, nil);
+    auctionGoodsItem:SetClickCb(function(buyType, clickGoodsItem)
+        -- -- 点击 购买的 事件
+        -- Log("点击 购买 : [" .. clickGoodsItem.UniID .. "] .. buyType: " .. buyType);
+
+        self:OnClickGoodsItem(buyType, clickGoodsItem);
+
+    end);
+
+    tr.gameObject:SetActive(true);
+    -- local isOpen = self.module:IsTypeActive(self.selectAuctionType);
+    -- 一个活动是否已经开启， 目前判断这个活动那个 是否 实在等待期
+    auctionGoodsItem:Refresh(goodsInfo, isBuy, not isWaiting);
+
+    table.insert(self.auctionGoodsItemList, auctionGoodsItem);
+
+    self:PlayGoodsAnim(auctionGoodsItem, idx);
+end
+
+function AuctionUI:PlayGoodsAnim(auctionGoodsItem, idx)
+    -- print("冒险团 ".."v : " .. tostring(self.ScrollRect.velocity));
+    -- 向上滑动, 不播放 这个动画
+    if self.ScrollRect.velocity.y < 0 then
+        return;
+    end
+    -- 商品显示要播放 UE动画, 目前只显示 6个商品信息, 所以动画 也只显示 6个;
+    if idx >= 6 then
+        auctionGoodsItem:ShowDefault();
+    else
+        auctionGoodsItem:PlayAnim((idx + 1) * 0.03);
+    end
+end
+
+function AuctionUI:OnClickGoodsItem(buyType, clickGoodsItem)
+    local curPrice = clickGoodsItem.priceCount + math.ceil(clickGoodsItem.priceCount * self.onceAddPrice / 100);
+    local priceItemID = clickGoodsItem.priceItemID;
+
+    local isEnough = BusinessManager.Instance:IsEnoughCurrency(priceItemID, curPrice);
+    if not isEnough then
+        CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(
+            LanguageHelp:GetLanguageByKey("Local_Str_No_Money"));
+        return;
+    end
+
+    if self.isNoneConfirm then
+        -- local isBuy = self.module:IsBoughtAuctionGoods(self.selectAuctionType, clickGoodsItem.goodsItemInfo.UniID);
+        -- -- 如果这个商品 已经是最高出价了, 那点击购买 提示 “您已是最高出价”
+        -- if isBuy then
+        --     CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(
+        --         "您已是最高出价");
+        --     return;
+        -- end
+
+        self.module:SendAuctionBidReq(self.selectAuctionType, clickGoodsItem.goodsItemInfo.UniID, curPrice);
+        return;
+    end
+
+    ------------------------------
+    local data = {};
+    data.itemID = clickGoodsItem.priceItemID;
+    data.count = curPrice;
+    data.isNoneConfirm = self.isNoneConfirm;
+
+    data.toggleCb = function(isOn)
+        self.noneConfirm.isOn = isOn;
+    end
+
+    data.clickCb = function(isOk)
+
+        -- local isBuy = self.module:IsBoughtAuctionGoods(self.selectAuctionType, clickGoodsItem.goodsItemInfo.UniID);
+        -- 如果这个商品 已经是最高出价了, 那点击购买 提示 “您已是最高出价”
+        -- if isBuy then
+        --     CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(
+        --         "您已是最高出价");
+        --     return;
+        -- end
+
+        if isOk then
+            self.module:SendAuctionBidReq(self.selectAuctionType, clickGoodsItem.goodsItemInfo.UniID, curPrice);
+        end
+    end
+
+    UIManager.Instance:OpenWidget("Recharge/Prefab/AuctionTips", false, data, nil);
+    ----------------
+end
+
+-- 刷新 具体的 竞拍商品的 ui 表现
+function AuctionUI:RefreshAuctionGoodsItemData(goodsInfo, isBuy, isOpen)
+    for i = 1, #self.auctionGoodsItemList, 1 do
+        if self.auctionGoodsItemList[i].goodsItemInfo == goodsInfo then
+            self.auctionGoodsItemList[i]:Refresh(goodsInfo, isBuy, isOpen);
+            return;
+        end
+    end
+end
+
+-- 刷新 商品的 倒计时
+function AuctionUI:RefreshGoodsItemTimer()
+
+    -- 如果商品数量为0, 那就不用刷新
+    if #self.auctionGoodsItemList == 0 then
+        return;
+    end
+
+    if not self.module:HasTypeData(self.selectAuctionType) then
+        return;
+    end
+
+    self:RefreshItemTimer();
+
+end
+
+function AuctionUI:RefreshItemTimer()
+    local serverNowTime = GameManager.Instance:GetServerTimeStamp()
+
+    local isInWaiting = self.module:IsTypeInWaiting(self.selectAuctionType);
+    local leastTime = 0;
+    if not isInWaiting then
+        leastTime = math.floor(self.module:GetTypeEndTime(self.selectAuctionType) - serverNowTime) / 1000;
+    else
+        -- 如果在等待期, 那就取 等待期的 结束时间
+        leastTime = math.floor(self.module:GetTypeWaitEndTime(self.selectAuctionType) - serverNowTime) / 1000;
+    end
+
+    leastTime = leastTime < 0 and 0 or leastTime;
+    -- print("[竞拍] " .. " RefreshItemTimer : " .. "isInWaiting: " .. tostring(isInWaiting) .. "剩余时间: " ..
+    --           leastTime .. "活动结束时间: " ..
+    --           MillsSecToFullString(self.module:GetTypeEndTime(self.selectAuctionType)));
+    -- 正常来说, 倒计时为 0 的时候, 就去刷新这个UI. 
+    -- 但是 后面服务器 增加了一个 等待期, 等待期结束后 进入 拍卖前， 此时也需要刷新一次 商品数据
+    local refreshDirty = leastTime == 0;
+
+    if self.isInWaiting ~= isInWaiting then
+        -- 当 当前 等待期状态 发生改变的时候， 就去 触发一次 UI的数据刷新
+        refreshDirty = refreshDirty or self.isInWaiting ~= nil;
+        self.isInWaiting = isInWaiting;
+
+    end
+
+    for i = 1, #self.auctionGoodsItemList, 1 do
+        self.auctionGoodsItemList[i]:RefreshTimer(leastTime);
+    end
+
+    if refreshDirty then
+        self:RefreshGoodsUI();
+    end
+end
+
+function AuctionUI:UpdateDivvyCount()
+    local count = self.module:GetDivvyCount(self.selectAuctionType);
+    self:RefreshDivvyCountUI(2, count);
+end
+
+function AuctionUI:RefreshDivvyCountUI(itemID, count)
+    local itemCfg = ConfigDataAccessor.Item[itemID];
+    self.resPrice.text = count;
+    -- LoadIcon(self.resIcon, itemCfg.Icon);
+    ResourceHelper:LoadIconAsync(self.resIcon, "", itemCfg.Icon, false)
+
+end
+
+return AuctionUI;

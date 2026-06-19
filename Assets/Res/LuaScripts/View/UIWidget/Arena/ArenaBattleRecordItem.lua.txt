@@ -1,0 +1,70 @@
+--[[
+*文件名   :   ArenaBattleRecordItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local ArenaBattleRecordItem = {}
+
+ArenaBattleRecordItem.__index = ArenaBattleRecordItem
+
+local ItemGrid=require("View/Item/ItemGrid");
+
+
+function ArenaBattleRecordItem:New(_go) 
+    local self = {};    
+    setmetatable(self, ArenaBattleRecordItem); 
+
+    self.gameObject=_go;
+    self.transform=_go.transform;
+    self.VictoryTitle = self.transform:Find("VictoryTitle").gameObject;
+    self.LoseTitle = self.transform:Find("LoseTitle").gameObject;
+    self.RecordText = self.transform:Find("RecordText"):GetComponent(typeof(Text))
+    self.BattleTimeText = self.transform:Find("BattleTimeText"):GetComponent(typeof(Text))
+    self.RankText = self.transform:Find("RankText"):GetComponent(typeof(Text))
+    self.UpRankRoot = self.transform:Find("RankChangeRoot/UpRankRoot").gameObject
+    self.UpRankText = self.transform:Find("RankChangeRoot/UpRankRoot/UpRankText"):GetComponent(typeof(Text))
+    self.DownRankRoot = self.transform:Find("RankChangeRoot/DownRankRoot").gameObject
+    self.DownRankText = self.transform:Find("RankChangeRoot/DownRankRoot/DownRankText"):GetComponent(typeof(Text))
+    self.NoChangeRankRoot = self.transform:Find("RankChangeRoot/NoChangeRankRoot").gameObject
+
+    return self;    --返回自身
+end
+
+
+function ArenaBattleRecordItem:SetItem(data)
+    local strRecord = nil
+    if data.BeChallenged then
+        strRecord = data.IsWin and LanguageHelp:GetLanguageByKey("Local_Str_strPassiveWin") or LanguageHelp:GetLanguageByKey("Local_Str_strPassiveLose")
+    else
+        strRecord = data.IsWin and LanguageHelp:GetLanguageByKey("Local_Str_strWin") or LanguageHelp:GetLanguageByKey("Local_Str_strLose")
+    end
+    
+    local now = TimeUtils.GetServerTimeNow();
+    local dif = now / 1000 - data.BattleTime
+    
+    self.VictoryTitle:SetActive(data.IsWin)
+    self.LoseTitle:SetActive(not data.IsWin)
+    --self.RecordText.text = string.format(strRecord, data.PlayerName)
+    self.RecordText.text = StringFormat(strRecord, {"<color=#3973B5>" .. data.PlayerName .. "</color>"});
+
+    self.BattleTimeText.text = LossTimeSecToString2(dif)
+
+    --self.RankText.text = string.format(strRank, data.ResultRank)
+    self.RankText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_strRank"), {data.ResultRank});
+
+    self.UpRankRoot:SetActive(data.IsWin)
+    self.DownRankRoot:SetActive(not data.IsWin and data.ChangeRank ~= 0)
+    self.NoChangeRankRoot:SetActive(not data.IsWin and data.ChangeRank == 0)
+    self.UpRankText.text = data.ChangeRank
+    self.DownRankText.text = data.ChangeRank
+end
+
+function ArenaBattleRecordItem:SetNull()
+
+end
+
+return ArenaBattleRecordItem;

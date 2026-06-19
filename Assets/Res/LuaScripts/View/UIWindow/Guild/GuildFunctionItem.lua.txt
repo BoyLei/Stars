@@ -1,0 +1,69 @@
+--[[
+*文件名   :   GuildFunctionItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2024/04/18 14:50:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local GuildFunctionItem = {}
+
+GuildFunctionItem.__index = GuildFunctionItem
+
+function GuildFunctionItem:New(_go) 
+    local self = {};    
+    setmetatable(self, GuildFunctionItem); 
+    
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+    self.name=self.transform:Find("name"):GetComponent(typeof(Text));
+    self.desc=self.transform:Find("desc"):GetComponent(typeof(Text));
+    self.openDesc=self.transform:Find("openDesc"):GetComponent(typeof(Text));
+
+    self.BtnGo=self.transform:Find("BtnGo").gameObject;
+    self.BtnNoOpen=self.transform:Find("BtnNoOpen").gameObject;
+
+
+    --点击事件
+	self.JBtn=self.transform:Find("BtnGo"):GetComponent(typeof(JButton));
+	self.JBtnFun = function()
+        self.OnItemClick(self.JumpID); 
+	end
+    self.JBtn.OnClick = self.JBtnFun
+
+    self.gameObject:SetActive(false);
+    self.IsUsed=false;
+
+    return self;    --返回自身
+end
+
+function GuildFunctionItem:SetUse(b)
+    self.IsUsed=b;
+    self.gameObject:SetActive(b);
+end
+
+function GuildFunctionItem:InitItem()
+    
+    self:SetUse(false);
+end
+
+function GuildFunctionItem:SetItem(data)
+    self:SetUse(true);
+
+
+    self.Data=data;
+
+    self.JumpID=data.JumpID;
+
+
+    self.name.text=data.SystemName;
+    self.desc.text=data.Systemdesc;
+    self.openDesc.text=data.SystemOpenDesc;
+    self.OnItemClick=data.OnItemClick;
+
+
+end
+
+return GuildFunctionItem;

@@ -1,0 +1,30 @@
+--[[
+*文件名   :   EctypeTargetItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/10/25 11:09:17"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+EctypeTargetItem=class("EctypeTargetItem",UIPanel)
+EctypeTargetItem.Text=nil;
+EctypeTargetItem.Finished=nil;
+EctypeTargetItem.Runing=nil;
+
+function EctypeTargetItem:ctor(go,atlas)
+	self.prefab=go;
+	self.AtlasPath=atlas;
+	self.Text=self:Find("Text"):GetComponent(typeof(Text));
+	self.Finished=self:Find("Finished"):GetComponent(typeof(Image));
+	self.Runing=self:Find("Runing"):GetComponent(typeof(Image));
+end
+
+
+
+function EctypeTargetItem:UpdateContent(data)
+	self.Text.text=data.Content
+	self.Finished.gameObject:SetActive(data.Finished);
+	self.Runing.gameObject:SetActive(not data.Finished);
+end
+
+return  EctypeTargetItem

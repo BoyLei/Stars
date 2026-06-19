@@ -1,0 +1,180 @@
+--[[
+*文件名   :   DefAmuletMain
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local DefAmuletMain = {}
+
+DefAmuletMain.__index = DefAmuletMain
+local AmuletItem = require("View/Uiwindow/Amulet/AmuletItem")
+
+function DefAmuletMain:New(_go, defAmulet)
+    local self = {}
+    setmetatable(self, DefAmuletMain)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.DefAmulet = defAmulet
+
+    --关闭信息
+    --[[
+	local btnClose=self.transform:Find("BtnClose"):GetComponent(typeof(JButton));
+	btnClose.OnClick=(function()
+		self:Show(false);
+	end);
+    ]]
+    self.amuletItems = {}
+    for i = 1, 2 do
+        local it = AmuletItem:New(self.transform:Find("CenterPart/AmuletItem" .. i).gameObject)
+        it:InitItem(
+            i,
+            function(ritem)
+                self:OnSelectedClick(ritem)
+            end
+        )
+        table.insert(self.amuletItems, it)
+    end
+
+    self.selectedAmuletItem = nil
+
+    self.btnEquipTex = self.transform:Find("BtnEquip/tex"):GetComponent(typeof(Text))
+
+    self.btnEquip = self.transform:Find("BtnEquip"):GetComponent(typeof(JButton))
+    self.btnEquip.OnClick = (function()
+        self:OnEquipClick()
+    end)
+
+    self.btnEquip.gameObject:SetActive(false)
+
+    self:Show(false)
+
+    return self --返回自身
+end
+
+function DefAmuletMain:OnEquipClick()
+    if self.selectedAmuletItem ~= nil then
+        --进入装备信息
+        self.DefAmulet:OpenEquip(self.selectedAmuletItem.Idx)
+    end
+end
+
+function DefAmuletMain:OnSelectedClick(ritem)
+    if ritem.IsLock then
+        return
+    end
+
+    self.selectedAmuletItem = ritem
+    self.DefAmulet:RefeshAmuletInfo(ritem.Idx)
+
+    for i = 1, #self.amuletItems do
+        self.amuletItems[i]:MakeSelect(false)
+    end
+    ritem:MakeSelect(true)
+    self.btnEquip.gameObject:SetActive(true)
+
+    if ritem.IsNull then
+        self:OnEquipClick()
+        self.btnEquipTex.text = LanguageHelp:GetLanguageByKey("Local_Str_Equip")
+    else
+        self.btnEquipTex.text = LanguageHelp:GetLanguageByKey("Local_Str_Replace")
+    end
+end
+
+function DefAmuletMain:Show(b)
+    self.gameObject:SetActive(b)
+    if b then
+        self.selectedAmuletItem = nil
+        self.btnEquip.gameObject:SetActive(false)
+
+        self:Refesh()
+
+        self:OnSelectedClick(self.amuletItems[1]) --点击第一个
+    end
+end
+
+function DefAmuletMain:Refesh()
+    for i = 1, #self.amuletItems do
+        local itemData = BusinessManager.Instance:GetHeroEquipedAmulet(i)
+
+        local amuletSlot = AmuletSlot() --新建一个格子
+        amuletSlot:Init(1, 1) --初始化格子(默认就是已经解锁)
+        amuletSlot:SetAmuletSlotType(i) --可以存放任意种类的纹章
+
+        --ui表现
+        if itemData ~= nil then
+            self.amuletItems[i]:SetType(1)
+            amuletSlot:Equip(itemData.BaseID, itemData.EntityID) --把纹章装备到格子里
+
+            if self.selectedAmuletItem == self.amuletItems[i] then
+                self.btnEquipTex.text = LanguageHelp:GetLanguageByKey("Local_Str_Replace")
+            --self.btnEquip.gameObject:SetActive(true);
+            end
+        else
+            --[[
+                --冒险等级
+            local unlockLv = 0
+            local RiskInfo = GameManager.Instance.M_MainPlayerCtrlBase.Data.Attrs:GetProtoValue(CS.StarProjectDef.AOIAttrDefine.RiskInfo)
+            local curRiskLevel = RiskInfo.CurRiskLevel
+            if i == 1 then
+                unlockLv = SystemConstConfigs.AtkAmulet_Unlock
+            elseif i == 2 then
+                unlockLv = SystemConstConfigs.DefAmulet_Unlock
+            end
+
+            if unlockLv > curRiskLevel then
+                local cfg = ConfigDataAccessor.AdvGradeExp[unlockLv]
+                --self.amuletItems[i]:SetType(3,"冒险等级达到 "..cfg.AdvClass..GetRomaNum(cfg.AdvOrder));
+
+                if cfg ~= nil then
+                    self.amuletItems[i]:SetType(3, StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Tips77"), {cfg.AdvClass .. GetRomaNum(cfg.AdvOrder)}))
+                end
+
+                if self.selectedAmuletItem == self.amuletItems[i] then
+                    self.btnEquip.gameObject:SetActive(false)
+                end
+            else
+                self.amuletItems[i]:SetType(2)
+
+                if self.selectedAmuletItem == self.amuletItems[i] then
+                    self.btnEquipTex.text = LanguageHelp:GetLanguageByKey("Local_Str_Equip")
+                --self.btnEquip.gameObject:SetActive(true);
+                end
+            end
+
+
+            ]]
+            --判断槽位是否已经解锁
+            --玩家等级
+            local unlockLv = 0
+            local playerLv = GameManager.Instance:GetPlayerLevel()
+            if i == 1 then
+                unlockLv = SystemConstConfigs.AtkAmulet_Unlock
+            elseif i == 2 then
+                unlockLv = SystemConstConfigs.DefAmulet_Unlock
+            end
+
+            if unlockLv > playerLv then
+                self.amuletItems[i]:SetType(3, StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Tips64"), {unlockLv}))
+
+                if self.selectedAmuletItem == self.amuletItems[i] then
+                    self.btnEquip.gameObject:SetActive(false)
+                end
+            else
+                self.amuletItems[i]:SetType(2)
+
+                if self.selectedAmuletItem == self.amuletItems[i] then
+                    self.btnEquipTex.text = LanguageHelp:GetLanguageByKey("Local_Str_Equip")
+                --self.btnEquip.gameObject:SetActive(true);
+                end
+            end
+        end
+
+        self.amuletItems[i]:SetInfo(amuletSlot)
+    end
+end
+
+return DefAmuletMain

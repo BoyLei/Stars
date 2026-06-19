@@ -1,0 +1,168 @@
+--[[
+*文件名   :   DailyTeamAwardWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/06/27 16:18:02"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+DailyTeamAwardWindow=class("DailyTeamAwardWindow",UIPanel)
+DailyTeamAwardWindow.m_NoAward=nil;
+DailyTeamAwardWindow.m_NormalItemPreviewGo=nil;
+DailyTeamAwardWindow.m_Extra=nil;
+DailyTeamAwardWindow.m_QuitBtn=nil;
+DailyTeamAwardWindow.m_QuitTime=nil;
+DailyTeamAwardWindow.m_NormalItemPreview=nil;
+DailyTeamAwardWindow.m_Win=nil;
+DailyTeamAwardWindow.m_Fail=nil;
+
+DailyTeamAwardWindow.Second=0
+
+local QuitBtnFunc=nil;
+
+
+function DailyTeamAwardWindow:Awake()
+	self.m_Win=self:Find("Cut4Cam90/AssemblyRatio2/Center/Win").gameObject;
+	self.m_Fail=self:Find("Cut4Cam90/AssemblyRatio2/Center/Fail").gameObject;
+	self.m_NoAward=self:Find("Cut4Cam90/AssemblyRatio2/Center/Win/NoAward").gameObject;
+	self.m_NormalItemPreviewGo=self:Find("Cut4Cam90/AssemblyRatio2/Center/Win/Award/Normal/ItemPreview").gameObject;
+	self.m_QuitBtn=self:Find("Cut4Cam90/AssemblyRatio2/Center/QuitBtn"):GetComponent(typeof(JButton));
+	self.m_QuitTime=self:Find("Cut4Cam90/AssemblyRatio2/Center/QuitTime"):GetComponent(typeof(Text));
+	self.m_NormalItemPreview=StructAccessor.ItemPreview.new(self.m_NormalItemPreviewGo);
+
+	QuitBtnFunc=function()
+		self:OnClickQuitBtn();
+	end;
+
+	self.OnSecTimeUpdate=function()
+		self:OnSecTimeUpdateHandler()
+	end
+
+end
+
+function DailyTeamAwardWindow:Start()
+	self.m_QuitBtn.OnClick= QuitBtnFunc;
+end
+
+function DailyTeamAwardWindow:OnEnable()
+
+end
+
+function DailyTeamAwardWindow:OnDisable()
+
+end
+function DailyTeamAwardWindow:OnSecTimeUpdateHandler()
+	self:ShowTime();
+end
+
+function DailyTeamAwardWindow:ShowTime()
+	self.Second=self.Second-1;
+	if self.Second<=0 then
+		LuaModuleDispatcher:SendMessage(ModuleDef.DailyTeamModule, "OnQuitDailyTeam");
+		self.Close();
+	else
+		--self.m_QuitTime.text=self.Second.."秒后离开场景"
+		self.m_QuitTime.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_QuitTime"), {self.Second});
+
+	end
+end
+function DailyTeamAwardWindow:OnDestroy()
+
+end
+
+function DailyTeamAwardWindow:SortItems(list,isextra)
+
+	if list~=nil and list.Count>0 then
+		local dic={}
+		for i = 0, list.Count-1 do
+			local v=list[i];
+			if v~=nil then
+				if dic[v.Itemid]==nil then
+					local cfg= ConfigDataAccessor.Item[v.Itemid]
+					dic[v.Itemid]={ItemID=v.Itemid,ItemNum=v.ItemNum,EntityItem=v,Quality=cfg.Quality,IsExtra=isextra,ItemType=cfg.ItemType}
+				else
+					dic[v.Itemid].ItemNum=dic[v.Itemid].ItemNum+v.ItemNum
+				end
+			end
+		end
+
+		local temp={}
+		for k, v in pairs(dic) do
+			if not v.CanOverlay then
+				for i = 1, v.ItemNum do
+					table.insert(temp,{ItemID=v.ItemID,ItemNum=1,EntityItem=v.EntityItem,Quality=v.Quality,IsExtra=v.IsExtra})
+				end
+			else
+				table.insert(temp,{ItemID=v.ItemID,ItemNum=v.ItemNum,EntityItem=v.EntityItem,Quality=v.Quality,IsExtra=v.IsExtra})
+			end
+		end
+
+		table.sort(temp,function (a,b)
+				return  a.Quality>b.Quality
+			end)
+
+		return temp;
+	end
+	return nil;
+
+end
+
+function DailyTeamAwardWindow:OnOpen(arg)
+
+	local data=arg;
+	self.Second=data.Second
+	local BossDeadPos=data.BossDeadPos
+
+	local IsSuccess=data.IsSuccess
+	if IsSuccess>0 then
+		local CommonList=data.CommonList
+		local ExtraList=data.ExtraList
+		local hasawrard=CommonList.Count>0;
+		local hasExtra= ExtraList.Count>0;
+		local CostItems={}
+		if hasawrard then
+			if CommonList~=nil and CommonList.Count>0 then
+				local temp=	self:SortItems(CommonList,false);
+				if temp~=nil then
+					for i = 1, #temp do
+						table.insert(CostItems,temp[i])
+					end
+				end
+			end
+		end
+
+		if hasExtra then
+			if ExtraList~=nil and ExtraList.Count>0 then
+
+				local temp=	self:SortItems(ExtraList,true);
+				if temp~=nil then
+					for i = 1, #temp do
+						table.insert(ExtraList,temp[i])
+					end
+				end
+			end
+		end
+		self.m_NormalItemPreview:SetItems(CostItems);
+		self.m_Fail:SetActive(false)
+		self.m_Win:SetActive(true)
+	else
+		--失败
+		self.m_Win:SetActive(false)
+		self.m_Fail:SetActive(true)
+	end
+	self:ShowTime();
+	MonoHelper.AddSecTimeUpdateListener(self.OnSecTimeUpdate);
+end
+
+function DailyTeamAwardWindow:OnClose(arg)
+	MonoHelper.RemoveSecTimeUpdateListener(self.OnSecTimeUpdate);
+end
+
+function DailyTeamAwardWindow:OnClickQuitBtn()
+	LuaModuleDispatcher:SendMessage("DailyTeamModule", "OnQuitDailyTeam");
+	self.Close();
+end
+
+
+
+return  DailyTeamAwardWindow

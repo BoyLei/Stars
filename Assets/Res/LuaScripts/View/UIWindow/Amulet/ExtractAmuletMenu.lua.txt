@@ -1,0 +1,310 @@
+--[[
+*文件名   :   ExtractAmuletMenu
+*内  容   :   定轨的所有操作页面
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] local ExtractAmuletMenu = {}
+
+ExtractAmuletMenu.__index = ExtractAmuletMenu
+
+local ExtractItem = require("View/Uiwindow/Amulet/ExtractItem")
+local ExtractGroup = require("View/Uiwindow/Amulet/ExtractGroup")
+
+local ItemGrid = require("View/Item/ItemGrid");
+
+function ExtractAmuletMenu:New(_go, extractAmulet)
+    local self = {};
+    setmetatable(self, ExtractAmuletMenu);
+
+    self.ExtractAmulet = extractAmulet;
+
+    self.gameObject = _go;
+    self.transform = _go.transform;
+
+    -- GameManager.Instance.M_MainPlayerCtrlBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Proto,CS.StarProjectDef.AOIAttrDefine.ExAmuletInfo);
+
+    -- 消耗显示
+    -- 金币
+    self.useCoinSp = self.transform:Find("OpRoot/Money/Icon"):GetComponent(typeof(Image));
+    self.useCoinNum = self.transform:Find("OpRoot/Money/Num"):GetComponent(typeof(Text));
+
+    -- 道具
+    self.items = {}
+    for i = 1, 4 do
+        local it = ItemGrid:New(self.transform:Find("OpRoot/Items/ItemGrid" .. i).gameObject);
+        it:InitItem(false, function(ritem)
+            self:OnItemClick(ritem)
+
+        end);
+        table.insert(self.items, it);
+    end
+
+    -- 榨取次数
+    self.ExtractNum = self.transform:Find("OpRoot/extractNum"):GetComponent(typeof(Text));
+
+    -- 几种类型
+    self.go_OpRoot = self.transform:Find("OpRoot").gameObject;
+    self.go_NullRoot = self.transform:Find("NullRoot").gameObject;
+    self.go_ComfirmRoot = self.transform:Find("ComfirmRoot").gameObject;
+
+    -- 左边的战技组
+    self.LeftExtractGroup = ExtractGroup:New(self.transform:Find("ExtractGroup1").gameObject, true);
+
+    -- 右边的战技组
+    self.RightExtractGroup = ExtractGroup:New(self.transform:Find("OpRoot/ExtractGroup2").gameObject, false);
+
+    -- 右边的单条战技
+    self.RightExtractItem = ExtractItem:New(self.transform:Find("ComfirmRoot/ExtractItem").gameObject);
+
+    -- 点击弹出二级纹章选择页面
+    self.transform:Find("OpRoot/BtnSelected"):GetComponent(typeof(JButton)).OnClick = (function()
+        if self.LeftExtractGroup.selectedIdx > 0 then
+            self.ExtractAmulet:ShowExtractAmuletSelectMenu(true);
+        else
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_138"));
+        end
+    end);
+    self.transform:Find("NullRoot/BtnSelected"):GetComponent(typeof(JButton)).OnClick = (function()
+        if self.LeftExtractGroup.selectedIdx > 0 then
+            self.ExtractAmulet:ShowExtractAmuletSelectMenu(true);
+        else
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_138"));
+        end
+    end);
+
+    -- 定轨按钮
+    local BtnExtract = self.transform:Find("OpRoot/BtnExtract"):GetComponent(typeof(JButton));
+    BtnExtract.OnClick = (function()
+        self:OnBtnExtractClick();
+    end);
+
+    -- 是否保存定轨结果按钮
+    self.transform:Find("ComfirmRoot/BtnSave"):GetComponent(typeof(JButton)).OnClick = (function()
+        self:OnBtnSaveClick(true);
+    end);
+    self.transform:Find("ComfirmRoot/BtnGiveUp"):GetComponent(typeof(JButton)).OnClick = (function()
+        self:OnBtnSaveClick(false);
+    end);
+
+    -- 监听定轨回调
+    self.message1 = function(data)
+        self:OnExtractAmuletRet(data)
+    end
+
+    -- 监听保存定轨回调
+    self.message2 = function(data)
+        self:OnChooseExtractRet(data)
+    end
+
+    return self; -- 返回自身
+end
+
+function ExtractAmuletMenu:OnMessage()
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.ExtractAmuletRetID, self.message1, nil);
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.ChooseExtractRetID, self.message2, nil);
+end
+
+function ExtractAmuletMenu:OffMessage()
+    CS.SGF.Network.NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.ExtractAmuletRetID, self.message1, nil);
+    CS.SGF.Network.NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.ChooseExtractRetID, self.message2, nil);
+end
+
+function ExtractAmuletMenu:OnItemClick(ritem)
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", {ritem.BaseID, false, 0, ritem.transform, 0});
+end
+
+function ExtractAmuletMenu:OnChooseExtractRet(data)
+    print("保存定轨回调");
+
+    -- 成功
+    Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_140"));
+
+    -- 刷新面板
+    self.ExtractAmulet:Refesh();
+
+end
+
+function ExtractAmuletMenu:OnExtractAmuletRet(data)
+    print("定轨回调");
+
+    -- 成功
+    Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_141"));
+
+    -- 清除掉右边的
+    self.ExtractAmulet:CleanselectedToExtractItemData();
+    -- 刷新面板
+    self.ExtractAmulet:Refesh(true);
+
+end
+
+function ExtractAmuletMenu:OnBtnExtractClick()
+
+    if self.LeftExtractGroup.selectedIdx == 0 then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_138"));
+        return;
+    end
+
+    if self.IsMoneyEnough then
+        print("开始定轨")
+
+        local extractAmuletReq = CS.ProtoMsg.ExtractAmuletReq();
+        extractAmuletReq.MainAmuletID = self.LeftExtractGroup.Data.EntityID; -- 纹章
+        extractAmuletReq.MainIndex = self.LeftExtractGroup.selectedIdx; -- 纹章idx
+        extractAmuletReq.ExAmuletID = self.RightExtractGroup.Data.EntityID; -- 选择的纹章
+
+        CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+            extractAmuletReq, false);
+    else
+        Util.ShowMessage(self.IsMoneyEnoughStr);
+    end
+
+end
+
+function ExtractAmuletMenu:OnBtnSaveClick(isSave)
+    print("开始保存定轨")
+
+    local chooseExtractReq = CS.ProtoMsg.ChooseExtractReq();
+    if isSave then
+        chooseExtractReq.CType = CS.ProtoMsg.ChooseExtractReq.Types.ChooseType.Choice;
+    else
+        chooseExtractReq.CType = CS.ProtoMsg.ChooseExtractReq.Types.ChooseType.GiveUp;
+    end
+
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+        chooseExtractReq, false);
+
+end
+
+function ExtractAmuletMenu:Refesh(data, extractItemData, needRefeshLeft)
+
+    self.Data = data;
+
+    if data ~= nil then
+
+        if needRefeshLeft == true then
+            self.LeftExtractGroup:Refesh(data);
+            -- 默认选中第一个
+            self.LeftExtractGroup:MakeSelectedByIdx(1);
+        end
+
+        self.gameObject:SetActive(true);
+
+        self.go_ComfirmRoot:SetActive(false);
+        self.go_NullRoot:SetActive(false);
+        self.go_OpRoot:SetActive(false);
+
+        -- 是否有未完成的洗练
+        local isHaveNotFinished = false;
+        local ExAmuletInfo = GameManager.Instance.M_MainPlayerCtrlBase.Data.Attrs:GetProtoValue(CS.StarProjectDef
+                                                                                                    .AOIAttrDefine
+                                                                                                    .ExAmuletInfo);
+        if ExAmuletInfo ~= nil and ExAmuletInfo.ExSkill ~= nil then
+            isHaveNotFinished = true;
+        end
+
+        if isHaveNotFinished then
+            self.go_ComfirmRoot:SetActive(true);
+
+            -- 设置右边的单个
+            local AmuletID = ExAmuletInfo.AmuletID;
+            local ExIndex = ExAmuletInfo.ExIndex;
+            local ExSkill = ExAmuletInfo.ExSkill; -- CombatSkill
+
+            -- 左边设置成固定的
+            local dd = BusinessManager.Instance:GetItemByItemEntityId(AmuletID);
+
+            local itemCfg = ConfigDataAccessor.Item[dd.BaseID];
+            local maxNum = ConfigDataAccessor.GetMaxPolishNum(itemCfg.Quality); -- 铭刻次数的上限
+
+            -- 把左边设置成固定的
+            self.LeftExtractGroup:Refesh(dd);
+
+            self.RightExtractItem:Refesh(maxNum, ExSkill);
+
+            self.LeftExtractGroup:MakeSelectedByIdx(ExIndex);
+
+            return;
+        end
+
+        -- 是否已经选择了右边的
+        if extractItemData == nil then
+            self.go_NullRoot:SetActive(true);
+
+            return;
+        end
+
+        self.go_OpRoot:SetActive(true);
+
+        self.RightExtractGroup:Refesh(extractItemData, true);
+
+        -- 已经榨取的次数
+        local ExtractNum = data.ExtractNum;
+        -- self.ExtractNum.text="已定轨次数："..ExtractNum.."次";
+        self.ExtractNum.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_ExtractNum"), {ExtractNum});
+
+        -- 显示消耗
+        local baseID = data.BaseID;
+        local itemCfg = ConfigDataAccessor.Item[baseID];
+        local amuletEquipCfg = ConfigDataAccessor.AmuletEquip[baseID];
+        local AmuletExtractCfg = ConfigDataAccessor.GetAmuletExtract(amuletEquipCfg.EquipLevel, itemCfg.Quality,
+            ExtractNum + 1);
+
+        local MoneyCost = AmuletExtractCfg.MoneyCost;
+        local ItemCost = AmuletExtractCfg.ItemCost;
+
+        local expend = {};
+        expend.Money = MoneyCost;
+        expend.Item_id = {};
+        expend.Item_num = {};
+
+        expend.Item_id[1] = ItemCost[1];
+        expend.Item_num[1] = ItemCost[2];
+
+        self:CalculateNeeds(expend);
+
+    else
+        self.gameObject:SetActive(false);
+    end
+
+end
+
+function ExtractAmuletMenu:CalculateNeeds(expend)
+
+    self.IsMoneyEnoughStr = LanguageHelp:GetLanguageByKey("Local_Str_No_Item");
+    self.IsMoneyEnough = true;
+    -- 道具消耗（货币）
+    local cfgM = ConfigDataAccessor.Item[expend.Money[1]];
+    -- LoadIcon(self.useCoinSp,cfgM.Icon);
+    ResourceHelper:LoadIconAsync(self.useCoinSp, "", cfgM.Icon, false)
+
+    local haveMoneyNum = BusinessManager.Instance:GetCurrencyNum(expend.Money[1]);
+    if haveMoneyNum >= (expend.Money[2]) then
+        -- self.useCoinNum.text=""..haveMoneyNum.."/"..expend.Money[2];
+        self.useCoinNum.text = expend.Money[2];
+    else
+        self.IsMoneyEnough = false;
+        self.useCoinNum.text = "<color=#ff0000>" .. (expend.Money[2]) .. "</color>";
+
+        -- self.IsMoneyEnoughStr=cfgM.Name.."不足";
+        self.IsMoneyEnoughStr.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_ShopItem_buyErrorMsg"),
+            {cfgM.Name});
+
+    end
+
+    -- 消耗道具
+    for i = 1, #self.items do
+        self.items[i].gameObject:SetActive(false);
+    end
+    for i = 1, #expend.Item_id do
+        self.items[i].gameObject:SetActive(true);
+        local isItemEnough = self.items[i]:SetItemNum(expend.Item_id[i], expend.Item_num[i], true);
+        if not (isItemEnough) then
+            self.IsMoneyEnough = false;
+        end
+    end
+
+end
+
+return ExtractAmuletMenu;

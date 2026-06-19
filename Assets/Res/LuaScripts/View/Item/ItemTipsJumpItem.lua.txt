@@ -1,0 +1,85 @@
+--[[
+*文件名   :   ItemTipsJumpItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/1 14:50:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local ItemTipsJumpItem = {}
+
+ItemTipsJumpItem.__index = ItemTipsJumpItem
+
+function ItemTipsJumpItem:New(_go)
+    local self = {}
+    setmetatable(self, ItemTipsJumpItem)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.Desc1 = self.transform:Find("Can/t1"):GetComponent(typeof(Text))
+    self.Desc2 = self.transform:Find("Cant/t1"):GetComponent(typeof(Text))
+
+    self.go_Can = self.transform:Find("Can").gameObject
+    self.go_Can:SetActive(false)
+
+    self.go_Cant = self.transform:Find("Cant").gameObject
+    self.go_Cant:SetActive(false)
+
+    if self.transform:Find("icon") ~= nil then
+        self.icon = self.transform:Find("icon"):GetComponent(typeof(Image))
+    end
+
+    --点击事件
+    self.JBtnClose = self.transform:GetComponent(typeof(JButton))
+    self.JBtnCloseFun = function()
+        --if self.OnItemCkick ~= nil and self.CanJump then
+        if self.OnItemCkick ~= nil then
+            self.OnItemCkick(self)
+        end
+    end
+    self.JBtnClose.OnClick = self.JBtnCloseFun
+
+    self.IsUsed = false
+    self.gameObject:SetActive(false)
+
+    return self --返回自身
+end
+
+function ItemTipsJumpItem:SetUse(b)
+    self.IsUsed = b
+    self.gameObject:SetActive(b)
+end
+
+function ItemTipsJumpItem:InitItem(onItemCkick)
+    self.OnItemCkick = onItemCkick
+    self:SetUse(false)
+end
+
+function ItemTipsJumpItem:SetItem(item)
+    self:SetUse(true)
+
+    self.JumpType = item.Type
+    self.CanJump = item.CanJump
+
+    local desc = item.Desc
+
+    if self.icon ~= nil then
+        ResourceHelper:LoadIconByAtlasAsync(self.icon, ResourceHelper.AtlasPathBag, item.Icon, false)
+    end
+
+    self.Desc1.text = desc
+    self.Desc2.text = desc
+
+    --没有公会不让跳转公会商店
+    if self.JumpType == 3004 then
+        if BusinessManager.Instance:GetGuildID() <= 0 then
+            self.CanJump = false
+        end
+    end
+
+    self.go_Can:SetActive(self.CanJump)
+    self.go_Cant:SetActive(not (self.CanJump))
+end
+
+return ItemTipsJumpItem

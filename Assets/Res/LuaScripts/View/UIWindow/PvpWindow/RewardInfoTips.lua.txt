@@ -1,0 +1,66 @@
+local RewardInfoTips = {}
+RewardInfoTips.__index = RewardInfoTips
+
+function RewardInfoTips:New(obj)
+    local self = {};
+    setmetatable(self, RewardInfoTips);
+
+    self:InitControls(obj)
+
+    return self;
+end
+
+function RewardInfoTips:InitControls(obj)
+    self.gameObject = obj;
+    self.transform = obj.transform;
+
+    self.closeBtn = self.transform:GetComponent(typeof(JButton));
+    self.closeBtn.OnClick=(function() 
+		for _,v in pairs(self.allGos) do
+			GameObject.DestroyImmediate(v);
+		end
+		self.allGos = {};
+        self.gameObject:SetActive(false);
+	end);
+
+    self.itemGO = self.transform:Find("RewardTips/Item").gameObject;
+
+    self.allGos = {};
+end
+
+function RewardInfoTips:Show()
+	self.gameObject:SetActive(true);
+    for _,v in pairs(self.allGos) do
+        GameObject.DestroyImmediate(v);
+    end
+    self.allGos = {};
+
+    local rewards =ConfigDataAccessor.BattleFieldBoxList[1].Reward1;
+    for k,v in pairs(rewards) do
+        local cfg = ConfigDataAccessor.Item[k];
+        local quality = cfg.Quality;
+        local go = newObject(self.itemGO);
+		go:SetActive(true);
+		go.transform:SetParent(self.itemGO.transform.parent);
+		go.transform.localPosition = Vector3.zero;
+		go.transform.localScale = Vector3.one;
+        local bg = go.transform:Find("BgRare"):GetComponent(typeof(Image));
+        local icon = go.transform:Find("Icon"):GetComponent(typeof(Image));
+        local num = go.transform:Find("Text"):GetComponent(typeof(Text));
+
+        ResourceHelper:LoadIconByAtlasAsync(
+            bg,
+            ResourceHelper.AtlasPathCommonItem,
+            "Bag_Grid_sq" .. quality,
+            false
+        );
+
+        ResourceHelper:LoadIconAsync(icon, "", cfg.Icon, false);
+
+        num.text = v;
+		
+		table.insert(self.allGos, go);
+    end
+end
+
+return RewardInfoTips

@@ -1,0 +1,146 @@
+--[[
+*文件名   :   InscriptionModule
+*内  容   :   鸣器
+*说  明   :
+*创建日期 :   "2022/02/03 13:39:39"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+InscriptionModule = class("InscriptionModule",BaseLuaModule)
+
+local InscriptionWindowPath = "Amulet/InscriptionWindow"
+
+--LuaModule 消息模块
+InscriptionModule.ModuleMessages=
+{
+	--打开
+	--ModuleManager.Instance.SendMessage(ModuleDef.InscriptionModule, "OnOpenEquip", new object[] { xxxx }); 
+	["OnOpenInscription"]=function(...)
+		InscriptionModule:OnOpenInscriptionMsg(...);
+	end,
+
+
+	--刷新
+	--ModuleManager.Instance.SendMessage(ModuleDef.InscriptionModule, "OnRefeshEquip", new object[] { xxxx }); 
+	["OnRefeshInscription"]=function(...)
+		InscriptionModule:OnRefeshInscriptionMsg(...);
+	end,
+
+
+}
+
+--监听打开奖励面板
+function InscriptionModule:OnOpenInscriptionMsg(...)
+	-- local tb=...
+	-- --列表
+	-- if type(tb)=="table" then
+	-- 	--Lua调用
+	-- else
+	-- 	--C#调用
+	-- end
+	
+	-- local InscriptionWindowCs =UIManager.Instance:OpenWindow(InscriptionWindowPath,nil,CS.StarProjectDef.MainPageCommond.HideBoth);
+	-- if self.InscriptionWindowView == nil then
+	-- 	self.InscriptionWindowView=InscriptionWindowCs:GetLuaPanel().ScriptTable;	
+	-- 	self.InscriptionWindowView:BindModule(self);
+	-- 	self.InscriptionWindowView:InitItems();
+	-- 	self.evtOnCloseInscription = LuaModuleDispatcher:Event(ModuleDef.InscriptionModule, "OnCloseInscriptionEvt")
+	-- end
+	-- --显示
+	-- self.InscriptionWindowView:OpenInscription(1);
+	-- self.InscriptionWindowView.currencyBar:OnListener();
+
+
+	local tag=1;
+	local skillID=0;
+	local tb=...
+	--列表
+	if type(tb)=="table" then
+		--Lua调用
+		if #tb>0 then
+			tag=tb[1];
+		end
+		if #tb>1 then
+			skillID=tb[2];
+		end
+	else
+		--C#调用
+		if tb.count>0 then
+			tag=tb[0];
+		end
+		if tb.count>1 then
+			skillID=tb[1];
+		end
+	end
+
+
+	self.AsyncLoadInscriptionWindowCb = function(ui)
+		if ui ~= nil then
+			if self.InscriptionWindowView == nil then
+				self.InscriptionWindowView=ui:GetLuaPanel().ScriptTable;	
+				self.InscriptionWindowView:BindModule(self);
+				self.InscriptionWindowView:InitItems();
+				self.evtOnCloseInscription = LuaModuleDispatcher:Event(ModuleDef.InscriptionModule, "OnCloseInscriptionEvt")
+			end
+			--显示
+			self.InscriptionWindowView:OpenInscription(tag,skillID);
+			self.InscriptionWindowView.currencyBar:OnListener();
+		end
+		self.AsyncLoadInscriptionWindowCb = nil;
+	end
+	UIManager.Instance:OpenWindowAsync(InscriptionWindowPath,self.AsyncLoadInscriptionWindowCb,nil,CS.StarProjectDef.MainPageCommond.HideBoth);
+end
+
+
+
+function InscriptionModule:OnRefeshInscriptionMsg(...)
+	
+	local tb=...
+	--列表
+	if type(tb)=="table" then
+		--Lua调用
+	else
+		--C#调用
+	end
+
+
+	if self.InscriptionWindowView ~= nil then
+		--显示
+		self.InscriptionWindowView:RefeshInscriptionUpgrade();
+	end
+
+
+end
+
+
+--关闭
+function InscriptionModule:OnCloseInscription()
+	self.InscriptionWindowView.currencyBar:OffListener();
+
+end
+
+
+--LuaModule 创建
+function InscriptionModule:OnModuleCreate(arg)
+	LuaModuleDispatcher:Register(ModuleDef.InscriptionModule,self)
+end
+
+--LuaModule 消息处理
+function InscriptionModule:OnModuleMessage(msg,...)
+	self.ModuleMessages[msg](...);
+end
+
+
+--LuaModule显示
+function InscriptionModule:OnModuleShow(arg)
+
+end
+
+--LuaModule 释放
+function InscriptionModule:OnModuleRelease()
+	LuaModuleDispatcher:UnRegister(ModuleDef.InscriptionModule)
+end
+
+
+return  InscriptionModule
+

@@ -1,0 +1,118 @@
+--[[
+*文件名   :   PlayerFuncTips
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/10/31 15:00:49"
+*创建人   :   "yangxiaopeng"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+PlayerFuncTips = class("PlayerFuncTips", UIPanel)
+PlayerFuncTips.IsOpen = false
+
+function PlayerFuncTips:Awake()
+    self.transform = self.prefab.transform
+    self.BtnPlayerInfo = self:Find("ObjRoot/BtnPlayerInfo"):GetComponent(TButton)
+    self.BtnAddFriend = self:Find("ObjRoot/BtnAddFriend"):GetComponent(TButton)
+    self.BtnTeam = self:Find("ObjRoot/BtnTeam"):GetComponent(TButton)
+    self.BtnGuild = self:Find("ObjRoot/BtnGuild"):GetComponent(TButton)
+    self.ObjRoot = self:Find("ObjRoot"):GetComponent(TRectTransform)
+    self.BtnPlayerInfo.onClick:AddListener(function ()
+        self:OnPlayerInfo()
+    end)
+    self.BtnAddFriend.onClick:AddListener(function ()
+        self:OnAddFriend()
+    end)
+    self.BtnTeam.onClick:AddListener(function ()
+        self:OnTeam()
+    end)
+    self.BtnGuild.onClick:AddListener(function ()
+        self:OnGuild()
+    end)
+    self.PID = 0
+    self.OnApplyToAddFriendRespFun = function(data)
+        self:OnApplyToAddFriendResp(data);
+    end
+end
+
+
+function PlayerFuncTips:BindModule(m)
+    self.module = m
+end
+
+function PlayerFuncTips:Start()
+end
+
+function PlayerFuncTips:OnEnable()
+end
+
+function PlayerFuncTips:OnDisable()
+end
+
+function PlayerFuncTips:OnDestroy()
+end
+
+function PlayerFuncTips:OnOpen(arg)
+    self.BtnPlayerInfo.gameObject:SetActive(false)
+    self.BtnAddFriend.gameObject:SetActive(false)
+    self.BtnTeam.gameObject:SetActive(false)
+    self.BtnGuild.gameObject:SetActive(false)
+    local funTable = arg.funcTable
+    if funTable then
+        for i, v in ipairs(funTable) do
+
+        end
+    end
+
+    if arg.trans then
+        self.ObjRoot.transform.position = arg.trans.position
+    end
+
+    if arg.pid then
+        self.PID =  arg.pid
+    end
+    self.BtnPlayerInfo.gameObject:SetActive(true)
+    self.BtnAddFriend.gameObject:SetActive(true)
+    self.BtnTeam.gameObject:SetActive(true)
+    self.BtnGuild.gameObject:SetActive(true)
+    --
+    --if arg.type == E_PlayerPreviewType.Chat then
+    --    self.BtnPlayerInfo.gameObject:SetActive(true)
+    --    self.BtnAddFriend.gameObject:SetActive(true)
+    --elseif arg.type == E_PlayerPreviewType.Guild then
+    --elseif arg.type == E_PlayerPreviewType.Friend then
+    --elseif arg.type == E_PlayerPreviewType.Rank then
+    --elseif arg.type == E_PlayerPreviewType.Team then
+    --end
+    CS.UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(self.ObjRoot);
+    self.IsOpen = true
+end
+
+function PlayerFuncTips:OnClose(arg)
+    self.IsOpen = false
+
+end
+
+function PlayerFuncTips:CloseWidget()
+    self.IsOpen = false
+    UIManager.Instance:CloseWidget("PlayerAttrWindow/Prefabs/PlayerFuncTips", nil, true)
+end
+function PlayerFuncTips:OnPlayerInfo()
+    --LuaModuleDispatcher:SendMessage(ModuleDef.PlayerPreviewModule, "OpenPlayerPreviewWindow", {})
+    LuaModuleDispatcher:SendMessage(ModuleDef.PlayerPreviewModule, "SendGetOtherPlayerNameplateReq", {self.PID})
+    self:CloseWidget()
+end
+function PlayerFuncTips:OnAddFriend()
+    local key = "ItemRecommendFriend_" .. self.PID;
+    LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnSendApplyToAddFriendReq", { {self.PID}, key, self.OnApplyToAddFriendRespFun });
+    self:CloseWidget()
+end
+function PlayerFuncTips:OnTeam()
+    --LuaModuleDispatcher:SendMessage(ModuleDef.PlayerPreviewModule, "OpenPlayerPreviewWindow", {E_PlayerPreviewType.Chat,self.BtnHeadIconBg.gameObject,nil})
+    self:CloseWidget()
+end
+function PlayerFuncTips:OnGuild()
+    --LuaModuleDispatcher:SendMessage(ModuleDef.PlayerPreviewModule, "OpenPlayerPreviewWindow", {E_PlayerPreviewType.Chat,self.BtnHeadIconBg.gameObject,nil})
+    self:CloseWidget()
+end
+return PlayerFuncTips

@@ -1,0 +1,124 @@
+--[[
+*文件名   :   RunHorseWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/12/5 14:08:37"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+RunHorseWidget = class("RunHorseWidget", UIPanel)
+RunHorseWidget.Items = {}
+
+local ObjectPool = require("Common/Helper/ObjectPool")
+
+function RunHorseWidget:Awake()
+    self.transform = self.prefab.transform
+    self.gameObject = self.prefab
+
+    self.CanPlayNext = true
+
+    self.PlayNum = 0
+    self.go_show = self.transform:Find("Tips").gameObject
+    self.go_show:SetActive(false)
+
+    local _go = self.transform:Find("Tips/Mask/RunHorseItem").gameObject
+    self.messagePool =
+        ObjectPool:New(
+        2,
+        "View/Item/RunHorseItem",
+        _go,
+        _go.transform.parent,
+        function()
+        end,
+        function()
+        end
+    )
+end
+
+function RunHorseWidget:BindModule(m)
+    print("RunHorseWidget:BindModule")
+    self.module = m
+
+    MonoHelper.AddUpdateListener(
+        function()
+            self:PopCheck()
+        end
+    )
+end
+
+function RunHorseWidget:PopCheck()
+    self:Pop()
+end
+--判断是否在主场景或者是公会领地
+function RunHorseWidget:CheckIsInMainScene()
+    local sceneType = GameManager.Instance:GetCurMapType()
+    local isInMainScene = false
+
+    if sceneType == CS.ProtoMsg.SpaceType.SpaceScene or sceneType == CS.ProtoMsg.SpaceType.SpaceGuildTerritory or sceneType == CS.ProtoMsg.SpaceType.SpaceDefault then
+        isInMainScene = true
+    end
+
+    return isInMainScene
+end
+
+function RunHorseWidget:Pop()
+    if self.CanPlayNext then
+        local data = self.module:PopFront()
+        if data ~= nil then
+            --判断显示层级
+            if data.IsHighpriority then
+                --置顶且在所有ui上
+                --设置root
+                self.transform:SetParent(UIRoot.SystemWidgetRoot.transform)
+            else
+                --设置root
+                self.transform:SetParent(UIRoot.SceneWidgetRoot.transform)
+            end
+
+            --副本内是否显示
+            if not (self:CheckIsInMainScene()) and not (data.IsDungeon) then
+                return
+            end
+
+            local it = self.messagePool:Spawn()
+            self.transform:SetAsLastSibling()
+            self.CanPlayNext = false
+            self.PlayNum = self.PlayNum + 1
+            self.go_show:SetActive(true)
+            it:SetItem(
+                data,
+                function()
+                    self.CanPlayNext = true
+                end,
+                function()
+                    self.PlayNum = self.PlayNum - 1
+
+                    if self.PlayNum <= 0 then
+                        self.go_show:SetActive(false)
+                    end
+                end
+            )
+        end
+    end
+end
+
+function RunHorseWidget:Start()
+end
+
+function RunHorseWidget:OnEnable()
+end
+
+function RunHorseWidget:OnDisable()
+end
+
+function RunHorseWidget:OnDestroy()
+end
+
+function RunHorseWidget:OnOpen(arg)
+end
+
+function RunHorseWidget:OnClose(arg)
+    self.module.RunHorseListWidgetView = nil;
+end
+
+return RunHorseWidget

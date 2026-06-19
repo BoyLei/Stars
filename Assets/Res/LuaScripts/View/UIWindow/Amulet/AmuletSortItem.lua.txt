@@ -1,0 +1,103 @@
+--[[
+*文件名   :   AmuletSortItem
+*内  容   :   定轨组中的一行
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local AmuletSortItem = {}
+
+AmuletSortItem.__index = AmuletSortItem
+
+function AmuletSortItem:New(_go)
+    local self = {}
+    setmetatable(self, AmuletSortItem)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.skillIcon = self.transform:Find("Skill/icon"):GetComponent(typeof(Image))
+
+    self.title = self.transform:Find("name"):GetComponent(typeof(Text))
+
+    self.add = self.transform:Find("num"):GetComponent(typeof(Text))
+
+    self.go_selected = self.transform:Find("Selected").gameObject
+    --self:MakeSelected(false);
+
+    --点击自己
+    local btnClick = self.transform:GetComponent(typeof(JButton))
+    if btnClick ~= nil then
+        btnClick.OnClick = (function()
+            if self.OnClick ~= nil then
+                self.OnClick(self)
+            end
+        end)
+    end
+
+    --详细信息
+    local btnInfo = self.transform:Find("Skill"):GetComponent(typeof(JButton))
+    if btnInfo ~= nil then
+        btnInfo.OnClick = (function()
+            LuaModuleDispatcher:SendMessage(ModuleDef.AmuletModule, "OnShowEmblemSkillInfo", {self.SkillID})
+        end)
+    end
+
+    return self --返回自身
+end
+
+function AmuletSortItem:SetItem(idx, onClick)
+    self.Idx = idx
+    self.OnClick = onClick
+end
+
+function AmuletSortItem:MakeSelected(b)
+    self.IsSelceted = b
+    self.go_selected:SetActive(b)
+
+    self.Data.IsSelected = self.IsSelceted
+end
+
+function AmuletSortItem:SwitchSelected()
+    self.IsSelceted = not (self.IsSelceted)
+    self.go_selected:SetActive(self.IsSelceted)
+
+    self.Data.IsSelected = self.IsSelceted
+end
+
+function AmuletSortItem:RefeshSortItem(data)
+    if data ~= nil then
+        self.Data = data
+
+        --显示图标
+        local WarSkillId = data.WarSkillId --技能id
+
+        if WarSkillId > 0 then
+            local Points = data.Points
+            local lv = data.Lv
+
+            self.skillIcon.gameObject:SetActive(true)
+            local pd = ConfigDataAccessor.GetPassiveDesc(WarSkillId, lv)
+            ResourceHelper:LoadIconByAtlasAsync(self.skillIcon, ResourceHelper.AtlasPathEtchSkill, pd.IconPath, false)
+
+            self.title.text = pd.SkillName
+            --self.add.text="精通 +"..Points;
+            self.add.text = LanguageHelp:GetLanguageByKey("Local_Str_PassiveSkill")
+
+            self.WarSkillId = WarSkillId
+            self.SkillName = self.title.text
+        else
+            self.skillIcon.gameObject:SetActive(false)
+            self.title.text = LanguageHelp:GetLanguageByKey("Local_Str_AllSkill")
+            self.add.text = ""
+
+            self.WarSkillId = 0
+            self.SkillName = self.title.text
+        end
+
+        self:MakeSelected(self.Data.IsSelected)
+    end
+end
+
+return AmuletSortItem

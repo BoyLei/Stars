@@ -1,0 +1,318 @@
+--[[
+*文件名   :   EquipRecastEquip
+*内  容   :	  榨取左侧道具栏
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local EquipRecastEquip = {}
+
+EquipRecastEquip.__index = EquipRecastEquip
+
+local EquipRecastItem = require("View/Uiwindow/EquipUpgrade/EquipRecastItem")
+local EquipRecastSort = require("View/Uiwindow/EquipUpgrade/EquipRecastSort")
+
+local SelectBtn = require("View/Item/SelectBtn")
+function EquipRecastEquip:New(_go, equipRecast)
+    local self = {}
+    setmetatable(self, EquipRecastEquip)
+
+    self.EquipRecast = equipRecast
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.equipRecastSort = EquipRecastSort:New(self.transform.parent:Find("Sort/Cut4Cam90").gameObject, self)
+
+    --道具列表
+    self.EquipRecastItemList = {}
+    --无限列表
+    self.go_EquipRecastItem = self.transform:Find("Items/EquipeItem").gameObject
+
+    self.rect_grid = self.transform:Find("Items/Scroll View/Mask/List"):GetComponent(typeof(RectTransform))
+
+    self.tr_ItemRoot = self.transform:Find("Items/Scroll View/Mask/List")
+    self.go_EquipRecastItem:SetActive(false)
+    self.go_EquipRecastItem.transform:SetParent(self.transform:Find("Items"))
+    self.EquipedAmuletScorllView = self.transform:Find("Items/Scroll View"):GetComponent(typeof(SuperScrollViewController))
+    self.EquipedAmuletScorllView:NewScroll(
+        self.go_EquipRecastItem,
+        0,
+        function(tr, idx)
+            self:OnEquipRecastItemRefesh(tr, idx)
+        end
+    )
+
+    --装备菜单
+    self.EquipMenuBtns = {}
+    for i = 1, 2 do
+        local btn = SelectBtn:New(self.transform:Find("Items/EquipMenu/Scroll View/Mask/List/EquipTagItem" .. i).gameObject)
+        btn:InitItem(
+            i,
+            function(idx)
+                self:OnEquipMenuBtnClick(idx)
+            end
+        )
+        table.insert(self.EquipMenuBtns, btn)
+    end
+    self.EquipMenuIdx = 1
+
+    --点击筛选按钮
+    local btnSort = self.transform:Find("Items/Btn2"):GetComponent(typeof(JButton))
+    btnSort.OnClick = (function()
+        self:OnSortClick()
+    end)
+
+    self:Show(false)
+
+    return self --返回自身
+end
+
+function EquipRecastEquip:Show(b, noNeedChangeTag)
+    self.gameObject:SetActive(b)
+    if b then
+        self:CleanAllSelected()
+        if noNeedChangeTag then
+            self:OnEquipMenuBtnClick(self.EquipMenuIdx)
+        else
+            --判断是否有2件以内装备
+            local haveNum = BusinessManager.Instance:GetItemNumBySpaceID(2)
+            if haveNum >= 2 then
+                self:OnEquipMenuBtnClick(2)
+            else
+                self:OnEquipMenuBtnClick(1)
+            end
+        end
+    --self:Refesh();
+    end
+end
+
+--点击筛选
+function EquipRecastEquip:OnSortClick()
+    self.equipRecastSort:Show(true)
+end
+
+function EquipRecastEquip:Refesh()
+    --拿到所有的
+    self.allitems = BusinessManager.Instance:GetItemsByItemType(2, 0)
+    self:ClearItemData()
+
+    if self.EquipMenuIdx == 1 then
+        --装备槽位1
+        self:GetDataByEquipType(1)
+    elseif self.EquipMenuIdx == 2 then
+        --装备槽位2
+        self:GetDataByEquipType(2)
+    end
+
+    self:RefeshItems()
+    --关闭道具Tips
+    if GameManager.Instance.IsOpenItemTips then
+        LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips", {})
+    end
+end
+
+------------------------------
+------------------------------无限列表相关
+
+--刷新装备列表
+function EquipRecastEquip:RefeshItems()
+    self:SortItem(self.ItemDataList)
+
+    self.EquipedAmuletScorllView:ContinueScroll(#self.ItemDataList, false)
+end
+
+function EquipRecastEquip:GetDataByEquipType(equipType)
+    local spaceID = 2
+
+    --装备中
+    if equipType == 1 then
+        spaceID = 1
+    else
+        --背包里
+        spaceID = 2
+    end
+
+    --装备等级
+    self.SelectEquipLevel = 0
+    if self.EquipRecast.SelectedEntityID[1] ~= -1 then
+        local itemData = BusinessManager.Instance:GetItemByItemEntityId(self.EquipRecast.SelectedEntityID[1])
+        local cfg = ConfigDataAccessor.Equip[itemData.BaseID]
+        self.SelectEquipLevel = cfg.Equip_Level
+    end
+
+    local selectedSortLv = self.equipRecastSort.SelectedSortLv
+    local selectedQuality = self.equipRecastSort.selectedQuality
+    local selectedSubType = self.equipRecastSort.selectedSubType
+    local selectedSubAttr = self.equipRecastSort.selectedSubAttr
+
+    for i = 0, self.allitems.Count - 1 do
+        local data = self.allitems[i]
+
+        if data ~= nil and data.SpaceId == spaceID then
+            local cfg = ConfigDataAccessor.Item[data.BaseID] --首选的
+
+            local info = {}
+            info.Data = data
+            info.SelectedIdx = self.EquipRecast:GetSelectedEntityIdx(data.EntityID)
+            info.Quality = cfg.Quality
+            info.SubType = cfg.SubType
+
+            local canSelect = true
+
+            local cfg = ConfigDataAccessor.Item[data.BaseID]
+            local cfgEquip = ConfigDataAccessor.Equip[data.BaseID]
+            --筛选
+            --等级(20级以下装备不可重构)
+            --if selectedSortLv>0 and cfgEquip.Level~=selectedSortLv then
+            if cfgEquip.Level < selectedSortLv or cfgEquip.Level < 20 then
+                canSelect = false
+            end
+
+            --稀有度
+            if selectedQuality[cfg.Quality] == 0 then
+                canSelect = false
+            end
+
+            --子类型
+            if selectedSubType[cfg.SubType] == 0 then
+                canSelect = false
+            end
+
+            --是否包含副属性
+            if #selectedSubAttr > 0 then
+                local isFind = false
+                for i = 0, data.EquipProps.SubPropList.Count - 1 do
+                    local id = data.EquipProps.SubPropList[i].ID --属性id
+                    for j = 1, #selectedSubAttr do
+                        local subCfg = ConfigDataAccessor.EquipSub[selectedSubAttr[j]]
+                        if subCfg.NatureId == id then
+                            isFind = true
+                        end
+                    end
+
+                    if isFind then
+                        break
+                    end
+                end
+                if not (isFind) then
+                    canSelect = false
+                end
+            end
+
+            if canSelect then
+                info.EquipLevel = cfgEquip.Equip_Level
+
+                --战力
+                info.equipPower = FightPowerManager.Instance:GetShowEquipPower(data)
+
+                table.insert(self.ItemDataList, info)
+            end
+        end
+    end
+end
+
+function EquipRecastEquip:OnEquipMenuBtnClick(idx, noResetPos)
+    if noResetPos == nil then
+    --self.rect_grid.anchoredPosition=Vector2(self.rect_grid.anchoredPosition.x,0);
+    end
+
+    for i = 1, #self.EquipMenuBtns do
+        self.EquipMenuBtns[i]:MakeSelected(false)
+    end
+
+    if idx == nil then
+        idx = self.EquipMenuIdx
+    end
+    self.EquipMenuIdx = idx
+    self.EquipMenuBtns[idx]:MakeSelected(true)
+
+    self:Refesh()
+end
+
+function EquipRecastEquip:CleanAllSelected()
+    --无限列表
+    for i = 1, #self.EquipRecastItemList do
+        self.EquipRecastItemList[i]:MakeSelected(false)
+    end
+end
+
+function EquipRecastEquip:OnEquipRecastItemRefesh(tr, idx)
+    for i = 1, #self.EquipRecastItemList do
+        if self.EquipRecastItemList[i].transform == tr then
+            self.EquipRecastItemList[i]:SetItem(self.ItemDataList[idx + 1], self.SelectEquipLevel) --idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+        end
+    end
+
+    --tr.gameObject:SetActive(true);
+    local bi = EquipRecastItem:New(tr.gameObject)
+    bi:InitItem(
+        function(ritem)
+            self:OnItemClick(ritem)
+        end
+    )
+    bi.gameObject:SetActive(true)
+    bi:SetItem(self.ItemDataList[idx + 1], self.SelectEquipLevel) --idx是从0开始，如果ItemDataList是lua的table需要idx+1
+
+    table.insert(self.EquipRecastItemList, bi)
+end
+
+function EquipRecastEquip:OnItemClick(bitem)
+    self.EquipRecast:ChangeSelectedEntity(bitem.EntityID)
+
+    self.EquipRecast:Refesh()
+end
+
+function EquipRecastEquip:ClearItemData()
+    if self.ItemDataList == nil then
+        self.ItemDataList = {}
+    else
+        --self.ItemDataList ={}
+        for k, _ in pairs(self.ItemDataList) do
+            self.ItemDataList[k] = nil
+        end
+    end
+end
+
+function EquipRecastEquip:SortItem(tbl)
+    if #tbl > 1 then
+        table.sort(
+            tbl,
+            function(a, b)
+                --按EquipLevel降序
+                if a.EquipLevel ~= b.EquipLevel then
+                    return a.EquipLevel > b.EquipLevel
+                end
+
+                -- 按是否装备降序
+                if a.Data.Heroid ~= b.Data.Heroid then
+                    return a.Data.Heroid > b.Data.Heroid
+                end
+
+                --按Quality降序
+                if a.Quality ~= b.Quality then
+                    return a.Quality > b.Quality
+                end
+
+                --子类型升序
+                if a.SubType ~= b.SubType then
+                    return a.SubType < b.SubType
+                end
+
+                --战力降序
+                if a.equipPower ~= b.equipPower then
+                    return a.equipPower > b.equipPower
+                end
+
+                return false
+            end
+        )
+    end
+end
+
+------------------------------无限列表相关
+------------------------------
+
+return EquipRecastEquip

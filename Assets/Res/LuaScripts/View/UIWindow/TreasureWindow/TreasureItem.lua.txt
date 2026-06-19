@@ -1,0 +1,96 @@
+---------------------------------------------------------------------
+-- NewStar (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-08-17 17:55:49
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class TreasureItem
+TreasureItem = class("TreasureItem",UIPanel)
+TreasureItem.m_Nom=nil;
+TreasureItem.m_Have=nil;
+TreasureItem.m_Icon=nil;
+TreasureItem.m_BgRare=nil;
+
+TreasureItem.m_Num=nil;
+TreasureItem.m_Name=nil;
+TreasureItem.m_Btn=nil;
+
+--1 绑定 ;2 非绑定 ;3 绑定和非绑定
+TreasureItem.BindType=0;
+TreasureItem.IsActive=false;
+local ClickFunc=nil;
+
+
+
+function TreasureItem:ctor(go,atlas)
+	self.prefab = go;
+	self.AtlasPath = atlas;
+	self.m_Nom=self:Find("Item/Nom").gameObject;
+	self.m_Have=self:Find("Item/Have").gameObject;
+	self.m_Icon=self:Find("Item/Have/Icon"):GetComponent(typeof(Image))
+	self.m_BgRare=self:Find("Item/Have/BgRare"):GetComponent(typeof(Image))
+	self.m_Num=self:Find("Item/Num"):GetComponent(typeof(Text))
+	self.m_Name=self:Find("Item/Name"):GetComponent(typeof(Text))
+	self.m_Btn=self:Find("Item"):GetComponent(typeof(JButton))
+	ClickFunc=function() self:OnClickBtn(); end;
+	self.m_Btn.OnClick= ClickFunc;
+end
+
+function TreasureItem:OnClickBtn()
+	if not self.IsActive  then
+		Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_228"))
+	end
+end
+
+--数据更新
+function TreasureItem:UpdateContent(data)
+	self.BindType=0;
+	local configID=data;
+	local Num=0;
+	local config=ConfigDataAccessor.Item[configID];
+	if config~=nil then
+		local quality=config.Quality;
+
+		--self.m_BgRare.sprite= AtlasManager.Instance:GetSprite("ui/common/atlas/commonitem","Bag_Grid_sq"..quality);
+		ResourceHelper:LoadIconByAtlasAsync(
+			self.m_BgRare,
+			ResourceHelper.AtlasPathCommonItem,
+			"Bag_Grid_sq"..quality,
+			false
+		)
+		ResourceHelper:LoadIconAsync(self.m_Icon, "", config.Icon, true)
+
+		-- ResourceManager.Instance:LoadSpriteAsync(config.Icon,function (sp)
+		-- 		if sp~=nil and self.m_Icon~=nil then
+		-- 			self.m_Icon.sprite=sp;
+		-- 		end
+		-- 	end)
+		self.m_Name.text=config.Name
+	end
+	local num1= BusinessManager.Instance:GetCurrencyNum(configID);
+	if num1>0 then
+		self.BindType=1;
+		Num=num1;
+	end
+
+	local num2= BusinessManager.Instance:GetCurrencyNum(configID+5);
+	if num2>0 then
+		if self.BindType ==0 then
+			self.BindType=2;
+		else
+			self.BindType=3;
+		end
+		Num=Num+num2
+	end
+	self.m_Num.text=Num
+	local active=Num>0
+	self.m_Nom:SetActive(not active)
+	self.m_Have:SetActive(active)
+	self.IsActive=active;
+
+end
+
+return  TreasureItem;

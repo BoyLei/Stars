@@ -1,0 +1,220 @@
+TalentModule = class("TalentModule", BaseLuaModule)
+
+local talentwindowPath = "talent/prefab/talentwindow"
+
+TalentModule.IsOpenTips = false;
+
+-- LuaModule 消息模块
+TalentModule.ModuleMessages = {
+    -- 打开
+    ["OnOpenTalentWindow"] = function(...)
+        TalentModule:OnOpenTalentWindow(...);
+    end,
+    ["OnOpenTreeNodes"] = function(...)
+        TalentModule:OnOpenTreeNodes(...);
+    end,
+    ["OnCloseTreeNodes"] = function(...)
+        TalentModule:OnCloseTreeNodes(...);
+    end,
+    ["OnOpenNodeInfo"] = function(...)
+        TalentModule:OnOpenNodeInfo(...);
+    end,
+    ["OnCloseRightPanel1"] = function(...)
+        TalentModule:OnCloseRightPanel1(...);
+    end,
+    ["OnCloseRightPanel2"] = function(...)
+        TalentModule:OnCloseRightPanel2(...);
+    end,
+    ["CheckHasTalent"] = function(...)
+        TalentModule:CheckHasTalent(...)
+    end
+}
+
+function TalentModule:OnOpenTalentWindow(...)
+
+	if not self:CheckHasTalent() then 
+		Util.ShowMessage("RetMsgClientStr4")
+        return
+	end
+		
+    local tb = ...
+
+    -- local talentWindowCs =UIManager.Instance:OpenWindow(talentwindowPath,nil,CS.StarProjectDef.MainPageCommond.HideBoth);
+    -- if self.talentWindowView == nil then
+    -- 	self.talentWindowView=talentWindowCs:GetLuaPanel().ScriptTable;	
+    -- 	self.talentWindowView:BindModule(self);
+    -- 	self.talentWindowView:InitControls();
+    -- end
+    -- self.talentWindowView:InitData(self.treeData);
+    -- self.talentWindowView:RefreshCoin();
+
+    self.AsyncLoadtalentwindowCb = function(ui)
+		if ui ~= nil then
+            if self.talentWindowView == nil then
+                self.talentWindowView = ui:GetLuaPanel().ScriptTable;
+                self.talentWindowView:BindModule(self);
+                self.talentWindowView:InitControls();
+            end
+            self.talentWindowView:InitData(self.treeData);
+            self.talentWindowView:RefreshCoin();
+        end
+		if tb and tb[1] then
+			tb[1]()
+		end
+        self.AsyncLoadtalentwindowCb = nil;
+    end
+    UIManager.Instance:OpenWindowAsync(talentwindowPath, self.AsyncLoadtalentwindowCb, nil,
+        CS.StarProjectDef.MainPageCommond.HideBoth);
+end
+
+function TalentModule:OnOpenTreeNodes(...)
+    local tb = ...
+    if self.talentWindowView ~= nil then
+        self.talentWindowView:OpenTreeNodes(tb[1]);
+    end
+end
+
+function TalentModule:OnCloseTreeNodes(...)
+    if self.talentWindowView ~= nil then
+        self.talentWindowView:CloseTreeNodes();
+    end
+end
+
+function TalentModule:OnOpenNodeInfo(...)
+    local tb = ...
+    if self.talentWindowView ~= nil then
+        self.talentWindowView:OnOpenNodeInfo(tb[1], tb[2], tb[3]);
+    end
+end
+
+function TalentModule:OnCloseRightPanel1(...)
+    local tb = ...
+    if self.talentWindowView ~= nil then
+        self.talentWindowView:OnCloseRightPanel1();
+    end
+end
+
+function TalentModule:OnCloseRightPanel2(...)
+    local tb = ...
+    if self.talentWindowView ~= nil then
+        self.talentWindowView:OnCloseRightPanel2();
+    end
+end
+
+-- LuaModule 创建
+function TalentModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.TalentModule, self)
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.TalentNodeActiveRetID, function(data)
+        self:OnTalentNodeActiveRet(data)
+    end, nil);
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.TalentTreeResetRetID, function(data)
+        self:OnTalentTreeResetRet(data)
+    end, nil);
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.TalentNodeAutoRetID, function(data)
+        self:OnTalentNodeAutoRet(data)
+    end, nil);
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.HeroTalentModelID, function(data)
+        self:HeroTalentModel(data)
+    end, nil);
+
+    FixMessageManager.Instance:OnMessage(FixUpdateDef.Hero, function(data)
+        self:OnHeroInfos(data)
+    end, nil);
+end
+
+function TalentModule:OnTalentNodeActiveRet(data)
+    -- 节点点亮返回
+    Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_32"));
+
+    if self.talentWindowView ~= nil then
+        self.talentWindowView:RefreshCoin();
+    end
+end
+
+function TalentModule:OnTalentTreeResetRet(data)
+    -- 节点重置返回
+    Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_33"));
+    UIAPI.ShowMsgBox(37, function(eventName)
+        if eventName == "SURE" then
+            local talentTreeResetReq = CS.ProtoMsg.TalentTreeResetReq()
+            if self.curType == "alltree" then
+                talentTreeResetReq.IsClear = true;
+            else
+                talentTreeResetReq.TreeID = self.singleTreeId;
+            end
+            CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+                talentTreeResetReq, false)
+        end
+    end, treeName, coinNum)
+
+    if data ~= nil and data.data ~= nil then
+        self.talentWindowView:RefreshNodeLines(data.data);
+    end
+
+    if self.talentWindowView ~= nil then
+        self.talentWindowView:RefreshCoin();
+    end
+end
+
+function TalentModule:OnTalentNodeAutoRet(data)
+    -- 节点自动点亮返回
+    Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_34"));
+
+    if self.talentWindowView ~= nil then
+        self.talentWindowView:RefreshCoin();
+    end
+end
+
+function TalentModule:OnHeroInfos(data)
+    local HeroMD = GameManager.Instance.HeroMD;
+    local talentTree = HeroMD.TalentTree;
+
+    self.treeData = talentTree;
+    self.talentPoint = HeroMD.TalentPoint;
+    self.usedTalentPoint = HeroMD.UsedTalentPoint;
+    -- 刷新天赋树
+    if self.talentWindowView ~= nil then
+        self.talentWindowView:RefreshTree(talentTree);
+    end
+end
+
+function TalentModule:CheckHasTalent(...)
+    local tb = ...
+    local attriTTCondition = ConfigDataAccessor.AttriTTCondition;
+	local playerJob=GameManager.Instance:GetPlayerJob()
+	for k, v in pairs(attriTTCondition) do
+		if v.JobID == playerJob then 
+            if tb and tb[1] then 
+                tb[1](true)
+               -- return true
+            end
+            return true
+        end
+	end
+    if tb and tb[1] then 
+        tb[1](false)
+    end
+    return false
+end
+
+-- LuaModule 消息处理
+function TalentModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...);
+end
+
+-- LuaModule显示
+function TalentModule:OnModuleShow(arg)
+
+end
+
+-- LuaModule 释放
+function TalentModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.TalentModule)
+end
+
+return TalentModule
+

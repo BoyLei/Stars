@@ -1,0 +1,107 @@
+--[[
+*文件名   :   PartyTimeQuestionSliderDot
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/7 16:32:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local PartyTimeQuestionSliderDot = {}
+
+PartyTimeQuestionSliderDot.__index = PartyTimeQuestionSliderDot
+
+function PartyTimeQuestionSliderDot:New(_go) 
+    local self = {};    
+    setmetatable(self, PartyTimeQuestionSliderDot); 
+    
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+	self.num1=self.transform:Find("CantGet/num"):GetComponent(typeof(Text));
+	self.num2=self.transform:Find("CanGet/num"):GetComponent(typeof(Text));
+
+	self.go_canGet=self.transform:Find("CanGet").gameObject;
+	self.go_cantGet=self.transform:Find("CantGet").gameObject;
+	self.go_got=self.transform:Find("Got").gameObject;
+
+
+	self.rect=self.transform:GetComponent(typeof(RectTransform));
+
+	self:SetUse(false);
+
+	--点击事件
+	local btnClick=self.transform:GetComponent(typeof(JButton));
+	btnClick.OnClick=(function()
+
+		--领取
+		if self.CanGet then
+			local partyTimeGuildScoreRewardReq = CS.ProtoMsg.PartyTimeGuildScoreRewardReq();
+			partyTimeGuildScoreRewardReq.RewardIndex = self.RewardIndex;
+			CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, partyTimeGuildScoreRewardReq, false);
+		end
+
+	end);
+
+
+    return self;    --返回自身
+end
+
+
+
+--初始化Item
+function PartyTimeQuestionSliderDot:InitItem()
+	self:SetUse(false);
+end
+
+function PartyTimeQuestionSliderDot:SetUse(b)
+	self.IsUsed=b;
+
+	self.gameObject:SetActive(b);
+
+end
+
+
+--设置Item
+function PartyTimeQuestionSliderDot:SetItem(cfg,posX,haveScore)
+	self:SetUse(true);
+	self.num1.text=cfg.Reward_need_num;
+	self.num2.text=self.num1.text;
+
+	self.RewardIndex=cfg.Reward_need_num;--积分是索引
+
+	local CmCountID=cfg.CmCountID;
+
+	self.CanGet=false;
+	if haveScore>=self.RewardIndex then
+		--判断是否已经领取
+		--通用次数
+		local info = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.ComCount):GetData(CmCountID)--派对时刻挂机奖励上限
+		if info ~= nil then
+			local RemainCount=info.RemainCount;
+			if RemainCount==1 then
+				self.CanGet=true;
+				--可以领取
+				self.go_canGet:SetActive(true);
+				self.go_cantGet:SetActive(false);
+				self.go_got:SetActive(false);
+			else
+				--已经领取
+				self.go_canGet:SetActive(false);
+				self.go_cantGet:SetActive(false);
+				self.go_got:SetActive(true);
+			end
+		end
+	else
+		--还没有达到
+		self.go_canGet:SetActive(false);
+		self.go_cantGet:SetActive(true);
+		self.go_got:SetActive(false);
+	end
+
+	self.rect.anchoredPosition=Vector2(posX,-38);
+
+
+end
+
+return PartyTimeQuestionSliderDot;

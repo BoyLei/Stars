@@ -1,0 +1,318 @@
+--[[
+*文件名   :   EquipUpgradeAttrUpgrade
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/02/03 13:09:51"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local EquipUpgradeAttrUpgrade = {}
+EquipUpgradeAttrUpgrade.__index = EquipUpgradeAttrUpgrade
+
+local ItemGrid = require("View/Item/ItemGrid")
+local EquipUpgradeAttrAttr = require("View/Uiwindow/EquipUpgrade/EquipUpgradeAttrAttr")
+--local EquipUpgradeAttrSuccess=require("View/Uiwindow/EquipUpgrade/EquipUpgradeAttrSuccess")
+local EquipUpgradeAttrSimpleSuccess = require("View/Uiwindow/EquipUpgrade/EquipUpgradeAttrSimpleSuccess")
+
+function EquipUpgradeAttrUpgrade:New(_go, equipUpgradeWindow)
+    local self = {}
+    setmetatable(self, EquipUpgradeAttrUpgrade)
+
+    self.transform = _go.transform
+    self.gameObject = _go
+
+    self.EquipUpgradeWindow = equipUpgradeWindow
+
+    --跳转到背包
+    local BtnGoToEquip = self.transform:Find("None/BtnGoToEquip"):GetComponent(typeof(JButton))
+    BtnGoToEquip.OnClick = (function()
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        --打开背包UI
+        LuaModuleDispatcher:SendMessage(ModuleDef.BagModule, "OnOpenBag", {})
+        LuaModuleDispatcher:SendMessage(ModuleDef.BagModule, "OnOpenBagTag", {2, self.SlotID})
+    end)
+
+    self.redPoint = self.transform:Find("Upgrade/BtnConfirm/redPoint").gameObject
+
+    --点击强化
+    self.btnUpgrade = self.transform:Find("Upgrade/BtnConfirm"):GetComponent(typeof(JButton))
+    self.btnUpgrade.OnClick = (function()
+        self:OnBtnConfirmClick()
+    end)
+    self.btnUpgrade_img = self.transform:Find("Upgrade/BtnConfirm/bg"):GetComponent(typeof(Image))
+
+    --中间当前装备
+    self.Name = self.transform:Find("EquipCenter/Name"):GetComponent(typeof(Text))
+
+    self.equipImage = self.transform:Find("EquipCenter/EquipItem/Have/Icon"):GetComponent(typeof(Image))
+    self.equipBg = self.transform:Find("EquipCenter/EquipItem/Have/BgRare"):GetComponent(typeof(Image))
+    self.equipAdd = self.transform:Find("EquipCenter/EquipItem/Have/Num"):GetComponent(typeof(Text))
+
+    self.Limit = self.transform:Find("Info/Perfect/barNum"):GetComponent(typeof(Text))
+    self.Level = self.transform:Find("Info/level"):GetComponent(typeof(Text))
+
+    --右边中间的属性信息
+
+    --强化词条
+    --属性
+    self.attrs = {}
+    for i = 1, 5 do
+        local eai = EquipUpgradeAttrAttr:New(self.transform:Find("Info/Attrs/Attr" .. i).gameObject)
+        table.insert(self.attrs, eai)
+    end
+
+    --战力
+    self.score = self.transform:Find("Info/score"):GetComponent(typeof(Text))
+
+    --消耗显示
+    --金币
+    self.useCoinSp = self.transform:Find("Upgrade/Money/Icon"):GetComponent(typeof(Image))
+    self.useCoinNum = self.transform:Find("Upgrade/Money/Num"):GetComponent(typeof(Text))
+
+    --道具
+    self.items = {}
+    for i = 1, 5 do
+        local it = ItemGrid:New(self.transform:Find("Info/Items/ItemGrid" .. i).gameObject)
+        it:InitItem(
+            false,
+            function(ritem)
+                self:OnItemClick(ritem)
+            end
+        )
+        table.insert(self.items, it)
+    end
+
+    self.go_Upgrade = self.transform:Find("Upgrade").gameObject
+    self.go_EquipCenter = self.transform:Find("EquipCenter").gameObject
+    self.go_Info = self.transform:Find("Info").gameObject
+    self.go_None = self.transform:Find("None").gameObject
+    self.go_Max = self.transform:Find("Max").gameObject
+
+    self.go_ItemRoot = self.transform:Find("Info/Items").gameObject
+
+    --[[
+	self.equipUpgradeAttrSuccess=EquipUpgradeAttrSuccess:New(self.transform:Find("Success").gameObject,function ()
+		self:RefeshEquipUpgrade();
+	end,self);
+	]]
+    self.equipUpgradeAttrSuccess =
+        EquipUpgradeAttrSimpleSuccess:New(
+        self.transform:Find("SimpleSuccess").gameObject,
+        function()
+            self:RefeshEquipUpgrade()
+        end
+    )
+
+    --点击五连
+    local btn5 = self.transform:Find("Info/Five"):GetComponent(typeof(JButton))
+    btn5.OnClick = (function()
+        self:OnBtnFiveConfirmClick()
+    end)
+    self.go_fiveSelected = self.transform:Find("Info/Five/selected").gameObject
+    self.go_fiveSelected:SetActive(false)
+
+    self.RefeshTimes = 1 --精炼次数
+
+    --强化前的属性
+    self.OldAttr = {}
+
+    return self --返回自身
+end
+
+function EquipUpgradeAttrUpgrade:ShowSuccessPs()
+    for i = 1, #self.attrs do
+        self.attrs[i]:ShowPs()
+    end
+end
+
+function EquipUpgradeAttrUpgrade:OnItemClick(ritem)
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", {ritem.BaseID, false, 0, ritem.transform, 0, nil, nil, nil, nil, ModuleDef.EquipUpgradeModule, {2, 0}})
+    --LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnSetJumpInfo",{ ModuleDef.EquipUpgradeModule,{2,0}});
+end
+
+function EquipUpgradeAttrUpgrade:OnBtnFiveConfirmClick()
+    if self.RefeshTimes == 1 then
+        self.RefeshTimes = 5
+        self.go_fiveSelected:SetActive(true)
+    else
+        self.RefeshTimes = 1
+        self.go_fiveSelected:SetActive(false)
+    end
+
+    self:RefeshEquipUpgrade()
+end
+
+function EquipUpgradeAttrUpgrade:Show(b)
+    self.gameObject:SetActive(b)
+end
+
+--刷新信息
+function EquipUpgradeAttrUpgrade:RefeshEquipUpgrade(module)
+    --self.btnUpgrade.enabled=true;
+    if module ~= nil then
+        self.module = module
+    end
+
+    self.EntityID = self.module.EntityID
+    self.BaseID = self.module.BaseID
+
+    --之后要去从服务器下发数据读取
+    self.SlotID = self.module.SlotID --装备槽ID
+
+    --显示装备栏
+    self.module.equipUpgradeWindowView.equipUpgradeEquipMenu:SelectEquipByIdx(self.SlotID)
+
+    --空装备
+    if self.EntityID == nil then
+        self.go_EquipCenter:SetActive(false)
+        self.go_None:SetActive(true)
+        self.go_Info:SetActive(false)
+        self.go_Max:SetActive(false)
+        self.go_Upgrade:SetActive(false)
+
+        --中间置为空
+        self.Name.text = GetEquipSubTypeName(self.SlotID)
+        self.equipAdd.text = ""
+        local quality = 1
+        --self.equipBg.sprite= AtlasManager.Instance:GetSprite("ui/common/atlas/commonitem","Bag_Grid_sq"..quality);
+        ResourceHelper:LoadIconByAtlasAsync(self.equipBg, ResourceHelper.AtlasPathCommonItem, "Bag_Grid_sq" .. quality, false)
+        self.equipImage.gameObject:SetActive(false)
+
+        self.Limit.text = "???"
+
+        return
+    else
+        self.go_EquipCenter:SetActive(true)
+        self.go_None:SetActive(false)
+        self.go_Info:SetActive(true)
+    end
+
+    self.itemData = BusinessManager.Instance:GetItemByItemEntityId(self.EntityID)
+
+    --计算战力
+    --装备战力
+    local equipPower = FightPowerManager.Instance:GetShowEquipPower(self.itemData)
+    --全部槽位战力，共鸣战力
+    local allPower, slotPower, slotResonancePower = FightPowerManager.Instance:GetEquipSlotsPower()
+    --单个槽位战力
+    local singleSlotPower = FightPowerManager.Instance:GetEquipSlotsPowerBySlotID(self.SlotID)
+
+    --self.score.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips_Condition27_Power") .. (equipPower + singleSlotPower)
+    self.score.text = "" .. (equipPower + singleSlotPower)
+
+    local isAllPerfect = true --是否完美度全部满了？
+
+    local perfectAllValue = 0
+
+    local eCfg = ConfigDataAccessor.Equip[self.BaseID]
+
+    self.Level.text = LanguageHelp:GetLanguageByKey("Local_Str_Level") .. ":" .. eCfg.Level
+
+    --主属性
+    local MainProps = self.itemData.EquipProps.MainPropList
+    for i = 1, #self.attrs do
+        self.attrs[i].gameObject:SetActive(false)
+    end
+    for i = 0, MainProps.Count - 1 do
+        self.attrs[i + 1].gameObject:SetActive(true)
+
+        local maxAttr = eCfg.NumMax[i + 1]
+
+        self.OldAttr[i + 1] = MainProps[i].Value
+
+        perfectAllValue = perfectAllValue + (MainProps[i].Value / maxAttr)
+
+        self.attrs[i + 1]:RefeshAttrProb(MainProps[i], maxAttr)
+    end
+
+    --这里要计算平均完美度（不完美的话上面就变成false）
+    local Perfection = math.floor(perfectAllValue / MainProps.Count * 100)
+    self.Limit.text = "" .. Perfection
+
+    isAllPerfect = (Perfection == 100)
+
+    self.IsMoneyEnough = true
+    self.IsMoneyEnoughStr = LanguageHelp:GetLanguageByKey("Local_Str_No_Item")
+
+    if not (isAllPerfect) then
+        self.go_Max:SetActive(false)
+        self.go_Upgrade:SetActive(true)
+        self.go_ItemRoot:SetActive(true)
+
+        --强化需要的资源
+        local expend = ConfigDataAccessor.GetEquipResetExpend(self.SlotID, eCfg.Equip_Level)
+
+        --道具消耗（货币）暂时不用，但是先不删
+        local cfgM = ConfigDataAccessor.Item[expend.Money[1]]
+        --LoadIcon(self.useCoinSp,cfgM.Icon);
+        ResourceHelper:LoadIconAsync(self.useCoinSp, "", cfgM.Icon, false)
+
+        local haveMoneyNum = BusinessManager.Instance:GetCurrencyNum(expend.Money[1])
+        if haveMoneyNum >= (expend.Money[2] * self.RefeshTimes) then
+            --self.useCoinNum.text=""..haveMoneyNum.."/"..expend.Money[2];
+            self.useCoinNum.text = expend.Money[2] * self.RefeshTimes
+        else
+            self.IsMoneyEnough = false
+            --self.IsMoneyEnoughStr=cfgM.Name.."不足";
+            self.IsMoneyEnoughStr = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_ShopItem_buyErrorMsg"), {cfgM.Name})
+
+            --self.useCoinNum.text="<color=#ff0000>"..haveMoneyNum.."</color>/"..expend.Money[2];
+            self.useCoinNum.text = "<color=#ff0000>" .. (expend.Money[2] * self.RefeshTimes) .. "</color>"
+        end
+
+        --消耗道具
+        for i = 1, #self.items do
+            self.items[i].gameObject:SetActive(false)
+        end
+        for i = 1, #expend.Item_id do
+            self.items[i].gameObject:SetActive(true)
+            local isItemEnough = self.items[i]:SetItemNum(expend.Item_id[i], expend.Item_num[i] * self.RefeshTimes, true)
+            if not (isItemEnough) then
+                self.IsMoneyEnough = false
+            end
+        end
+
+        --货币
+        self.items[#expend.Item_id + 1].gameObject:SetActive(true)
+        self.items[#expend.Item_id + 1]:SetItemNum(expend.Money[1], expend.Money[2] * self.RefeshTimes, true, true)
+    else
+        --显示强化到最高的UI
+        self.go_Max:SetActive(true)
+        self.go_Upgrade:SetActive(false)
+        self.go_ItemRoot:SetActive(false)
+    end
+
+    if self.IsMoneyEnough then
+        self.btnUpgrade.enabled = true
+        self.btnUpgrade_img.color = Color(1, 1, 1)
+        self.redPoint:SetActive(true)
+    else
+        self.btnUpgrade.enabled = false
+        self.btnUpgrade_img.color = Color(0.7, 0.7, 0.7)
+        self.redPoint:SetActive(false)
+    end
+
+    --刷新中间
+    local cfg = ConfigDataAccessor.Item[self.BaseID]
+
+    self.Name.text = cfg.Name
+
+    local quality = cfg.Quality
+    --self.equipBg.sprite= AtlasManager.Instance:GetSprite("ui/common/atlas/commonitem","Bag_Grid_sq"..quality);
+    ResourceHelper:LoadIconByAtlasAsync(self.equipBg, ResourceHelper.AtlasPathCommonItem, "Bag_Grid_sq" .. quality, false)
+    self.equipImage.gameObject:SetActive(true)
+    --LoadIcon(self.equipImage,cfg.Icon);
+    ResourceHelper:LoadIconAsync(self.equipImage, "", cfg.Icon, false)
+end
+
+function EquipUpgradeAttrUpgrade:OnBtnConfirmClick()
+    if not (self.IsMoneyEnough) then
+        Util.ShowMessage(self.IsMoneyEnoughStr)
+        return
+    end
+    --self.btnUpgrade.enabled=false;
+    --发送强化请求
+    self.module:EquipRefineReq(self.RefeshTimes)
+end
+
+return EquipUpgradeAttrUpgrade

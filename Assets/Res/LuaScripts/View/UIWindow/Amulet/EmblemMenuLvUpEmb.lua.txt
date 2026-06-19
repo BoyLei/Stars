@@ -1,0 +1,201 @@
+--[[
+*文件名   :   EmblemMenuLvUpEmb
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local EmblemMenuLvUpEmb = {}
+
+EmblemMenuLvUpEmb.__index = EmblemMenuLvUpEmb
+
+local ItemGrid=require("View/Item/ItemGrid");
+
+function EmblemMenuLvUpEmb:New(_go,OnLvUpClick) 
+    local self = {};    
+    setmetatable(self, EmblemMenuLvUpEmb); 
+    
+
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+	--点击关闭
+	local btnClose=self.transform:Find("BtnClose"):GetComponent(typeof(JButton));
+	btnClose.OnClick=(function()
+		self:Show(false);
+	end);
+
+    --点击升级
+	local btnLvUp=self.transform:Find("BtnLvUp"):GetComponent(typeof(JButton));
+	btnLvUp.OnClick=(function()
+
+        if self.IsMoneyEnough then
+            --self:Show(false);
+		    OnLvUpClick(self.Ritem,true);--点击升级
+        else
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_No_Item"));
+        end
+	end);
+
+    self.Icon1=self.transform:Find("icon1"):GetComponent(typeof(Image));
+    self.Name1=self.transform:Find("icon1/name"):GetComponent(typeof(Text));
+
+    self.Icon2=self.transform:Find("icon2"):GetComponent(typeof(Image));
+    self.Name2=self.transform:Find("icon2/name"):GetComponent(typeof(Text));
+
+    self.attr1=self.transform:Find("attr1"):GetComponent(typeof(Text));
+    self.attr2=self.transform:Find("attr2"):GetComponent(typeof(Text));
+
+    self.attr1_2=self.transform:Find("attr1_2"):GetComponent(typeof(Text));
+    self.attr2_2=self.transform:Find("attr2_2"):GetComponent(typeof(Text));
+
+
+    self.item = ItemGrid:New(self.transform:Find("ItemGrid1").gameObject);
+    self.item:InitItem(false,function()  end);
+
+
+    self.go_small=self.transform:Find("Small").gameObject;
+
+    self.smallitem = ItemGrid:New(self.transform:Find("Small/ItemGrid1").gameObject);
+    self.smallitem:InitItem(false,function()  end)
+
+    self.Icon3=self.transform:Find("Small/icon"):GetComponent(typeof(Image));
+    self.Name3=self.transform:Find("Small/name"):GetComponent(typeof(Text));
+
+    self.Ritem={};
+    self.Ritem2={};
+
+    --点击快捷升级
+	local btnLvUp2=self.transform:Find("Small/BtnLvUp"):GetComponent(typeof(JButton));
+	btnLvUp2.OnClick=(function()
+
+        if self.IsMoneyEnough2 then
+            --self:Show(false);
+		    OnLvUpClick(self.Ritem2,false);--点击升级
+        else
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_No_Item"));
+        end
+	end);
+
+
+    self:Show(false);
+
+    return self;    --返回自身
+end
+
+function EmblemMenuLvUpEmb:Refesh()
+    
+    self.BaseID=self.Ritem.BaseID;
+
+    local hCfg1=ConfigDataAccessor.HeraldryEquip[self.BaseID];
+    local cfg1 =ConfigDataAccessor.Item[self.BaseID];
+    local lvNow=hCfg1.HeraldryLevel;
+
+    --LoadIcon(self.Icon1,cfg1.Icon);
+    ResourceHelper:LoadIconAsync(self.Icon1, "", cfg1.Icon, false)
+
+    self.Name1.text=cfg1.Name;
+
+    local nextLv= hCfg1.HeraldryLevel+1;
+
+
+    local hCfg2=ConfigDataAccessor.GetHeraldryEquip(hCfg1.ResonanceSlot,nextLv);
+    local cfg2 =ConfigDataAccessor.Item[hCfg2.Id];
+
+    --LoadIcon(self.Icon2,cfg2.Icon);
+    ResourceHelper:LoadIconAsync(self.Icon2, "", cfg2.Icon, false)
+	
+    self.Name2.text=cfg2.Name;
+
+
+    local config1=  ConfigDataAccessor.GetAttrByID(hCfg1.BaseAttrId[1])
+    local attrName1 = "";
+    if config1 ~= nil then
+        attrName1 = config1.Name;
+    end
+
+    local config2=  ConfigDataAccessor.GetAttrByID(hCfg1.ResonanceAttrID[1])
+    local attrName2 = "";
+    if config2 ~= nil then
+        attrName2 = config2.Name;
+    end
+
+
+    self.attr1.text=attrName1.."+"..hCfg1.BaseAttrVal[1];
+    self.attr2.text=attrName2.."+"..hCfg1.ResonanceAttrVal[1];
+
+    self.attr1_2.text=hCfg2.BaseAttrVal[1];
+    self.attr2_2.text=hCfg2.ResonanceAttrVal[1];
+
+
+    --升级需要的数量
+    local needNum=ConfigDataAccessor.HeraldryGrow[nextLv].NeedNum;
+
+
+    self.IsMoneyEnough=true;
+    local isItemEnough=self.item:SetItemNum(self.BaseID,needNum ,true);
+    if not(isItemEnough) then
+        self.IsMoneyEnough=false;
+
+        if hCfg1.HeraldryLevel>1 then
+            --显示二级升级
+            self.go_small:SetActive(true);
+
+            local preLv= hCfg1.HeraldryLevel-1;
+            local hCfg3=ConfigDataAccessor.GetHeraldryEquip(hCfg1.ResonanceSlot,preLv);
+            local cfg3 =ConfigDataAccessor.Item[hCfg3.Id];
+            local needNum2=ConfigDataAccessor.HeraldryGrow[hCfg1.HeraldryLevel].NeedNum;
+
+            --LoadIcon(self.Icon3,cfg3.Icon);
+            ResourceHelper:LoadIconAsync(self.Icon3, "", cfg3.Icon, false)
+			
+            self.Name3.text=cfg3.Name.." x"..needNum2;
+
+
+            local it=BusinessManager.Instance:GetItemByItemBaseId(hCfg1.Id);
+            self.smallitem:SetItemNum(hCfg1.Id,1);
+
+            local it3=BusinessManager.Instance:GetItemByItemBaseId(hCfg3.Id);
+			if it3==nil then
+				self.IsMoneyEnough2=false;
+				self.Ritem2.EntityID=0;
+			else
+	            self.IsMoneyEnough2=(it3.Num>=needNum2);
+	
+	            self.Ritem2.EntityID=it3.EntityID;
+
+			end
+            if not(self.IsMoneyEnough2) then
+                self.go_small:SetActive(false);
+            end
+
+        else
+            self.go_small:SetActive(false);
+
+        end
+
+    else
+
+        self.go_small:SetActive(false);
+    end
+end
+
+function EmblemMenuLvUpEmb:Show(b,ritem)
+    self.gameObject:SetActive(b);
+    if b then
+        self.Ritem.BaseID=ritem.BaseID;
+        self.Ritem.EntityID=ritem.EntityID;
+
+        self:Refesh();
+
+
+    end
+end
+
+
+
+
+
+return EmblemMenuLvUpEmb;

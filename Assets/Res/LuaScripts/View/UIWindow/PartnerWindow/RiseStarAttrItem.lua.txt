@@ -1,0 +1,35 @@
+---------------------------------------------------------------------
+-- Star (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2022-12-16 14:29:18
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class RiseStarAttrItem
+
+RiseStarAttrItem = class("RiseStarAttrItem",UIPanel)
+
+---表现层
+RiseStarAttrItem.AttrName = nil;
+RiseStarAttrItem.AttrNum = nil;
+
+function RiseStarAttrItem:ctor(go)
+	
+	self.prefab = go;
+	self.AttrName=self:Find("AttrName"):GetComponent(typeof(Text));
+	self.AttrNum=self:Find("AttrNum"):GetComponent(typeof(Text));
+	
+end
+
+function RiseStarAttrItem:Init(AttrName,AttrNum)
+	
+	self.AttrName.text = AttrName;
+	self.AttrNum.text = AttrNum;
+	
+	self.prefab.gameObject:SetActive(true);
+	
+end
+
+return RiseStarAttrItem;

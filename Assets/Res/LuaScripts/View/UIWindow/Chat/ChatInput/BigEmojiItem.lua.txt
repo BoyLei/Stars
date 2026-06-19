@@ -1,0 +1,33 @@
+local BigEmojiItem = {}
+BigEmojiItem.__index = BigEmojiItem
+
+function BigEmojiItem:New(obj, win)
+    local self = {}
+    setmetatable(self, BigEmojiItem)
+
+    self:InitControls(obj, win)
+
+    return self
+end
+
+function BigEmojiItem:InitControls(obj, win)
+    self.gameObject = obj
+    self.transform = obj.transform
+
+    self.emojiBtn = self.gameObject:GetComponent(typeof(Button))
+    self.img = self.gameObject:GetComponent(typeof(Image))
+
+    self.emojiBtn.onClick:AddListener(
+        function()
+            win:AddBigEmoji(self.emojiID)
+            win:SendChatInputData()
+        end
+    )
+end
+
+function BigEmojiItem:SetItem(id)
+    self.emojiID = id
+    ResourceHelper:LoadIconByAtlasAsync(self.img, ResourceHelper.AtlasPathEmo1, "Emoticon_big_0" .. id + 1, false)
+end
+
+return BigEmojiItem

@@ -1,0 +1,145 @@
+BattleTips = class("BattleTips", UIPanel)
+
+function BattleTips:Awake()
+
+end
+
+function BattleTips:BindModule(m)
+    BattleTips.module = m;
+end
+
+function BattleTips:InitControls()
+    self.transform = self.prefab.transform;
+    self.gameObject = self.transform.gameObject;
+
+    self.playerName1 = self.transform:Find("Root/Name1"):GetComponent(typeof(Text));
+    self.playerName2 = self.transform:Find("Root/Name2"):GetComponent(typeof(Text));
+    self.status = self.transform:Find("Root/Status"):GetComponent(typeof(Text));
+    self.job1 = self.transform:Find("Root/Blue/Image"):GetComponent(typeof(Image));
+    self.job2 = self.transform:Find("Root/Red/Image"):GetComponent(typeof(Image));
+
+    self.fistBlood = self.transform:Find("Root/Kill/FirstBlood").gameObject;
+    self.dominate = self.transform:Find("Root/Kill/Dominate").gameObject;
+    self.terminate = self.transform:Find("Root/Kill/Terminate").gameObject;
+	
+	self.curTips = {};
+end
+
+function BattleTips:ShowTips()
+	local data = self.curShow.data;
+	local st = self.curShow.st;
+	self.playerName1.text = data.KillName;
+	self.playerName2.text = data.BeKillName;
+	self.status.text = st;
+
+	local jobCfg = ConfigDataAccessor.Job[data.KillJob];
+	if jobCfg ~= nil then
+		local avatarDataCell = ConfigDataAccessor.Avatar[jobCfg.AvatarID];
+		if avatarDataCell ~= nil then
+			local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID];
+			if headCfg ~= nil then
+				self:GetSpriteByAtlas(headCfg.HeadAtlasName, headCfg.MinHead,function (sp)
+						self.job1.sprite =sp
+				end);
+			end
+		end
+	end
+
+	local jobCfg = ConfigDataAccessor.Job[data.BeKillJob];
+	if jobCfg ~= nil then
+		local avatarDataCell = ConfigDataAccessor.Avatar[jobCfg.AvatarID];
+		if avatarDataCell ~= nil then
+			local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID];
+			if headCfg ~= nil then
+				self:GetSpriteByAtlas(headCfg.HeadAtlasName, headCfg.MinHead,function (sp)
+						self.job2.sprite =sp
+				end);
+			end
+		end
+	end
+
+	if data ~= nil then
+		self.fistBlood:SetActive(data.NoticeType == CS.ProtoMsg.BFNoticeType.BfNtFirstBlood);
+		self.dominate:SetActive(data.NoticeType == CS.ProtoMsg.BFNoticeType.BfNtKillNum);
+		self.terminate:SetActive(data.NoticeType == CS.ProtoMsg.BFNoticeType.BfNtEndKillNum);
+	end
+	
+	self:LateClose();
+end
+
+function BattleTips:AddTips(data, st)
+	local tb = {};
+	tb.data = data;
+	tb.st = st;
+	table.insert(self.curTips, tb);
+	
+	if self.curShow == nil then
+		self.curShow = tb;
+		self:ShowTips();
+	end
+end
+
+function BattleTips:RemoveTips()
+	local tb = {};
+	tb.data = data;
+	tb.st = st;
+	table.remove(self.curTips, 1);
+	
+	if #self.curTips == 0 then
+		self.gameObject:SetActive(false);
+		self.curShow = nil;
+	else
+		self.curShow = self.curTips[1];
+		self:ShowTips();
+	end
+end
+
+function BattleTips:OnLeaveEctype()
+	self.curShow = nil;
+	self.gameObject:SetActive(false);
+	self.curTips = {};
+end
+
+function BattleTips:OnShow()
+end
+
+function BattleTips:LateClose()
+	if self.tw ~= nil then
+		self.tw:Kill();
+		self.tw = nil;
+	end
+	self.tw = DOVirtual.DelayedCall(3, function()
+			--self.Close();
+			self:RemoveTips();
+		end)
+end
+
+function BattleTips:Start()
+
+end
+
+function BattleTips:OnEnable()
+
+end
+
+function BattleTips:OnDisable()
+
+end
+
+function BattleTips:OnDestroy()
+
+end
+
+function BattleTips:OnOpen(arg)
+    self.IsOpen = true;
+end
+
+function BattleTips:OnClose(arg)
+    self:CloseWindow();
+end
+
+function BattleTips:CloseWindow()
+    self.IsOpen = false;
+end
+
+return BattleTips

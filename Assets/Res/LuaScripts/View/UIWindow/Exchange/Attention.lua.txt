@@ -1,0 +1,342 @@
+--[[
+*文件名   :   Attention
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/10/23 18:30:45"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+Attention=class("Attention",UIPanel)
+local AttentionGoodsItem=require("View/UIWindow/Exchange/AttentionGoodsItem")
+local ItemTipsItem = require("View/Item/ItemTipsItem");
+local ItemTipsEquip = require("View/Item/ItemTipsEquip");
+Attention.m_ScrollView=nil;
+Attention.m_ItemGrid=nil;
+Attention.m_ItemInfo=nil;
+Attention.m_Item=nil;
+Attention.m_Equip=nil;
+Attention.m_Price=nil;
+Attention.m_Count=nil;
+Attention.m_Cost=nil;
+Attention.m_ButBtn=nil;
+Attention.m_ButBtnText=nil;
+Attention.m_Dropdown=nil;
+Attention.m_SortBtn=nil;
+Attention.m_SortUp=nil;
+Attention.m_SortDown=nil;
+Attention.m_RefreshBtn=nil;
+Attention.m_HasRoot=nil;
+Attention.m_NoneRoot=nil;
+Attention.Goods={}
+Attention.PurchaseItemList={}
+Attention.PurchaseItemDatas={}
+Attention.CurrentDropIndex=0;
+Attention.OrderPass=true;
+Attention.CanStauts=1;
+local ButBtnFunc=nil;
+local OnDropDownFunc=nil;
+local SortBtnFunc=nil;
+local RefreshFunc=nil;
+local OnBankMyFollowRetFunc=nil;
+local OnBankBuyGoodsRetFunc=nil;
+local OptionsItems={LanguageHelp:GetLanguageByKey("Local_Str_selling_price"),LanguageHelp:GetLanguageByKey("Local_Str_UnitQuantity"),LanguageHelp:GetLanguageByKey("Local_Str_quality")}
+
+function Attention:ctor(go, atlas)
+	self.prefab = go;
+	self.AtlasPath = atlas;
+	self.m_ScrollView=self:Find("Has/Main/Scroll View"):GetComponent(typeof(SuperScrollViewController));
+	self.m_ItemGrid=self:Find("Has/Main/ItemGrid").gameObject;
+	self.m_ItemInfo=self:Find("Has/Main/ItemInfo").gameObject;
+	self.m_Item=self:Find("Has/Main/ItemInfo/Item").gameObject;
+	self.m_Equip=self:Find("Has/Main/ItemInfo/Equip").gameObject;
+	self.m_Price=self:Find("Has/Main/Info/Price/Price"):GetComponent(typeof(Text));
+	self.m_Count=self:Find("Has/Main/Info/Count/Count"):GetComponent(typeof(Text));
+	self.m_Cost=self:Find("Has/Main/Info/Cost"):GetComponent(typeof(Text));
+	self.m_ButBtn=self:Find("Has/Main/Info/ButBtn"):GetComponent(typeof(JButton));
+	self.m_ButBtnText=self:Find("Has/Main/Info/StatusText"):GetComponent(typeof(Text));
+	self.m_Dropdown=self:Find("Has/Main/Dropdown"):GetComponent(typeof(Dropdown));
+	self.m_SortBtn=self:Find("Has/Main/SortBtn"):GetComponent(typeof(JButton));
+	self.m_RefreshBtn=self:Find("Has/Main/RefreshBtn"):GetComponent(typeof(JButton));
+	self.m_SortUp=self:Find("Has/Main/SortBtn/Up").gameObject;
+	self.m_SortDown=self:Find("Has/Main/SortBtn/Down").gameObject;
+	self.m_HasRoot=self:Find("Has").gameObject;
+	self.m_NoneRoot=self:Find("None").gameObject;
+
+	self.itemTipsItem = ItemTipsItem:New(self.m_Item,false)
+	self.itemTipsEquip = ItemTipsEquip:New(self.m_Equip)
+	self.CurrentDropIndex=0;
+	self.m_ScrollView:NewScroll(self.m_ItemGrid, 0, function (tr,idx)
+			self:OnPurchaseItemRefesh(tr,idx);
+		end);
+	ButBtnFunc=function() self:OnClickButBtn(); end;
+	SortBtnFunc=function() self:OnClickSortBtnBtn(); end;
+	OnDropDownFunc=function(index)
+		self:OnDropDownHandler(index);
+	end;
+	RefreshFunc=function()
+		self:OnRefresh();
+	end
+	 OnBankMyFollowRetFunc=function(data)
+		self:OnBankMyFollowRet(data);
+	 end;
+	 OnBankBuyGoodsRetFunc=function(data)
+		self:OnBankBuyGoodsRet(data);
+	 end;
+	self.OrderPass=true;
+	self.Goods={}
+	self.PurchaseItemList={}
+	self.PurchaseItemDatas={}
+	self.CanStauts=1;
+	self:Start()
+end
+
+function Attention:Start()
+	self.m_ButBtn.OnClick= ButBtnFunc;
+	self.m_SortBtn.OnClick=SortBtnFunc;
+	self.m_RefreshBtn.OnClick=RefreshFunc;
+	local BankMyFollowRetEvent=LuaModuleDispatcher:Event(ModuleDef.ExchangeModule,"BankMyFollowRetEvent");
+	BankMyFollowRetEvent:AddListener(OnBankMyFollowRetFunc)
+
+	local BankBuyGoodsRetEvent=LuaModuleDispatcher:Event(ModuleDef.ExchangeModule,"BankBuyGoodsRetEvent");
+	BankBuyGoodsRetEvent:AddListener(OnBankBuyGoodsRetFunc)
+end
+
+function Attention:OnRefresh()
+	LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule,"OnBankMyFollowReq")
+end
+function  Attention:OnBankBuyGoodsRet(data)
+	LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule,"OnBankMyFollowReq")
+end
+
+function Attention:OnBankMyFollowRet(data)
+	self.Goods={}
+	local has=false
+	if data.Datas~=nil and data.Datas.Count>0 then
+		has=true
+		for i = 1, data.Datas.Count do
+			table.insert(self.Goods,data.Datas[i-1])
+		end
+	end
+
+
+	self.m_HasRoot:SetActive(has)
+	self.m_NoneRoot:SetActive(not has)
+
+	self:FreshGrid();
+	
+	--self.SelectGoodIDs=0;
+	if (self.SelectGoodIDs==0 or self.SelectGoodIDs==nil) and #self.PurchaseItemList>0 then
+		DelayInvoker.DelayInvoke(self, 0.1, function()				
+				self.PurchaseItemList[1]:OnClickSelectBtn()
+			end);
+
+	end
+end
+
+
+function Attention:FreshGrid()
+	self:SortGoods();
+	self.PurchaseItemDatas={}
+	for k, v in pairs(self.Goods) do
+		table.insert(self.PurchaseItemDatas,v)
+	end
+
+	self.m_ScrollView:ContinueScroll(#self.PurchaseItemDatas);
+end
+
+function Attention:GetSortIndex()
+	if self.OrderPass then
+		return 1
+	end
+	return 2
+end
+
+function Attention:SortGoods()
+
+	local order=self:GetSortIndex();
+	--"售价","单组数量","品阶"
+	if self.CurrentDropIndex==0 then
+
+
+		--"可售出总价"
+		if order==1 then
+			table.sort(self.Goods,function (good1,good2)
+					return good1.Price<good2.Price
+				end)
+			--从小到大
+		else
+			--从大到小
+			table.sort(self.Goods,function (good1,good2)
+					return good1.Price>good2.Price
+				end)
+		end
+
+	elseif self.CurrentDropIndex==1 then
+
+		--"持续时间"
+		if order==1 then
+			table.sort(self.Goods,function (good1,good2)
+					return good1.ItemNum<good2.ItemNum
+				end)
+			--从小到大
+		else
+			--从大到小
+			table.sort(self.Goods,function (good1,good2)
+					return good1.ItemNum>good2.ItemNum
+				end)
+		end
+	elseif self.CurrentDropIndex==2 then
+		--"品阶"
+		if order==1 then
+			table.sort(self.Goods,function (good1,good2)
+					return good1.Quality<good2.Quality
+				end)
+			--从小到大
+		else
+			--从大到小
+			table.sort(self.Goods,function (good1,good2)
+					return good1.Quality>good2.Quality
+				end)
+		end
+
+	end
+end
+
+function Attention:OnClickSortBtnBtn()
+	self.OrderPass=not self.OrderPass;
+	self.m_SortUp:SetActive(self.OrderPass)
+	self.m_SortDown:SetActive(not self.OrderPass)
+	self:FreshGrid();
+	--LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule,"OnSetOrderRule",{true,PurchaseType,self:GetSortIndex(),self.CurrentDropIndex})
+end
+
+function Attention:OnPurchaseItemRefesh(tr,idx)
+	if self.PurchaseItemList==nil then
+		return;
+	end
+	for i=1,#self.PurchaseItemList do
+		if self.PurchaseItemList[i].transform == tr then
+			self.PurchaseItemList[i]:UpdateContent(self.PurchaseItemDatas[idx+1],self.SelectGoodIDs,function (Good)
+					self:OnShowDetail(Good)
+				end);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+			return
+		end
+	end
+
+	local bi = AttentionGoodsItem.new(tr.gameObject,self.AtlasPath);
+	bi.prefab:SetActive(true);
+	bi:UpdateContent(self.PurchaseItemDatas[idx+1],self.SelectGoodIDs,function (Good)
+			self:OnShowDetail(Good)
+		end);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+	table.insert(self.PurchaseItemList, bi);
+end
+
+function Attention:GetStateName(state)
+	--0：没有设置 1：正常售卖 2：已出售 3：已下架
+	if state ==2 then
+		return LanguageHelp:GetLanguageByKey("Local_Str_BeSold")
+	elseif state ==3 then
+		return LanguageHelp:GetLanguageByKey("Local_Str_SOLD_OUT")
+	end
+	return LanguageHelp:GetLanguageByKey("Local_Str_Buy")
+
+end
+
+function Attention:OnShowDetail(Good)
+	for k, v in pairs(self.PurchaseItemList) do
+		v:Select(v.GoodsID==Good.GoodsID)
+	end
+	self.CanStauts=Good.Status;
+	self.m_ButBtnText.text=self:GetStateName(Good.Status)
+
+	if Good.Status==1 then
+		self.m_ButBtn.gameObject:SetActive(true)
+		self.m_ButBtnText.gameObject:SetActive(false)
+	else
+		self.m_ButBtn.gameObject:SetActive(false)
+		self.m_ButBtnText.gameObject:SetActive(true)
+	end
+
+	self.SelectGoodIDs=Good.GoodsID
+	self.m_Price.text=Good.Price
+	self.m_Count.text=Good.ItemMD.Num
+	self.m_Cost.text=Good.TotalPrice;
+	local config=ConfigDataAccessor.Item[Good.ItemMD.BaseID]
+	if config~=nil then
+		if not IsEquip(config.ItemType) then
+			self.itemTipsItem:Refesh(config,Good.ItemMD.ID)
+			self.m_Item:SetActive(true)
+			self.m_Equip:SetActive(false)
+		else
+			self.itemTipsEquip:RefeshEquipByData(Good.ItemMD)
+			self.m_Item:SetActive(false)
+			self.m_Equip:SetActive(true)
+		end
+	else
+		self.m_Item:SetActive(false)
+		self.m_Equip:SetActive(false)
+	end
+end
+
+function Attention:OnEnable()
+
+end
+
+function Attention:OnDisable()
+
+end
+
+function Attention:OnDestroy()
+	self.m_ButBtn.OnClick= nil;
+	self.m_SortBtn.OnClick=nil;
+	self.m_RefreshBtn.OnClick=nil;
+	local BankMyFollowRetEvent=LuaModuleDispatcher:Event(ModuleDef.ExchangeModule,"BankMyFollowRetEvent");
+	BankMyFollowRetEvent:RemoveListener(OnBankMyFollowRetFunc)
+
+	local BankBuyGoodsRetEvent=LuaModuleDispatcher:Event(ModuleDef.ExchangeModule,"BankBuyGoodsRetEvent");
+	BankBuyGoodsRetEvent:RemoveListener(OnBankBuyGoodsRetFunc)
+end
+
+function  Attention:OnDropDownHandler(index);
+	self.CurrentDropIndex=index;
+	self:FreshGrid();
+end
+
+function Attention:OnHide()
+	self.SelectGoodIDs=0;
+end
+
+function Attention:OnOpen(arg)
+	self.m_HasRoot:SetActive(false)
+	self.m_NoneRoot:SetActive(true)
+	--查询我关注的商品
+	LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule,"OnBankMyFollowReq")
+	self:InitDropdown();
+end
+function Attention:InitDropdown()
+	self.m_Dropdown:ClearOptions();
+	self.CurrentDropIndex=0;
+	local list= List_String()
+	for i = 1, #OptionsItems do
+		list:Add(OptionsItems[i])
+	end
+	self.m_Dropdown:AddOptions(list);
+	--self:OnFresh();
+end
+function Attention:OnClose(arg)
+
+end
+
+function Attention:OnClickButBtn()
+	if self.CanStauts==1 then
+		LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule,"OnBankBuyGoodsReq",{self.SelectGoodIDs})
+	else
+		local msg=self:GetStateName(self.CanStauts)
+		--Util.ShowMessage(msg.."不能购买");
+		Util.ShowMessage(StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_263"), {msg}))
+	end
+end
+
+
+
+return  Attention

@@ -1,0 +1,75 @@
+--[[
+*文件名   :   EventSuccessItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local EventSuccessItem = {}
+
+EventSuccessItem.__index = EventSuccessItem
+
+local ItemGrid=require("View/Item/ItemGrid");
+
+function EventSuccessItem:New(_go,onApplyClick,onCancelClick) 
+    local self = {};    
+    setmetatable(self, EventSuccessItem); 
+    
+
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+    self.Score = self.transform:Find("Score"):GetComponent(typeof(Text))
+
+
+    self.go_Selected=self.transform:Find("selected").gameObject;
+    self.go_Get=self.transform:Find("Get").gameObject;
+
+	--道具
+    self.items={}
+    for i=1,8 do
+        local it = ItemGrid:New(self.transform:Find("Items/ItemGrid"..i).gameObject);
+		it:InitItem(false,function(ritem)  
+            self:OnItemClick(ritem);
+        end);
+        table.insert( self.items,it);
+    end
+
+
+
+    return self;    --返回自身
+end
+
+function EventSuccessItem:OnItemClick(ritem)
+	LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",{ ritem.BaseID,false ,0,ritem.transform,0});
+end
+
+function EventSuccessItem:MakeSelected(b)
+    self.go_Selected:SetActive(b);
+end
+
+function EventSuccessItem:SetItem(cfg,scoreNow)
+
+
+    self.go_Get:SetActive(scoreNow>=cfg.ScoOneP);
+    self.Score.text=cfg.ScoOneP;
+
+    --消耗道具
+	for i=1,#self.items do
+		self.items[i].gameObject:SetActive(false);
+	end
+
+	for i=1,#cfg.Reward do
+		self.items[i].gameObject:SetActive(true);
+		self.items[i]:SetItemNum(cfg.Reward[i],cfg.Num[i]);
+	end
+
+    self:MakeSelected(false);
+
+
+end
+
+
+return EventSuccessItem;

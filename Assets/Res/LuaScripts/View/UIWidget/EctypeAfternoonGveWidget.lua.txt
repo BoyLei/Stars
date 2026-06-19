@@ -1,0 +1,179 @@
+--[[
+*文件名   :   EctypeAfternoonGveWidget
+*内  容   :   午间GVE的小面板
+*说  明   :
+*创建日期 :   "2022/12/02 14:19:07"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] 
+EctypeAfternoonGveWidget = class("EctypeAfternoonGveWidget", UIPanel)
+
+
+
+function EctypeAfternoonGveWidget:Awake()
+    self.m_RootTween = self:Find("Root"):GetComponent(typeof(EasyTweenPosition));
+    self.m_RootBtn = self:Find("Root"):GetComponent(typeof(Button));
+    self.m_Title = self:Find("Root/Title"):GetComponent(typeof(Text));
+   
+    self.m_Time = self:Find("Root/time"):GetComponent(typeof(Text));
+    self.m_Score = self:Find("Root/Points"):GetComponent(typeof(Text));
+   
+
+
+    self.m_RootBtn.onClick:AddListener(function()
+        self:OnClickRootBtn()
+    end);
+
+    self.Select = self:Find("Root/Selected").gameObject;
+    self.Select:SetActive(false);
+    
+	--活动倒计时
+	--刷新时间
+	self.NeedRefesh=false;
+	MonoHelper.AddUpdateListener(function ()
+		self:RefeshLeftTime();
+	end)
+
+end
+
+
+function EctypeAfternoonGveWidget:Start()
+	self:OnActiveSelf(false);
+end
+
+
+
+function EctypeAfternoonGveWidget:OnActiveSelf(active)
+    self.m_RootTween.gameObject:SetActive(active);
+    if self.prefab.transform.gameObject~=nil then
+        if active then
+            self.prefab.transform.gameObject:SetActive(active);
+        end
+    end
+    --self.prefab.transform.gameObject:SetActive(active);
+end
+
+
+
+function EctypeAfternoonGveWidget:RefeshLeftTime()
+
+	if self.NeedRefesh then
+		local serverNowTime = math.floor(GameManager.Instance:GetServerTimeStamp()/1000) 
+		local serverCloseTime = self.module.EndTime/1000;
+		local leftTime=serverCloseTime-serverNowTime;
+
+		if leftTime>0 then
+			--self.m_Time.text="剩余时间："..SecToStringColon2(leftTime);
+            self.m_Time.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Time_Remaining"), {"：" .. SecToStringColon2(leftTime)});
+
+		else
+			--活动结束
+			self.NeedRefesh=false;
+		end
+
+	end
+
+end
+
+
+--重置UI
+function EctypeAfternoonGveWidget:Reset()
+
+	local GNGPlayStartI2L=GameManager.Instance.GNGPlayStartI2L;--GNG活动属性
+    if GNGPlayStartI2L~=nil then
+		local BossID = GNGPlayStartI2L.BossID;--bossid
+        local bossCfg=ConfigDataAccessor.Monster[BossID];
+        if bossCfg==nil then
+            self.m_Title.text="";
+            return;
+        end
+        self.m_Title.text=bossCfg.Name;
+	else
+        self.m_Title.text="";
+	end
+
+
+
+
+    --self.m_Title.text="Boss名字";
+    local leftTime=60;--拿配置表
+    --self.m_Time.text="剩余时间："..SecToStringColon2(leftTime);
+    self.m_Time.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Time_Remaining"), {"：" .. SecToStringColon2(leftTime)});
+
+    self.m_Score.text="0";
+    self.NeedRefesh=false;
+    Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_254"));
+end
+
+--开始倒计时
+function EctypeAfternoonGveWidget:Refesh()
+    self.NeedRefesh=true;
+    self.m_Score.text=""..self.module.TotalScore;
+   
+end
+
+
+function EctypeAfternoonGveWidget:BindModule(m)
+    self.module=m;
+end
+
+function EctypeAfternoonGveWidget:OnEnable()
+
+end
+
+function EctypeAfternoonGveWidget:OnDisable()
+
+end
+
+function EctypeAfternoonGveWidget:OnDestroy()
+end
+
+function EctypeAfternoonGveWidget:OnOpen(arg)
+
+end
+
+function EctypeAfternoonGveWidget:OnClose(arg)
+
+end
+
+function EctypeAfternoonGveWidget:OnClickRootBtn()
+
+    --[[
+        -- 寻路
+        if self.Data == nil then
+            return
+        end
+        
+
+        if self.Data:HasFollow() then
+            TaskHelper.FindToDynamicTarget(self.Data.FollowID, 1, function(result)
+                --- 关闭
+                self.Select:SetActive(false)
+                if not result then
+                    needShow = false;
+                end
+            end)
+        else
+            local spid = self.Data:GetSpawnerID();
+            if spid > 0 then
+                TaskHelper.FindPathByEctype(spid, 1, function(result)
+                    --- 关闭
+                    self.Select:SetActive(false)
+                    if not result then
+                        needShow = false;
+                    end
+                end)
+            else
+                needShow = false;
+            end
+        end
+
+    ]]
+    --local needShow = true;
+
+
+    --self.Select:SetActive(needShow)
+
+end
+
+return EctypeAfternoonGveWidget

@@ -1,0 +1,81 @@
+--[[
+*文件名   :   InscriptionPartBCenterItem
+*内  容   :   鸣器item
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local InscriptionPartBCenterItem = {}
+
+InscriptionPartBCenterItem.__index = InscriptionPartBCenterItem
+
+function InscriptionPartBCenterItem:New(_go, idx, onClick)
+    local self = {}
+    setmetatable(self, InscriptionPartBCenterItem)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.skillIcon = self.transform:Find("Info/icon"):GetComponent(typeof(Image))
+
+    self.title = self.transform:Find("Info/Name"):GetComponent(typeof(Text))
+
+    self.num = self.transform:Find("Info/Num"):GetComponent(typeof(Text))
+
+    self.go_bg = self.transform:Find("bg").gameObject
+    self.go_btnUse = self.transform:Find("BtnUse").gameObject
+    self.go_Info = self.transform:Find("Info").gameObject
+
+    self.Idx = idx
+
+    self.OnClick = onClick
+    --点击自己
+    local btnUseClick = self.go_btnUse:GetComponent(typeof(JButton))
+    if btnUseClick ~= nil then
+        btnUseClick.OnClick = (function()
+            if self.OnClick ~= nil then
+                self.OnClick(self.Idx)
+            end
+        end)
+    end
+
+    return self --返回自身
+end
+
+function InscriptionPartBCenterItem:SetUse(b)
+    self.go_btnUse:SetActive(b)
+    self.go_bg:SetActive(not (b))
+end
+
+function InscriptionPartBCenterItem:SetItem(data)
+    self:SetUse(false)
+
+    if data ~= nil then
+        self.Data = data
+
+        --显示图标
+        local EtchId = data.EtchId --技能id
+
+        if EtchId > 0 then
+            self.go_Info:SetActive(true)
+
+            local Points = data.Points
+            local lv = data.Lv
+
+            local cfg = ConfigDataAccessor.Etch[EtchId]
+            self.skillIcon.gameObject:SetActive(true)
+            ResourceHelper:LoadIconAsync(self.skillIcon, ResourceHelper.AtlasPathEtchSkill, cfg.EtchIcon, false)
+
+            self.title.text = cfg.EtchName
+
+            self.num.text = Points
+        else
+            self.go_Info:SetActive(false)
+        end
+    else
+        self.go_Info:SetActive(false)
+    end
+end
+
+return InscriptionPartBCenterItem

@@ -1,0 +1,22 @@
+///--------------------------------------------------------------------
+/// 文件名   :   DefualtKey.cs
+/// 内  容   :   
+/// 说  明   :  
+/// 创建日期 :   2022/09/16 17:34:25
+/// 创建人   :   赵尔东
+/// 版权所有 :   游卡网络科技技术有限公司 
+///--------------------------------------------------------------------
+using Sirenix.OdinInspector;
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+namespace SkillEditor
+{
+    [System.Serializable]
+    public class DefualtKey 
+    {
+        [LabelText("Keys")]
+        public List<string> Keys = new List<string>();
+    }
+
+}

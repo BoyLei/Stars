@@ -1,0 +1,100 @@
+--[[
+*文件名   :   GuildApplyForItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local GuildApplyForItem = {}
+
+GuildApplyForItem.__index = GuildApplyForItem
+
+function GuildApplyForItem:New(_go,onApplyClick,onCancelClick) 
+    local self = {};    
+    setmetatable(self, GuildApplyForItem); 
+    
+
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+
+	self.JobHeadImgBg = self.transform:Find("JobHeadImgBg"):GetComponent(typeof(Image))
+	self.JobHeadImg = self.transform:Find("JobHeadImgBg/JobHeadImg"):GetComponent(typeof(Image))
+	self.JobTypeBg = self.transform:Find("JobTypeBg"):GetComponent(typeof(Image))
+	self.JobTypeIcon = self.transform:Find("JobTypeBg/JobTypeIcon"):GetComponent(typeof(Image))
+
+
+    self.Name=self.transform:Find("name"):GetComponent(typeof(Text));
+    self.Lv=self.transform:Find("lv"):GetComponent(typeof(Text));
+
+	self.aLv=self.transform:Find("aLv"):GetComponent(typeof(Text));
+    self.BattlePoint=self.transform:Find("battlePoint"):GetComponent(typeof(Text));
+
+
+    self.transform:Find("BtnApply"):GetComponent(typeof(JButton)).OnClick=(function() 
+        if onApplyClick~=nil then
+            onApplyClick(self);
+        end
+	end);
+
+    self.transform:Find("BtnCancel"):GetComponent(typeof(JButton)).OnClick=(function() 
+        if onCancelClick~=nil then
+            onCancelClick(self);
+        end
+	end);
+
+
+    return self;    --返回自身
+end
+
+
+
+function GuildApplyForItem:SetItem(info)
+
+
+    self.Info=info;
+
+
+
+    self.Name.text=info.UserName;;
+    
+    --self.Lv.text=info.Level .. "级";
+	self.Lv.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {info.Level});
+
+    --local cfg=ConfigDataAccessor.AdvGradeExp[info.RiskLevel];
+	--self.aLv.text=cfg.AdvClass..GetRomaNum(cfg.AdvOrder);
+
+    --self.BattlePoint.text = info.Power;
+    self.BattlePoint.text = GetTotalPowerRankLevel(info.Power);
+
+
+    local jobId=info.JobID;
+
+    -- 职业头像
+	local jobCfg = ConfigDataAccessor.Job[jobId]
+	if jobCfg ~= nil then
+		local avatarDataCell = ConfigDataAccessor.Avatar[jobCfg.AvatarID]
+		if avatarDataCell ~= nil then
+			local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID]
+			if headCfg ~= nil then
+				ResourceHelper:LoadIconByAtlasAsync(self.JobHeadImg, headCfg.HeadAtlasName, headCfg.MinHead, false)
+			end
+		end
+	end
+
+	-- 职业标签图标
+	local jobshi = math.floor(jobId / 10)
+	local jobHeadImgBgPath = "Hud_RoleFrame" .. jobshi
+	ResourceHelper:LoadIconByAtlasAsync(self.JobHeadImgBg, ResourceHelper.AtlasPathHud, jobHeadImgBgPath, false)
+	-- 职业类型icon设置
+	local jobTypeBgName = "Icon_ArmBg" .. jobshi
+	ResourceHelper:LoadIconByAtlasAsync(self.JobTypeBg, ResourceHelper.AtlasPathRole, jobTypeBgName, false)
+	local jobTypeName = "Icon_Arm" .. jobshi
+	ResourceHelper:LoadIconByAtlasAsync(self.JobTypeIcon, ResourceHelper.AtlasPathRole, jobTypeName, false)
+
+end
+
+
+return GuildApplyForItem;

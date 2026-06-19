@@ -1,0 +1,157 @@
+--[[
+*文件名   :   AfternoonGveRankPart
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] local AfternoonGveRankPart = {}
+
+AfternoonGveRankPart.__index = AfternoonGveRankPart
+
+local SelectBtn = require("View/Item/SelectBtn")
+local AfternoonGveRankPartPersonal = require("View.UIWindow.Event.AfternoonGveRankPartPersonal")
+local AfternoonGveRankPartGuild = require("View.UIWindow.Event.AfternoonGveRankPartGuild")
+
+function AfternoonGveRankPart:New(_go, onRefeshMyInfo, onChange)
+    local self = {}
+    setmetatable(self, AfternoonGveRankPart)
+
+    self.OnRefeshMyInfo = onRefeshMyInfo
+    self.OnChange = onChange -- 切换tag
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    -- 菜单按钮
+    self.MenuBtns = {}
+
+    local btn1 = SelectBtn:New(self.transform:Find("Menu/TagItem1").gameObject)
+    btn1:InitItem(
+        1,
+        function(idx)
+            self:OnMenuBtnClick(idx)
+        end
+    )
+    table.insert(self.MenuBtns, btn1)
+
+    local btn2 = SelectBtn:New(self.transform:Find("Menu/TagItem2").gameObject)
+    btn2:InitItem(
+        2,
+        function(idx)
+            self:OnMenuBtnClick(idx)
+        end
+    )
+    table.insert(self.MenuBtns, btn2)
+
+    self.AfternoonGveRankPartPersonal = AfternoonGveRankPartPersonal:New(self.transform:Find("Personal").gameObject)
+    self.AfternoonGveRankPartGuild = AfternoonGveRankPartGuild:New(self.transform:Find("Guild").gameObject)
+
+    -- 积分排行返回 center2lobby / center2inter
+    self.message1 = function(data)
+        self:OnGNGRankRet(data)
+    end
+
+    return self -- 返回自身
+end
+
+function AfternoonGveRankPart:PullRank(needFitter)
+    self.NeedFitter = needFitter
+
+    local guildId = ""
+    local id = BusinessManager.Instance:GetGuildID()
+    self.MyGuildID = id
+    if id > 0 then
+        guildId = "" .. id
+    end
+
+    -- 拉取排行榜（个人）
+    local msg = CS.ProtoMsg.GNGRankReq()
+    msg.IsGuildRank = self.IsGuildRank -- false个人true冒险团
+    msg.PageID = self.PageID -- 页码
+    msg.StartTime = self.StartTime -- 开始时间
+    msg.EndTime = self.EndTime -- 结束时间
+    msg.EndTime = self.EndTime -- 结束时间
+    msg.PID = BusinessManager.Instance:GetUserPID()
+    msg.GuildID = guildId
+
+    SendClient2CenterReq(msg)
+end
+
+function AfternoonGveRankPart:OnGNGRankRet(data)
+    print("积分排行返回")
+
+    if data == nil then
+        return
+    end
+
+    local IsGuildRank = data.data.IsGuildRank
+    local pageID = data.data.PageID
+
+    local RankList = data.data.RankList
+
+    local MyNode = data.data.MyNode -- 我的信息
+    local MyGuildNode = data.data.MyGuildNode -- 我的冒险团信息
+
+    if self.OnRefeshMyInfo ~= nil then
+        self.OnRefeshMyInfo(MyGuildNode, MyNode)
+    end
+
+    if IsGuildRank then
+        if self.idxNow == 2 then
+            self.AfternoonGveRankPartGuild:Show(true, RankList)
+        end
+    else
+        if self.idxNow == 1 then
+            self.AfternoonGveRankPartPersonal:Show(true, RankList, self.NeedFitter)
+        end
+    end
+end
+
+function AfternoonGveRankPart:OnMenuBtnClick(idx)
+    if self.idxNow == idx then
+        return
+    end
+
+    self.AfternoonGveRankPartGuild:Show(false)
+    self.AfternoonGveRankPartPersonal:Show(false)
+
+    if idx == 1 then
+        self.IsGuildRank = false -- false个人true冒险团
+    elseif idx == 2 then
+        self.IsGuildRank = true -- false个人true冒险团
+    end
+
+    if self.OnChange ~= nil then
+        self.OnChange(idx)
+    end
+
+    self:PullRank()
+
+    self.idxNow = idx
+
+    for i = 1, #self.MenuBtns do
+        self.MenuBtns[i]:MakeSelected(false)
+    end
+    self.MenuBtns[idx]:MakeSelected(true)
+end
+
+function AfternoonGveRankPart:Reset(startTime, endTime, needFitter)
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.GNGRankRetID, self.message1, nil)
+
+    self.NeedFitter = needFitter
+
+    self.IsGuildRank = false -- false个人true冒险团
+    self.PageID = 1 -- 页码
+    self.StartTime = startTime -- 开始时间
+    self.EndTime = endTime -- 结束时间
+
+    self.idxNow = -1
+    self:OnMenuBtnClick(1)
+end
+
+function AfternoonGveRankPart:Release()
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.GNGRankRetID, self.message1, nil)
+end
+
+return AfternoonGveRankPart

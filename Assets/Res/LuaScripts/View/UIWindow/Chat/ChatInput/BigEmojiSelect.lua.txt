@@ -1,0 +1,43 @@
+-- 大表情选择界面
+local BigEmojiSelect = {}
+BigEmojiSelect.__index = BigEmojiSelect
+
+local BigEmojiItem = require("View/UIWindow/Chat/ChatInput/BigEmojiItem")
+
+function BigEmojiSelect:New(obj, win)
+    local self = {};
+    setmetatable(self, BigEmojiSelect);
+
+    self:InitControls(obj, win)
+
+    return self;
+end
+
+function BigEmojiSelect:InitControls(obj, win)
+    self.gameObject = obj;
+    self.transform = obj.transform;
+
+    self.window = win;
+    self.emojiItemGo = self.transform:Find("ScrollView/Viewport/Content/Emoji").gameObject;
+
+    for i = 0, 8 do
+        self:AddItem(i);
+    end
+end
+
+function BigEmojiSelect:AddItem(id)
+    local go = newObject(self.emojiItemGo);
+    go.transform:SetParent(self.emojiItemGo.transform.parent);
+    go.transform.localPosition = Vector3.zero;
+    go.transform.localScale = Vector3.one;
+    go:SetActive(true);
+
+    local emojiItem = BigEmojiItem:New(go, self.window);
+    emojiItem:SetItem(id);
+end
+
+function BigEmojiSelect:Show(show)
+    self.gameObject:SetActive(show);
+end
+
+return BigEmojiSelect

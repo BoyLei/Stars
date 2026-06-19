@@ -1,0 +1,105 @@
+---------------------------------------------------------------------
+-- Star (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2022-12-16 18:59:14
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class PartnerSkillPart
+PartnerSkillPart = class("PartnerSkillPart",UIPanel)
+local SkillItem=require("View/UIWindow/PartnerWindow/SkillItem")
+PartnerSkillPart.m_ItemGrid=nil;
+PartnerSkillPart.m_PropScrollView=nil;
+PartnerSkillPart.Skills={}
+PartnerSkillPart.SkillItems={}
+function PartnerSkillPart:ctor(go,parent,atlas,callBack)
+	self.prefab=go;
+	self.AtlasPath=atlas;
+	self.CallBack=callBack;
+
+	self.m_ItemGrid=self:Find("ItemGrid").gameObject
+	self.m_PropScrollView=self:Find("PropScrollView"):GetComponent(typeof(SuperScrollViewController));
+
+
+	self.m_PropScrollView:NewScroll(self.m_ItemGrid, 0, function (tr,idx)
+			self:OnPropItemRefesh(tr,idx);
+		end);
+end
+
+function PartnerSkillPart:OnDestroy()
+	if self.SkillItems==nil then
+		self.SkillItems ={}
+	else
+		for k,_ in pairs(self.SkillItems) do self.SkillItems[k] = nil end
+		--self.ItemDataList ={}
+	end
+end
+
+function PartnerSkillPart:OnPropItemRefesh(tr,idx)
+	if self.SkillItems==nil then
+		return;
+	end
+	for i=1,#self.SkillItems do
+		if self.SkillItems[i].transform == tr then
+			self.SkillItems[i]:UpdateContent(self.Skills[idx+1]);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+			return
+		end
+	end
+
+	local bi = SkillItem.new(tr.gameObject,self.m_ItemRoot,self.AtlasPath);
+	bi.prefab:SetActive(true);
+	bi:UpdateContent(self.Skills[idx+1]);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+	table.insert(self.SkillItems, bi);
+end
+
+function PartnerSkillPart:GetParSkillDataCell(parId,starId)
+	Log("伙伴技能 parId=",parId,"星级=",starId);
+	for k, v in pairs(ConfigDataAccessor.ParSkill) do
+		Log("伙伴技能1111111 parId=",parId,"星级=",starId);
+		if v.Par == parId and v.Star == starId then
+			return v;
+		end
+	end
+	return nil;
+end
+
+--数据更新
+function PartnerSkillPart:OnShow(data,upgrade)
+	self.Index=data.Index;
+	local config=ConfigDataAccessor.Partner[data.Index];
+
+	if config~=nil then
+
+		local parSkillCfg = self:GetParSkillDataCell(data.Index,config.Star);
+		if parSkillCfg ~= nil then
+			self.Skills={}
+			local array=ConfigDataAccessor.PartnerSkillDesc[parSkillCfg.ParSkill]
+			if array~=nil then
+				local ParSkill=	array[config.Star]
+				if ParSkill~=nil then
+					table.insert(self.Skills,{Name=ParSkill.SkillName,IsPassive=false, Icon=ParSkill.IconPath,Desc=ParSkill.Decs})
+				end
+			end
+			for i = 1, #parSkillCfg.SelfSkill do
+				local array=ConfigDataAccessor.PartnerSkillDesc[parSkillCfg.SelfSkill[i]]
+				if array~=nil then
+					local SelfSkill=array[config.Star]
+					if SelfSkill~=nil then
+						table.insert(self.Skills,{Name=SelfSkill.SkillName,IsPassive=true,Icon=SelfSkill.IconPath,Desc=SelfSkill.Decs})
+					end
+				end
+			end
+			self.m_PropScrollView:ContinueScroll(#self.Skills);
+		end
+
+	end
+	self.prefab:SetActive(true)
+end
+
+function PartnerSkillPart:OnHide()
+	self.prefab:SetActive(false)
+end
+
+return  PartnerSkillPart

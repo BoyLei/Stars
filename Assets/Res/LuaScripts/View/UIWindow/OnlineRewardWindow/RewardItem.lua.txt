@@ -1,0 +1,137 @@
+local RewardItem = {}
+RewardItem.__index = RewardItem
+
+function RewardItem:New(obj)
+    local self = {};
+    setmetatable(self, RewardItem);
+
+    self:InitControls(obj)
+
+    return self;
+end
+
+function RewardItem:InitControls(obj)
+    self.gameObject = obj;
+    self.transform = obj.transform;
+	self.cantget = true
+    self.rareImg = self.transform:Find("BgRare"):GetComponent(typeof(Image));
+    self.iconImg = self.transform:Find("Icon"):GetComponent(typeof(Image));
+    self.numText = self.transform:Find("Num"):GetComponent(typeof(Text));
+    self.getStatusText = self.transform:Find("GetStatus"):GetComponent(typeof(Text));
+    self.nameText = self.transform:Find("Name"):GetComponent(typeof(Text));
+
+    self.getedGo = self.transform:Find("Geted").gameObject;
+
+    self.getableGo = self.transform:Find("Getable").gameObject;
+
+    self.getableBtn = self.transform:Find("Getable"):GetComponent(typeof(Button));
+    self.getableBtn.onClick:AddListener(function()
+         local msg = CS.ProtoMsg.DailyActivityRewardReq();
+         msg.Type = CS.ProtoMsg.DailyActRewardType.OnlineTimeReward;
+         local gameSocket = NetworkManager.Instance.gameSocket;
+         gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, msg, false);
+    end);
+
+
+    self.tipsBtn = self.transform:Find("TipsBtn"):GetComponent(typeof(Button));
+    self.tipsBtn.onClick:AddListener(function()
+        LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",{ self.BaseID,false,0,self.transform,0});     
+    end);
+
+    self.redpointGo = self.transform:Find("RedPoint").gameObject;
+end
+
+function RewardItem:Init(id, data, haveGotAwardBitmask, t, groupRewards)
+    self.curData = data;
+    self.allData = groupRewards;
+    self.curIndex = id;
+    self.haveGotAwardBitmask1 = haveGotAwardBitmask;
+
+    self:Refresh(t);
+
+    local itemData = ConfigDataAccessor.Item[data.Reward]
+    ResourceHelper:LoadIconByAtlasAsync(
+        self.rareImg,
+        ResourceHelper.AtlasPathCommonItem,
+        "Bag_Grid_sq" .. itemData.Quality,
+        false
+    )
+
+    ResourceHelper:LoadIconAsync(self.iconImg, "", itemData.Icon, false)
+
+    self.numText.text = data.RewardNum;
+
+    self.nameText.text = itemData.Name;
+
+    self.BaseID = itemData.Id;
+end
+
+function RewardItem:FormatTime(seconds)
+    local minutes = math.floor(seconds / 60)
+    local remainingSeconds = math.floor(seconds % 60)
+    return string.format("%02d:%02d", minutes, remainingSeconds)
+end
+
+function RewardItem:Refresh(t)
+    local haveGotAward = self.haveGotAwardBitmask1 & 1<<(self.curIndex-1);
+    local isGetable = t >= self.curData.AccrueTime*60;
+	self.cantget = isGetable
+    self.getedGo:SetActive(false);
+    self.getableGo:SetActive(false);
+    self.redpointGo:SetActive(false);
+    if haveGotAward>0 then
+        --已经领取
+        self.getedGo:SetActive(true);
+        self.getStatusText.text = string.format("<color=#000000>%s</color>",LanguageHelp:GetLanguageByKey("Local_Str_OnlineReward_5"));
+    elseif isGetable then
+        --可领取
+        self.getableGo:SetActive(true);
+        self.getStatusText.text = string.format("<color=#3CA946>%s</color>",LanguageHelp:GetLanguageByKey("Local_Str_OnlineReward_1"));
+        self.redpointGo:SetActive(true);
+    else
+        if self.curIndex == 1 then
+            local needTime = self.curData.AccrueTime*60 - t;
+            local str = self:FormatTime(needTime);
+            self.getStatusText.text = string.format("<color=#BE6853>%s</color>",StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_OnlineReward_2"), {str}));
+        else
+            local preIndex = self.curIndex - 1;
+            local preNeedTime = self.allData[preIndex].AccrueTime*60;
+            if t >= preNeedTime then
+                local needTime = self.curData.AccrueTime*60 - t;
+                local str = self:FormatTime(needTime);
+                self.getStatusText.text = string.format("<color=#BE6853>%s</color>",StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_OnlineReward_2"), {str}));
+            else
+                local str = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_OnlineReward_3"), {self.curData.AccrueTime});
+                self.getStatusText.text = string.format("<color=#BE6853>%s</color>", str);
+            end
+        end
+    end
+end
+
+function RewardItem:Update(curTime)
+    if curTime < self.curData.AccrueTime*60 then
+        if self.curIndex == 1 then
+            local needTime = self.curData.AccrueTime*60 - curTime;
+            local str = self:FormatTime(needTime);
+            self.getStatusText.text = string.format("<color=#BE6853>%s</color>",StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_OnlineReward_2"), {str}));
+        else
+            local preIndex = self.curIndex - 1;
+            local preNeedTime = self.allData[preIndex].AccrueTime*60;
+            if curTime >= preNeedTime then
+                local needTime = self.curData.AccrueTime*60 - curTime;
+                local str = self:FormatTime(needTime);
+                self.getStatusText.text = string.format("<color=#BE6853>%s</color>",StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_OnlineReward_2"), {str}));
+            else
+                local str = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_OnlineReward_3"), {self.curData.AccrueTime});
+                self.getStatusText.text = string.format("<color=#BE6853>%s</color>", str);
+            end
+        end
+        self:Refresh(curTime);
+    else
+		if not self.cantget then 
+			self:Refresh(curTime);
+		end	
+	end
+end
+
+return RewardItem

@@ -1,0 +1,264 @@
+--[[
+*文件名   :   EquipUpgradeWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/02/03 13:09:51"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+EquipUpgradeWindow = class("EquipUpgradeWindow", UIPanel)
+EquipUpgradeWindow.IsOpen = false
+
+local SelectBtn = require("View/Item/SelectBtn")
+local CurrencyBar = require("View/Item/CurrencyBar")
+
+local EquipUpgradeSlotUpgrade = require("View/Uiwindow/EquipUpgrade/EquipUpgradeSlotUpgrade")
+local EquipUpgradeAttrUpgrade = require("View/Uiwindow/EquipUpgrade/EquipUpgradeAttrUpgrade")
+local EquipRecast = require("View/Uiwindow/EquipUpgrade/EquipRecast")
+
+local EquipUpgradeEquipMenu = require("View/Uiwindow/EquipUpgrade/EquipUpgradeEquipMenu")
+
+function EquipUpgradeWindow:Awake()
+end
+
+function EquipUpgradeWindow:BindModule(m)
+    self.module = m
+end
+
+function EquipUpgradeWindow:InitItems()
+    self.transform = self.prefab.transform
+    self.gameObject = self.transform.gameObject
+
+    self.idxNow = -1
+
+    --关闭信息
+    local btnCloseInfo = self.transform:Find("Block"):GetComponent(typeof(JButton))
+    btnCloseInfo.OnClick = (function()
+        --关闭道具Tips
+        if GameManager.Instance.IsOpenItemTips then
+            self.module:CloseItemTips()
+        end
+    end)
+
+    --点击?
+    self.btnJBtnIntroduce = self.transform:Find("Cut4Cam90/AssemblyRatio2/JBtnIntroduce"):GetComponent(typeof(JButton))
+    self.btnJBtnIntroduce.OnClick = (function()
+        if self.idxNow == 1 then
+            UIManager.Instance:OpenWindow("Common/GamePlayInfoWindow", 118, CS.StarProjectDef.MainPageCommond.HideBoth)
+        elseif self.idxNow == 2 then
+            UIManager.Instance:OpenWindow("Common/GamePlayInfoWindow", 119, CS.StarProjectDef.MainPageCommond.HideBoth)
+        elseif self.idxNow == 3 then
+            UIManager.Instance:OpenWindow("Common/GamePlayInfoWindow", 120, CS.StarProjectDef.MainPageCommond.HideBoth)
+        end
+    end)
+
+    --背包菜单按钮
+    self.MenuBtns = {}
+
+    local btn1 = SelectBtn:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/RightMenu/BtnUpgrade").gameObject)
+    btn1:InitItem(
+        1,
+        function(idx)
+            self:OnMenuBtnClick(idx)
+        end
+    )
+    table.insert(self.MenuBtns, btn1)
+
+    local btn2 = SelectBtn:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/RightMenu/BtnRefesh").gameObject)
+    btn2:InitItem(
+        2,
+        function(idx)
+            self:OnMenuBtnClick(idx)
+        end
+    )
+    table.insert(self.MenuBtns, btn2)
+
+    local btn3 = SelectBtn:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/RightMenu/BtnRemake").gameObject)
+    btn3:InitItem(
+        3,
+        function(idx)
+            self:OnMenuBtnClick(idx)
+        end
+    )
+    table.insert(self.MenuBtns, btn3)
+
+    --[[
+
+	local btn4=SelectBtn:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/RightMenu/BtnOther1").gameObject);
+	btn4:InitItem(4,function (idx)
+		self:OnMenuBtnClick(idx);
+	end);
+	table.insert( self.MenuBtns,btn4);
+
+	local btn5=SelectBtn:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/RightMenu/BtnOther2").gameObject);
+	btn5:InitItem(5,function (idx)
+		self:OnMenuBtnClick(idx);
+	end);
+	table.insert( self.MenuBtns,btn5);
+
+	]]
+    self.anim = self.transform:GetComponent(typeof(Animator))
+
+    --显示资源栏
+    self.currencyBar = CurrencyBar:New(nil, self.transform:Find("Cut4Cam90/AssemblyRatio2/CurrencyAhchor"))
+
+    --装备槽强化
+    self.equipUpgradeSlotUpgrade = EquipUpgradeSlotUpgrade:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/SlotUpgrade").gameObject, self)
+    --装备精炼
+    self.equipUpgradeAttrUpgrade = EquipUpgradeAttrUpgrade:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/AttrUpgrade").gameObject, self)
+    --装备重构
+    self.equipRecast = EquipRecast:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Recast").gameObject, self)
+    self.equipRecast:OnMessage()
+
+    --装备UI
+    self.equipUpgradeEquipMenu = EquipUpgradeEquipMenu:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/EquipMenu").gameObject)
+
+    self.m_CloseBtn = self:Find("Cut4Cam90/AssemblyRatio2/ExitBtn"):GetComponent(typeof(Button))
+    self.m_CloseBtn.onClick:AddListener(
+        function()
+            self:OnClickCloseBtn()
+        end
+    )
+end
+
+function EquipUpgradeWindow:OpenEquipUpgrade(idx)
+    self:OnMenuBtnClick(idx)
+end
+
+function EquipUpgradeWindow:RefeshEquipUpgrade()
+    if self.idxNow == 1 then
+        self.module:FindOneEquip()
+        self.equipUpgradeEquipMenu:SetIsShowPerfect(0)
+        --LuaModuleDispatcher:SendMessage(ModuleDef.EquipModule, "OnShowPerfect", {0});
+        self.equipUpgradeSlotUpgrade:RefeshEquipUpgrade(self.module)
+        self.equipUpgradeAttrUpgrade:Show(false)
+        self.equipUpgradeSlotUpgrade:Show(true)
+        self.equipRecast:Show(false)
+        self.equipUpgradeEquipMenu:Show(true)
+    elseif self.idxNow == 2 then
+        self.module:FindOneEquip()
+        self.equipUpgradeEquipMenu:SetIsShowPerfect(1)
+        --LuaModuleDispatcher:SendMessage(ModuleDef.EquipModule, "OnShowPerfect", {1});
+        self.equipUpgradeAttrUpgrade:RefeshEquipUpgrade(self.module)
+        self.equipUpgradeAttrUpgrade:Show(true)
+        self.equipUpgradeSlotUpgrade:Show(false)
+        self.equipRecast:Show(false)
+        self.equipUpgradeEquipMenu:Show(true)
+    elseif self.idxNow == 3 then
+        self.equipUpgradeAttrUpgrade:Show(false)
+        self.equipUpgradeSlotUpgrade:Show(false)
+        self.equipRecast:Show(true)
+        self.equipUpgradeEquipMenu:Show(false)
+    end
+
+    --刷新货币
+    local coins = {4, 3, 2, 1}
+    self.currencyBar:RefeshBar(coins)
+end
+
+function EquipUpgradeWindow:OnMenuBtnClick(idx)
+    if self.idxNow == idx then
+        return
+    end
+
+    if self.idxNow == -1 then
+        self.anim:Play("EquipUpgradeWindow_Open_Anim")
+    else
+        if idx == 1 then
+            self.anim:Play("SlotUpgrade_Qiehuan")
+        elseif idx == 2 then
+            self.anim:Play("AttrUpgrade_Qiehuan")
+        elseif idx == 3 then
+            self.anim:Play("Recast_Go")
+        elseif idx == 4 then
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_70"))
+            return
+        elseif idx == 5 then
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_70"))
+            return
+        end
+    end
+
+    self.idxNow = idx
+    self:RefeshEquipUpgrade()
+
+    for i = 1, #self.MenuBtns do
+        self.MenuBtns[i]:MakeSelected(false)
+    end
+    self.MenuBtns[idx]:MakeSelected(true)
+
+    --关闭道具Tips
+    if GameManager.Instance.IsOpenItemTips then
+        self.module:CloseItemTips()
+    end
+end
+
+function EquipUpgradeWindow:Start()
+    print("EquipUpgradeWindow:Start")
+end
+
+function EquipUpgradeWindow:OnEnable()
+end
+
+function EquipUpgradeWindow:OnDisable()
+end
+
+function EquipUpgradeWindow:OnDestroy()
+end
+
+function EquipUpgradeWindow:OnOpen(arg)
+    self.IsOpen = true
+end
+
+function EquipUpgradeWindow:OnClose(arg)
+    --self:CloseWindow();
+    self.idxNow = -1
+    self.equipRecast:OffMessage()
+    self.equipRecast = nil
+    self.module.equipUpgradeWindowView = nil
+end
+
+function EquipUpgradeWindow:OnClickCloseBtn()
+    if self.module.IsOpenTips then
+        self.module.IsOpenTips = false
+        self.module:CloseItemTips()
+
+        self:CleanAllSelected()
+    end
+
+    self.idxNow = -1
+    self.IsOpen = false
+    self.module:OnCloseEquipUpgrade()
+
+    --打开背包UI(临时措施)
+    if self.module.OpenFrom > 0 then
+    --LuaModuleDispatcher:SendMessage(ModuleDef.BagModule, "OnOpenBag", {});
+    --LuaModuleDispatcher:SendMessage(ModuleDef.BagModule, "OnOpenBagTag",{ 2,self.equipUpgradeSlotUpgrade.SlotID });
+    end
+
+    self.Close()
+
+    self.module.equipUpgradeWindowView = nil
+    ModuleManager.Instance:HideModule(ModuleDef.EquipUpgradeModule)
+
+    --[[
+	self:PlayAnimation("EquipUpgradeWindowAnim_Close", function ()
+		self.idxNow=-1;
+		self.IsOpen=false;
+		self.module:OnCloseEquipUpgrade()
+	
+	
+		--打开背包UI(临时措施)
+		if self.module.OpenFrom>0 then
+			LuaModuleDispatcher:SendMessage(ModuleDef.BagModule, "OnOpenBag", {});
+			LuaModuleDispatcher:SendMessage(ModuleDef.BagModule, "OnOpenBagTag",{ 2,self.equipUpgradeSlotUpgrade.SlotID }); 
+		end
+
+		self.Close();
+	end)
+
+
+	]]
+end
+
+return EquipUpgradeWindow

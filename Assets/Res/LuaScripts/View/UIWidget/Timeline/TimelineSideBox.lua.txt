@@ -1,0 +1,104 @@
+--[[
+*文件名   :   TimelineSideBox
+*内  容   :
+*说  明   :
+*创建日期 :   "2024/05/21 18:10:20"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+TimelineSideBox=class("TimelineSideBox",UIPanel)
+TimelineSideBox.m_TalkBoxContent=nil;
+TimelineSideBox.m_TalkBoxName=nil;
+TimelineSideBox.m_NextBtn=nil;
+TimelineSideBox.DialogTime=0;
+TimelineSideBox.CurrentTime=0;
+TimelineSideBox.NextDialogCall=nil;
+TimelineSideBox.AudioName=nil;
+local OnClickNextHandler=nil;
+
+function TimelineSideBox:Awake()
+	self.m_TalkBoxContent=self:Find("TalkBoxContent"):GetComponent(typeof(Text));
+	self.m_TalkBoxName=self:Find("TalkBoxNameBg/TalkBoxName"):GetComponent(typeof(Text));
+	self.m_NextBtn=self:Find("TalkBoxBg"):GetComponent(typeof(JButton));
+	OnClickNextHandler=function()
+
+		self:OnClickNext();
+
+	end
+end
+
+function TimelineSideBox:OnClickNext()
+	if self.NextDialogCall~=nil then
+		self.NextDialogCall(self.CurrentTime);
+	end
+	if self.voiceKey~=nil and self.voiceKey~="" then
+		--SoundManager.Instance:StopVoice(self.voiceKey);
+		SoundManager.Instance:StopVoiceEvent(self.AudioName,self.prefab)
+	end
+	DelayInvoker.CancelInvoke(self);
+	self.Close();
+end
+
+function TimelineSideBox:Start()
+	self.m_NextBtn.OnClick = OnClickNextHandler
+end
+
+function TimelineSideBox:OnEnable()
+
+end
+
+function TimelineSideBox:OnDisable()
+
+end
+
+function TimelineSideBox:OnDestroy()
+
+end
+
+function TimelineSideBox:OnOpen(arg)
+
+	local targetID=GameManager.Instance.mainPlayerId;
+	if targetID~= nil and targetID~=0 then
+		local playerName=GameManager.Instance:GetEntityNameById(targetID);
+		if playerName~= nil and playerName~="" then
+			arg.Item1 = string.gsub(arg.Item1, "@player",playerName)
+			arg.Item2 = string.gsub(arg.Item2, "@player", playerName)
+		end
+	end
+
+	self.m_TalkBoxName.text= arg.Item1
+	self.m_TalkBoxContent.text=arg.Item2
+	self.DialogTime=arg.Item3
+	self.CurrentTime=arg.Item4
+	self.AudioName=arg.Item5
+	self.NextDialogCall=arg.Item6
+
+	if self.AudioName~=nil and self.AudioName~="" then
+		local result=	SoundManager.Instance:PlayVoice(
+			"0:"..self.AudioName,
+			self.prefab,
+			function()
+				--Play Complete
+			end
+		)
+		self.voiceKey=result.Item2
+	end
+
+	DelayInvoker.DelayInvoke(self,arg.Item3,function ()
+			if self.voiceKey~=nil and self.voiceKey~="" then
+				--SoundManager.Instance:StopVoice(self.voiceKey);
+				SoundManager.Instance:StopVoiceEvent(self.AudioName,self.prefab)
+			end
+			self.Close();
+
+		end)
+end
+
+
+function TimelineSideBox:OnClose(arg)
+
+end
+
+
+
+return  TimelineSideBox

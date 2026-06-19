@@ -1,0 +1,145 @@
+--[[
+*文件名   :   PartnerInfo
+*内  容   :
+*说  明   :
+*创建日期 :   "2024/05/13 18:00:26"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+PartnerInfo=class("PartnerInfo",UIPanel)
+PartnerInfo.m_Name=nil;
+PartnerInfo.m_TagIcon=nil;
+PartnerInfo.m_TagName=nil;
+PartnerInfo.m_Stars=nil;
+PartnerInfo.m_Score=nil;
+PartnerInfo.m_Level=nil;
+PartnerInfo.m_Exp=nil;
+PartnerInfo.m_UpExp=nil;
+PartnerInfo.m_TagText=nil;
+PartnerInfo.m_StarList=nil;
+PartnerInfo.m_ExpAdd=nil;
+PartnerInfo.m_ExpTx=nil;
+
+local ExpFunc=nil;
+
+
+function PartnerInfo:ctor(go)
+	self.prefab=go;
+	self.m_Name=self:Find("Name"):GetComponent(typeof(Text));
+	self.m_TagIcon=self:Find("Tag/TagIcon"):GetComponent(typeof(Image));
+	self.m_TagName=self:Find("Tag/TagText"):GetComponent(typeof(Text));
+	self.m_Stars=self:Find("Stars").gameObject;
+	self.m_StarList={}
+	for i = 1, 6 do
+		table.insert(self.m_StarList,self:Find("Stars/Star"..i.."/Star").gameObject) ;
+	end
+	self.m_Score=self:Find("Score/Score"):GetComponent(typeof(Text));
+	self.m_Level=self:Find("Level"):GetComponent(typeof(Text));
+	self.m_Exp=self:Find("Exp"):GetComponent(typeof(Slider));
+	self.m_UpExp=self:Find("Exp/UpExp"):GetComponent(typeof(Slider));
+	self.m_TagText=self:Find("Tag/TagText"):GetComponent(typeof(Text));
+	self.m_ExpAdd=self:Find("ExpAdd"):GetComponent(typeof(Text));
+	self.m_ExpTx=self:Find("ExpTx"):GetComponent(typeof(Text));
+	ExpFunc=function() self:OnValueChangeExp(); end;
+
+end
+
+function  PartnerInfo:SetStar(star)
+	for i = 1, 6 do
+		self.m_StarList[i]:SetActive(i<=star)
+	end
+end
+
+function PartnerInfo:OnEnable()
+
+end
+
+function PartnerInfo:OnDisable()
+
+end
+
+function PartnerInfo:OnDestroy()
+
+end
+
+--@ partnerdata 伙伴数据
+--@ showstar 是否显示星级
+--@ showexp 是否显示经验进度
+function PartnerInfo:OnOpen(data,showstar,showexp)
+	local config=ConfigDataAccessor.Partner[data.Index];
+	if config~=nil then
+		self.m_Name.text=config.Name;
+
+		local max=0;
+		local expcfg= ConfigDataAccessor.PartnerExp[data.Level]	;
+		if expcfg~=nil then
+			max=expcfg.Exp;
+		end
+		--self.m_Exp.text=data.CurExp.."/"..max
+		local v=data.CurExp/max
+		self.m_Level.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {data.Level});
+		self.m_Exp.value=v
+
+		local PartnerType=ConfigDataAccessor.PartnerType[config.PartnerType]
+		if PartnerType~=nil then
+
+			self.m_TagName.text=PartnerType.Name
+			self:GetSpriteByAtlas("ui/icons/atlas/Iconrole",PartnerType.ShowIcon_s,function (sp)
+					self.m_TagIcon.sprite=sp
+				end);
+			
+		end
+
+	end
+	self.m_Score.text=FightPowerManager.Instance:GetShowPartnerStaticPower(data)
+	self.m_ExpAdd.text=" "
+	self.m_ExpTx.text=" "
+	self.m_UpExp.value=0;
+	self:SetStar(data.CurStar)
+
+end
+
+--@ partnerdata 伙伴数据
+--@ showstar 是否显示星级
+--@ showexp 是否显示经验进度
+function PartnerInfo:OnShowNextLevel(data,showstar,showexp,nextLevel,lexp,total)
+	local config=ConfigDataAccessor.Partner[data.Index];
+	if config~=nil then
+		self.m_Name.text=config.Name;
+
+		local max=0;
+		local expcfg= ConfigDataAccessor.PartnerExp[data.Level]	;
+		if expcfg~=nil then
+			max=expcfg.Exp;
+		end
+		local nextmax=0;
+		local maxexpcfg= ConfigDataAccessor.PartnerExp[nextLevel]	;
+		if maxexpcfg~=nil then
+			nextmax=math.floor(maxexpcfg.Exp);
+		end
+		self.m_Score.text=FightPowerManager.Instance:GetShowPartnerStaticPower(data)
+		--self.m_Exp.text=data.CurExp.."/"..max
+		local v=data.CurExp/max
+		self.m_Level.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {data.Level})..">".."<color=#5EF4AF>"..StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {nextLevel}).." </color>";
+		self.m_Exp.value=v
+		self.m_ExpAdd.text="+"..total
+		self.m_ExpTx.text="<color=#5EF4AF>"..math.floor(lexp).." </color>".."<color=#989898>".."/"..nextmax.." </color>";
+		self.m_UpExp.value=lexp/nextmax;
+	end
+
+	self:SetStar(data.CurStar)
+
+end
+
+
+function PartnerInfo:OnClose(arg)
+
+end
+
+function PartnerInfo:OnValueChangeExp(vaule)
+
+end
+
+
+
+return  PartnerInfo

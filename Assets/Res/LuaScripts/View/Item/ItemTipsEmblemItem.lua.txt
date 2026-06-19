@@ -1,0 +1,205 @@
+--[[
+*文件名   :   ItemTipsEmblemItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local ItemTipsEmblemItem = {}
+
+ItemTipsEmblemItem.__index = ItemTipsEmblemItem
+
+function ItemTipsEmblemItem:New(_go)
+    local self = {}
+    setmetatable(self, ItemTipsEmblemItem)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.IconBg = self.transform:Find("bg"):GetComponent(typeof(Image))
+    self.Icon = self.transform:Find("icon"):GetComponent(typeof(Image))
+
+    self.Name = self.transform:Find("name"):GetComponent(typeof(Text)) --名字
+    self.Attr = self.transform:Find("attr"):GetComponent(typeof(Text)) --属性
+
+    self.Null = self.transform:Find("Null").gameObject
+
+    self.mach = self.transform:Find("mach").gameObject
+    self.machColor = self.transform:Find("mach"):GetComponent(typeof(Image))
+    return self --返回自身
+end
+
+function ItemTipsEmblemItem:InitItem(idx)
+    self.Idx = idx
+end
+
+function ItemTipsEmblemItem:GetBackColor(idx)
+    if idx > 9 then
+        idx = idx - 8
+    end
+    if idx < 0 then
+        idx = 1
+    end
+
+    if idx == 1 then
+        return "ad3c3c"
+    elseif idx == 2 then
+        return "ceaf35"
+    elseif idx == 3 then
+        return "3cad47"
+    elseif idx == 4 then
+        return "d57433"
+    elseif idx == 5 then
+        return "4266cc"
+    elseif idx == 6 then
+        return "3ca4ad"
+    elseif idx == 7 then
+        return "c93aa6"
+    elseif idx == 8 then
+        return "553cad"
+    elseif idx == 0 then
+        --不可共鸣
+        return "553cad"
+    end
+
+    --没有的给攻击
+    return "ad3c3c"
+end
+
+function ItemTipsEmblemItem:GetCoverColor(idx)
+    if idx > 9 then
+        idx = idx - 8
+    end
+    if idx < 0 then
+        idx = 1
+    end
+    if idx == 1 then
+        return "ff7e7b"
+    elseif idx == 2 then
+        return "ffe66f"
+    elseif idx == 3 then
+        return "7eff89"
+    elseif idx == 4 then
+        return "ffaa6f"
+    elseif idx == 5 then
+        return "73ccff"
+    elseif idx == 6 then
+        return "58e0ea"
+    elseif idx == 7 then
+        return "ef7ed1"
+    elseif idx == 8 then
+        return "a589ff"
+    elseif idx == 0 then
+        --未共鸣
+        return "9b9b9b"
+    end
+    --没有的给攻击
+    return "ff7e7b"
+end
+
+function ItemTipsEmblemItem:SetInfo(gemSlot, gemTable)
+    local slotID = gemSlot.SlotID
+    local gemID = gemSlot.GemID
+
+    self.IconBg.color = ConvertHexToColorWithAlpha(self:GetBackColor(slotID), 1)
+    self.machColor.color = ConvertHexToColorWithAlpha(self:GetCoverColor(slotID), 1)
+    --[[
+        if slotID > 9 then
+        --self.IconBg.sprite = AtlasManager.Instance:GetSprite("ui/amulet/atlas/rune", "Rune_slot_s_" .. slotID)
+        ResourceHelper:LoadIconByAtlasAsync(self.IconBg, ResourceHelper.AtlasPathRune, "Rune_slot_" .. slotID, false)
+    else
+        --self.IconBg.sprite = AtlasManager.Instance:GetSprite("ui/amulet/atlas/rune", "Rune_slot_s_0" .. slotID)
+        ResourceHelper:LoadIconByAtlasAsync(self.IconBg, ResourceHelper.AtlasPathRune, "Rune_slot_0" .. slotID, false)
+    end
+    ]]
+    --刷新宝石槽颜色
+
+    if gemID ~= nil and gemID ~= 0 then
+        self.Icon.gameObject:SetActive(true)
+
+        local itemData = nil
+        --从相关配置表里拿宝石
+        if gemTable ~= nil then
+            itemData = gemTable[gemID]
+        else
+            itemData = BusinessManager.Instance:GetItemByItemEntityId(gemID)
+        end
+
+        self.EntityID = itemData.EntityID
+        self.BaseID = itemData.BaseID
+
+        local cfg = ConfigDataAccessor.Item[self.BaseID]
+        --LoadIcon(self.Icon,cfg.Icon);
+        if cfg ~= nil then
+            ResourceHelper:LoadIconAsync(self.Icon, "", cfg.Icon, false)
+        end
+
+        --宝石的共鸣
+        local heraldryEquipCfg = ConfigDataAccessor.HeraldryEquip[self.BaseID]
+
+        --判断是是否触发了共鸣
+        if slotID == heraldryEquipCfg.ResonanceSlot then
+            local BaseAttrId = heraldryEquipCfg.BaseAttrId[1]
+            local BaseAttrVal = heraldryEquipCfg.BaseAttrVal[1]
+
+            local ResonanceAttrID = heraldryEquipCfg.ResonanceAttrID[1]
+            local ResonanceAttrVal = heraldryEquipCfg.ResonanceAttrVal[1]
+
+            local config1 = ConfigDataAccessor.GetAttrByID(BaseAttrId)
+            local attrName1 = ""
+            if config1 ~= nil then
+                attrName1 = config1.Name
+            end
+
+            local config2 = ConfigDataAccessor.GetAttrByID(ResonanceAttrID)
+            local attrName2 = ""
+            if config2 ~= nil then
+                attrName2 = config2.Name
+            end
+
+            --local name = attrcfg1.desc .."+" .. (BaseAttrVal + ResonanceAttrVal) .. "[" .. BaseAttrVal .. "+" .. ResonanceAttrVal .. "]"
+            local name = attrName1 .. " " .. BaseAttrVal .. "<color=#CAB27D>+" .. ResonanceAttrVal .. "</color>"
+
+            self.Name.text = "(" .. cfg.Name .. ")"
+            self.Attr.text = name
+
+            self.mach:SetActive(true)
+        else
+            local BaseAttrId = heraldryEquipCfg.BaseAttrId[1]
+            local BaseAttrVal = heraldryEquipCfg.BaseAttrVal[1]
+
+            local config1 = ConfigDataAccessor.GetAttrByID(BaseAttrId)
+            local attrName1 = ""
+            if config1 ~= nil then
+                attrName1 = config1.Name
+            end
+
+            local config2 = ConfigDataAccessor.GetAttrByID(ResonanceAttrID)
+            local attrName2 = ""
+            if config2 ~= nil then
+                attrName2 = config2.Name
+            end
+
+            local name = attrName1 .. " " .. BaseAttrVal
+
+            self.Name.text = "(" .. cfg.Name .. ")"
+            self.Attr.text = name
+
+            self.mach:SetActive(false)
+        end
+
+        --名字用等级代替
+        --self.Name.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {heraldryEquipCfg.HeraldryLevel})
+
+        self.Null:SetActive(false)
+    else
+        self.Null:SetActive(true)
+        self.Icon.gameObject:SetActive(false)
+
+        self.Name.text = ""
+        self.Attr.text = ""
+    end
+end
+
+return ItemTipsEmblemItem

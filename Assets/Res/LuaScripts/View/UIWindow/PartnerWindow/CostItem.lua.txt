@@ -1,0 +1,164 @@
+---------------------------------------------------------------------
+-- Star (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2022-12-19 11:33:50
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class CostItem
+CostItem = class("CostItem", UIPanel)
+CostItem.QualityBg = nil
+CostItem.Icon = nil
+CostItem.Num = nil
+CostItem.ItemID = 0
+CostItem.OnClickCall = nil
+CostItem.EntityItem = nil
+CostItem.m_Extra = nil
+CostItem.IsDropData = false
+CostItem.EntityID = 0
+CostItem.m_CanGetAnim = nil
+CostItem.m_NotGet = nil
+CostItem.m_FirstPassReward = nil
+
+function CostItem:ctor(go, parent, atlas)
+    self.prefab = go
+    self.AtlasPath = atlas
+    self.Btn = go:GetComponent(typeof(JButton))
+    self.QualityBg = self:Find("BgRare"):GetComponent(typeof(Image))
+    self.Icon = self:Find("Icon"):GetComponent(typeof(Image))
+    self.Num = self:Find("Text"):GetComponent(typeof(Text))
+    self.m_Extra = self:Find("Extra")
+    self.m_CanGetAnim = self:Find("CanGetAnim")
+    self.m_NotGet = self:Find("NotGet")
+    self.m_FirstPassReward = self.prefab.transform:Find("FirstPassReward")
+
+    self.Btn.OnClick = (function()
+        self:OnClickHandler()
+    end)
+end
+
+--点击事件
+function CostItem:OnClickHandler()
+    if self.EntityItem ~= nil then
+        print("显示实体数据")
+    end
+    if self.IsDropData then
+        LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", {self.ItemID, false, self.EntityID, self.Icon.transform, 0})
+    else
+        LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", {self.ItemID, false, nil, self.Icon.transform, 0})
+    end
+    self.OnClickCall()
+end
+
+--数据更新
+function CostItem:UpdateContent(data, call)
+    self.IsDropData = false
+    self.ItemID = data.ItemID
+    self.OnClickCall = call
+    self.EntityItem = data.EntityItem
+    local config = ConfigDataAccessor.Item[data.ItemID]
+    if config ~= nil then
+        local quality = config.Quality
+        if quality == 99 then
+            quality = 1
+        end
+
+        --self.QualityBg.sprite= AtlasManager.Instance:GetSprite("ui/common/atlas/commonitem","Bag_Grid_sq"..quality);
+        ResourceHelper:LoadIconByAtlasAsync(
+            self.QualityBg,
+            ResourceHelper.AtlasPathCommonItem,
+            "Bag_Grid_sq" .. quality,
+            false,
+            function(s)
+                self.QualityBg.gameObject:SetActive(true)
+            end
+        )
+
+        ResourceHelper:LoadIconAsync(self.Icon, "", config.Icon, false)
+
+    -- ResourceManager.Instance:LoadSpriteAsync(config.Icon,function (sp)
+    -- 		if sp~=nil and self.Icon~=nil then
+    -- 			self.Icon.sprite=sp;
+    -- 		end
+    -- 	end)
+    end
+
+    local isExtra = false
+    if data.IsExtra ~= nil then
+        isExtra = data.IsExtra
+    end
+    if self.m_Extra ~= nil then
+        self.m_Extra.gameObject:SetActive(isExtra)
+    end
+    --IsExtra
+    if type(data.ItemNum) == "string" then
+        self.Num.text = data.ItemNum
+    else
+        if data.ItemNum > 1 then
+            self.Num.text = tostring(data.ItemNum)
+        else
+            self.Num.text = ""
+        end
+    end
+	
+	if self.m_FirstPassReward ~= nil then
+		local isShowFirstTag = false
+		if data.IsFirstPassReward ~= nil then
+			isShowFirstTag = data.IsFirstPassReward
+		end
+		self.m_FirstPassReward.gameObject:SetActive(isShowFirstTag)
+	end
+end
+
+function CostItem:UpdateDropContent(data, call)
+    self.IsDropData = true
+    self.ItemID = data.Itemid
+    self.EntityID = data.EntityID
+    self.OnClickCall = call
+    self.EntityItem = data.EntityItem
+    local config = ConfigDataAccessor.Item[self.ItemID]
+    if config ~= nil then
+        local quality = config.Quality
+        if quality == 99 then
+            quality = 1
+        end
+        ResourceHelper:LoadIconByAtlasAsync(self.QualityBg, ResourceHelper.AtlasPathCommonItem, "Bag_Grid_sq" .. quality, false)
+        ResourceHelper:LoadIconAsync(self.Icon, "", config.Icon, false)
+    end
+
+    local isExtra = false
+    if data.IsExtra ~= nil then
+        isExtra = data.IsExtra
+    end
+    if self.m_Extra ~= nil then
+        self.m_Extra.gameObject:SetActive(isExtra)
+    end
+    --IsExtra
+    if data.ItemNum > 1 then
+        self.Num.text = tostring(data.ItemNum)
+    else
+        self.Num.text = ""
+    end
+
+    if self.m_FirstPassReward ~= nil then
+        local isShowFirstTag = false
+        if data.IsFirstPassReward ~= nil then
+            isShowFirstTag = data.IsFirstPassReward
+        end
+        self.m_FirstPassReward.gameObject:SetActive(isShowFirstTag)
+    end
+end
+
+-- -- 0：都不显示 1：显示可领取 2：显示不可领取
+function CostItem:UpdateGetState(state)
+    if self.m_CanGetAnim ~= nil then
+        self.m_CanGetAnim.gameObject:SetActive(state == 1)
+    end
+    if self.m_NotGet ~= nil then
+        self.m_NotGet.gameObject:SetActive(state == 2)
+    end
+end
+
+return CostItem

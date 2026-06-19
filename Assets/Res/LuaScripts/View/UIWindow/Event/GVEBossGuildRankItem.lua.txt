@@ -1,0 +1,57 @@
+--[[
+*文件名   :   GVEBossGuildRankItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local GVEBossGuildRankItem = {}
+
+GVEBossGuildRankItem.__index = GVEBossGuildRankItem
+
+function GVEBossGuildRankItem:New(_go,onApplyClick,onCancelClick) 
+    local self = {};    
+    setmetatable(self, GVEBossGuildRankItem); 
+    
+
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+
+
+    self.Idx=self.transform:Find("idx"):GetComponent(typeof(Text));
+    self.Name=self.transform:Find("name"):GetComponent(typeof(Text));
+    self.Score=self.transform:Find("score"):GetComponent(typeof(Text));
+
+    if self.transform:Find("idxBg")~=nil then
+        self.rankBg=self.transform:Find("idxBg"):GetComponent(typeof(Image));
+    end
+
+
+    return self;    --返回自身
+end
+
+
+
+function GVEBossGuildRankItem:SetItem(info,idx)
+
+
+    self.Idx.text=idx;
+
+    if self.rankBg~=nil then
+        self.rankBg.gameObject:SetActive(idx<=3);
+    end
+
+    self.Name.text=info.name;
+    self.Score.text=info.score;
+
+
+
+
+
+end
+
+
+return GVEBossGuildRankItem;

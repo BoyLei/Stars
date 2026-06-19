@@ -1,0 +1,190 @@
+local NobeBaseItem = require("View/UIWindow/TalentWindow/NobeBaseItem")
+local SmallNodeItem = class("SmallNodeItem",NobeBaseItem)
+
+function SmallNodeItem:ctor(this,obj, eff)
+    -- local self = {};
+    -- setmetatable(self, SmallNodeItem);
+
+    self:InitControls(obj, eff)
+
+    return self;
+end
+
+function SmallNodeItem:InitControls(obj, effTb)
+    self.gameObject = obj;
+    self.transform = obj.transform;
+    self.allEff = effTb
+    self.status1 = self.transform:Find("1").gameObject;
+    self.status2 = self.transform:Find("2").gameObject;
+    self.status3 = self.transform:Find("3").gameObject;
+    self.status4 = self.transform:Find("4").gameObject;
+
+    self.levelText = self.transform:Find("Level"):GetComponent(typeof(Text));
+
+    self.nodeIcon = self.transform:Find("Icon"):GetComponent(typeof(Image));
+
+    self.nodeBtn = self.transform:GetComponent(typeof(Button));
+    self.nodeBtn.onClick:AddListener(function()
+        LuaModuleDispatcher:SendMessage(ModuleDef.TalentModule, "OnOpenNodeInfo", {self.nodeId, self.transform, 0});
+    end);
+end
+
+function SmallNodeItem:InitData(id, lv, preUnlock, usePointEnough)
+    self.nodeId = id;
+    local attriTTNode = ConfigDataAccessor.AttriTTNode[id];
+    self.talentmsgcb =  function(data)
+        if data.data.NodeID == id then 
+          --  self:InitData(id, lv, preUnlock, usePointEnough)
+			LuaModuleDispatcher:SendMessage(ModuleDef.TalentModule, "OnOpenNodeInfo", {self.nodeId, self.transform, 0});
+        end
+    end
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.TalentNodeActiveRetID,self.talentmsgcb,nil)
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.TalentNodeActiveRetID, self.talentmsgcb,nil);
+
+    self.status1:SetActive(false);
+    self.status2:SetActive(false);
+    self.status3:SetActive(false);
+    self.status4:SetActive(false);
+
+    -- for _, v in pairs(self.allEff) do
+    --     self:RemoveBindItem(v)
+    -- end
+
+    local upgrade = false;
+    if self.curLv == nil then
+        self.curLv = lv;
+    elseif self.curLv ~= lv then
+        upgrade = true;
+        self.curLv = lv;
+    end
+
+    self.nodeIcon.color = Color(1, 1, 1);
+    if not preUnlock or not usePointEnough then
+        if not preUnlock or not usePointEnough then
+            self.status1:SetActive(true);
+        end
+        self:RemoveAllbind()
+        self.nodeIcon.color = Color(0.33, 0.33, 0.33);
+    else
+        if lv == 0 then
+            
+            self.nodeIcon.color = Color(0.56, 0.56, 0.56);
+
+            local itemsEnough = true;
+            local items, nums = self:GetItems(attriTTNode, 1);
+
+            local talentModule = ModuleManager.Instance:GetModule(ModuleDef.TalentModule);
+            local leavePoint = talentModule:GetLuaTable().talentPoint;
+
+            for k, v in pairs(items) do
+                if v == 113 then
+                    if leavePoint < nums[k] then
+                        itemsEnough = false;
+                    end
+                else
+                    local itemNum = BusinessManager.Instance:GetCurrencyNum(v);
+                    if itemNum < nums[k] then
+                        itemsEnough = false;
+                    end
+                end
+            end
+
+            if itemsEnough then
+                self.nodeIcon.color = Color(1, 1, 1);
+              --  self.allEff[1]:SetActive(true);
+                self:RemoveBindByType(2,3)
+                self:ShowEffect(self.allEff[1])
+				self.status3:SetActive(true);
+            else
+                self:RemoveAllbind()
+                self.nodeIcon.color = Color(0.56, 0.56, 0.56);
+				self.status1:SetActive(true);
+            end
+
+        elseif lv == 1 or lv == 2 then
+            self.status3:SetActive(true);
+          --  self.allEff[1]:SetActive(true);
+            self:ShowEffect(self.allEff[1])
+            if upgrade then
+                self:RemoveBindByType(2)
+               -- self.allEff[3]:SetActive(true);
+                self:ShowEffect(self.allEff[3])
+            else
+                self:RemoveBindByType(2,3)
+            end
+
+            local itemsEnough = true;
+            local items, nums = self:GetItems(attriTTNode, lv);
+            local talentModule = ModuleManager.Instance:GetModule(ModuleDef.TalentModule);
+            local leavePoint = talentModule:GetLuaTable().talentPoint;
+            for k, v in pairs(items) do
+                if v == 113 then
+                    if leavePoint < nums[k] then
+                        itemsEnough = false;
+                    end
+                else
+                    local itemNum = BusinessManager.Instance:GetCurrencyNum(v);
+                    if itemNum < nums[k] then
+                        itemsEnough = false;
+                    end
+                end
+            end
+        elseif lv == 3 then
+            self.status4:SetActive(true);
+
+            if upgrade then
+                self:RemoveBindByType(1,3)
+               -- self.allEff[2]:SetActive(true);
+               self:ShowEffect(self.allEff[2])
+            else
+                self:RemoveAllbind()
+            end
+        end
+    end
+
+    if lv ~= nil and lv >= attriTTNode.MaxLevel then
+        self.levelText.gameObject:SetActive(false);
+    else
+        self.levelText.gameObject:SetActive(true);
+        self.levelText.text = lv .. '/' .. attriTTNode.MaxLevel;
+    end
+	
+    if not preUnlock or not usePointEnough then
+    	self.levelText.gameObject:SetActive(false);
+    end
+
+    --if lv == nil or lv == 0 then
+        --self.levelText.gameObject:SetActive(false);
+    --else
+        --self.levelText.gameObject:SetActive(true);
+    --end
+	
+	--加载属性icon
+	local attributes = ConfigDataAccessor.Attribute;
+	for k, v in pairs(attributes) do
+		if v.AttrId == attriTTNode.AttrID then
+			if v.Icon ~= nil then
+				ResourceHelper:LoadIconByAtlasAsync(self.nodeIcon, ResourceHelper.AtlasPathIconAttribute, v.Icon, false)
+			end
+			break
+		end
+	end
+end
+
+function SmallNodeItem:GetItems(attriTTNode, lv)
+    if lv == 1 then
+        return attriTTNode.FirLvUseItem, attriTTNode.FirLvNum
+    elseif lv == 2 then
+        return attriTTNode.SecUseItem, attriTTNode.SecLvNum
+    elseif lv == 3 then
+        return attriTTNode.ThrLvUseItem, attriTTNode.ThrLvNum
+    end
+    return {}, {};
+end
+
+function SmallNodeItem:Clear()
+    self.super:Clear()
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.TalentNodeActiveRetID,self.talentmsgcb,nil)
+end
+
+return SmallNodeItem

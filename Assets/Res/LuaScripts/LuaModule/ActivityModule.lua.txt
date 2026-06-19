@@ -1,0 +1,531 @@
+ActivityModule = class("ActivityModule", BaseLuaModule)
+
+local SignInWindowPath = "Activity/Prefab/SignIn/SignInWindow"
+
+-- LuaModule 消息模块
+ActivityModule.ModuleMessages = {
+    ["OnShowSignInWindow"] = function(...)
+        ActivityModule:OnShowSignInWindow(...);
+    end,
+
+    ["OnCheckPartnerTaskTask"] = function(...)
+        ActivityModule:OnCheckPartnerTaskTask(...);
+    end,
+
+    ["RefreshRedPoint"] = function(...)
+        ActivityModule:OnRefreshRedPoint(...);
+    end,
+
+    ["OnOpenPreviewWindow"] = function(...)
+        ActivityModule:OnOpenPreviewWindow(...);
+    end,
+
+    ["OnOpenPartnerTargetWindow"] = function(...)
+        ActivityModule:OnOpenPartnerTargetWindow(...);
+    end,
+    ["RefreshRedDot"] = function(...)
+        ActivityModule:RefreshRedDot(...);
+    end,
+    ["OnDisable"] = function(...)
+        ActivityModule:OnDisable(...);
+    end
+}
+
+ActivityModule.PreviewListData = {}
+ActivityModule.PreviewMapData = {}
+-- 初始化玩法预告数据
+function ActivityModule:InitPreviewData()
+    self.PreviewListData = {}
+    self.PreviewMapData = {}
+    self.PreviewMapData.IsReceivedAll = false
+
+    local configData = ConfigDataAccessor.FunctionPreview
+    if configData == nil or type(configData) ~= "table" then
+        printError("FunctionPreview config error")
+        return
+    end
+
+    for k, v in pairs(configData) do
+        local rowData = {}
+        rowData.ID = v.ID
+        rowData.GuidSysOpenID = v.GuidSysOpenID
+        rowData.SysName = v.SysName
+        rowData.SysIcon = v.SysIcon
+        rowData.SysDesc = v.SysDesc
+        rowData.ItemId = v.Reward
+        rowData.ItemCount = v.RewardNum
+
+        rowData.IsReceived = false
+        table.insert(self.PreviewListData, rowData)
+    end
+
+    for k, v in pairs(self.PreviewListData) do
+        self.PreviewMapData[v.ID] = v
+    end
+end
+
+-- 所有玩法预告数据均已获取
+function ActivityModule:IsReceivedAllPreview()
+    return self.PreviewMapData.IsReceivedAll
+end
+
+function ActivityModule:OnCheckPartnerTaskTask(...)
+
+    local tb = ...
+    -- 列表
+
+    if type(tb) == "table" then
+        -- Lua调用
+        -- self.OpenType=tb[1];
+    else
+        -- C#调用
+        -- self.OpenType=tb[0];
+    end
+
+    -- 检查下任务状态
+    self:TaskStageChange(2);
+
+end
+
+-- 判断是否完成所有伙伴目标
+function ActivityModule:IsReceivedAllPartnerTarget()
+
+    local idx = #ConfigDataAccessor.PartnerTarget;
+    local StateNow = ConfigDataAccessor.PartnerTarget[idx];
+
+    for i = 1, #StateNow.TaskId do
+        local state = 0;
+        local idNow = StateNow.TaskId[i];
+        if not (TaskHelper.IsTaskFinsh(idNow)) then
+            -- 已经完成
+            return false;
+        end
+    end
+
+    return true;
+
+end
+
+function ActivityModule:GetPreviewListData()
+    return self.PreviewListData
+end
+
+function ActivityModule:OnUserSundry(data)
+    local userSundryMD = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.UserSundry):GetUserSundryMD();
+    if userSundryMD == nil or userSundryMD.SystemOpenReward == nil or userSundryMD.SystemOpenReward.List == nil then
+        return;
+    end
+
+    local serverData = userSundryMD.SystemOpenReward.List
+    for k, v in pairs(serverData) do
+        local data = self.PreviewMapData[k]
+        if data ~= nil then
+            data.IsReceived = true
+        end
+    end
+
+    self.PreviewMapData.IsReceivedAll = serverData.Count == #self.PreviewListData
+
+    -- 刷新界面
+    if self.signInWindowView ~= nil and self.signInWindowView.IsOpen and self.signInWindowView.TabIndex == 3 then
+        self.signInWindowView:RenderGamePlayPreview();
+    end
+
+    if GameManager.Instance ~= nil then
+        self:RefreshRedDot()
+    end
+end
+
+-- LuaModule 创建
+function ActivityModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.ActivityModule, self);
+    self:InitPreviewData()
+
+    FixMessageManager.Instance:OnMessage(FixUpdateDef.CheckIn, function(data)
+        self:OnCheckInInfos(data);
+    end, nil);
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.CheckInRewardRetID, function(data)
+        self:OnCheckInRewardRet(data)
+    end, nil);
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.FixCheckInRetID, function(data)
+        self:OnFixCheckInRet(data)
+    end, nil);
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.CheckInCountRewardRetID, function(data)
+        self:OnCheckInCountRewardRet(data)
+    end, nil);
+
+    FixMessageManager.Instance:OnMessage(FixUpdateDef.SevenDayGoal, function(data)
+        self:OnSevenDayGoalInfos(data);
+    end, nil);
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.SevenDayGoalRewardRetID, function(data)
+        self:OnSevenDayGoalRewardRet(data)
+    end, nil);
+
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.SubmitTaskAckID, function(data)
+        self:OnSubmitTaskAck(data)
+    end, nil);
+
+    NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.Money2MoneyRetID,
+        function(data)
+            --该消息在所有推送消息之前 需要等待其他消息接收完之后再刷新
+            DelayInvoker.DelayInvoke(self, 0.3, function(...)
+                if self.signInWindowView then 
+                    local sevenDayGoalMD = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.SevenDayGoal):GetSevenDayGoalMD();
+                    if sevenDayGoalMD ~= nil then
+                        self.signInWindowView:InitSevenDayGoal(sevenDayGoalMD);
+                    end
+                end
+            end);
+        end,
+        nil
+    )
+
+    NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.Money2MoneyInfoRetID,
+        function(data)
+            DelayInvoker.DelayInvoke(self, 0.3, function(...)
+                if self.signInWindowView then 
+                    local sevenDayGoalMD = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.SevenDayGoal):GetSevenDayGoalMD();
+                    if sevenDayGoalMD ~= nil  then
+                        self.signInWindowView:InitSevenDayGoal(sevenDayGoalMD);
+                    end
+                end
+            end);
+        end,
+        nil
+    )
+
+    FixMessageManager.Instance:OnMessage(FixUpdateDef.UserSundry, function(data)
+        self:OnUserSundry(data);
+    end, nil);
+
+    -- 任务状态变化
+    CS.StarProject.GlobalEvent.TaskStageChange:AddListener(function(type, taskid)
+        self:TaskStageChange(type, taskid)
+    end);
+
+end
+
+function ActivityModule:TaskStageChange(type, taskid)
+
+    if type == 2 or type == 3 then
+        local canShowRedPoint = false;
+
+        -- 计算当前阶段
+        local StateNow = nil;
+        for i = 1, #ConfigDataAccessor.PartnerTarget do
+            StateNow = ConfigDataAccessor.PartnerTarget[i];
+            local finishSearchState = false;
+            for j = 1, #StateNow.TaskId do
+                local state = 0;
+                local idNow = StateNow.TaskId[j];
+                -- 任务状态
+                if not (TaskHelper.IsTaskFinsh(idNow)) then
+                    -- 已经完成
+                    finishSearchState = true;
+                end
+            end
+            if finishSearchState then
+                break
+            end
+        end
+
+        for i = 1, #StateNow.TaskId do
+            -- 任务状态
+            if TaskHelper.ContainTask(StateNow.TaskId[i]) then
+                -- 正在进行
+                local TaskInfo = TaskHelper.GetRunningTask(StateNow.TaskId[i])
+                if TaskInfo ~= nil then
+                    if TaskInfo.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStageFinished then
+                        -- 任务已完成未提交
+                        -- 更改红点状态
+                        canShowRedPoint = true;
+                        break
+                    end
+                end
+            end
+
+        end
+
+        RedPointManager.Instance:TriggerConditionTypeBoolValue(RedPointConditionType.PartnerTask, canShowRedPoint);
+    end
+end
+
+-- LuaModule显示
+function ActivityModule:OnModuleShow(arg)
+end
+
+function ActivityModule:OnDisable(...)
+    self:InitPreviewData()
+end
+
+function ActivityModule:OnCheckInInfos(data)
+    local chekinMD = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.CheckIn):GetCheckInMD();
+    if chekinMD == nil then
+        return;
+    end
+    if self.signInWindowView ~= nil and self.signInWindowView.IsOpen then
+        self.signInWindowView:Init(chekinMD);
+    end
+
+    self.chekinData = chekinMD;
+
+    if GameManager.Instance ~= nil then
+        self:RefreshRedDot()
+    end
+end
+
+function ActivityModule:OnSevenDayGoalInfos(data)
+    local sevenDayGoalMD = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.SevenDayGoal):GetSevenDayGoalMD();
+    if sevenDayGoalMD == nil then
+        return;
+    end
+    if self.signInWindowView ~= nil and self.signInWindowView.IsOpen then
+        if not sevenDayGoalMD.IsActive then
+            return;
+        end
+        self.signInWindowView:InitSevenDayGoal(sevenDayGoalMD);
+    end
+
+    self.sevenDayGoalData = sevenDayGoalMD;
+
+    if GameManager.Instance ~= nil then
+        self:RefreshRedDot()
+    end
+end
+
+function ActivityModule:GetRedPoint()
+    if not CS.StarProject.Service.SystemOpen.SystemOpenManager.Instance:SystemIsOpen(SystemOpenType.Activ_SignIn) then 
+        return false
+    end
+    local data = self.chekinData;
+    if data == nil then
+        return false;
+    end
+    for i = 1, 30 do
+        local isSigned = (data.CheckInData & (1 << (i - 1))) > 0;
+        if isSigned and (1 << (i - 1) & data.RewardData) == 0 then
+            return true
+        end
+    end
+
+    local accmulateData = {};
+    local signAccrueList = ConfigDataAccessor.SignAccrueList;
+    for k, v in pairs(signAccrueList) do
+        if v.SeasonID == 1 then--data.SeasonID then
+            accmulateData[v.ID] = v;
+        end
+    end
+
+    for k, v in pairs(accmulateData) do
+        if v.AccumulatedNum <= data.CheckInCount then
+            local f = false;
+            for i = 0, data.CountList.CountList.Count - 1 do
+                if data.CountList.CountList[i] == v.AccumulatedNum then
+                    f = true;
+                    break
+                end
+            end
+            if not f then
+                return true
+            end
+        end
+    end
+    return false;
+end
+
+function ActivityModule:GetRedPoint2()
+    if not CS.StarProject.Service.SystemOpen.SystemOpenManager.Instance:SystemIsOpen(SystemOpenType.Activ_SevenDay) then 
+        return false
+    end
+    local data = self.sevenDayGoalData;
+    if data == nil then
+        return false;
+    end
+
+    local redpoint = false;
+
+    local tb = ConfigDataAccessor.STDPointsList;
+    local cl = data.GetList.CountList;
+    for k, v in pairs(tb) do
+        local exist = false;
+        for i = 0, cl.Count - 1 do
+            if cl[i] == v.PointsNum then
+                exist = true;
+                break
+            end
+        end
+        if data.Score >= v.PointsNum and not exist then
+            return true;
+        end
+    end
+
+    local dt = (TimeUtils.DateTimeToStampMilli(TimeUtils.GetServerTime()) - data.ActiveDateTime) / 1000;
+    local stdTaskList = ConfigDataAccessor.STDTaskList;
+    for k, v in pairs(stdTaskList) do
+        local idNow = v.TaskID;
+        -- 任务状态
+        if TaskHelper.ContainTask(idNow) then
+            -- 正在进行
+            local TaskInfo = TaskHelper.GetRunningTask(idNow)
+            if TaskInfo ~= nil then
+                if TaskInfo.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStageFinished and dt > (v.TaskDay - 1) * 3600 *
+                    24 then
+                    return true;
+                end
+            end
+        end
+    end
+
+    return false;
+end
+
+function ActivityModule:OnCheckInRewardRet(data)
+    -- 领取单日签到奖励
+end
+
+function ActivityModule:OnFixCheckInRet(data)
+    -- 补签
+end
+
+function ActivityModule:OnCheckInCountRewardRet(data)
+    -- 领取连续签到奖励
+end
+
+function ActivityModule:OnSevenDayGoalRewardRet(data)
+    -- 领取七日目标奖励
+    self:RefreshRedDot()
+end
+
+function ActivityModule:OnOpenPreviewWindow()
+    local data = {}
+    -- 玩法预告
+    data.TabIndex = 3
+    self:OnShowSignInWindow(data)
+end
+
+function ActivityModule:OnOpenPartnerTargetWindow()
+    local data = {}
+    -- 伙伴目标
+    data.TabIndex = 4
+    self:OnShowSignInWindow(data)
+end
+
+function ActivityModule:OnShowSignInWindow(data)
+    -- local signInWindowCS = UIManager.Instance:OpenWindow(SignInWindowPath, nil,
+    --     CS.StarProjectDef.MainPageCommond.HideBoth)
+    -- if self.signInWindowView == nil then
+    --     self.signInWindowView = signInWindowCS:GetLuaPanel().ScriptTable
+    --     self.signInWindowView:BindModule(self)
+    --     self.signInWindowView:InitControls();
+    -- end
+
+    -- local chekinMD = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.CheckIn):GetCheckInMD();
+    -- if chekinMD ~= nil then
+    --     self.signInWindowView:Init(chekinMD);
+    -- end
+
+    local args = {}
+    -- 列表
+    if type(data) == "table" then
+        -- Lua调用
+        args.TabIndex = data.TabIndex
+    else
+        -- C#调用
+        -- 签到
+        args.TabIndex = 2
+    end
+
+    self.AsyncLoadSignInWindowCb = function(ui)
+        if ui ~= nil then
+            if self.signInWindowView == nil then
+                self.signInWindowView = ui:GetLuaPanel().ScriptTable
+                self.signInWindowView:BindModule(self)
+                self.signInWindowView:InitControls();
+            end
+            local chekinMD = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.CheckIn):GetCheckInMD();
+            if chekinMD ~= nil then
+                self.signInWindowView:Init(chekinMD);
+            end
+        end
+        self.AsyncLoadSignInWindowCb = nil;
+    end
+
+    UIManager.Instance:OpenWindowAsync(SignInWindowPath, self.AsyncLoadSignInWindowCb, args,
+        CS.StarProjectDef.MainPageCommond.HideBoth)
+end
+
+function ActivityModule:OnRefreshRedPoint(data)
+    if self.chekinData ~= nil and GameManager.Instance ~= nil then
+        self:RefreshRedDot()
+    end
+end
+
+function ActivityModule:RefreshRedDot()
+    local FriendModule = ModuleManager.Instance:GetModule(ModuleDef.BeginnerTargetModule);
+    local BeginnerTargetData
+    if FriendModule then
+        local luatable = FriendModule:GetLuaTable()
+        BeginnerTargetData = luatable:GetChapterData();
+    end
+    local beginnerRedPoint = false
+    if BeginnerTargetData then
+        beginnerRedPoint = BeginnerTargetData.RedPoint
+    end
+    local rp = self:GetRedPoint();
+    local rp2 = self:GetRedPoint2();
+    local previewRp = self:GetGamePlayPreviewRedPoint();
+    local showbeginpartner = beginnerRedPoint and CS.StarProject.Service.SystemOpen.SystemOpenManager.Instance:SystemIsOpen(SystemOpenType.BeginnerTarget)
+    GameManager.Instance:SetActRedpoint(rp or rp2 or previewRp or beginnerRedPoint);
+end
+function ActivityModule:IsPreviewTabCanShow()
+    local isUnlock, strLocked = CheckPlayerGuidanceOpen(10058, "", false, false)
+    if not isUnlock then
+        return false
+    end
+
+    local isReceivedAll = self:IsReceivedAllPreview()
+    return not isReceivedAll
+end
+
+function ActivityModule:GetGamePlayPreviewRedPoint()
+    -- 模块没解锁 return false
+    local isUnlock, strLocked = CheckPlayerGuidanceOpen(10058, "", false, false)
+    if not isUnlock then
+        return false
+    end
+
+    -- 有可领取的奖励 return true
+    local index = table.find1st(self.PreviewListData, function(k, v)
+        local isUnlock, strLocked = CheckPlayerGuidanceOpen(v.GuidSysOpenID, "", false, false)
+        return isUnlock and not v.IsReceived
+    end)
+    if index ~= nil then
+        return true
+    end
+
+    return false
+end
+
+-- LuaModule 消息处理
+function ActivityModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...);
+end
+
+-- LuaModule 释放
+function ActivityModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.ActivityModule)
+end
+
+function ActivityModule:OnSubmitTaskAck(data)
+    DOVirtual.DelayedCall(0.5, function()
+        self:OnSevenDayGoalInfos(nil);
+    end);
+end
+
+return ActivityModule

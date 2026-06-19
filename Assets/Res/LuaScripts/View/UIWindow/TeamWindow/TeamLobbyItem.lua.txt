@@ -1,0 +1,188 @@
+-- 队伍列表
+local TeamLobbyItem = {}
+
+TeamLobbyItem.__index = TeamLobbyItem
+
+function TeamLobbyItem:New(go, data, m)
+    local self = {}
+    setmetatable(self, TeamLobbyItem)
+
+    self.teammoudle = m
+    self.transform = go.transform
+    self.gameObject = go
+
+    -- 队伍描述
+    self.teamDesc = self.transform:Find("Top/TeamDesc"):GetComponent(typeof(Text))
+    self.teamLimit = self.transform:Find("Top/LevelLimit"):GetComponent(typeof(Text))
+    self.powerLimit = self.transform:Find("Top/PowerLimit"):GetComponent(typeof(Text))
+
+    -- 队伍名称
+    self.teamName = self.transform:Find("TeamName"):GetComponent(typeof(Text))
+    self.targetText = self.transform:Find("Top/Target"):GetComponent(typeof(Text))
+    -- 头像
+    self.headIcon = self.transform:Find("Head/HeadIcon"):GetComponent(typeof(Image))
+    -- 等级
+    self.capLevelText = self.transform:Find("Level/Level"):GetComponent(typeof(Text))
+	-- 冒险等级
+	self.adventureGo = self.transform:Find("Adventure").gameObject
+    if self.adventureGo ~= nil then --隐藏冒险等级显示
+        self.adventureGo:SetActive(false)
+    end
+    self.adventureText = self.transform:Find("Adventure/Num"):GetComponent(typeof(Text))
+    -- 昵称
+    -- 职业
+    -- 队伍职业
+    -- 申请按钮
+    self.statusText = self.transform:Find("JoinBtn/Text"):GetComponent(typeof(Text))
+    self.joinTeamBtn = self.transform:Find("JoinBtn"):GetComponent(typeof(Button))
+    self.joinTeamBtn.onClick:AddListener(function()
+        -- 检测是否在队伍中
+        if self.teammoudle.tinfo ~= nil then
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Tips57"))
+            return
+        end
+
+        -- 检测等级是否满足
+        local lv = GameManager.Instance:GetPlayerLevel()
+        if data.LvLimit > lv then
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Tips58"))
+            return
+        end
+
+        local joinTeamReq = CS.ProtoMsg.JoinTeamReq()
+        joinTeamReq.TeamID = data.TeamID
+        CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace,
+            joinTeamReq, false)
+        self.joinTeamBtn.interactable = false;
+        self.statusText.text =LanguageHelp:GetLanguageByKey("Local_Str_applied")
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Tips59"))
+        -- self.normalGo:SetActive(false);
+    end)
+
+    self.normalMems = {}
+    for i = 1, 4 do
+        local job = self.transform:Find("Job" .. i)
+        local hasPlayer = job:Find("HasPlayer")
+        local noPlayer = job:Find("NoPlayer")
+        local levelText = hasPlayer:Find("Lv/Level"):GetComponent(typeof(Text))
+        local headIcon = hasPlayer:Find("Head/HeadIcon"):GetComponent(typeof(Image))
+        local jobbg = hasPlayer:Find("Job"):GetComponent(typeof(Image))
+        local jobIcon = hasPlayer:Find("Job/JobIcon"):GetComponent(typeof(Image))
+        local normalItem = {}
+        normalItem.hasPlayer = hasPlayer.gameObject
+        normalItem.noPlayer = noPlayer.gameObject
+        normalItem.levelText = levelText
+        normalItem.headIcon = headIcon
+        normalItem.jobbg = jobbg
+        normalItem.jobIcon = jobIcon
+        self.normalMems[i] = normalItem
+    end
+
+    self:Init(data)
+
+    return self
+end
+
+function TeamLobbyItem:Init(data)
+    if data == nil then
+        return
+    end
+
+    local teamType = data.TeamType
+    local playID = data.PlayID
+    local userInfos = data.UserInfos
+
+    self.teamDesc.text = data.Desc
+
+    self.targetText.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips9")
+    local teamPlayList = ConfigDataAccessor.TeamPlayList
+    for k, v in pairs(teamPlayList) do
+        if k == playID then
+            --self.targetText.text = "目标:" .. v.PlayName
+            self.targetText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_TeamLobbyItem_targetText"), {v.PlayName});
+            break
+        end
+    end
+
+    if data.LvLimit <= 0 then
+        self.teamLimit.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips10")
+    else
+        --self.teamLimit.text = "等级:" .. data.LvLimit
+        self.teamLimit.text = LanguageHelp:GetLanguageByKey("Local_Str_Level")..":" .. data.LvLimit;
+    end
+
+    if data.FightLimit <= 0 then
+        self.powerLimit.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips8");
+    else
+        local cfg = ConfigDataAccessor.AdvGradeExp[data.FightLimit]
+        --self.powerLimit.text = "冒险等级:" .. cfg.AdvClass .. GetRomaNum(cfg.AdvOrder);
+        if cfg~=nil then
+            self.powerLimit.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_TeamLobbyItem_powerLimit"), {cfg.AdvClass .. GetRomaNum(cfg.AdvOrder)});
+        end
+    end
+
+    self.teamName.text = tostring(data.TeamID)
+
+    for _, v in pairs(self.normalMems) do
+        v.hasPlayer:SetActive(false)
+        v.noPlayer:SetActive(true)
+    end
+
+    local index = 1
+    for i = 0, userInfos.Count - 1 do
+        local info = userInfos[i]
+        if info.IsCaptain then
+            --self.capLevelText.text = info.Level .. "级"
+            self.capLevelText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {info.Level});
+
+            self.teamName.text = info.UserName
+			self.adventureText.text = tostring(info.RiskLevel);
+
+            local jobDataCell = ConfigDataAccessor.Job[info.JobId];
+            if jobDataCell ~= nil then
+                local avatarDataCell = ConfigDataAccessor.Avatar[jobDataCell.AvatarID];
+                if avatarDataCell ~= nil then
+                    local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID];
+                    if headCfg ~= nil then
+                        --  AtlasManager.Instance:GetSprite(headCfg.HeadAtlasName, headCfg.MaxHead,function (sp)
+						-- 		self.headIcon.sprite =sp
+						--  end);
+                        ResourceHelper:LoadIconByAtlasAsync(self.headIcon, headCfg.HeadAtlasName, headCfg.MinHead, false)
+                    end
+                end
+            end
+        else
+            self.normalMems[index].hasPlayer:SetActive(true)
+            self.normalMems[index].noPlayer:SetActive(false)
+            self.normalMems[index].levelText.text = tostring(info.Level)
+
+            local jobDataCell = ConfigDataAccessor.Job[info.JobId]
+            if jobDataCell ~= nil then
+                local avatarDataCell = ConfigDataAccessor.Avatar[jobDataCell.AvatarID]
+                if avatarDataCell ~= nil then
+                    local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID]
+                    if headCfg ~= nil then
+                        -- self.normalMems[index].headIcon.sprite = AtlasManager.Instance:GetSprite(headCfg.HeadAtlasName, headCfg.MinHead)
+                        ResourceHelper:LoadIconByAtlasAsync(self.normalMems[index].headIcon, headCfg.HeadAtlasName,
+                            headCfg.MinHead, false)
+
+                            local jobshi = math.floor(info.JobId / 10)
+                                local jobTypeBgName = "Icon_ArmBg" .. jobshi
+                            ResourceHelper:LoadIconByAtlasAsync(self.normalMems[index].jobbg, headCfg.HeadAtlasName,
+                            jobTypeBgName, false)
+
+                            ResourceHelper:LoadIconByAtlasAsync(self.normalMems[index].jobIcon, headCfg.HeadAtlasName,
+                            headCfg.JobIcon, false)
+                    end
+                end
+            end
+
+            index = index + 1
+        end
+    end
+
+    self.joinTeamBtn.interactable = true;
+    self.statusText.text =LanguageHelp:GetLanguageByKey("Local_Str_apply_for")
+end
+
+return TeamLobbyItem

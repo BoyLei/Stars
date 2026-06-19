@@ -1,0 +1,60 @@
+local TenTimesItems = {}
+TenTimesItems.__index = TenTimesItems
+
+local CardItem = require("View/UIWindow/DrawCard/CardItem")
+
+function TenTimesItems:New(obj)
+    local self = {};
+    setmetatable(self, TenTimesItems);
+
+    self:InitControls(obj)
+
+    return self;
+end
+
+function TenTimesItems:InitControls(obj)
+    self.gameObject = obj;
+    self.transform = obj.transform;
+
+    self.allItems = {};
+    for i = 1, 10 do
+        local go = nil;
+        if i == 1 then
+            go = self.transform:Find("CardItem"..i).gameObject;
+        else
+            go = self.transform:Find("CardItem1".." ("..(i-1)..")").gameObject;
+        end
+
+        local cardItem = CardItem:New(go);
+        table.insert(self.allItems, cardItem);
+    end
+end
+
+function TenTimesItems:Init(data)
+    if data == nil then
+        return;
+    end
+	
+	
+
+    self.cardPoolID = data.PoolID;
+
+    local items = data.GachaResult;
+    for i = 1, 10 do
+        local finalDrops = items[i - 1].FinalDrop;
+		local finalDrop = nil;
+		if finalDrops.Count > 0 then
+			finalDrop = finalDrops[0];
+		end
+        local originDrop = items[i - 1].OriginDrop;
+        self.allItems[i]:Init(originDrop, finalDrop);
+    end
+
+    --self:SetTenTimesBtn();
+end
+
+function TenTimesItems:Show(bs)
+	self.gameObject:SetActive(bs);
+end
+
+return TenTimesItems

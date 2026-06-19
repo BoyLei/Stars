@@ -1,0 +1,603 @@
+PartnerStarRiseWidget = class("PartnerStarRiseWidget", UIPanel)
+
+local PartnerHeadItem = require("View/UIWindow/PartnerWindow/PartnerHeadItem")
+local RiseStarItem = require("View/UIWindow/PartnerWindow/RiseStarItem")
+---表现层
+PartnerStarRiseWidget.m_Root = nil;
+PartnerStarRiseWidget.m_PartnerRawImage = nil;
+PartnerStarRiseWidget.m_DisplayRawimg = nil;
+PartnerStarRiseWidget.m_ScrollView = nil;
+PartnerStarRiseWidget.m_ItemGrid = nil;
+PartnerStarRiseWidget.m_PartnerRoot = nil;
+PartnerStarRiseWidget.m_Quality = nil;
+
+-- 属性
+PartnerStarRiseWidget.PartnerName = nil;
+PartnerStarRiseWidget.Stars = nil;
+-- PartnerStarRiseWidget.Power=nil;
+PartnerStarRiseWidget.ExpendItemIcon = nil;
+PartnerStarRiseWidget.ExpendItemCount = nil;
+PartnerStarRiseWidget.JBtnRise = nil;
+PartnerStarRiseWidget.CurCoutText = nil;
+
+---数据层
+PartnerStarRiseWidget.Partners = nil;
+PartnerStarRiseWidget.SelectIndex = -1;
+PartnerStarRiseWidget.PartnerItems = nil;
+PartnerStarRiseWidget.m_avatarDataCell = nil;
+PartnerStarRiseWidget.m_RiseStarItems = {};
+
+PartnerStarRiseWidget.CurSelectPartnerData = nil;
+PartnerStarRiseWidget.CurPartnerCfg = nil;
+PartnerStarRiseWidget.CurPartnerUpStarCfg = nil;
+PartnerStarRiseWidget.NextStarExpendCfg = nil;
+PartnerStarRiseWidget.LastStarExpendCfg = nil;
+PartnerStarRiseWidget.CurQualityStarExpendCfg = {};
+
+-------- 升星按钮点击时间规则
+--- 1.  1秒以内服务器回复了，原1秒结束了，就解开
+--- 2.  1秒以上服务器回复了，直接解开锁
+PartnerStarRiseWidget.BtnRiseClickLastTime = 0;
+----- 升星按钮点击的标识
+---- 先协议答复【后】脏数据更新
+--- 【0：初始化】【1：协议发送】【2：协议回复】
+PartnerStarRiseWidget.BtnRiseClickFlag = 0;
+
+---- 升星成功界面
+PartnerStarRiseWidget.StarRiseFinishPanel = nil;
+
+---- 升星说明界面
+PartnerStarRiseWidget.StarRiseDesPanel = nil;
+
+function PartnerStarRiseWidget:Awake()
+    self.m_Root = self:Find("Root"):GetComponent(typeof(RectTransform));
+    self.m_PartnerRawImage = self:Find("Root/Left/PartnerRawImage"):GetComponent(typeof(RawImage));
+    self.m_DisplayRawimg = self:Find("Root/Left/DisplayRawimg"):GetComponent(typeof(DisplayRawimg));
+    self.m_ScrollView = self:Find("Root/Left/Scroll View"):GetComponent(typeof(SuperScrollViewController));
+    self.m_ItemGrid = self:Find("Root/Left/ItemGrid").gameObject;
+    self.m_PartnerRoot = self:Find("Root/Left/Scroll View/Mask/List");
+
+    self.m_ScrollView:NewScroll(self.m_ItemGrid, 0, function(tr, idx)
+        self:OnItemRefesh(tr, idx);
+    end);
+    self.PartnerItems = {};
+
+    self.m_Quality = self:Find("Root/Left/PartnerInfo/Quality"):GetComponent(typeof(Image));
+    self.PartnerName = self:Find("Root/Left/PartnerInfo/PartnerName"):GetComponent(typeof(Text));
+    self.Stars = {};
+    table.insert(self.Stars, self:Find("Root/Left/PartnerInfo/Stars/Star1").gameObject);
+    table.insert(self.Stars, self:Find("Root/Left/PartnerInfo/Stars/Star2").gameObject);
+    table.insert(self.Stars, self:Find("Root/Left/PartnerInfo/Stars/Star3").gameObject);
+    table.insert(self.Stars, self:Find("Root/Left/PartnerInfo/Stars/Star4").gameObject);
+    table.insert(self.Stars, self:Find("Root/Left/PartnerInfo/Stars/Star5").gameObject);
+    table.insert(self.Stars, self:Find("Root/Left/PartnerInfo/Stars/Star6").gameObject);
+
+    self.ExpendItemIcon = self:Find("Root/Right/JBtnRise/selected/layout/ItemIcon"):GetComponent(typeof(Image));
+    self.ExpendItemCount = self:Find("Root/Right/JBtnRise/selected/layout/ItemCount"):GetComponent(typeof(Text));
+
+    self.JBtnRise = self:Find("Root/Right/JBtnRise"):GetComponent(typeof(JButton));
+    self.JBtnRise.OnClick = (function()
+        self:OnJBtnRiseClick()
+    end);
+    self.CurCoutText = self:Find("Root/Right/CurCoutText"):GetComponent(typeof(Text));
+
+    self.m_RiseStarItems = {}
+    for i = 1, 6 do
+        self.m_RiseStarItems[i] = RiseStarItem.new(i, self:Find("Root/Right/Center/RiseStarItem" .. i).gameObject,
+            self.AtlasPath, function(seat, worldPos, state)
+                self:ShowStarRiseDesPanel(seat, worldPos, state);
+            end);
+    end
+
+    ----------------- 点击事件
+    -- 伙伴点击
+    self.PartnerHeadItemClickFun = function(index)
+        self:OnSelect(index)
+    end
+    -- 点击伙伴升星完成面板
+    self.ClickStarRiseFinishPanelFun = function(go)
+        if go == nil then
+            return;
+        end
+        if self.m_avatarDataCell == nil then
+            ResourceManager.Instance:PushGameObject("UI/Partner/Prefab/PartnerStarRiseFinishPanel", go);
+            return;
+        end
+        go.transform:SetParent(self.m_Root);
+        go.transform.localPosition = Vector3.zero;
+        go.transform.localScale = Vector3.one;
+        local RectTransform = go:GetComponent(typeof(RectTransform));
+        RectTransform.offsetMin = Vector2.zero;
+        RectTransform.offsetMax = Vector2.zero;
+        self.StarRiseFinishPanel = StructAccessor.PartnerStarRiseFinishPanel.new(go);
+        self.StarRiseFinishPanel:SetAtlas(self.AtlasPath);
+        self.StarRiseFinishPanel:Init(self.CurSelectPartnerData, self.CurPartnerCfg, self.LastStarExpendCfg);
+    end
+end
+
+function PartnerStarRiseWidget:Start()
+end
+
+function PartnerStarRiseWidget:Sort()
+    -- 出战状态》品质》星级》战力
+    table.sort(self.Partners, function(p1, p2)
+        local t1 = 0;
+        local t2 = 0;
+        if p1.State == CS.ProtoMsg.PartnerState.InBattle or p1.State == CS.ProtoMsg.PartnerState.Concretization then
+            t1 = 1;
+        end
+
+        if p2.State == CS.ProtoMsg.PartnerState.InBattle or p2.State == CS.ProtoMsg.PartnerState.Concretization then
+            t2 = 1;
+        end
+
+        if t1 > t2 then
+            return true
+        elseif t1 == t2 then
+            local config1 = ConfigDataAccessor.Partner[p1.Index];
+            local config2 = ConfigDataAccessor.Partner[p2.Index];
+            if config1.Quality > config2.Quality then
+                return true
+            elseif config1.Quality == config2.Quality then
+                if p1.CurStar > p2.CurStar then
+                    return true
+                elseif p1.CurStar == p2.CurStar then
+                    local PartnerNature1 = ConfigDataAccessor.PartnerNature[config1.Nature][p1.Level]
+                    local PartnerNature2 = ConfigDataAccessor.PartnerNature[config2.Nature][p2.Level]
+                    if PartnerNature1 == nil then
+                        return false
+                    end
+
+                    if PartnerNature2 == nil then
+                        return false
+                    end
+
+                    return PartnerNature1.Power > PartnerNature2.Power
+                end
+            end
+        end
+        return false;
+    end)
+end
+
+function PartnerStarRiseWidget:FreshPartners()
+    if self.Partners ~= nil then
+        Log("PartnerStarRiseWidget OnPartnerFresh");
+        -- self:OnFresh();
+        self:Sort()
+        self.m_ScrollView:ContinueScroll(#self.Partners);
+    end
+end
+
+function PartnerStarRiseWidget:OnOnPartnerUpStar(isSuccess)
+    if isSuccess then
+        if self.BtnRiseClickFlag == 1 then
+            self.BtnRiseClickFlag = 2;
+            self:OnFresh();
+        end
+    else
+        self.BtnRiseClickFlag = 2;
+    end
+end
+
+function PartnerStarRiseWidget:OnEnable()
+    -- 脏数据更新
+    CS.StarProject.GlobalEvent.OnPartnerFresh:AddListener(function(id)
+        self:FreshPartners();
+    end);
+
+    CS.StarProject.GlobalEvent.OnPartnerUpStar:AddListener(function(isSuccess)
+        self:OnOnPartnerUpStar(isSuccess);
+    end);
+end
+
+function PartnerStarRiseWidget:OnDisable()
+    LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OnForceTab", 3);
+    -- 脏数据更新
+    CS.StarProject.GlobalEvent.OnPartnerFresh:RemoveListener(function(id)
+        self:FreshPartners();
+    end);
+
+    CS.StarProject.GlobalEvent.OnPartnerUpStar:RemoveListener(function(isSuccess)
+        self:OnOnPartnerUpStar(isSuccess);
+    end);
+end
+
+function PartnerStarRiseWidget:OnDestroy()
+end
+
+function PartnerStarRiseWidget:OnOpen(arg)
+    self.Partners = arg.Partners
+	local id=GetSelectPartner();
+	if id==0 or id==nil then
+		self.SelectIndex = arg.SelectIndex
+		SetSelectPartner(self.SelectIndex)
+	else
+		self.SelectIndex=id;
+	end
+	
+    --self.SelectIndex = arg.SelectIndex
+    self:Sort()
+    self.m_ScrollView:ContinueScroll(#self.Partners);
+    self:SetCurPartnerData();
+    self:SetPartnerInfo();
+    self:SetRiseStarItem();
+    UIManager.Instance:SetRawCamrea(true);
+
+    self.BtnRiseClickFlag = 0;
+end
+
+function PartnerStarRiseWidget:OnClose(arg)
+    self:PushDisplayGob();
+    UIManager.Instance:SetRawCamrea(false);
+    self.Partners = nil;
+    self.SelectIndex = -1;
+    self.Index = nil; ---槽位索引
+    self.m_avatarDataCell = nil;
+    self.m_ModelViewDisplay = nil;
+    self.CurSelectPartnerData = nil;
+end
+
+-----------------------------------------------------------------------------------------------
+
+function PartnerStarRiseWidget:SetCurPartnerData()
+    if self.Partners == nil then
+        Log("PartnerStarRiseWidget:SetCurPartnerData self.Partners=nil err");
+        return;
+    end
+
+    self.CurSelectPartnerData = self:GetSelectPartner();
+    if self.CurSelectPartnerData == nil then
+        Log("PartnerStarRiseWidget:SetCurPartnerData self.CurSelectPartnerData=nil err");
+        return;
+    end
+
+    self.CurPartnerCfg = ConfigDataAccessor.Partner[self.CurSelectPartnerData.Index];
+    if self.CurPartnerCfg == nil then
+        Log("PartnerStarRiseWidget:SetCurPartnerData CurPartnerCfg=nil err");
+        return;
+    end
+
+    self.CurPartnerUpStarCfg = ConfigDataAccessor.Item[self.CurPartnerCfg.UpStarItem];
+end
+
+function PartnerStarRiseWidget:BaseDataIsSure()
+    if self.Partners == nil then
+        Log("PartnerStarRiseWidget:BaseDataIsSure self.Partners=nil err");
+        return false;
+    end
+
+    if self.CurSelectPartnerData == nil then
+        Log("PartnerStarRiseWidget:BaseDataIsSure self.CurSelectPartnerData=nil err");
+        return false;
+    end
+
+    if self.CurPartnerCfg == nil then
+        Log("PartnerStarRiseWidget:BaseDataIsSure CurPartnerCfg=nil err");
+        return false;
+    end
+    return true;
+end
+
+-- 设置伙伴信息
+function PartnerStarRiseWidget:SetPartnerInfo()
+    local isSure = self:BaseDataIsSure();
+    if isSure == false then
+        Log("PartnerStarRiseWidget:SetPartnerInfo isSure=false err");
+        return;
+    end
+
+    -- 设置星星
+    for i = 1, #self.Stars do
+        self.Stars[i]:SetActive(i <= self.CurSelectPartnerData.CurStar);
+        -- if i <= self.CurSelectPartnerData.CurStar then
+        -- self.Stars[i]:SetActive(true);
+        -- else
+        -- self.Stars[i]:SetActive(false);
+        -- end
+    end
+
+    self.PartnerName.text = self.CurPartnerCfg.Name;
+    self:GetSprite(self:GetQualityName(self.CurPartnerCfg.Quality), function(sp)
+        self.m_Quality.sprite = sp
+    end);
+
+    -- 设置显示3D模型	
+    local avatarDataCell = ConfigDataAccessor.Avatar[self.CurPartnerCfg.AvatarID];
+    if avatarDataCell ~= nil then
+        self:SetModel(avatarDataCell, String2Vector3(self.CurPartnerCfg.ModelScale),
+            String2Vector3(self.CurPartnerCfg.ModelRot), String2Vector3(self.CurPartnerCfg.ModelPos),
+            self.CurPartnerCfg.ModelAnima);
+    end
+
+    -- 设置当前拥有的个数
+    local itemId = self.CurPartnerCfg.UpStarItem;
+    local itemCount = BusinessManager.Instance:GetCurrencyNum(itemId);
+    --self.CurCoutText.text = "<color=white>当前拥有：</color>" .. itemCount;
+    self.CurCoutText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_PartnerStarRiseWidget_CurCoutText"), {itemCount});
+
+    -- 目前先只读配置表里面的战斗力
+    -- local PartnerNature = ConfigDataAccessor.PartnerNature[self.CurPartnerCfg.Nature][self.CurSelectPartnerData.Level]
+    -- if PartnerNature ~= nil then
+    -- self.Power.text = tostring(PartnerNature.Power);
+    -- end
+end
+
+-- 获取选中的伙伴信息
+function PartnerStarRiseWidget:GetSelectPartner()
+    if self.Partners == nil then
+        return nil
+    end
+
+    for _k, _v in pairs(self.Partners) do
+        if _v.Index == self.SelectIndex then
+            return _v;
+        end
+    end
+end
+
+----------------------------------------------------- 无限列表 【STAR】 ------------------------------------------
+
+function PartnerStarRiseWidget:OnItemRefesh(tr, idx)
+    if self.PartnerItems == nil then
+        return;
+    end
+    for i = 1, #self.PartnerItems do
+        if self.PartnerItems[i].transform == tr then
+            self.PartnerItems[i]:UpdateContent(self.Partners[idx + 1], self.SelectIndex); -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+        end
+    end
+    local bi = PartnerHeadItem.new(tr.gameObject, self.m_PartnerRoot, self.AtlasPath, self.PartnerHeadItemClickFun);
+    bi.prefab:SetActive(true);
+    bi:UpdateContent(self.Partners[idx + 1], self.SelectIndex, "StarRise"); -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+    table.insert(self.PartnerItems, bi);
+end
+
+function PartnerStarRiseWidget:CleanAllSelected()
+    -- 无限列表
+    for i = 1, #self.PartnerItems do
+        self.PartnerItems[i]:OnSelect(false);
+    end
+end
+
+function PartnerStarRiseWidget:OnSelect(selectIndex)
+    self.SelectIndex = selectIndex;
+	SetSelectPartner(self.SelectIndex)
+    self:CleanAllSelected();
+    self:SetCurPartnerData();
+    self:SetPartnerInfo();
+    self:SetRiseStarItem();
+end
+
+----------------------------------------------------- 无限列表 【END】 ------------------------------------------
+
+-- 获得品质-颜色图标
+function PartnerStarRiseWidget:GetQualityName(quality)
+    if quality == 1 then
+        return "Partner_quality_n"
+    elseif quality == 2 then
+        return "Partner_quality_r"
+    elseif quality == 3 then
+        return "Partner_quality_sr"
+    elseif quality == 4 then
+        return "Partner_quality_ssr"
+    end
+end
+
+-- 设置模型
+function PartnerStarRiseWidget:SetModel(avatarDataCell, scale, localRotate, localPos, animName)
+    if self.m_avatarDataCell ~= avatarDataCell then
+        ------- 设置模型
+        self:PushDisplayGob();
+        self.m_avatarDataCell = avatarDataCell;
+        ResourceManager.Instance:PopGameObject("Roles/Template/Display_Model", function(go)
+            if go == nil then
+                return;
+            end
+            if self.m_avatarDataCell == nil then
+                ResourceManager.Instance:PushGameObject("Roles/Template/Display_Model", go);
+                return;
+            end
+            UIManager.Instance:SetModel2UI2(go, self.m_avatarDataCell.AvatarID, CS.StarProjectDef.ThreeDModelPos.Raw, scale,
+                Vector3.zero, localRotate, localPos, animName);
+            go:SetActive(true);
+            self.m_ModelViewDisplay = go:GetComponent(typeof(RoleViewDisplay));
+            -- self.m_DisplayRawing:SetModelView(self.m_ModelViewDisplay);
+
+            if self.m_ModelViewDisplay ~= nil then
+                local rotation = Quaternion.Euler(0, 0, 0);
+                self.m_ModelViewDisplay:SetRotation(rotation);
+                self.m_DisplayRawimg:SetState(true);
+            end
+
+            ------- 设置模型
+            self.m_PartnerRawImage.texture = ResourceManager.Instance.RenderTexture;
+        end);
+    end
+    if self.m_ModelViewDisplay ~= nil then
+        local rotation = Quaternion.Euler(0, 0, 0);
+        self.m_ModelViewDisplay:SetRotation(rotation);
+        self.m_DisplayRawimg:SetState(true);
+    end
+end
+
+-- 回收模型
+function PartnerStarRiseWidget:PushDisplayGob()
+    if self.m_ModelViewDisplay ~= nil then
+        ResourceManager.Instance:PushGameObject("Roles/Template/Display_Model", self.m_ModelViewDisplay.gameObject);
+        -- GameObject.Destroy(self.m_ModelViewDisplay.gameObject);
+        self.m_ModelViewDisplay = nil;
+        self.m_DisplayRawimg:SetModelView(self.m_ModelViewDisplay);
+    end
+end
+
+-- 升星后的脏数据更新
+function PartnerStarRiseWidget:OnFresh()
+    -- 脏数据会直接改变BattleTeamModule里面的引用数据
+    -- 所以这里不需要查找更新了那个的差量信息
+    self:SetCurPartnerData();
+    self:SetPartnerInfo();
+    self:SetRiseStarItem();
+
+    local star = self.CurSelectPartnerData.CurStar;
+    self.LastStarExpendCfg = self:GetStarExpendCfg(star);
+    -- 播放觉醒成功的界面
+    self:ShowStarRiseFinishPanel();
+
+    self.BtnRiseClickFlag = 0;
+end
+
+function PartnerStarRiseWidget:ShowStarRiseFinishPanel()
+    if self.StarRiseFinishPanel == nil then
+        ResourceManager.Instance:PopGameObject("UI/Partner/Prefab/PartnerStarRiseFinishPanel",
+            self.ClickStarRiseFinishPanelFun);
+    else
+        self.StarRiseFinishPanel:Init(self.CurSelectPartnerData, self.CurPartnerCfg, self.LastStarExpendCfg);
+    end
+end
+
+-- 设置升星item
+function PartnerStarRiseWidget:SetRiseStarItem()
+    local isSure = self:BaseDataIsSure();
+    if isSure == false then
+        Log("PartnerStarRiseWidget:SetRiseStarItem isSure=false err");
+        return;
+    end
+
+    -- 根据品质和星级获得升星的
+    local quality = self.CurPartnerCfg.Quality;
+    self:GetStarExpendCfgs(quality);
+
+    local star = self.CurSelectPartnerData.CurStar;
+    self.NextStarExpendCfg = self:GetStarExpendCfg(star + 1);
+
+    -- 设置6个Item
+    for i = 1, #self.m_RiseStarItems do
+        local item = self.m_RiseStarItems[i];
+        local data = self.CurQualityStarExpendCfg[i];
+        if item ~= nil and data ~= nil then
+            -- state: 【-1:未解锁（不能解锁）】【0:未解锁（可解锁）】【1:已解锁】
+            local state = -1;
+            if self.NextStarExpendCfg ~= nil and data.Id == self.NextStarExpendCfg.Id then
+                state = 0;
+            end
+            if star >= data.Star then
+                state = 1;
+            end
+            item:SetData(data, state);
+        end
+    end
+
+    -- 设置消耗材料
+    -- self.ExpendItemIcon.sprite = self:GetSprite();
+    if self.CurPartnerUpStarCfg ~= nil then
+        ResourceHelper:LoadIconAsync(self.ExpendItemIcon, "", self.CurPartnerUpStarCfg.Icon,
+            false);
+    end
+
+    if self.NextStarExpendCfg ~= nil then
+        --self.ExpendItemCount.text = "x" .. self.NextStarExpendCfg.Item_num .. " <size=34>觉醒</size>";
+        self.ExpendItemCount.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_PartnerStarRiseWidget_NextStarExpendCfg"), {self.NextStarExpendCfg.Item_num});
+
+    else
+        Log("PartnerStarRiseWidget:SetRiseStarItem self.NextStarExpendCfg=false err");
+        self.CurCoutText.text = "";
+    end
+    self.JBtnRise.gameObject:SetActive(self.NextStarExpendCfg ~= nil);
+end
+
+-- 获得当前品质的升星配置
+function PartnerStarRiseWidget:GetStarExpendCfgs(quality)
+    self.CurQualityStarExpendCfg = ConfigDataAccessor.StarExpend[quality];
+end
+
+-- 获得当前升星的配置
+function PartnerStarRiseWidget:GetStarExpendCfg(star)
+    for k, v in pairs(self.CurQualityStarExpendCfg) do
+        if v.Star == star then
+            return v;
+        end
+    end
+    return nil;
+end
+
+-- 升星回调
+function PartnerStarRiseWidget:OnJBtnRiseClick()
+    if self.BtnRiseClickFlag == 1 then
+        Log("PartnerStarRiseWidget:OnJBtnRiseClick self.BtnRiseClickFlag==1,, err");
+        return;
+    end
+
+    local curTime = CS.SGF.Time.TimeUtils.ClientNowStampMilli;
+    if self.BtnRiseClickLastTime ~= 0 then
+        if (curTime - self.BtnRiseClickLastTime) < 1000 then
+            Log("PartnerStarRiseWidget:OnJBtnRiseClick (curTime - self.BtnRiseClickLastTime) < 1000,, err");
+            return;
+        end
+    end
+
+    local isSure = self:BaseDataIsSure();
+    if isSure == false then
+        Log("PartnerStarRiseWidget:OnJBtnRiseClick isSure=false err");
+        return;
+    end
+
+    if self.NextStarExpendCfg == nil then
+        Log("PartnerStarRiseWidget:OnJBtnRiseClick self.NextStarExpendCfg=false err");
+        return;
+    end
+
+    local itemId = self.CurPartnerCfg.UpStarItem;
+    local itemNum = self.NextStarExpendCfg.Item_num;
+    local itemCount = BusinessManager.Instance:GetCurrencyNum(itemId);
+    if itemCount < itemNum then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_273"));
+        return;
+    end
+
+    self.BtnRiseClickLastTime = curTime; -- 记录点击的时间
+    self.BtnRiseClickFlag = 1;
+    LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OnPartnerUpStarReq", self.CurPartnerCfg.Id);
+end
+
+-- 点击升星Item
+function PartnerStarRiseWidget:OnBtnRiseStarItemClick(seat)
+    -- 显示升星预览界面
+    Log("PartnerStarRiseWidget:OnBtnRiseStarItemClick seat=", seat);
+end
+
+function PartnerStarRiseWidget:ShowStarRiseDesPanel(index, worldPos, state)
+    if self.StarRiseDesPanel == nil then
+        ResourceManager.Instance:PopGameObject("UI/Partner/Prefab/PartnerStarRiseDesPanel", function(go)
+            if go == nil then
+                return;
+            end
+            if self.m_avatarDataCell == nil then
+                ResourceManager.Instance:PushGameObject("UI/Partner/Prefab/PartnerStarRiseDesPanel", go);
+                return;
+            end
+            go.transform:SetParent(self.m_Root);
+            go.transform.localPosition = Vector3.zero;
+            go.transform.localScale = Vector3.one;
+            local RectTransform = go:GetComponent(typeof(RectTransform));
+            RectTransform.offsetMin = Vector2.zero;
+            RectTransform.offsetMax = Vector2.zero;
+            self.StarRiseDesPanel = StructAccessor.PartnerStarRiseDesPanel.new(go);
+            self.StarRiseDesPanel:SetAtlas(self.AtlasPath);
+            self.StarRiseDesPanel:Init(self.CurSelectPartnerData, self.CurPartnerCfg, self.CurQualityStarExpendCfg,
+                index, worldPos, state);
+        end)
+    else
+        self.StarRiseDesPanel:Init(self.CurSelectPartnerData, self.CurPartnerCfg, self.CurQualityStarExpendCfg, index,
+            worldPos, state);
+    end
+end
+
+------ 如果客户端按钮没拦截，触发了多次
+------ 客户端只显示一次最后的结果
+
+------ 如果要对比前后的数据量
+------- 只显示第一次跟最后一次的数据对比，中间的值不显示
+
+return PartnerStarRiseWidget

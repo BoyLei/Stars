@@ -1,0 +1,423 @@
+--[[
+*文件名   :   ExchangeDetailUI
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/10/18 11:08:40"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+ExchangeDetailUI=class("ExchangeDetailUI",UIPanel)
+local PurchaseGoodsDetailItem=require("View/UIWindow/Exchange/PurchaseGoodsDetailItem");
+local ItemTipsItem = require("View/Item/ItemTipsItem");
+local ItemTipsEquip = require("View/Item/ItemTipsEquip");
+ExchangeDetailUI.m_ItemGrid=nil;
+ExchangeDetailUI.m_ScrollView=nil;
+ExchangeDetailUI.m_ItemInfo=nil;
+ExchangeDetailUI.m_price=nil;
+ExchangeDetailUI.m_num=nil;
+ExchangeDetailUI.m_BuyBtn=nil;
+ExchangeDetailUI.m_BackBtn=nil;
+ExchangeDetailUI.m_Item=nil;
+ExchangeDetailUI.m_Equip=nil;
+ExchangeDetailUI.m_Has=nil;
+ExchangeDetailUI.m_None=nil;
+ExchangeDetailUI.m_Dropdown=nil;
+ExchangeDetailUI.m_SortBtn=nil;
+ExchangeDetailUI.m_SortUp=nil;
+ExchangeDetailUI.m_SortDown=nil;
+ExchangeDetailUI.m_FilterBtn=nil;
+ExchangeDetailUI.m_ToltalPrice=nil;
+ExchangeDetailUI.m_Info=nil;
+ExchangeDetailUI.m_Tips=nil;
+ExchangeDetailUI.CallBack=nil;
+ExchangeDetailUI.ItemID=0;
+ExchangeDetailUI.CurrentDropIndex=0;
+ExchangeDetailUI.OrderPass=true;
+ExchangeDetailUI.SelectGoodIDs=0;
+ExchangeDetailUI.GoodsPrice=0;
+ExchangeDetailUI.ItemName="";
+ExchangeDetailUI.ItemNum="";
+ExchangeDetailUI.PurchaseItemList={}
+ExchangeDetailUI.PurchaseItemDatas={}
+ExchangeDetailUI.IsActive=false;
+ExchangeDetailUI.IsQuerying=false;
+
+local BuyBtnFunc=nil;
+local BackBtnFunc=nil;
+local OnDropDownFunc=nil;
+local SortBtnFunc=nil;
+local FilterBtnFunc=nil;
+local OnQueryDataHandlerFunc=nil;
+local OnBankGoodsListRetFunc=nil;
+local OnBankBuyGoodsRetFunc=nil;
+local PurchaseType=2;
+local OptionsItems={LanguageHelp:GetLanguageByKey("Local_Str_selling_price"),LanguageHelp:GetLanguageByKey("Local_Str_UnitQuantity"),LanguageHelp:GetLanguageByKey("Local_Str_quality")}
+
+function ExchangeDetailUI:ctor(go, atlas)
+	self.prefab = go;
+	self.AtlasPath = atlas;
+	self.m_Has=self:Find("Has").gameObject;
+	self.m_None=self:Find("None").gameObject;
+	self.m_ItemGrid=self:Find("Has/ItemGrid").gameObject;
+	self.m_ScrollView=self:Find("Has/Scroll View"):GetComponent(typeof(SuperScrollViewController));
+	self.m_ItemInfo=self:Find("Has/ItemInfo").gameObject;
+	self.m_price=self:Find("Has/Detail/Price/price"):GetComponent(typeof(Text));
+	self.m_Info=self:Find("Has/Detail/Info").gameObject;
+	self.m_ToltalPrice=self:Find("Has/Detail/Info/ToltalPrice"):GetComponent(typeof(Text));
+	self.m_num=self:Find("Has/Detail/Num/num"):GetComponent(typeof(Text));
+	self.m_BuyBtn=self:Find("Has/Detail/Info/BuyBtn"):GetComponent(typeof(JButton));
+	self.m_BackBtn=self:Find("Back"):GetComponent(typeof(JButton));
+	self.m_Item=self:Find("Has/ItemInfo/Item").gameObject;
+	self.m_Equip=self:Find("Has/ItemInfo/Equip").gameObject;
+	self.m_Tips=self:Find("Has/Detail/Tips"):GetComponent(typeof(Text));
+	self.m_Dropdown=self:Find("Has/Dropdown"):GetComponent(typeof(Dropdown));
+	self.m_SortBtn=self:Find("Has/SortBtn"):GetComponent(typeof(JButton));
+	self.m_SortUp=self:Find("Has/SortBtn/Up").gameObject;
+	self.m_SortDown=self:Find("Has/SortBtn/Down").gameObject;;
+	self.m_FilterBtn=self:Find("Has/Filter"):GetComponent(typeof(JButton));
+
+	self.itemTipsItem = ItemTipsItem:New(self.m_Item,false)
+	self.itemTipsEquip = ItemTipsEquip:New(self.m_Equip)
+
+	BuyBtnFunc=function() self:OnClickBuyBtn(); end;
+	BackBtnFunc=function() self:OnClickBackBtn(); end;
+	OnDropDownFunc=function(index)
+		self:OnDropDownHandler(index);
+	end;
+	SortBtnFunc=function() self:OnClickSortBtnBtn(); end;
+	FilterBtnFunc=function() self:OnClickFilterBtn(); end;
+	self.IsActive=false;
+	self.GoodsPrice=0;
+	self.CurrentDropIndex=0;
+	self.PurchaseItemList={}
+	self.PurchaseItemDatas={}
+	self.m_ScrollView:NewScroll(self.m_ItemGrid, 0, function (tr,idx)
+			self:OnItemRefesh(tr,idx);
+		end);
+
+	OnQueryDataHandlerFunc=function(result)
+		self:OnQueryDataHandler(result);
+	end
+	OnBankGoodsListRetFunc=function(data)
+		self:OnBankGoodsListRet(data)
+	end
+	OnBankBuyGoodsRetFunc=function(data)
+		self:OnBankBuyGoodsRet(data)
+	end
+	self.IsQuerying=false;
+	self.m_ScrollView:BinderQueryDataDelegate(OnQueryDataHandlerFunc);
+
+
+	self:Start();
+
+end
+
+function ExchangeDetailUI:OnQueryDataHandler(result)
+	if self.IsQuerying then
+		return
+	end
+	local index=0;
+	if result then
+		index=1
+		print("请求下一页")
+	else
+		index=-1;
+		print("请求上一页")
+	end
+	LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule, "OnQueryGoodsByPage",{index});
+	self.IsQuerying=true;
+
+	UIAPI.ShowRequestLoading(2000,function ()
+			self.IsQuerying=false;
+		end)
+end
+
+function ExchangeDetailUI:OnDropDownHandler(index)
+	self.CurrentDropIndex=index;
+	LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule,"OnSetOrderRule",{true,PurchaseType,self:GetSortIndex(),self.CurrentDropIndex})
+end
+
+function ExchangeDetailUI:OnClickSortBtnBtn()
+	self.OrderPass=not self.OrderPass;
+	self.m_SortUp:SetActive(self.OrderPass)
+	self.m_SortDown:SetActive(not self.OrderPass)
+	LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule,"OnSetOrderRule",{true,PurchaseType,self:GetSortIndex(),self.CurrentDropIndex})
+end
+
+function ExchangeDetailUI:OnClickFilterBtn()
+	LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule,"OnOpenGoodsFilter",
+		{
+			self.ItemID
+		});
+end
+function ExchangeDetailUI:OnShowItem(Good)
+	for k, v in pairs(self.PurchaseItemList) do
+		v:Select(v.GoodsID==Good.GoodsID)
+	end
+	self.SelectGoodIDs=Good.GoodsID
+	self.GoodsPrice=Good.Price
+	self.m_price.text=Good.Price
+	self.m_num.text=Good.ItemMD.Num
+	self.m_ToltalPrice.text=Good.Price*Good.ItemMD.Num
+	self.ItemNum=Good.ItemMD.Num;
+	local config=ConfigDataAccessor.Item[Good.ItemMD.BaseID]
+	if config~=nil then
+		self.ItemName=config.Name;
+		if not IsEquip(config.ItemType) then
+			self.itemTipsItem:Refesh(config,Good.ItemMD.ID)
+			self.m_Item:SetActive(true)
+			self.m_Equip:SetActive(false)
+		else
+			self.itemTipsEquip:RefeshEquipByData(Good.ItemMD)
+			self.m_Item:SetActive(false)
+			self.m_Equip:SetActive(true)
+		end
+	else
+		self.m_Item:SetActive(false)
+		self.m_Equip:SetActive(false)
+	end
+
+	local showBtn=true
+
+	local serverNow=TimeUtils.GetServerTimeNow()/1000
+	local time=Good.Etime-serverNow
+	local time_s=Good.Stime-serverNow
+	--self.m_State.text=self:GetStateName(Good.Status,time)
+	if time_s>0 then
+		--公示中
+		self.m_Tips.text=StringFormat(LanguageHelp:GetLanguageByKey("Sys_Exchange_1"),{SecondToFormat(time_s)})
+		showBtn=false;
+	else
+		if Good.OwnerID==BusinessManager.Instance:GetUserPID() then
+			self.m_Tips.text=LanguageHelp:GetLanguageByKey("Sys_Exchange_4")
+			showBtn=false;
+		else
+			showBtn=self:GetStateName(Good.Status,time)
+		end
+	end
+
+
+	self.m_Tips.gameObject:SetActive(not showBtn)
+	self.m_Info:SetActive(showBtn)
+end
+
+function ExchangeDetailUI:GetStateName(state,ti)
+	--0：没有设置 1：正常售卖 2：已出售 3：已下架
+	if state ==1 then
+		if ti<1 then
+			self.m_Tips.text=LanguageHelp:GetLanguageByKey("Sys_Exchange_2")
+			return  false
+		end
+	end
+	if state ==2 then
+		self.m_Tips.text=LanguageHelp:GetLanguageByKey("Sys_Exchange_3")
+		return false
+	elseif state ==3 then
+		self.m_Tips.text=LanguageHelp:GetLanguageByKey("Sys_Exchange_2")
+		return false
+	end
+
+	return true
+
+end
+
+
+function  ExchangeDetailUI:OnItemRefesh(tr,idx)
+	if self.PurchaseItemList==nil then
+		return;
+	end
+	for i=1,#self.PurchaseItemList do
+		if self.PurchaseItemList[i].transform == tr then
+			self.PurchaseItemList[i]:ClearData();
+			self.PurchaseItemList[i]:UpdateContent(self.PurchaseItemDatas[idx+1],function (ItemID)
+					self:OnShowItem(ItemID);
+				end);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+			return
+		end
+	end
+
+	local bi = PurchaseGoodsDetailItem.new(tr.gameObject,self.AtlasPath);
+	bi.prefab:SetActive(true);
+	bi:UpdateContent(self.PurchaseItemDatas[idx+1],function (ItemID)
+
+			self:OnShowItem(ItemID);
+		end);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+	table.insert(self.PurchaseItemList, bi);
+end
+
+function ExchangeDetailUI:Start()
+	self.m_BuyBtn.OnClick= BuyBtnFunc;
+	self.m_BackBtn.OnClick= BackBtnFunc;
+	self.m_SortBtn.OnClick=SortBtnFunc;
+	self.m_FilterBtn.OnClick=FilterBtnFunc;
+	self.m_Dropdown.onValueChanged:AddListener(OnDropDownFunc);
+	self.m_SortUp:SetActive(self.OrderPass)
+	self.m_SortDown:SetActive(not self.OrderPass)
+
+	local BankGoodsListRetEvent=LuaModuleDispatcher:Event(ModuleDef.ExchangeModule,"BankGoodsListRetEvent");
+	BankGoodsListRetEvent:AddListener(OnBankGoodsListRetFunc)
+
+	---商品LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_166回复")
+	local BankBuyGoodsRetEvent=LuaModuleDispatcher:Event(ModuleDef.ExchangeModule,"BankBuyGoodsRetEvent");
+	BankBuyGoodsRetEvent:AddListener(OnBankBuyGoodsRetFunc)
+end
+
+function ExchangeDetailUI:OnBankBuyGoodsRet(data)
+	if self.IsActive then
+		Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_31"));
+		self:SendMsgChat()
+		self:OnClickBackBtn();
+	end
+end
+
+function ExchangeDetailUI:SendMsgChat()
+	
+	local msgList = {};
+	local needMoney=self.GoodsPrice*self.ItemNum
+	local chatMsg = StringFormat(LanguageHelp:GetLanguageByKey("sys_exchange_5"),{needMoney,self.ItemNum,self.ItemName})
+	local chatMsgNotice = CS.ProtoMsg.ChatMsgNotice();
+	chatMsgNotice.EID = 0;
+	chatMsgNotice.PID = 0;
+	chatMsgNotice.Data = chatMsg;
+	chatMsgNotice.Channel = CS.ProtoMsg.ChatChannel.ChannelSystem;
+	chatMsgNotice.ChatTime = TimeUtils.ServerNowStampMilli;
+
+	table.insert(msgList, chatMsgNotice);
+	LuaModuleDispatcher:SendMessage(ModuleDef.ChatModule, "OnAnalogReceptionChatMsg", {msgList});
+	
+end
+
+function ExchangeDetailUI:OnBankGoodsListRet(data)
+	for k, v in pairs(self.PurchaseItemList) do
+		v:ClearData();
+	end
+	self.PurchaseItemDatas={}
+	local selectID=nil;
+	if data.Datas~=nil and data.Datas.Count>0 then
+		for i = 1, data.Datas.Count do
+			if selectID==nil then
+				selectID=data.Datas[i-1]
+			end
+			table.insert(self.PurchaseItemDatas,data.Datas[i-1]);
+		end
+	end
+	self.m_ScrollView:ContinueScroll(#self.PurchaseItemDatas);
+
+	self.IsQuerying=false;
+	UIAPI.CloseRequestLoading();
+
+	if selectID~=nil then
+		self:OnShowItem(selectID)
+	end
+	local active=data.Datas.Count>0;
+	self.m_Has:SetActive(active);
+	self.m_None:SetActive(not active);
+end
+
+
+function ExchangeDetailUI:GetSortIndex()
+	if self.OrderPass then
+		return 1
+	end
+	return 2
+end
+function ExchangeDetailUI:OnEnable()
+
+end
+
+function ExchangeDetailUI:OnDisable()
+
+end
+
+function ExchangeDetailUI:OnDestroy()
+	self.m_BuyBtn.OnClick= nil;
+	self.m_BackBtn.OnClick= nil;
+	self.m_SortBtn.OnClick=nil;
+	self.m_FilterBtn.OnClick=nil;
+	self.m_Dropdown.onValueChanged:RemoveListener(OnDropDownFunc);
+	self.m_SortUp:SetActive(self.OrderPass)
+	self.m_SortDown:SetActive(not self.OrderPass)
+
+	local BankGoodsListRetEvent=LuaModuleDispatcher:Event(ModuleDef.ExchangeModule,"BankGoodsListRetEvent");
+	BankGoodsListRetEvent:RemoveListener(OnBankGoodsListRetFunc)
+
+	---商品LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_166回复")
+	local BankBuyGoodsRetEvent=LuaModuleDispatcher:Event(ModuleDef.ExchangeModule,"BankBuyGoodsRetEvent");
+	BankBuyGoodsRetEvent:RemoveListener(OnBankBuyGoodsRetFunc)
+end
+
+function ExchangeDetailUI:OnOpen(arg)
+	LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule,"OnSetOrderRule",{false,PurchaseType,self:GetSortIndex(),self.CurrentDropIndex})
+	self.ItemID=arg.ItemID;
+	self.CallBack=arg.Cb;
+	self:IsShowFilter();
+	LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule,"OnBankItemListReq",{self.ItemID})
+	self:InitDropdown();
+	self.IsActive=true;
+end
+
+
+function ExchangeDetailUI:OnOpenByGoods(arg)
+	LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule,"OnSetOrderRule",{false,PurchaseType,self:GetSortIndex(),self.CurrentDropIndex})
+
+	--self.ItemID=arg.ItemID;
+	self.CallBack=arg.Cb;
+
+	self:IsShowFilter();
+	--LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule,"OnBankItemListReq",{self.ItemID})
+	self:InitDropdown();
+	self.IsActive=true;
+	self:OnBankGoodsListRet(arg.Data)
+end
+
+function ExchangeDetailUI:IsShowFilter()
+	local active=false;
+	local config=ConfigDataAccessor.Item[self.ItemID]
+	if config~=nil then
+		active=(config.ItemType==2) or (config.ItemType==5)
+	end
+	self.m_FilterBtn.gameObject:SetActive(active)
+end
+
+function ExchangeDetailUI:InitDropdown()
+	self.m_Dropdown:ClearOptions();
+	self.CurrentDropIndex=0;
+	local list= List_String()
+	for i = 1, #OptionsItems do
+		list:Add(OptionsItems[i])
+	end
+	self.m_Dropdown:AddOptions(list);
+	--self:OnFresh();
+end
+function ExchangeDetailUI:OnHide()
+	self.IsActive=false;
+end
+
+function ExchangeDetailUI:OnClose(arg)
+
+end
+
+function ExchangeDetailUI:OnClickBuyBtn()
+	local needMoney=self.GoodsPrice*self.ItemNum
+	local money= BusinessManager.Instance:GetCurrencyNum(2);
+	if needMoney>money then
+		Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_81"));
+		return
+	end
+	UIAPI.ShowMsgBox(40,function (EventName)
+			if EventName=="SURE" then
+				LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule,"OnBankBuyGoodsReq",{self.SelectGoodIDs})
+			end
+		end,needMoney,self.ItemNum,self.ItemName)
+
+
+end
+
+function ExchangeDetailUI:OnClickBackBtn()
+	if self.CallBack~=nil then
+		self.CallBack();
+	end
+end
+
+
+return  ExchangeDetailUI

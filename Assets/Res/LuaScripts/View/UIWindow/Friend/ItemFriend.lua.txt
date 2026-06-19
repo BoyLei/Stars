@@ -1,0 +1,125 @@
+---------------------------------------------------------------------
+-- Stars (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-08-03 13:59:17
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class ItemFriend
+
+ItemFriend = class("ItemFriend",UIPanel)
+
+function ItemFriend:ctor(go, parent, sources, callBack, headCallBack)
+	self.prefab = go;
+	self.CallBack = callBack;
+	self.HeadCallBack = headCallBack;
+	self.Sources = sources;
+	-- JBtn 点击
+	self.Btn = self:Find("Click"):GetComponent(typeof(JButton));
+	self.BtnFun = function()
+		self:OnClickHandler();
+	end
+	self.Btn.OnClick = self.BtnFun;
+	-- 选中背景
+	self.CheckBg = self:Find("CheckBg").gameObject;
+	-- 头像边框
+	self.HeadFrame = self:Find("HeadFrame"):GetComponent(typeof(Image));
+	-- 头像
+	self.HeadIcon = self:Find("HeadFrame/HeadIcon"):GetComponent(typeof(Image));
+	-- JBtn 头像
+	local JBtnHeadIcon = self:Find("HeadFrame/HeadIcon"):GetComponent(typeof(JButton));
+	self.JBtnHeadIconFun = function()
+		self:OnClickJBtnHeadIcon();
+	end
+	JBtnHeadIcon.OnClick = self.JBtnHeadIconFun;
+	-- 玩家等级
+	self.Level = self:Find("HeadFrame/LevelBg/Level"):GetComponent(typeof(Text));
+	-- 玩家名称
+	self.PlayerName = self:Find("PlayerName"):GetComponent(typeof(Text));
+	-- 在线状态
+	self.OnlineState = self:Find("OnlineState").gameObject;
+	-- 离线时间
+	self.OfflineTime = self:Find("OfflineTime"):GetComponent(typeof(Text));
+	-- 红点通知
+	self.RedPoint = self:Find("RedPoint").gameObject;
+end
+
+--点击事件
+function ItemFriend:OnClickHandler()
+	----- 现在未解锁的也可以点击
+	--if self.m_IsLock then
+	--return;
+	--end
+	self.CallBack(self.Index);
+	self:SetRedPoint(false);
+	--self:OnSelect(true);
+end
+
+-- 设置选中状态
+function ItemFriend:OnSelect(select)
+	--self.Selected:SetActive(select);
+	self.CheckBg:SetActive(select);
+end
+
+-- 点击头像
+function ItemFriend:OnClickJBtnHeadIcon()
+	if self.HeadCallBack == nil then
+		return;
+	end
+	self.HeadCallBack(self.FriendInfo.FriendUser, self.HeadIcon.transform);
+end
+
+--数据更新
+function ItemFriend:UpdateContent(index, selectIndex, data)
+	self.Index = index;
+	self.FriendInfo = data;
+	if self.FriendInfo == nil then
+		return;
+	end
+	
+	local jobCfg = ConfigDataAccessor.Job[self.FriendInfo.FriendUser.JobID];
+	if jobCfg ~= nil then
+		local avatarDataCell= ConfigDataAccessor.Avatar[jobCfg.AvatarID];
+		if avatarDataCell ~= nil then
+			local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID];
+			if headCfg ~= nil then
+				 self:GetSpriteByAtlas(headCfg.HeadAtlasName,headCfg.MinHead,function (sp)
+						self.HeadIcon.sprite =sp
+				 end);
+			end
+		end
+	end
+	--self.Level.text = self.FriendInfo.FriendUser.Level .. "级";
+	self.Level.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {self.FriendInfo.FriendUser.Level});
+
+	self.PlayerName.text = self.FriendInfo.FriendUser.UserName;
+	--下线时间判定
+	local isOnline = false;
+	local now = TimeUtils.GetServerTimeNow();
+	local dif = now / 1000 - self.FriendInfo.FriendUser.LogOutTime;
+	if self.FriendInfo.FriendUser.IsOnline then
+		-- 状态是在线，并且本地时间-玩家离线时间>2分【就认为是在线】
+		if dif < 60 * 2 then
+			isOnline = true;
+		end
+	end
+	self.OnlineState:SetActive(isOnline);
+	self.OfflineTime.gameObject:SetActive((not isOnline));
+	if isOnline == false then
+		self.OfflineTime.text = LossTimeSecToString2(dif);
+	end
+	
+	if self.Index == selectIndex then
+		self:OnClickHandler();
+	else
+		self:OnSelect(false);
+	end
+end
+
+function ItemFriend:SetRedPoint(isShow)
+	self.RedPoint:SetActive(isShow);
+end
+
+return ItemFriend;

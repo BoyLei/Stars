@@ -1,0 +1,48 @@
+local SystemMsgItem = {}
+SystemMsgItem.__index = SystemMsgItem
+
+function SystemMsgItem:New(obj)
+    local self = {};
+    setmetatable(self, SystemMsgItem);
+
+    self:InitControls(obj)
+
+    return self;
+end
+
+function SystemMsgItem:InitControls(obj)
+    self.GameObject = obj;
+    self.Transform = obj.transform;
+
+	--频道背景
+	self.headIconBg = self.Transform:Find("RichText/Bg"):GetComponent(typeof(Image));
+    --频道
+    self.ChannelTxt = self.Transform:Find("RichText/Bg/Channel"):GetComponent(typeof(Text));
+    --聊天内容
+	self.msgTxt = self.Transform:Find("RichText"):GetComponent(typeof(TextMeshProUGUI));
+    --超连接
+    self.linkOpener = self.Transform:Find("RichText"):GetComponent(typeof(LinkOpener))
+
+	self.TextContentSizeFitter=self.Transform:Find("RichText"):GetComponent(typeof(ContentSizeFitter));
+end
+
+function SystemMsgItem:InitItem()
+end
+
+function SystemMsgItem:SetItem(chatMsgNotice)
+    if chatMsgNotice==nil then
+        return;
+    end
+
+	self.msgTxt.text = ExtraData.SrvToClientHud(chatMsgNotice);
+	self.TextContentSizeFitter:SetLayoutVertical();
+
+	self.ChannelTxt.text = GetChatChannelToStr(chatMsgNotice.Channel);
+    local extraData = chatMsgNotice.SendData
+    if extraData ~= nil then
+        self.linkOpener:SetLinks(extraData)
+    end
+	
+end
+
+return SystemMsgItem

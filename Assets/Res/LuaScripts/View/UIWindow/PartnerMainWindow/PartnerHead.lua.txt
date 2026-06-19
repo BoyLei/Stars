@@ -1,0 +1,251 @@
+---------------------------------------------------------------------
+-- Star (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2022-12-14 16:59:12
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class PartnerHead
+PartnerHead = class("PartnerHead",UIPanel)
+PartnerHead.QualityBg=nil;
+PartnerHead.Icon=nil;
+PartnerHead.Selected=nil;
+PartnerHead.State=nil;
+PartnerHead.StateText=nil;
+PartnerHead.Btn=nil;
+PartnerHead.CallBack=nil;
+PartnerHead.Index=0;
+PartnerHead.m_Color=nil;
+PartnerHead.RedPoint=nil;
+PartnerHead.RedPointNew=nil;
+PartnerHead.PartnerData=nil;
+local CostItem={104011,104012,104013}
+local OnItemChangeHandler=nil;
+function PartnerHead:ctor(go,parent,atlas,callBack)
+	self.prefab=go;
+	self.AtlasPath=atlas;
+	self.CallBack=callBack;
+	self.Btn=go:GetComponent(typeof(JButton));
+	self.QualityBg=self:Find("BgRare"):GetComponent(typeof(Image));
+	self.Icon=self:Find("Mask/Icon"):GetComponent(typeof(Image));
+	self.Selected=self:Find("Select").gameObject;
+	self.State=self:Find("State"):GetComponent(typeof(Image));
+	self.StateText=self:Find("State/Text"):GetComponent(typeof(Text));
+	self.m_Color=self:Find("color"):GetComponent(typeof(Image));
+	self.RedPointNew=self:Find("RedPointNew").gameObject;
+	self.RedPoint=self:Find("RedPoint").gameObject;
+	self.Btn.OnClick=(function() self:OnClickHandler() end);
+
+	CS.StarProject.GlobalEvent.OnItemChange:AddListener(function ( configID,  Num)
+			if configID~=nil and configID~=0 then
+				if self.UpStarItem== configID then
+					self:SetRedPoint()
+				end
+			end
+		end);
+end
+
+--点击事件
+function PartnerHead:OnClickHandler()
+	self.CallBack(self.Index);
+	self:OnSelect(true);
+	LocalCache.GetPartnerRedPointData:RemovePartner(self.Index);
+	self:SetRedPoint();
+end
+
+function PartnerHead:GetStateText(state)
+	local stateText=LanguageHelp:GetLanguageByKey("Local_Str_stateText1");
+	if state==CS.ProtoMsg.PartnerState.InBattle or state==CS.ProtoMsg.PartnerState.Concretization then
+		stateText=LanguageHelp:GetLanguageByKey("Local_Str_stateText2");
+	elseif state ==CS.ProtoMsg.PartnerState.Assist then
+		stateText=LanguageHelp:GetLanguageByKey("Local_Str_stateText3");
+	end
+	return stateText;
+end
+
+function PartnerHead:OnSelect(select)
+	self.Selected:SetActive(select)
+end
+
+function  PartnerHead:GetQualityName(quality)
+	return  "Partner_frameC_"..quality;
+end
+
+function  PartnerHead:GetQualityColor(quality)
+	return  "Partner_Head_"..quality;
+end
+
+function PartnerHead:InTeam()
+
+	local state=self.PartnerData.State
+	if state==CS.ProtoMsg.PartnerState.InBattle or state==CS.ProtoMsg.PartnerState.Concretization then
+		return true
+	elseif state ==CS.ProtoMsg.PartnerState.Assist then
+		return true
+	end
+
+	return false;
+end
+
+function PartnerHead:SetRedPoint()
+	if Util.IsNull(self.RedPointNew) then 
+		return
+	end
+	self.RedPointNew:SetActive(false)
+	self.RedPoint:SetActive(false)
+
+	local isNew= LocalCache.GetPartnerRedPointData:IsNewPartner(self.Index);
+	self.RedPointNew:SetActive(isNew)
+	if not isNew then
+		local red=false;
+		--升星
+		if self.IsNotFullStar then
+			local Cnt=999999;
+			local starExpend= ConfigDataAccessor.StarExpend[self.Quality][(self.CurStar+1)]
+			if starExpend~=nil then
+				Cnt=starExpend.Item_num
+			end
+			red= BusinessManager.Instance:GetCurrencyNum(self.UpStarItem)>=Cnt
+		end
+
+		local inteam=self:InTeam();
+
+		if inteam then
+
+			if not red then
+				--升级
+				red=self:DetailRedPoint(self.PartnerData)
+			end
+
+			if not red then
+				--构筑
+				red=self:ConstructRedPoint(self.PartnerData)
+			end
+
+			if not red then
+				--魂石
+				red=self:SoulStoneRedPoint(self.PartnerData)
+			end
+		end
+
+		self.RedPoint:SetActive(red)
+	end
+end
+
+
+function PartnerHead:SoulStoneRedPoint(data)
+
+	if not CS.StarProject.Service.SystemOpen.SystemOpenManager.Instance:SystemIsOpen(SystemOpenType.Partner_Equip) then
+		return false
+	end
+	
+	local equip1= BusinessManager.Instance:GetPartnerEquipedEquip(data.ID,1);
+	local equip2= BusinessManager.Instance:GetPartnerEquipedEquip(data.ID,2);
+	local equip3= BusinessManager.Instance:GetPartnerEquipedEquip(data.ID,3);
+
+	local type1Cnt=0;
+	local type2Cnt=0;
+	local type3Cnt=0;
+	--拿到所有的伙伴装备
+	local items = BusinessManager.Instance:GetItemsByItemType(4, 0)
+	for k, v in pairs(items) do
+		local cfg = ConfigDataAccessor.Item[v.BaseID]
+		if cfg.SubType == 1 then
+			type1Cnt=type1Cnt+1;
+		elseif cfg.SubType == 2 then
+			type2Cnt=type2Cnt+1;
+		elseif cfg.SubType == 3 then
+			type3Cnt=type3Cnt+1;
+		end
+	end
+	local red=(equip1==nil and type1Cnt>0) or (equip2==nil and type2Cnt>0) or (equip3==nil and type3Cnt>0)
+
+	return  red;
+end
+
+function PartnerHead:DetailRedPoint(data)
+	if not CS.StarProject.Service.SystemOpen.SystemOpenManager.Instance:SystemIsOpen(SystemOpenType.Partner_LevelUp) then
+		return false
+	end
+	
+	local red=false;
+	local cnt=0;
+	for i = 1, #CostItem do
+		cnt=cnt+BusinessManager.Instance:GetCurrencyNum(CostItem[i]);
+	end
+	if cnt>0 then
+		local playerLv = GameManager.Instance:GetPlayerLevel();
+		local  cfg=ConfigDataAccessor.PartnerExp[data.Level+1]
+		if cfg~=nil then
+			red=cfg.UnlockLevel <= playerLv
+		end
+	end
+
+	return  red;
+end
+
+function PartnerHead:ConstructRedPoint(data)
+	if not CS.StarProject.Service.SystemOpen.SystemOpenManager.Instance:SystemIsOpen(SystemOpenType.Partner_Qualification) then
+		return false
+	end
+
+	local red=false;
+	local partnerMgr = BusinessManager.Instance:GetPartnerMDMgr();
+	if partnerMgr~=nil then
+		red=	partnerMgr:UpdatePartnerConstructRed(data)
+	end
+	return red
+
+end
+
+
+--数据更新
+function PartnerHead:UpdateContent(data,selectIndex)
+	if data==nil then
+		return
+	end
+	self.PartnerData=data;
+	self.Index=data.Index;
+	self.CurStar=data.CurStar
+	local activeState=false;
+	if data.State==CS.ProtoMsg.PartnerState.InBattle or data.State==CS.ProtoMsg.PartnerState.Concretization then
+		self.StateText.text=LanguageHelp:GetLanguageByKey("partner_sys_31")
+		activeState=true;
+	elseif data.State ==CS.ProtoMsg.PartnerState.Assist then
+		self.StateText.text=LanguageHelp:GetLanguageByKey("partner_sys_28")
+		activeState=true;
+	end
+	self.State.gameObject:SetActive(activeState)
+
+	self:OnSelect(data.Index==selectIndex)
+	if data.Index== selectIndex then
+		LocalCache.GetPartnerRedPointData:RemovePartner(self.Index);
+	end
+	
+	local config=ConfigDataAccessor.Partner[data.Index];
+	if config~=nil then
+		self.UpStarItem=config.UpStarItem
+		self.Quality=config.Quality;
+		--头像
+		local avatarDataCell= ConfigDataAccessor.Avatar[config.AvatarID];
+		if avatarDataCell ~= nil then
+			local headcfg=ConfigDataAccessor.ModelHead[avatarDataCell.HeadID];
+			if headcfg~=nil then
+				self:GetSpriteByAtlas(headcfg.HeadAtlasName,headcfg.MinHead,function (sp)
+						self.Icon.sprite=sp
+					end);
+
+			end
+		end
+		self.m_Color.color=ColorDefine.Instance:GetColor(self:GetQualityColor(config.Quality))
+		self:GetSpriteByAtlas("UI/Common/Atlas/CommonItem",self:GetQualityName(config.Quality),function (sp)
+				self.QualityBg.sprite=sp
+			end)
+	end
+	self.IsNotFullStar=data.CurStar<6
+	self:SetRedPoint();
+end
+
+return  PartnerHead;

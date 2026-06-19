@@ -1,0 +1,174 @@
+RankModule = class("RankModule", BaseLuaModule)
+
+local rankwindowPath = "Rank/Prefab/RankingWindow"
+
+-- LuaModule 消息模块
+RankModule.ModuleMessages = {
+    -- 打开
+    ["OnOpenRankWindow"] = function(...)
+        RankModule:OnOpenRankWindow(...);
+    end,
+    -- 选择item
+    ["OnSelectRankItem"] = function(...)
+        RankModule:OnSelectRankItem(...);
+    end,
+    -- 选择job
+    ["OnSelectRankJob"] = function(...)
+        RankModule:OnSelectRankJob(...);
+    end,
+    ["RefreshRankModel"] = function(...)
+        RankModule:RefreshRankModel(...);
+    end
+}
+
+function RankModule:OnOpenRankWindow(...)
+    -- if self.allRankData[1] == nil then
+    self:SendRankDataReq(1);
+    --	return;
+    -- end
+
+    -- self:OnShowRankWindow(self.allRankData[1]);
+end
+
+function RankModule:OnShowRankWindow(data)
+    self.AsyncLoadRankWindowCb = function(ui)
+        if ui ~= nil then
+            if self.rankWindowView == nil then
+                self.rankWindowView = ui:GetLuaPanel().ScriptTable;
+                self.rankWindowView:BindModule(self);
+                self.rankWindowView:InitControls();
+            end
+            self.rankWindowView:InitData(data);
+
+            RedPointManager.Instance:TriggerConditionTypeBoolValue(RedPointConditionType.Rank, data.MyAwardStatus == 1);
+        end
+        self.AsyncLoadRankWindowCb = nil;
+    end
+    UIManager.Instance:OpenWindowAsync(rankwindowPath, self.AsyncLoadRankWindowCb);
+end
+
+function RankModule:SendRankDataReq(rankId)
+    local getGenericRankDataReq = CS.ProtoMsg.GetGenericRankDataReq();
+    getGenericRankDataReq.RankId = rankId;
+    getGenericRankDataReq.PageNum = 0;
+    getGenericRankDataReq.PerPageCount = 100;
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+        getGenericRankDataReq, false);
+end
+
+function RankModule:OnGetGenericRankDataRet(data)
+    if data == nil or data.data == nil then
+        return;
+    end
+
+    -- self.allRankData[data.data.RankId] = data.data;
+    self:OnShowRankWindow(data.data);
+end
+
+function RankModule:OnGetGenericRankGetAwardRet(data)
+    if data == nil or data.data == nil then
+        return;
+    end
+
+    if data.data.IsGotReward then
+        self.rankWindowView.rewardBtn.gameObject:SetActive(false);
+    end
+end
+
+function RankModule:OnSelectRankItem(...)
+    local tb = ...
+    local index = nil;
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        index = tb[1];
+    else
+        -- C#调用
+        index = tb[0];
+    end
+
+    local newIndex = 1;
+    if index == 1 then
+        self.rankWindowView:OnSelectRankItem(newIndex);
+        -- if self.allRankData[1] == nil then
+        self:SendRankDataReq(1);
+        -- else
+        -- 	self:OnShowRankWindow(self.allRankData[1]);
+        -- end
+    elseif index == 2 then
+        newIndex = 2;
+        self.rankWindowView:OnSelectRankItem(newIndex);
+        -- if self.allRankData[2] == nil then
+        self:SendRankDataReq(2);
+        -- else
+        -- 	self:OnShowRankWindow(self.allRankData[2]);
+        -- end
+    else
+        newIndex = 6;
+        self.rankWindowView:OnSelectRankItem(newIndex);
+        -- if self.allRankData[6] == nil then
+        self:SendRankDataReq(6);
+        -- else
+        -- 	self:OnShowRankWindow(self.allRankData[6]);
+        -- end
+    end
+end
+
+function RankModule:OnSelectRankJob(...)
+    local tb = ...
+    local index = nil;
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        index = tb[1];
+    else
+        -- C#调用
+        index = tb[0];
+    end
+
+    self.rankWindowView:OnSelectRankItem(index + 1);
+
+    -- if self.allRankData[index+1] == nil then
+    self:SendRankDataReq(index + 1);
+    -- else
+    -- 	self:OnShowRankWindow(self.allRankData[index+1]);
+    -- end
+end
+function RankModule:RefreshRankModel(...)
+    if self.rankWindowView ~= nil then
+        self.rankWindowView:StartLoop(true)
+    end
+end
+-- LuaModule 创建
+function RankModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.RankModule, self)
+
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.GetGenericRankDataRetID, function(data)
+        self:OnGetGenericRankDataRet(data)
+    end, nil);
+
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.GetGenericRankGetAwardRetID, function(data)
+        self:OnGetGenericRankGetAwardRet(data)
+    end, nil);
+
+    self.allRankData = {};
+end
+
+-- LuaModule 消息处理
+function RankModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...);
+end
+
+-- LuaModule显示
+function RankModule:OnModuleShow(arg)
+
+end
+
+-- LuaModule 释放
+function RankModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.RankModule)
+    self.rankWindowView = nil
+end
+
+return RankModule
+

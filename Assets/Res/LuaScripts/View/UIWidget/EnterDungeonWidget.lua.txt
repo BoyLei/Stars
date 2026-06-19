@@ -1,0 +1,109 @@
+--[[
+*文件名   :   EnterDungeonWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/09 17:09:51"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+EnterDungeonWidget = class("EnterDungeonWidget", UIPanel)
+
+function EnterDungeonWidget:Awake()
+    self:InitItems()
+end
+
+function EnterDungeonWidget:BindModule(m)
+    self.module = m
+end
+
+function EnterDungeonWidget:InitItems()
+    self.transform = self.prefab.transform
+    self.gameObject = self.transform.gameObject
+
+    --动画相关
+    self.anim = self.transform:GetComponent(typeof(Animator))
+
+    --关闭
+    local btnCloseInfo = self.transform:Find("CloseBtn"):GetComponent(typeof(JButton))
+    btnCloseInfo.OnClick = (function()
+        self:OnCloseInfoClick()
+    end)
+
+    --进入
+    local btnEnter = self.transform:Find("GotoBtn"):GetComponent(typeof(JButton))
+    btnEnter.OnClick = (function()
+        self:OnEnterDungeonClick()
+    end)
+
+    self.title = self.transform:Find("titlebg/title"):GetComponent(typeof(Text))
+
+    self.content = self.transform:Find("Scroll View text/Mask/Text"):GetComponent(typeof(Text))
+
+    self.banner = self.transform:Find("banner"):GetComponent(typeof(Image))
+    self.m_NormalItemPreviewGo = self.transform:Find("Reward/ItemPreview").gameObject
+    self.m_NormalItemPreview = StructAccessor.ItemPreview.new(self.m_NormalItemPreviewGo)
+    self.m_NormalItemPreview:SetSize(1500, 120, 20)
+end
+
+function EnterDungeonWidget:OnEnterDungeonClick()
+    self:OnCloseInfoClick()
+    BusinessManager.Instance:EntityLevel(self.EnterLevel)
+end
+
+function EnterDungeonWidget:Start()
+    print("EnterDungeonWidget:Start")
+end
+
+function EnterDungeonWidget:OnEnable()
+end
+
+function EnterDungeonWidget:OnDisable()
+end
+
+function EnterDungeonWidget:OnDestroy()
+end
+
+function EnterDungeonWidget:OnOpen(arg)
+    SoundManager.Instance:PlayEventName("UI_Telepathy_Show_01", nil, nil)
+
+    self.CfgId = tonumber(arg)
+
+    local cfg = ConfigDataAccessor.LevelEnterWindow[self.CfgId]
+
+    self.title.text = cfg.Title
+    self.content.text = cfg.Description
+
+    self.EnterLevel = cfg.EnterLevel
+
+    if cfg.Image ~= "" then
+        --显示图片
+        ResourceHelper:LoadIconAsync(self.banner, "", cfg.Image, false)
+    end
+
+    local CostItems = {}
+
+    if #cfg.ShowReward > 0 then
+        for i = 1, #cfg.ShowReward do
+            local temp = {}
+            temp.ItemID = cfg.ShowReward[i]
+            temp.ItemNum = cfg.ShowRewardNum[i]
+            table.insert(CostItems, temp)
+        end
+    end
+    self.m_NormalItemPreview:SetItems(CostItems)
+end
+
+function EnterDungeonWidget:OnClose(arg)
+    self:CloseWidget()
+end
+
+function EnterDungeonWidget:OnCloseInfoClick()
+    --self.anim:Play("Out")
+
+    UIManager.Instance:CloseWidget("Plot/EnterDungeonWidget", nil, true)
+end
+
+function EnterDungeonWidget:CloseWidget()
+end
+
+return EnterDungeonWidget

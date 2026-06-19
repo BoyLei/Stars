@@ -1,0 +1,196 @@
+--[[
+*文件名   :   WorldLineModule
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/10/31 14:54:39"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] WorldLineModule = class("WorldLineModule", BaseLuaModule)
+
+local WorldLineWindowPath = "WorldLine/WorldLineWindow"
+
+-- LuaModule 消息模块
+WorldLineModule.ModuleMessages = {
+    -- 打开功能WorldLine
+    -- ModuleManager.Instance.SendMessage(ModuleDef.WorldLineModule, "OnOpenWorldLine", new object[] { 1 }); //只要传一个对话ID
+    ["OnOpenWorldLine"] = function(...)
+        WorldLineModule:OnOpenWorldLine(...)
+    end
+}
+
+-- 监听打开WorldLine事件
+function WorldLineModule:OnOpenWorldLine(...)
+    local tb = ...
+    self.JumpToId = nil
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        if #tb > 0 then
+            self.JumpToId = tb[1]
+        end
+    else
+        -- C#调用
+        if tb.Length > 0 then
+            self.JumpToId = tb[0]
+        end
+    end
+
+    self.AsyncLoadWorldLineWindowCb = function(ui)
+        if ui ~= nil then
+            if self.worldlineWindowView == nil then
+                self.worldlineWindowView = ui:GetLuaPanel().ScriptTable
+                self.worldlineWindowView:BindModule(self)
+                self.worldlineWindowView:InitItems()
+            end
+
+            self:InitAttribute()
+            -- 打开
+            self.worldlineWindowView:Refesh(self.JumpToId)
+        end
+        self.AsyncLoadWorldLineWindowCb = nil
+    end
+    UIManager.Instance:OpenWindowAsync(WorldLineWindowPath, self.AsyncLoadWorldLineWindowCb, nil, CS.StarProjectDef.MainPageCommond.HideBoth)
+end
+
+function WorldLineModule:TaskStageChange(type, taskid)
+    --判断世界线解锁
+    if type == 3 then
+        for k, v in pairs(ConfigDataAccessor.WorldLine) do
+            if v.FinishTask == taskid then
+                self.data = v
+                if self.WorldLinePlotWidgetView ~= nil then
+                    self.WorldLinePlotWidgetView:RenderAllView(self.data)
+                else
+                    if self.IsOpening == nil or self.IsOpening == false then
+                        local Cb = function(ui)
+                            if ui ~= nil then
+                                self.IsOpening = false
+                                self.WorldLinePlotWidgetView = ui:GetLuaPanel().ScriptTable
+                                if self.WorldLinePlotWidgetView ~= nil then
+                                    self.WorldLinePlotWidgetView.InstPanel = ui
+                                    self.WorldLinePlotWidgetView:BindModule(self)
+                                    self.WorldLinePlotWidgetView:RenderAllView(self.data)
+                                end
+                            end
+                        end
+                        self.IsOpening = true
+                        UIManager.Instance:OpenWidgetAsync("WorldLine/WorldLinePlotWidget", Cb, false, self.data)
+                    end
+                end
+            end
+        end
+    end
+end
+
+function WorldLineModule:OnWorldLinePlotWidgetDestroy(arg)
+    self.WorldLinePlotWidgetView = nil
+end
+
+function WorldLineModule:InitAttribute()
+    GameManager.Instance.M_MainPlayerCtrlBase.Data:RegisterAttribute(CS.StarProjectDef.AOIAttrDefine.WorldLineRewardData, self.WorldLineRewardDataFun)
+end
+
+function WorldLineModule:DelAttribute()
+    GameManager.Instance.M_MainPlayerCtrlBase.Data:UnRegisterAttribute(CS.StarProjectDef.AOIAttrDefine.WorldLineRewardData, self.WorldLineRewardDataFun)
+end
+
+-- 服务器 竞价的 回复
+function WorldLineModule:OnWorldLineRewardRet(data)
+    if data == nil or data.data == nil then
+        return
+    end
+
+    local pb = data.data
+
+    local nodeID = pb.NodeID
+    if self.worldlineWindowView ~= nil then
+        local str = " "
+        local msgList = {}
+        for i = 1, #self.GetItem.ItemID do
+            local cfg = ConfigDataAccessor.Item[self.GetItem.ItemID[i]]
+            local name = cfg.Name
+            local quality = cfg.Quality
+
+            str = str .. GetQualityColor(quality) .. name .. "x" .. self.GetItem.ItemNum[i] .. "</color> "
+
+            local chatMsgNotice = CS.ProtoMsg.ChatMsgNotice()
+            chatMsgNotice.EID = 0
+            chatMsgNotice.PID = 0
+
+            local strLanVal = LanguageHelp:GetLanguageByKey("Local_Str_Tips_GetReward")
+            local equipStrSp = ExtraData.GetEquipStrByID(self.GetItem.ItemID[i]);
+            local strContentVal = equipStrSp .. GetQualityColor(quality) .. name .. "</color>x" .. self.GetItem.ItemNum[i]
+            chatMsgNotice.Data = StringFormat(strLanVal, {strContentVal})
+            chatMsgNotice.Channel = CS.ProtoMsg.ChatChannel.ChannelSystem
+            chatMsgNotice.ChatTime = TimeUtils.ServerNowStampMilli
+            chatMsgNotice.ChatLevel = 1
+            chatMsgNotice.JobID = GameManager.Instance:GetPlayerJob()
+            table.insert(msgList, chatMsgNotice)
+        end
+        LuaModuleDispatcher:SendMessage(ModuleDef.ChatModule, "OnAnalogReceptionChatMsg", {msgList})
+
+        local message = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Tips_GetReward"), {str})
+        Util.ShowMessage(message)
+
+        self.worldlineWindowView:RefeshRewards()
+        self.worldlineWindowView:AfterGetRewards()
+    end
+end
+
+-- LuaModule 创建
+function WorldLineModule:OnModuleCreate(arg)
+    self.WorldLineRewardDataFun = function(key, value)
+        self:UpdateWorldLineReward(value)
+    end
+
+    NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.WorldLineRewardRetID,
+        function(data)
+            self:OnWorldLineRewardRet(data)
+        end,
+        self
+    )
+
+    LuaModuleDispatcher:Register(ModuleDef.WorldLineModule, self)
+
+    self.callback = function(type, taskid)
+        self:TaskStageChange(type, taskid)
+    end
+    -- 任务状态变化
+    CS.StarProject.GlobalEvent.TaskStageChange:AddListener(self.callback)
+end
+
+function WorldLineModule:UpdateWorldLineReward()
+    if self.worldlineWindowView == nil then
+        self.worldlineWindowView:RefeshRewards()
+    end
+end
+
+function WorldLineModule:OnFinishWorldLineWindow()
+    print("OnFinishWorldLineWindow")
+end
+
+-- LuaModule 消息处理
+function WorldLineModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...)
+end
+
+-- LuaModule显示
+function WorldLineModule:OnModuleShow(arg)
+end
+
+-- LuaModule 释放
+function WorldLineModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.WorldLineModule)
+    NetworkManager.Instance:OffMessageEnum(
+        CS.MsgIDEnum.WorldLineRewardRetID,
+        function(data)
+            self:OnWorldLineRewardRet(data)
+        end,
+        self
+    )
+    -- 任务状态变化
+    CS.StarProject.GlobalEvent.TaskStageChange:RemoveListener(self.callbac)
+end
+
+return WorldLineModule

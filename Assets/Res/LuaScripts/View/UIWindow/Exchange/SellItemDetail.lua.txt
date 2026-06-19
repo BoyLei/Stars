@@ -1,0 +1,308 @@
+--[[
+*文件名   :   SellItemDetail
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/10/25 20:07:06"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]] SellItemDetail = class("SellItemDetail", UIPanel)
+local SellGoodsDetailItem = require("View/UIWindow/Exchange/SellGoodsDetailItem");
+
+SellItemDetail.m_ItemGrid = nil;
+SellItemDetail.m_ScrollView = nil;
+SellItemDetail.m_Dropdown = nil;
+SellItemDetail.m_Back = nil;
+SellItemDetail.m_SellCount = nil;
+SellItemDetail.m_SellPrice = nil;
+SellItemDetail.m_ItemIcon = nil;
+SellItemDetail.m_ItemName = nil;
+SellItemDetail.m_Time = nil;
+SellItemDetail.m_SellBtn = nil;
+SellItemDetail.SelectGoods = 0;
+SellItemDetail.CallBack = nil;
+SellItemDetail.m_SortBtn = nil;
+SellItemDetail.m_SortUp = nil;
+SellItemDetail.m_SortDown = nil;
+SellItemDetail.m_Gain = nil;
+SellItemDetail.SellItemList = {}
+SellItemDetail.SellGoods = {}
+SellItemDetail.IsActive = false;
+SellItemDetail.CurrentDropIndex = 0;
+SellItemDetail.OrderPass = true;
+SellItemDetail.GoodsID = 0;
+
+local OptionsItems = {LanguageHelp:GetLanguageByKey("Local_Str_Duration"),
+                      LanguageHelp:GetLanguageByKey("Local_Str_Total_sellable_price"),
+                      LanguageHelp:GetLanguageByKey("Local_Str_quality")}
+local OnDropDownFunc = nil;
+local SortBtnFunc = nil;
+local OnBankOffShelfGoodsRetFunc = nil;
+local BackFunc = nil;
+local SellBtnFunc = nil;
+
+function SellItemDetail:ctor(go, atlas)
+    self.prefab = go;
+    self.AtlasPath = atlas;
+    self.m_ItemGrid = self:Find("ItemGrid").gameObject;
+    self.m_ScrollView = self:Find("Scroll View"):GetComponent(typeof(SuperScrollViewController));
+    self.m_Dropdown = self:Find("Dropdown"):GetComponent(typeof(Dropdown));
+    self.m_Back = self:Find("Back"):GetComponent(typeof(JButton));
+    self.m_SellCount = self:Find("Detail/SellCount/SellCount"):GetComponent(typeof(Text));
+    self.m_SellPrice = self:Find("Detail/SellPrice/SellPrice"):GetComponent(typeof(Text));
+    self.m_ItemIcon = self:Find("Detail/ItemIcon"):GetComponent(typeof(Image));
+    self.m_ItemName = self:Find("Detail/ItemName"):GetComponent(typeof(Text));
+    self.m_Time = self:Find("Detail/Time"):GetComponent(typeof(Text));
+    self.m_Gain = self:Find("Detail/Gain"):GetComponent(typeof(Text));
+    self.m_SellBtn = self:Find("Detail/SellBtn"):GetComponent(typeof(JButton));
+    self.m_SortBtn = self:Find("SortBtn"):GetComponent(typeof(JButton));
+    self.m_SortUp = self:Find("SortBtn/Up").gameObject;
+    self.m_SortDown = self:Find("SortBtn/Down").gameObject;
+    BackFunc = function()
+        self:OnClickBack();
+    end;
+    SellBtnFunc = function()
+        self:OnClickSellBtn();
+    end;
+    OnDropDownFunc = function(index)
+        self:OnDropDownHandler(index);
+    end;
+    SortBtnFunc = function()
+        self:OnClickSortBtnBtn();
+    end;
+    OnBankOffShelfGoodsRetFunc = function(data)
+        self:OnBankOffShelfGoodsRet(data)
+    end
+    self.SellItemList = {}
+    self.SellGoods = {}
+    self.IsActive = false;
+    self.m_ScrollView:NewScroll(self.m_ItemGrid, 0, function(tr, idx)
+        self:OnSellGridItemRefesh(tr, idx);
+    end);
+
+    self:Start();
+end
+
+function SellItemDetail:Start()
+    self.m_Back.OnClick = BackFunc;
+    self.m_SellBtn.OnClick = SellBtnFunc;
+    self.m_SortBtn.OnClick = SortBtnFunc;
+    self.m_Dropdown.onValueChanged:AddListener(OnDropDownFunc);
+    ---下架商品
+    CS.SGF.Network.MsgRetManager.Instance:OnMessageEnum(OnBankOffShelfGoodsRetFunc, CS.MsgIDEnum.BankOffShelfGoodsReqID);
+
+end
+
+function SellItemDetail:OnBankOffShelfGoodsRet(data)
+    -- 返回上一页
+    if self.IsActive then
+
+        -- local list={}
+
+        -- local rw = {}
+        -- rw.BaseID = data.Goods.ItemID;
+        -- rw.Num = data.Goods.ItemNum;
+        -- table.insert(list, rw)
+        -- LuaModuleDispatcher:SendMessage(ModuleDef.RewardsPopModule, "OnOpenRewardsPop", list);
+
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_175"));
+
+        self:OnClickBack();
+    end
+end
+
+function SellItemDetail:OnClickSortBtnBtn()
+    self.OrderPass = not self.OrderPass;
+    self.m_SortUp:SetActive(self.OrderPass)
+    self.m_SortDown:SetActive(not self.OrderPass)
+    self:SortGoods();
+    self:InitGrids();
+    -- 重新排序
+    -- LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule,"OnSetOrderRule",{true,PurchaseType,self:GetSortIndex(),self.CurrentDropIndex})
+end
+
+function SellItemDetail:GetSortIndex()
+    if self.OrderPass then
+        return 1
+    end
+    return 2
+end
+
+function SellItemDetail:SortGoods()
+    local order = self:GetSortIndex();
+    if self.CurrentDropIndex == 0 then
+        -- "持续时间"
+        if order == 1 then
+            table.sort(self.Goods, function(good1, good2)
+                return good1.Etime < good2.Etime
+            end)
+            -- 从小到大
+        else
+            -- 从大到小
+            table.sort(self.Goods, function(good1, good2)
+                return good1.Etime > good2.Etime
+            end)
+        end
+
+    elseif self.CurrentDropIndex == 1 then
+        -- "可售出总价"
+        if order == 1 then
+            table.sort(self.Goods, function(good1, good2)
+                return good1.Price < good2.Price
+            end)
+            -- 从小到大
+        else
+            -- 从大到小
+            table.sort(self.Goods, function(good1, good2)
+                return good1.Price > good2.Price
+            end)
+        end
+
+    elseif self.CurrentDropIndex == 2 then
+        -- "品阶"
+        if order == 1 then
+            table.sort(self.Goods, function(good1, good2)
+                return good1.Quality < good2.Quality
+            end)
+            -- 从小到大
+        else
+            -- 从大到小
+            table.sort(self.Goods, function(good1, good2)
+                return good1.Quality > good2.Quality
+            end)
+        end
+
+    end
+end
+
+function SellItemDetail:InitGrids()
+    self.SellGoods = {}
+    local Index = 1;
+    for k, v in pairs(self.Goods) do
+        if self.SelectGoods == 0 then
+            self.SelectGoods = Index
+        end
+        table.insert(self.SellGoods, {
+            Index = Index,
+            data = v
+        })
+        Index = Index + 1
+    end
+    self.m_ScrollView:ContinueScroll(#self.SellGoods);
+end
+function SellItemDetail:OnDropDownHandler(index)
+    self.CurrentDropIndex = index;
+    -- 重新排序
+    self:SortGoods();
+    self:InitGrids();
+end
+
+function SellItemDetail:OnEnable()
+
+end
+
+function SellItemDetail:OnDisable()
+
+end
+
+function SellItemDetail:OnDestroy()
+    self.m_Back.OnClick = nil;
+    self.m_SellBtn.OnClick = nil;
+    self.m_SortBtn.OnClick = nil;
+    self.m_Dropdown.onValueChanged:RemoveListener(OnDropDownFunc);
+    ---下架商品
+    CS.SGF.Network.MsgRetManager.Instance:OffMessageEnum(OnBankOffShelfGoodsRetFunc, CS.MsgIDEnum.BankOffShelfGoodsReqID);
+
+end
+
+function SellItemDetail:OnSellGridItemRefesh(tr, idx)
+    if self.SellItemList == nil then
+        return;
+    end
+    for i = 1, #self.SellItemList do
+        if self.SellItemList[i].transform == tr then
+            self.SellItemList[i]:UpdateContent(self.SellGoods[idx + 1], self.SelectGoods, function(data, index)
+                self:OnSelectCallBack(data, index)
+            end); -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+        end
+    end
+
+    local bi = SellGoodsDetailItem.new(tr.gameObject, self.AtlasPath);
+    bi.prefab:SetActive(true);
+    bi:UpdateContent(self.SellGoods[idx + 1], self.SelectGoods, function(data, index)
+        self:OnSelectCallBack(data, index)
+    end); -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+    table.insert(self.SellItemList, bi);
+end
+
+function SellItemDetail:OnSelectCallBack(data, index)
+    for i = 1, #self.SellItemList do
+        self.SellItemList[i]:Select(false)
+    end
+    self.GoodsID = data.GoodsID
+    self.SelectGoods = index
+    self.m_SellCount.text = data.ItemNum;
+    self.m_SellPrice.text = data.Price;
+    local rate = math.floor(data.TotalPrice * SystemConstConfigs.TradeSuccessTax / 100)
+    self.m_Gain.text = (data.TotalPrice - rate);
+    local config = ConfigDataAccessor.Item[data.ItemID]
+    if config ~= nil then
+        self.m_ItemName.text = config.Name
+        -- local quality=config.Quality;
+        -- ResourceHelper:LoadIconByAtlasAsync(
+        -- self.m_BgRare,
+        -- ResourceHelper.AtlasPathCommonItem,
+        -- "Bag_Grid_sq"..quality,
+        -- false
+        -- )
+        ResourceHelper:LoadIconAsync(self.m_ItemIcon, "", config.Icon, true)
+    end
+    self.m_Time.text = SecToStringColon((data.Etime - TimeUtils.GetServerTimeNow() / 1000))
+end
+
+function SellItemDetail:OnOpen(arg)
+    self.IsActive = true;
+    self.SellItemList = {}
+    self.CallBack = arg.Back;
+    self.Goods = arg.Goods;
+    self.SelectGoods = 0;
+    self:InitDropdown();
+    self:SortGoods();
+    self:InitGrids();
+end
+
+function SellItemDetail:InitDropdown()
+    self.m_Dropdown:ClearOptions();
+    self.CurrentDropIndex = 0;
+    local list = List_String()
+    for i = 1, #OptionsItems do
+        list:Add(OptionsItems[i])
+    end
+    self.m_Dropdown:AddOptions(list);
+    -- self:OnFresh();
+end
+
+function SellItemDetail:OnClose(arg)
+
+end
+
+function SellItemDetail:OnClickBack()
+    if self.CallBack ~= nil then
+        self.CallBack();
+        self.GoodsID = 0;
+        -- for i=1,#self.SellItemList do
+        -- self.SellItemList[i]:ClearData()
+        -- end
+    end
+end
+
+function SellItemDetail:OnHide()
+    self.IsActive = false;
+end
+
+function SellItemDetail:OnClickSellBtn()
+    local tb = {uint64.new(self.GoodsID)}
+    LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule, "OnBankOffShelfGoodsReq", {tb})
+end
+
+return SellItemDetail

@@ -1,0 +1,128 @@
+--[[
+*文件名   :   AnnounceModule
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/12/5 14:05:39"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] AnnounceModule = class("AnnounceModule", BaseLuaModule)
+AnnounceModule.AnnounceQueue = Queue.new(); -- 队列
+
+local AnnounceWidgetPath = "Announce/AnnounceWidget"
+
+-- LuaModule 消息模块
+AnnounceModule.ModuleMessages = {
+
+    -- 添加掉落
+    -- ModuleManager.Instance.SendMessage(ModuleDef.AnnounceModule, "OnAddDrop", new object[] { it }); //只要传一个掉落信息
+    ["OnAddDrop"] = function(...)
+        AnnounceModule:OnAddDrop(...);
+    end
+
+}
+
+-- 添加掉落事件
+function AnnounceModule:OnAddDrop(...)
+
+    local tb = ...
+
+    -- 传入道具ID
+    if type(tb) == "table" then
+        -- Lua调用
+        local announceInfo = tb[1];
+        self:PushBack(announceInfo);
+    else
+        -- C#调用
+        local announceInfo = tb[0];
+        self:PushBack(announceInfo);
+    end
+
+end
+
+-- 进队列
+function AnnounceModule:PushBack(it)
+
+    Queue.pushBack(self.AnnounceQueue, it);
+end
+
+-- 出队列
+function AnnounceModule:PopFront()
+    local it = nil;
+
+    if self.AnnounceQueue.first <= self.AnnounceQueue.last then
+        it = Queue.popFront(self.AnnounceQueue);
+    end
+
+    return it;
+end
+
+-- LuaModule 创建
+function AnnounceModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.AnnounceModule, self)
+
+    print("AnnounceModule:OnModuleCreate");
+
+    -- local AnnounceWidgetCs =UIManager.Instance:OpenWidget(AnnounceWidgetPath);
+    -- if self.AnnounceWidgetView == nil then
+    -- 	self.AnnounceWidgetView=AnnounceWidgetCs:GetLuaPanel().ScriptTable;	
+    -- 	self.AnnounceWidgetView:BindModule(self);
+    -- 	self.AnnounceQueue=Queue.new();--队列
+    -- end
+
+    self.AsyncLoadAnnounceWidgetCb = function(ui)
+        if ui ~= nil then
+            if self.AnnounceWidgetView == nil then
+                self.AnnounceWidgetView = ui:GetLuaPanel().ScriptTable;
+                self.AnnounceWidgetView:BindModule(self);
+                self.AnnounceQueue = Queue.new(); -- 队列
+            end
+        end
+        self.AsyncLoadAnnounceWidgetCb = nil;
+    end
+    UIManager.Instance:OpenWidgetAsync(AnnounceWidgetPath, self.AsyncLoadAnnounceWidgetCb);
+
+    -- 监听服务器广播
+    -- CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.AnnuonceNtfID, function (data)
+    -- 	self:OnAnnuonceNtf(data)
+    -- end, nil);
+
+end
+
+-- 脱装备回调
+function AnnounceModule:OnAnnuonceNtf(data)
+    print("服务器广播消息");
+
+    if self.AnnounceWidgetView ~= nil then
+        self.AnnounceWidgetView.gameObject:SetActive(true);
+    end
+
+    local pb = data.data;
+
+    local ID = pb.ID; -- ID
+    local ArgList = pb.ArgList; -- map
+
+    local msgCfg = ConfigDataAccessor.RetMsg[ID];
+
+    local announceInfo = {};
+    announceInfo.Message = msgCfg.Note;
+    self:PushBack(announceInfo);
+
+end
+
+-- LuaModule 消息处理
+function AnnounceModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...);
+end
+
+-- LuaModule显示
+function AnnounceModule:OnModuleShow(arg)
+
+end
+
+-- LuaModule 释放
+function AnnounceModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.AnnounceModule)
+end
+
+return AnnounceModule
+

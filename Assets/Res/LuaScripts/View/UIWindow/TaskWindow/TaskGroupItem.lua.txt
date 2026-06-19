@@ -1,0 +1,139 @@
+---------------------------------------------------------------------
+-- NewStar (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-07-26 20:01:29
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class TaskGroupItem
+TaskGroupItem = class("TaskGroupItem",UIPanel)
+local TaskChapter=require('View/UIWindow/TaskWindow/TaskChapter')
+
+TaskGroupItem.m_TaskTypeName=nil;
+TaskGroupItem.m_TaskTypeIcon=nil;
+TaskGroupItem.m_Fold=nil;
+TaskGroupItem.m_Chapters=nil;
+TaskGroupItem.m_ChapterTemplate=nil;
+TaskGroupItem.m_ChapterGroups={}
+TaskGroupItem.IsFold=false;
+
+local OnClickFoldFunc=nil;
+
+function TaskGroupItem:ctor(go,atlas)
+	self.prefab = go;
+	self.AtlasPath = atlas;
+	self.m_TaskTypeName=self:Find("TaskType/TaskTypeName"):GetComponent(typeof(Text))
+	self.m_TaskTypeIcon=self:Find("TaskType/Image"):GetComponent(typeof(Image))
+	self.m_TaskTypeIconBg=self:Find("TaskType/ImageBg"):GetComponent(typeof(Image))
+	self.BtnTaskTypeIconBg=self:Find("TaskType/ImageBg"):GetComponent(TJButton)
+	self.m_Fold=self:Find("TaskType/Fold")
+	self.m_Chapters=self:Find("Chapters")
+	self.m_ChapterTemplate=self:Find("Chapters/TaskChapter").gameObject
+	self.m_ChapterGroups={}
+
+	OnClickFoldFunc=function()
+		self:OnClickFold()
+	end
+	self.BtnTaskTypeIconBg.OnClick = OnClickFoldFunc;
+end
+
+function TaskGroupItem:OnFold()
+	if self.IsFold then
+		self.m_Chapters.gameObject:SetActive(false)
+		self.m_Fold.localScale=Vector3(1,1,1)
+	else
+		self.m_Chapters.gameObject:SetActive(true)
+		self.m_Fold.localScale=Vector3(1,-1,1)
+	end
+end
+
+function TaskGroupItem:OnClickFold()
+	self.IsFold=not self.IsFold;
+	self:OnFold();
+end
+
+function TaskGroupItem:OnSelect()
+	local select=false;
+	for k, v in pairs(self.m_ChapterGroups) do
+		if not select then
+			v:OnSelect();
+			select=true;
+		end
+	end
+end
+function TaskGroupItem:GetBgIconName(taskType)
+	if taskType==1 then
+		return "Mission_chapter01"
+	elseif taskType==2 then
+		return "Mission_chapter02"
+	elseif taskType==3 then
+		return "Mission_chapter04"
+	elseif taskType==4 then
+		return "Mission_chapter04"
+	elseif taskType==5 then
+		return "Mission_chapter04"
+	elseif taskType==6 then
+		return "Mission_chapter03"
+	elseif taskType==7 then
+		return "Mission_chapter05"
+	end
+end
+function TaskGroupItem:GetIconName(taskType)
+	if taskType==1 then
+		return "Mission_tab01"
+	elseif taskType==2 then
+		return "Mission_tab02"
+	elseif taskType==3 then
+		return "Mission_tab03"
+	elseif taskType==4 then
+		return "Mission_tab04"
+	elseif taskType==5 then
+		return "Mission_tab02"
+	elseif taskType==6 then
+		return "Mission_tab02"
+	end
+end
+--数据更新
+function TaskGroupItem:OnShow(type,data)
+	if data==nil then
+		self:OnHide();
+		return
+	end
+
+	self.m_TaskTypeName.text=data.TypeName
+	self:GetSprite(TaskHelper.GetTaskTypeIcon(type),function (sp)
+			self.m_TaskTypeIcon.sprite=sp
+	end)
+	self:GetSprite(self:GetBgIconName(type),function (sp)
+		self.m_TaskTypeIconBg.sprite=sp
+	end)
+	if data.Maps~=nil and data.Maps.Count>0 then
+		for k, v in pairs(data.Maps) do
+			if self.m_ChapterGroups[k]==nil then
+				local go=GameObject.Instantiate(self.m_ChapterTemplate)
+				go.transform:SetParent(self.m_ChapterTemplate.transform.parent)
+				go.transform.localPosition=Vector3(0,0,0)
+				go.transform.localScale=Vector3(1,1,1)
+				self.m_ChapterGroups[k]=TaskChapter.new(go,self.AtlasPath)
+			end
+			self.m_ChapterGroups[k]:OnShow(k,v)
+		end
+	end
+	self:OnFold();
+	self.prefab:SetActive(true)
+end
+
+function TaskGroupItem:OnHide()
+	if self.m_ChapterGroups~=nil then
+		for k, v in pairs(self.m_ChapterGroups) do
+			v:OnHide()
+		end
+	end
+	self.IsFold=false;
+	self:OnFold();
+	self.prefab:SetActive(false)
+end
+
+return  TaskGroupItem;

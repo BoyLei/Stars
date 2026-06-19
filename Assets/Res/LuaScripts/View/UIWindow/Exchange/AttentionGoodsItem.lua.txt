@@ -1,0 +1,147 @@
+---------------------------------------------------------------------
+-- src (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-10-31 11:14:22
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class AttentionGoodsItem
+--[[
+*文件名   :   Purchase
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/10/16 16:01:09"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+AttentionGoodsItem=class("AttentionGoodsItem",UIPanel)
+AttentionGoodsItem.m_Selected=nil;
+AttentionGoodsItem.m_BgRare=nil;
+AttentionGoodsItem.m_Icon=nil;
+AttentionGoodsItem.m_AttentionIcon=nil;
+AttentionGoodsItem.m_AttentionAdd=nil;
+AttentionGoodsItem.m_Name=nil;
+AttentionGoodsItem.m_State=nil;
+AttentionGoodsItem.m_StateText=nil;
+AttentionGoodsItem.m_Price=nil;
+AttentionGoodsItem.m_Num=nil;
+AttentionGoodsItem.m_Time=nil;
+AttentionGoodsItem.m_Btn=nil;
+AttentionGoodsItem.m_AttentionBtn=nil;
+AttentionGoodsItem.OnSelectCallBack=nil;
+AttentionGoodsItem.ItemID=0;
+AttentionGoodsItem.GoodsID=0;
+AttentionGoodsItem.Data=nil;
+
+local SelectionFunc=nil;
+local AttentionFunc=nil;
+function AttentionGoodsItem:ctor(go, atlas)
+	self.prefab = go;
+	self.AtlasPath = atlas;
+	self.m_Selected=self:Find("Selected").gameObject;
+	self.m_BgRare=self:Find("BgRare"):GetComponent(typeof(Image));
+	self.m_Icon=self:Find("Icon"):GetComponent(typeof(Image));
+	self.m_AttentionAdd=self:Find("Attention/Add").gameObject;
+	self.m_AttentionIcon=self:Find("Attention/Icon").gameObject;
+	self.m_Name=self:Find("Name"):GetComponent(typeof(Text));
+	self.m_State=self:Find("State").gameObject;
+	self.m_StateText=self:Find("State/Text"):GetComponent(typeof(Text));
+	self.m_Price=self:Find("Info/Price"):GetComponent(typeof(Text));
+	self.m_Num=self:Find("Info/Num"):GetComponent(typeof(Text));
+	self.m_Time=self:Find("Time/time"):GetComponent(typeof(Text));
+	self.m_Btn=self.prefab:GetComponent(typeof(JButton));
+	self.m_AttentionBtn=self:Find("Attention"):GetComponent(typeof(JButton));
+	SelectionFunc=function() self:OnClickSelectBtn(); end;
+	AttentionFunc=function() self:OnClickAttentionBtn(); end;
+	self.m_Btn.OnClick= SelectionFunc;
+	self.m_AttentionBtn.OnClick= AttentionFunc;
+
+end
+
+function AttentionGoodsItem:OnClickAttentionBtn()
+
+	---当前是否关注
+	local isAtt=self:IsAttention(self.ItemID)
+	LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule,"OnBankSetMyFollowItemIDReq",{self.ItemID,not isAtt})
+
+end
+
+
+function AttentionGoodsItem:OnClickSelectBtn()
+	if self.OnSelectCallBack~=nil then
+		self.OnSelectCallBack(self.Data);
+	end
+end
+
+function AttentionGoodsItem:Select(select)
+	self.m_Selected:SetActive(select)
+end
+
+function AttentionGoodsItem:UpdateContent(arg,selectid,cb)
+	self.OnSelectCallBack=cb;
+	self.Data=arg;
+	self.GoodsID=arg.GoodsID;
+	self.ItemID=arg.ItemMD.BaseID;
+	self:Select(self.GoodsID==selectid);
+	if self.GoodsID==selectid then
+		self:OnClickSelectBtn()
+	end
+	local config=ConfigDataAccessor.Item[self.ItemID]
+	if config~=nil then
+		self.m_Name.text=config.Name
+		local quality=config.Quality;
+		ResourceHelper:LoadIconByAtlasAsync(
+			self.m_BgRare,
+			ResourceHelper.AtlasPathCommonItem,
+			"Bag_Grid_sq"..quality,
+			false
+		)
+		ResourceHelper:LoadIconAsync(self.m_Icon, "", config.Icon, false)
+	end
+
+	local isAtten=self:IsAttention(self.ItemID);
+	
+	self.m_AttentionIcon:SetActive(isAtten)
+	self.m_AttentionAdd:SetActive(not isAtten)
+	self.m_Price.text=arg.TotalPrice
+	 local result,msg=self:GetStateName(arg.Status)
+	self.m_StateText.text=msg
+	self.m_State:SetActive(result)
+	self.m_Num.text=arg.ItemMD.Num
+	self.m_Time.text=SecToStringColon((arg.Etime-TimeUtils.GetServerTimeNow()/1000))
+	--Etime
+end
+
+
+function AttentionGoodsItem:GetStateName(state)
+	--0：没有设置 1：正常售卖 2：已出售 3：已下架
+	if state ==2 then
+		return true,LanguageHelp:GetLanguageByKey("Local_Str_BeSold")
+	elseif state ==3 then
+		return true,LanguageHelp:GetLanguageByKey("Local_Str_SOLD_OUT")
+	end
+	return false,""
+
+end
+
+function AttentionGoodsItem:IsAttention(itemID)
+
+	local playerinfo= BusinessManager.Instance.M_BankPlayerMD;
+	local items={}
+	if playerinfo~=nil then
+		if playerinfo.FollowItem~=nil  and playerinfo.FollowItem.ItemIDList~=nil and playerinfo.FollowItem.ItemIDList.Count>0 then
+
+			for i = 1, playerinfo.FollowItem.ItemIDList.Count do
+				if itemID==playerinfo.FollowItem.ItemIDList[i-1] then
+					return true;
+				end
+			end
+
+		end
+	end
+	return false;
+end
+
+return  AttentionGoodsItem

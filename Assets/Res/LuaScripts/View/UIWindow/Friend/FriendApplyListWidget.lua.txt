@@ -1,0 +1,608 @@
+---------------------------------------------------------------------
+-- Stars (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-08-04 15:45:48
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class FriendApplyListWidget
+
+FriendApplyListWidget = class("FriendApplyListWidget", UIPanel)
+
+local ItemFriendApply = require("View/UIWindow/Friend/ItemFriendApply");
+
+FriendApplyListWidget.m_ApplyFriends = {}; -- 所有的申请列表好友信息
+-- FriendApplyListWidget.m_CfgInterval = 120; -- 定时器时间秒
+-- FriendApplyListWidget.m_Countdown = 120;
+
+
+function FriendApplyListWidget:Awake()
+	self:Init();
+	self.onCloseDestroy(true)
+end
+
+function FriendApplyListWidget:Init()
+	self.transform = self.prefab.transform;
+	self.gameObject = self.transform.gameObject;
+
+	local FrameTransForm = self.transform:Find("Cut4Cam90/AssemblyRatio2/bg").transform;
+	-- 关闭按钮
+	local JBtnClose = FrameTransForm:Find("CloseBtn"):GetComponent(typeof(JButton));
+	self.CloseBtnFun = function()
+		self.Close();
+	end
+	JBtnClose.OnClick = self.CloseBtnFun;
+	-- JBTN 全部同意
+	local JBtnAllAgree = FrameTransForm:Find("Down/JBtnAllAgree"):GetComponent(typeof(JButton));
+	self.JBtnAllAgreeFun = function()
+		self:OnClickAllAgreeJBtn(1);
+	end
+	JBtnAllAgree.OnClick = self.JBtnAllAgreeFun;
+	-- JBTN 全部拒绝
+	local JBtnAllReject = FrameTransForm:Find("Down/JBtnAllReject"):GetComponent(typeof(JButton));
+	self.JBtnAllRejectFun = function()
+		self:OnClickAllAgreeJBtn(-1);
+	end
+	JBtnAllReject.OnClick = self.JBtnAllRejectFun;
+	-- 申请数量
+	self.ApplyNum = FrameTransForm:Find("Down/ApplyNum"):GetComponent(typeof(Text));
+	-- 申请列表
+	self.ItemFriendApplyList = {};
+	self.ScrollViewContent = FrameTransForm:Find("Top/ScrollView/Mask/List")
+	self.ScrollView = FrameTransForm:Find("Top/ScrollView"):GetComponent(typeof(SuperScrollViewController));
+	self.ScrollView:NewScroll(FrameTransForm:Find("Top/ItemFriendApply").gameObject, 0, function(tr, idx)
+		self:OnItemRefesh(tr, idx);
+	end);
+	-- 空提示
+	self.EmptyTips = FrameTransForm:Find("Top/EmptyTips").gameObject;
+	--------------------------- 初始化一次性的数据
+
+	--self.m_CfgInterval =
+	--------------------------- 初始化一次性的数据
+
+	--------------------------------------------- 事件
+	-- -- 全量数据回调
+	-- self.OnFullFriendsApplyToRespFun = function(data)
+	-- 	self:OnFullFriendsApplyToResp(data);
+	-- end
+	-- -- 差量数据回调
+	-- self.OnDispersionFriendsApplyToRespFun = function(data)
+	-- 	self:OnDispersionFriendsApplyToResp(data);
+	-- end
+	-- 同意好友申请回调
+	self.OnRespondFriendApplyRespFun = function(data)
+		self:OnRespondFriendApplyResp(data, 1);
+	end
+	-- 拒绝好友申请回调
+	self.OnRespondFriendApplyResp2Fun = function(data)
+		self:OnRespondFriendApplyResp(data, -1);
+	end
+
+	-- -- update事件
+	-- self.UpdateFun = function()
+	-- 	self:UpdateData();
+	-- end
+
+	-- 发起聊天
+	self.OnInitiateChatFun = function(PID)
+		self:OnInitiateChat(PID);
+	end
+	-- 删除好友
+	self.OnDelFriendFun = function(PID)
+		self:OnDelFriend(PID);
+	end
+	-- 同意好友申请
+	self.OnApplyFriendFun = function(PID)
+		self:OnApplyFriend(PID);
+	end
+	-- 拒绝好友申请
+	self.OnRejectFriendFun = function(PID)
+		self:OnRejectFriend(PID);
+	end
+	-- 拉入黑名单
+	self.OnJoinBlackFriendFun = function(PID)
+		self:OnJoinBlackFriend(PID);
+	end
+	-- 移出黑名单
+	self.OnRemoveBlackRespFun = function(PID)
+		self:OnRemoveBlackResp(PID);
+	end
+	-- 邀请组队
+	self.OnInviteTeamFun = function(PID)
+		self:OnInviteTeam(PID);
+	end
+
+	--------------------------------------------- 事件
+end
+
+function FriendApplyListWidget:BindModule(module)
+	self.module = module;
+end
+
+function FriendApplyListWidget:Start()
+
+end
+
+function FriendApplyListWidget:OnEnable()
+
+end
+
+function FriendApplyListWidget:OnDisable()
+
+end
+
+function FriendApplyListWidget:OnDestroy()
+	--MonoHelper.RemoveUpdateListener(self.UpdateFun);
+end
+
+function FriendApplyListWidget:OnOpen(arg)
+	self.IsOpen = true;
+	--self:RefreshData(arg);
+	--MonoHelper.RemoveUpdateListener(self.UpdateFun);
+	--self:InitData();
+	--MonoHelper.AddUpdateListener(self.UpdateFun);
+end
+
+function FriendApplyListWidget:OnClose(arg)
+	self:CloseWindow();
+	self.module.FriendApplyListWidget = nil;
+end
+
+----------------------------------------------------- 业务逻辑↓↓↓↓ ------------------------------------------
+
+function FriendApplyListWidget:RefreshData(applyFriends, applyFriendsRead)
+	self.m_ApplyFriends = applyFriends;
+	self.m_ApplyFriendsRead = applyFriendsRead;
+	local count = #self.m_ApplyFriends;
+	--self.ApplyNum.text = "申请数：" .. count;
+	self.ApplyNum.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_FriendApplyListWidget_ApplyNum"), {count});
+
+	self.EmptyTips:SetActive(count <= 0);
+	self.ScrollView:ContinueScroll(count);
+end
+
+-- function FriendApplyListWidget:InitData()
+-- 	self.m_Countdown = self.m_CfgInterval;
+-- 	self:GetFriendsApplyList();
+-- end
+
+-- 定时器
+-- function FriendApplyListWidget:UpdateData()
+-- 	if self.m_Countdown > 0 and self.IsOpen then
+-- 		local deltaTime = Time.deltaTime;
+-- 		self.m_Countdown = self.m_Countdown - deltaTime;
+-- 		if self.m_Countdown <= 0 then
+-- 			self:GetFriendsApplyList();
+-- 			self.m_Countdown = self.m_CfgInterval;
+-- 		end
+-- 	end
+-- end
+
+-- function FriendApplyListWidget:GetFriendsApplyList()
+-- 	if self.m_ApplyFriends ~= nil and self.m_ApplyFriends ~= {} and #self.m_ApplyFriends > 0 then
+-- 		-- 获取【差量】
+-- 		local lastId = self:GetLastId();
+-- 		self:GetGetPageFriendsApplyToReq(lastId, self.OnDispersionFriendsApplyToRespFun);
+-- 	else
+-- 		-- 获取【全量】
+-- 		self:GetGetPageFriendsApplyToReq(0, self.OnFullFriendsApplyToRespFun);
+-- 	end
+-- end
+
+-- -- 获取收到的好友申请列表
+-- function FriendApplyListWidget:GetGetPageFriendsApplyToReq(lastid, cb)
+-- 	if lastid == 0 then
+-- 		self.m_ApplyFriends = {};
+-- 	end
+-- 	local message = CS.ProtoMsg.GetPageFriendsApplyToReq();
+-- 	message.UserPID = BusinessManager.Instance:GetUserPID();
+-- 	local query = CS.ProtoMsg.RequestQuery();
+-- 	query.LastId = lastid; -- 大于0就是差异
+-- 	query.Limit = 200;
+-- 	message.Query = query;
+-- 	LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnSendClient2ThirdReq",
+-- 		{ "GetPageFriendsApplyToReq", ExtraData.ToByteString(message), "FriendApplyListWidget",
+-- 			"GetPageFriendsApplyToResp", cb });
+-- end
+
+-- -- 执行全量申请数据
+-- function FriendApplyListWidget:OnFullFriendsApplyToResp(data)
+-- 	if data == nil then
+-- 		return;
+-- 	end
+-- 	for i = 0, data.FriendRequests.Count - 1 do
+-- 		table.insert(self.m_ApplyFriends, data.FriendRequests[i]);
+-- 	end
+-- 	-- 排序
+-- 	if self.m_ApplyFriends ~= nil and self.m_ApplyFriends ~= {} and #self.m_ApplyFriends > 1 then
+-- 		-- 定义比较函数，按照id从大到小排序
+-- 		local function compare(a, b)
+-- 			return a.CreateTime > b.CreateTime
+-- 		end
+-- 		-- 对values进行排序
+-- 		table.sort(self.m_ApplyFriends, compare);
+-- 	end
+
+-- 	local count = #self.m_ApplyFriends;
+-- 	self.ApplyNum.text = "申请数：" .. count;
+-- 	self.EmptyTips:SetActive(count <= 0);
+-- 	self.ScrollView:ContinueScroll(count);
+-- end
+
+-- -- 执行差量申请数据
+-- function FriendApplyListWidget:OnDispersionFriendsApplyToResp(data)
+-- 	if data == nil then
+-- 		return;
+-- 	end
+-- 	-- 差量更新全量的数据
+-- 	for i = 0, data.FriendRequests.Count - 1 do
+-- 		local child = data.FriendRequests[i];
+-- 		if child ~= nil then
+-- 			local isHave = false;
+-- 			for j = 1, #self.m_ApplyFriends do
+-- 				local item = self.m_ApplyFriends[j];
+-- 				if item ~= nil and item.FriendInfo ~= nil then
+-- 					if child.FromUserPID == item.FromUserPID then
+-- 						self.m_ApplyFriends[j] = child;
+-- 						isHave = true;
+-- 					end
+-- 				end
+-- 			end
+-- 			if isHave == false then
+-- 				table.insert(self.m_ApplyFriends, child);
+-- 			end
+-- 		end
+-- 	end
+-- 	-- 排序
+-- 	if self.m_ApplyFriends ~= nil and self.m_ApplyFriends ~= {} and #self.m_ApplyFriends > 1 then
+-- 		-- 定义比较函数，按照id从大到小排序
+-- 		local function compare(a, b)
+-- 			return a.CreateTime > b.CreateTime
+-- 		end
+-- 		-- 对values进行排序
+-- 		table.sort(self.m_ApplyFriends, compare);
+-- 	end
+-- 	-- 更新
+-- 	local count = #self.m_ApplyFriends;
+-- 	self.ApplyNum.text = "申请数：" .. count;
+-- 	self.EmptyTips:SetActive(count <= 0);
+-- 	self.ScrollView:ContinueScroll(count, false);
+-- end
+
+-- -- 获取最后一个id
+-- function FriendApplyListWidget:GetLastId()
+-- 	local lastid = 0;
+
+-- 	for i = 1, #self.m_ApplyFriends do
+-- 		local item = self.m_ApplyFriends[i];
+-- 		if item ~= nil then
+-- 			if item.ID > lastid then
+-- 				lastid = item.ID;
+-- 			end
+-- 		end
+-- 	end
+-- 	return lastid;
+-- end
+
+----------------------------------------------------- 无限列表 【STAR】 ------------------------------------------
+
+function FriendApplyListWidget:OnItemRefesh(tr, idx)
+	if self.ItemFriendApplyList == nil then
+		return;
+	end
+	local data = self.m_ApplyFriends[idx + 1]; --idx是从0开始，如果ItemDataList是lua的table需要idx+1
+	local isNew = self:GetIsNewData(data.FromUserPID)
+	for i = 1, #self.ItemFriendApplyList do
+		if self.ItemFriendApplyList[i].prefab.transform == tr then
+			self.ItemFriendApplyList[i]:UpdateContent(data, isNew);
+			return;
+		end
+	end
+	local sp = ItemFriendApply.new(tr.gameObject, self.ScrollViewContent, function(pidList)
+		self:OnRespondFriendApplyReq(pidList)
+	end, function(UserInfo, tr)
+		self:OnHeadSelect(UserInfo, tr);
+	end);
+	sp:UpdateContent(data, isNew);
+	table.insert(self.ItemFriendApplyList, sp);
+end
+
+-- 获取是否是新数据
+function FriendApplyListWidget:GetIsNewData(pid)
+	for key, value in pairs(self.m_ApplyFriendsRead) do
+		if value ~= nil and value.FromUserPID == pid then
+			return false;
+		end
+	end
+	return true;
+end
+
+-- 删除申请列表
+function FriendApplyListWidget:OnRespondFriendApplyReq(pidList)
+	if pidList == nil then
+		return;
+	end
+	local count = #pidList;
+	if count > 0 then
+		for i = 1, #pidList do
+			local pid = pidList[i];
+			local index = self:GetIsHasLocalFriendListHasByPID(pid);
+			if index ~= -1 then
+				table.remove(self.m_ApplyFriends, index);
+				-- 删除本地缓存的申请列表
+				LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnDelApplyListByPID", { pid });
+			end
+		end
+		local count = #self.m_ApplyFriends;
+		--self.ApplyNum.text = "申请数：" .. count;
+		self.ApplyNum.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_FriendApplyListWidget_ApplyNum"), {count});
+
+		self.EmptyTips:SetActive(count <= 0);
+		self.ScrollView:ContinueScroll(count, false);
+
+		-- 红点通知
+		RedPointManager.Instance:RefreshRedPointCount(RedPointType.FriendRequest, count);
+	end
+end
+
+function FriendApplyListWidget:OnHeadSelect(UserInfo, transform)
+	if UserInfo == nil then
+		return;
+	end
+	-------- 0没有任何关系 1只有好友关系 2在我的黑名单中
+	local FriendModule = LuaModuleDispatcher:GetModule(ModuleDef.FriendModule);
+	local friendRelation = FriendModule:GetFriendRelation(UserInfo.FromUserPID);
+
+	local playerInfo = {
+		PID = UserInfo.FromUserPID,
+		JobID = UserInfo.FromJobID,
+		Level = UserInfo.FromLevel,
+		UserName = UserInfo.FromUserName,
+		GuildName = UserInfo.FromGuildName
+	};
+	local btnStrs = {};
+	local btnCBs = {};
+	if friendRelation == 0 then
+		-- 0没有任何关系
+		----btnStrs = {LanguageHelp:GetLanguageByKey("Local_Str_Initiate_a_chat"), LanguageHelp:GetLanguageByKey("Local_Str_consent_to_apply"), LanguageHelp:GetLanguageByKey("Local_Str_refuse_an_application"), LanguageHelp:GetLanguageByKey("Local_Str_Be_blacklisted"), LanguageHelp:GetLanguageByKey("Local_Str_Invite_team")};
+		----btnCBs = {self.OnInitiateChatFun, self.OnApplyFriendFun, self.OnRejectFriendFun, self.OnJoinBlackFriendFun, self.OnInviteTeamFun};
+		-- btnStrs = { LanguageHelp:GetLanguageByKey("Local_Str_Initiate_a_chat"), LanguageHelp:GetLanguageByKey("Local_Str_Invite_team"), LanguageHelp:GetLanguageByKey("Local_Str_Be_blacklisted") };
+		-- btnCBs = { self.OnInitiateChatFun, self.OnInviteTeamFun, self.OnJoinBlackFriendFun };
+		btnStrs = { LanguageHelp:GetLanguageByKey("Local_Str_Initiate_a_chat"), LanguageHelp:GetLanguageByKey("Local_Str_Be_blacklisted") };
+		btnCBs = { self.OnInitiateChatFun, self.OnJoinBlackFriendFun };
+	elseif friendRelation == 1 then
+		-- 1只有好友关系
+		btnStrs = { LanguageHelp:GetLanguageByKey("Local_Str_Initiate_a_chat"), LanguageHelp:GetLanguageByKey("Local_Str_del_friends"), LanguageHelp:GetLanguageByKey("Local_Str_Be_blacklisted") };
+		btnCBs = { self.OnInitiateChatFun, self.OnDelFriendFun, self.OnJoinBlackFriendFun };
+		-- btnStrs = { LanguageHelp:GetLanguageByKey("Local_Str_Initiate_a_chat"), LanguageHelp:GetLanguageByKey("Local_Str_del_friends"), LanguageHelp:GetLanguageByKey("Local_Str_Invite_team"), LanguageHelp:GetLanguageByKey("Local_Str_Be_blacklisted") };
+		-- btnCBs = { self.OnInitiateChatFun, self.OnDelFriendFun, self.OnInviteTeamFun, self.OnJoinBlackFriendFun };
+	elseif friendRelation == 2 then
+		-- 2在我的黑名单中
+		btnStrs = { LanguageHelp:GetLanguageByKey("Local_Str_Be_blacklist") };
+		btnCBs = { self.OnRemoveBlackRespFun };
+	end
+
+	if #btnStrs <= 0 or #btnCBs <= 0 then
+		return;
+	end
+
+	LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnOpenFriendTipsWidget",
+		{ playerInfo, btnStrs, btnCBs, transform });
+end
+
+-- 获取item
+function FriendApplyListWidget:GetItemByPID(PID)
+	if self.ItemFriendApplyList ~= nil or self.ItemFriendApplyList ~= {} or #self.ItemFriendApplyList > 0 then
+		for i = 1, #self.ItemFriendApplyList do
+			local item = self.ItemFriendApplyList[i];
+			if item ~= nil and item.FriendInfo ~= nil and item.FriendInfo.FromUserPID == PID then
+				return item;
+			end
+		end
+	end
+
+	return nil;
+end
+
+----------------------------------------------------- 无限列表 【END】 ------------------------------------------
+
+----------------------------------------------------- 玩家头像点击事件 【STAR】 ------------------------------------------
+
+-- 发起聊天
+function FriendApplyListWidget:OnInitiateChat(pid)
+	LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnInitiateChat", { pid });
+	self.Close();
+end
+
+-- 删除好友
+function FriendApplyListWidget:OnDelFriend(pid)
+	local item = self:GetItemByPID(pid);
+	if item == nil then
+		return;
+	end
+	item:OnDeleteFriend();
+end
+
+-- 同意好友申请
+function FriendApplyListWidget:OnApplyFriend(pid)
+	local item = self:GetItemByPID(pid);
+	if item == nil then
+		return;
+	end
+	item:OnClickJBtnAgree(1);
+end
+
+-- 拒绝好友申请
+function FriendApplyListWidget:OnRejectFriend(pid)
+	local item = self:GetItemByPID(pid);
+	if item == nil then
+		return;
+	end
+	item:OnClickJBtnAgree(-1);
+end
+
+-- 拉入黑名单
+function FriendApplyListWidget:OnJoinBlackFriend(pid)
+	local item = self:GetItemByPID(pid);
+	if item == nil then
+		return;
+	end
+	item:OnAddBlackFriend();
+end
+
+-- 移出黑名单
+function FriendApplyListWidget:OnRemoveBlackResp(pid)
+	local item = self:GetItemByPID(pid);
+	if item == nil then
+		return;
+	end
+	item:OnRemoveBlack();
+end
+
+-- 邀请组队
+function FriendApplyListWidget:OnInviteTeam(pid)
+	-- 等毛哥来了再写
+end
+
+----------------------------------------------------- 玩家头像点击事件 【END】 ------------------------------------------
+
+
+----------------------------------------------------- 初始化一次性数据 【STAR】 -----------------------------------------
+
+
+----------------------------------------------------- 初始化一次性数据 【END】 ------------------------------------------
+
+
+----------------------------------------------------- 按钮点击事件 【STAR】 ------------------------------------------
+
+-- 全部同意
+function FriendApplyListWidget:OnClickAllAgreeJBtn(res)
+	local pids = {};
+	for j = 1, #self.m_ApplyFriends do
+		local friendInfo = self.m_ApplyFriends[j];
+		if friendInfo ~= nil then
+			table.insert(pids, friendInfo.FromUserPID);
+		end
+	end
+	local key = "FriendApplyListWidget";
+	local cb = self.OnRespondFriendApplyRespFun;
+	if res == -1 then
+		cb = self.OnRespondFriendApplyResp2Fun;
+	end
+	LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnSendRespondFriendApply", { pids, res, key, cb });
+end
+
+-- 对好友申请响应（同意或拒绝） 回调
+function FriendApplyListWidget:OnRespondFriendApplyResp(data, res)
+	if data == nil then
+		return;
+	end
+
+	-- 服务器返回的是申请失败的PID
+	-- 过滤成-》只有成功的pid
+	local pids = {};
+	for i = 1, #self.m_ApplyFriends do
+		local friendInfo = self.m_ApplyFriends[i];
+		if friendInfo ~= nil then
+			local isHave = false;
+			for j = 0, data.FailToUserPID.Count - 1 do
+				local pid = data.FailToUserPID[j];
+				if friendInfo.FromUserPID == pid then
+					isHave = true;
+				end
+			end
+			if isHave == false then
+				table.insert(pids, friendInfo.FromUserPID);
+			end
+		end
+	end
+
+	if pids == nil or pids == {} or #pids <= 0 then
+		return;
+	end
+
+	-- 同意的发送系统消息
+	if res == 1 then
+		for i = 1, #pids do
+			local pid = pids[i];
+			local userName = "";
+			local friendInfo = self:GetFriendListHasByPID(pid);
+			if friendInfo ~= nil then
+				userName = friendInfo.FromUserName;
+				-- 先添加好友缓存
+				LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnAddFriendListByPID", {
+					friendInfo.FromUserPID,
+					friendInfo.FromUserName,
+					friendInfo.FromModelID,
+					friendInfo.FromLevel,
+					friendInfo.FromGuildName,
+					friendInfo.FromJobID,
+				});
+			end
+			-- 发送私聊信息
+			local chatMsg = LanguageHelp:GetLanguageByKey("Local_Str_add_friends_tips");
+			local chatChannel = CS.ProtoMsg.ChatChannel.ChannelPrivate;
+			local extrainfos = nil;
+			LuaModuleDispatcher:SendMessage(ModuleDef.ChatModule, "OnSendChatMsg",
+				{ chatMsg, chatChannel, extrainfos, pid });
+			-- 模拟接收系统消息
+			local msgList = {};
+			local chatMsgNotice = CS.ProtoMsg.ChatMsgNotice();
+			chatMsgNotice.EID = 0;
+			chatMsgNotice.PID = 0;
+			--chatMsgNotice.Data = "你与<color=#b23738><size=21>" .. userName .. "</size></color>成为好友";
+			chatMsgNotice.Data = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_add_friends_tips2"), {userName});
+			chatMsgNotice.Channel = CS.ProtoMsg.ChatChannel.ChannelSystem;
+			chatMsgNotice.ChatTime = TimeUtils.ServerNowStampMilli;
+			chatMsgNotice.ChatLevel = 1;
+			chatMsgNotice.JobID = GameManager.Instance:GetPlayerJob();
+
+			table.insert(msgList, chatMsgNotice);
+			LuaModuleDispatcher:SendMessage(ModuleDef.ChatModule, "OnAnalogReceptionChatMsg", { msgList });
+		end
+	end
+
+	self:OnRespondFriendApplyReq(pids);
+end
+
+-- 本地缓存的数据是否有包含pid
+function FriendApplyListWidget:GetIsHasLocalFriendListHasByPID(pid)
+	if self.m_ApplyFriends == nil then
+		return -1;
+	end
+	for i = 1, #self.m_ApplyFriends do
+		local friendInfo = self.m_ApplyFriends[i];
+		if friendInfo ~= nil and friendInfo.FromUserPID == pid then
+			return i;
+		end
+	end
+	return -1;
+end
+
+-- 本地缓存的数据是否有包含pid
+function FriendApplyListWidget:GetFriendListHasByPID(pid)
+	if self.m_ApplyFriends == nil then
+		return nil;
+	end
+	for i = 1, #self.m_ApplyFriends do
+		local friendInfo = self.m_ApplyFriends[i];
+		if friendInfo ~= nil and friendInfo.FromUserPID == pid then
+			return friendInfo;
+		end
+	end
+	return nil;
+end
+
+----------------------------------------------------- 按钮点击事件 【END】 ------------------------------------------
+
+-- 关闭界面
+function FriendApplyListWidget:CloseWindow()
+	self.IsOpen = false;
+	RedPointManager.Instance:RefreshRedPointCount(RedPointType.FriendRequest, 0);
+	LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "CacheReadApplyList");
+	--MonoHelper.RemoveUpdateListener(self.UpdateFun);
+end
+
+return FriendApplyListWidget

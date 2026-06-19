@@ -1,0 +1,129 @@
+---------------------------------------------------------------------
+-- Star (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2022-12-14 16:59:12
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class PartnerItem
+PartnerItem = class("PartnerItem",UIPanel)
+PartnerItem.QualityBg=nil;
+PartnerItem.Icon=nil;
+PartnerItem.Level=nil;
+PartnerItem.Selected=nil;
+PartnerItem.Stars=nil;
+PartnerItem.Tag=nil;
+PartnerItem.State=nil;
+PartnerItem.StateText=nil;
+PartnerItem.Btn=nil;
+PartnerItem.CallBack=nil;
+PartnerItem.Index=0;
+
+function PartnerItem:ctor(go,parent,atlas,callBack)
+	self.prefab=go;
+	self.AtlasPath=atlas;
+	self.CallBack=callBack;
+	self.Btn=go:GetComponent(typeof(JButton));
+	self.QualityBg=self:Find("BgRare"):GetComponent(typeof(Image));
+	self.Icon=self:Find("Icon"):GetComponent(typeof(Image));
+	self.Level=self:Find("Level"):GetComponent(typeof(Text));
+	self.Selected=self:Find("Selected").gameObject;
+	self.Tag=self:Find("tag/tt"):GetComponent(typeof(Text));
+	self.State=self:Find("State").gameObject;
+	self.StateText=self:Find("State/Text"):GetComponent(typeof(Text));
+	self.Stars={}
+	table.insert(self.Stars,self:Find("Stars/Star1").gameObject);
+	table.insert(self.Stars,self:Find("Stars/Star2").gameObject);
+	table.insert(self.Stars,self:Find("Stars/Star3").gameObject);
+	table.insert(self.Stars,self:Find("Stars/Star4").gameObject);
+	table.insert(self.Stars,self:Find("Stars/Star5").gameObject);
+	table.insert(self.Stars,self:Find("Stars/Star6").gameObject);
+
+	self.Btn.OnClick=(function() self:OnClickHandler() end);
+end
+
+--点击事件
+function PartnerItem:OnClickHandler()
+	self.CallBack(self.Index);
+	self:OnSelect(true);
+end
+
+function PartnerItem:GetStateText(state)
+	local stateText=LanguageHelp:GetLanguageByKey("Local_Str_stateText1");
+	if state==CS.ProtoMsg.PartnerState.InBattle or state==CS.ProtoMsg.PartnerState.Concretization then
+		stateText=LanguageHelp:GetLanguageByKey("Local_Str_stateText2");
+	elseif state ==CS.ProtoMsg.PartnerState.Assist then
+		stateText=LanguageHelp:GetLanguageByKey("Local_Str_stateText3");
+	end
+	return stateText;
+end
+
+function PartnerItem:OnSelect(select)
+	self.Selected:SetActive(select)
+end
+
+function  PartnerItem:GetQualityName(quality)
+	if quality==1 then
+		return "Partner_select_white";
+	elseif quality==2 then
+		return "Partner_select_blue";
+	elseif quality==3 then
+		return "Partner_select_purple";
+	elseif quality==4 then
+		return "Partner_select_orange";
+	end
+end
+
+--数据更新
+function PartnerItem:UpdateContent(data,selectIndex)
+	if data==nil then
+		return
+	end
+	self.Index=data.Index;
+	--self.Level.text=tostring(data.Level).."级"
+	self.Level.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {data.Level});
+
+	local activeState=false;
+	if data.State==CS.ProtoMsg.PartnerState.InBattle or data.State==CS.ProtoMsg.PartnerState.Concretization then
+		activeState=true;
+	elseif data.State ==CS.ProtoMsg.PartnerState.Assist then
+		activeState=true;
+	end
+	self.State:SetActive(activeState)
+	if activeState then
+		self.StateText.text=self:GetStateText(data.State);
+	end
+	for i = 1, #self.Stars do
+		if i<=data.CurStar then
+			self.Stars[i]:SetActive(true)
+		else
+			self.Stars[i]:SetActive(false)
+		end
+	end
+	self:OnSelect(data.Index==selectIndex)
+
+	local config=ConfigDataAccessor.Partner[data.Index];
+	if config~=nil then
+		--头像
+		local avatarDataCell= ConfigDataAccessor.Avatar[config.AvatarID];
+		if avatarDataCell ~= nil then
+			local headcfg=ConfigDataAccessor.ModelHead[avatarDataCell.HeadID];
+			if headcfg~=nil then
+				self:GetSpriteByAtlas(headcfg.HeadAtlasName,headcfg.MaxHead,function (sp)
+						self.Icon.sprite=sp
+						self.Icon:SetNativeSize()
+				end);
+				
+			end
+		end
+
+		self:GetSprite(self:GetQualityName(config.Quality),function (sp)
+				self.QualityBg.sprite=sp
+		end)
+		--self.QualityBg:SetNativeSize()
+	end
+end
+
+return  PartnerItem;

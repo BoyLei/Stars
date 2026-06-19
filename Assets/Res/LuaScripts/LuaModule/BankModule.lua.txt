@@ -1,0 +1,135 @@
+BankModule = class("BankModule", BaseLuaModule)
+
+local bankwindowPath = "bank/prefab/bankwindow"
+
+-- LuaModule 消息模块
+BankModule.ModuleMessages = {
+    -- 打开
+    ["OnOpenBankWindow"] = function(...)
+        BankModule:OnOpenBankWindow(...)
+    end
+}
+
+function BankModule:OnOpenBankWindow(...)
+    local tb = ...
+
+    self.openTag = 1
+    -- 传入道具ID
+    if type(tb) == "table" then
+        -- Lua调用
+        if #tb > 0 then
+            self.openTag = tb[1]
+        end
+    else
+        -- C#调用
+        if tb.Length > 0 then
+            self.openTag = tb[0]
+        end
+    end
+
+    -- local bankWindowCs =UIManager.Instance:OpenWindow(bankwindowPath);
+    -- if self.bankWindowView == nil then
+    -- 	self.bankWindowView=bankWindowCs:GetLuaPanel().ScriptTable;
+    -- 	self.bankWindowView:BindModule(self);
+    -- 	self.bankWindowView:InitControls();
+    -- end
+
+    -- 请求当前汇率
+    local money2MoneyInfoReq = CS.ProtoMsg.Money2MoneyInfoReq()
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, money2MoneyInfoReq, false)
+end
+-- LuaModule 创建
+function BankModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.BankModule, self)
+
+    NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.Money2MoneyRetID,
+        function(data)
+            DelayInvoker.DelayInvoke(self, 0.3, function(...)
+                self:OnMoney2MoneyRet(data)
+            end);
+        end,
+        nil
+    )
+
+    NetworkManager.Instance:OnMessageEnum(
+        CS.MsgIDEnum.Money2MoneyInfoRetID,
+        function(data)
+            DelayInvoker.DelayInvoke(self, 0.3, function(...)
+                self:OnMoney2MoneyInfoRet(data)
+            end);
+        end,
+        nil
+    )
+end
+
+function BankModule:OnMoney2MoneyRet(data)
+    if self.bankWindowView ~= nil and self.bankWindowView.gameObject.activeSelf then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_BankModule_Tips_1"))
+        self.bankWindowView:RefreshData()
+    end
+end
+
+function BankModule:OnMoney2MoneyInfoRet(data)
+    -- Util.ShowMessage(Local_Str_Auto_Tips_4);
+    if data == nil or data.data == nil then
+        return
+    end
+
+    self.rate = data.data.Rate
+    self.startTime = data.data.StartTime
+    self.AsyncLoadBankWindowCb = function(ui)
+        if ui ~= nil then
+            if self.bankWindowView == nil then
+                self.bankWindowView = ui:GetLuaPanel().ScriptTable
+                self.bankWindowView:BindModule(self)
+                self.bankWindowView:InitControls()
+                self.bankWindowView:Show(self.rate, self:GetLeftTime())
+            end
+
+            self.bankWindowView:SetRateAndTime(self.rate, self:GetLeftTime())
+            self.bankWindowView:MakeSelected(self.openTag)
+        end
+        self.AsyncLoadBankWindowCb = nil
+    end
+    UIManager.Instance:OpenWindowAsync(bankwindowPath, self.AsyncLoadBankWindowCb)
+
+    -- self.rate = data.data.Rate;
+    -- self.startTime = data.data.StartTime;
+    -- if self.bankWindowView ~= nil then
+    -- self.bankWindowView:SetRateAndTime(self.rate, self:GetLeftTime());
+    -- self.bankWindowView:Show(self.rate, self:GetLeftTime());
+    -- end
+end
+
+function BankModule:GetLeftTime()
+    if self.startTime == nil then
+        return 0
+    end
+    local serverNowTime = math.floor(GameManager.Instance:GetServerTimeStamp())
+    local totalTime = ConfigDataAccessor.SystemList[132].Value
+    local leftTime = totalTime * 60 - (serverNowTime - self.startTime) / 1000
+    if leftTime < 0 then --
+        --[[local money2MoneyInfoReq = CS.ProtoMsg.Money2MoneyInfoReq();
+		CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, money2MoneyInfoReq, false);]] return 0
+    else
+        return leftTime
+    end
+end
+
+-- LuaModule 消息处理
+function BankModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...)
+end
+
+-- LuaModule显示
+function BankModule:OnModuleShow(arg)
+end
+
+-- LuaModule 释放
+function BankModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.BankModule)
+    self.bankWindowView = nil
+end
+
+return BankModule

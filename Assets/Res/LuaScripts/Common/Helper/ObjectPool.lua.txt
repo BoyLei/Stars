@@ -1,0 +1,112 @@
+--[[
+*文件名   :   ObjectPool
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/09 10:07:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local ObjectPool = {}
+
+ObjectPool.__index = ObjectPool
+
+
+--[[
+initCapacity:初始数量
+_className:生成的对象类名
+_prefabGo:生成对象的预制体/GO
+_parent:生成对象的父物体位置
+_onCreate:生成后回调
+_onRecycle:回收后回调
+_onClick:点击后回调
+]]
+function ObjectPool:New(initCapacity,_className,_prefabGo,_parent,_onCreate,_onRecycle) 
+    local self = {};    
+    setmetatable(self, ObjectPool); 
+    
+
+    self.className=_className;
+    self.OnCreate=_onCreate;
+    self.OnRecycle=_onRecycle;
+    
+    _prefabGo.transform:SetParent(_parent);
+
+    self.m_ObjPool={};
+    self.m_ObjTemp=_prefabGo;
+    self.m_ObjTemp.transform:SetParent(_parent);
+    self.m_ObjTemp.transform.localPosition = Vector3.zero
+    self.m_ObjTemp.transform.localScale = Vector3.one
+	self.m_ObjTemp:SetActive(false);
+
+    --先创建initCapacity个
+	for i=1,initCapacity do
+		self:CreateObj();
+	end
+
+    return self;    --返回自身
+end
+
+
+--生成
+function ObjectPool:Spawn()
+    for i=1,#self.m_ObjPool do 
+        if not self.m_ObjPool[i].IsUsed then
+            self.m_ObjPool[i].IsUsed=true;
+            return self.m_ObjPool[i];
+        end
+    end
+	
+	return self:CreateObj();
+end
+
+--回收
+function ObjectPool:Recycle(obj)
+    obj.IsUsed=false;
+    if self.OnRecycle~= nil then
+        self.OnRecycle(obj);
+    end
+end
+
+--回收全部
+function ObjectPool:RecycleAll()
+    for i=1,#self.m_ObjPool do
+        self:Recycle(self.m_ObjPool[i]);
+    end
+end
+
+--创建
+function ObjectPool:CreateObj()
+    local _go = newObject(self.m_ObjTemp);
+    _go.transform:SetParent(self.m_ObjTemp.transform.parent);
+    _go.transform.localPosition = Vector3.zero
+    _go.transform.localScale = Vector3.one
+    _go:SetActive(true);
+
+
+    local PoolClass= require(self.className);
+	local item=PoolClass:New(_go)
+    item.IsUsed=true;
+
+    --生成时回调
+    if self.OnCreate~= nil then
+        self.OnCreate(item);
+    end
+
+    table.insert( self.m_ObjPool, item );
+    return item;
+end
+
+
+
+--销毁对象池
+function ObjectPool:Dispose()
+    for i=1,#self.m_ObjPool do
+        GameObject.Destroy(self.m_ObjPool[i]);
+        self.m_ObjPool[i]=nil;
+    end 
+    self.m_ObjPool=nil;  
+end
+
+
+return ObjectPool;

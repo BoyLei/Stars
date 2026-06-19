@@ -1,0 +1,55 @@
+--[[
+*文件名   :   AdventureLevelLvUpItem
+*内  容   :   环任务中的Item
+*说  明   :
+*创建日期 :   "2023/05/31 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local AdventureLevelLvUpItem = {}
+
+AdventureLevelLvUpItem.__index = AdventureLevelLvUpItem
+
+
+function AdventureLevelLvUpItem:New(_go)
+    local self = {}
+    setmetatable(self, AdventureLevelLvUpItem)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.Name = self.transform:Find("Root/tex"):GetComponent(typeof(Text))
+
+
+    self.go_EffBtn = self.transform:Find("Root/EffectBtn").gameObject
+    --点击
+    self.go_EffBtn:GetComponent(typeof(JButton)).OnClick = (function()
+        LuaModuleDispatcher:SendMessage(ModuleDef.FuncTipsModule, "OnOpenTips",{ 1,self.transform:Find("Root/EffectBtn")});
+    end)
+
+
+    return self --返回自身
+end
+
+function AdventureLevelLvUpItem:InitItem()
+    self.IsUsed=false;
+    self.gameObject:SetActive(false);
+end
+
+
+function AdventureLevelLvUpItem:SetItem(name,needEffect)
+    self.Name.text=name;
+    self.go_EffBtn:SetActive(needEffect);
+    self.go_EffBtn:SetActive(false);--策划要求隐藏
+
+    self.IsUsed=true;
+    self.gameObject:SetActive(true);
+end
+
+function AdventureLevelLvUpItem:SetUse(b)
+    self.IsUsed=b;
+    self.gameObject:SetActive(b);
+end
+
+
+return AdventureLevelLvUpItem

@@ -1,0 +1,502 @@
+--[[
+*文件名   :   PartnerMainWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2024/05/13 17:47:38"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+PartnerMainWindow = class("PartnerMainWindow", UIPanel)
+
+--头像数据
+local PartnerHead = require("View/UIWindow/PartnerMainWindow/PartnerHead")
+--详情
+local Detail = require("View/UIWindow/PartnerMainWindow/Detail")
+--构筑
+local Construct = require("View/UIWindow/PartnerMainWindow/Construct")
+--升星
+local Advanced = require("View/UIWindow/PartnerMainWindow/Advanced")
+--魂石
+local SoulStone = require("View/UIWindow/PartnerMainWindow/SoulStone")
+
+PartnerMainWindow.m_BackText = nil
+PartnerMainWindow.m_CloseBtn = nil
+PartnerMainWindow.m_DetailBtn = nil
+PartnerMainWindow.m_ConstructBtn = nil
+PartnerMainWindow.m_AdvancedBtn = nil
+PartnerMainWindow.m_SoulStoneBtn = nil
+PartnerMainWindow.m_ScrollView = nil
+PartnerMainWindow.m_ItemGrid = nil
+PartnerMainWindow.m_RoleImage = nil
+PartnerMainWindow.m_Detail = nil
+PartnerMainWindow.Detail = nil
+PartnerMainWindow.m_Construct = nil
+PartnerMainWindow.Construct = nil
+PartnerMainWindow.m_Advanced = nil
+PartnerMainWindow.Advanced = nil
+PartnerMainWindow.m_SoulStone = nil
+PartnerMainWindow.SoulStone = nil
+PartnerMainWindow.Tabs = {}
+PartnerMainWindow.TabsObjs = {}
+PartnerMainWindow.TabCls = {}
+PartnerMainWindow.TabIndex = 0
+PartnerMainWindow.Selects = {}
+PartnerMainWindow.UnSelects = {}
+PartnerMainWindow.SelectIndex = 0
+PartnerMainWindow.m_EditTeam = nil
+PartnerMainWindow.MenuNames = nil
+local CloseBtnFunc = nil
+local DetailFunc = nil
+local ConstructFunc = nil
+local AdvancedFunc = nil
+local SoulStoneFunc = nil
+local EditTeamFunc = nil
+local PartnerUpgradeNewRetEventFunc=nil;
+local PartnerWindowPath = "Partner/Prefab/PartnerWindow"
+
+function PartnerMainWindow:Awake()
+    self.TabIndex = 1
+    self.self.PartnerItems = {}
+
+    self.m_BackText = self:Find("Cut4Cam90/AssemblyRatio2/Left/CloseBtn/Text"):GetComponent(typeof(Text))
+    self.m_CloseBtn = self:Find("Cut4Cam90/AssemblyRatio2/Left/CloseBtn"):GetComponent(typeof(JButton))
+    self.m_DetailBtn = self:Find("Cut4Cam90/AssemblyRatio2/Left/Tabs/Detail"):GetComponent(typeof(JButton))
+    self.m_ConstructBtn = self:Find("Cut4Cam90/AssemblyRatio2/Left/Tabs/Construct"):GetComponent(typeof(JButton))
+    self.m_AdvancedBtn = self:Find("Cut4Cam90/AssemblyRatio2/Left/Tabs/Advanced"):GetComponent(typeof(JButton))
+    self.m_SoulStoneBtn = self:Find("Cut4Cam90/AssemblyRatio2/Left/Tabs/SoulStone"):GetComponent(typeof(JButton))
+    self.m_EditTeam = self:Find("Cut4Cam90/AssemblyRatio2/Center/EditTeam"):GetComponent(typeof(JButton))
+    self.Tabs = {}
+    table.insert(self.Tabs, self.m_DetailBtn)
+    table.insert(self.Tabs, self.m_ConstructBtn)
+    table.insert(self.Tabs, self.m_AdvancedBtn)
+    table.insert(self.Tabs, self.m_SoulStoneBtn)
+
+    self.Selects = {}
+    table.insert(self.Selects, self:Find("Cut4Cam90/AssemblyRatio2/Left/Tabs/Detail/Selected").gameObject)
+    table.insert(self.Selects, self:Find("Cut4Cam90/AssemblyRatio2/Left/Tabs/Construct/Selected").gameObject)
+    table.insert(self.Selects, self:Find("Cut4Cam90/AssemblyRatio2/Left/Tabs/Advanced/Selected").gameObject)
+    table.insert(self.Selects, self:Find("Cut4Cam90/AssemblyRatio2/Left/Tabs/SoulStone/Selected").gameObject)
+
+    self.UnSelects = {}
+    table.insert(self.UnSelects, self:Find("Cut4Cam90/AssemblyRatio2/Left/Tabs/Detail/UnSelected").gameObject)
+    table.insert(self.UnSelects, self:Find("Cut4Cam90/AssemblyRatio2/Left/Tabs/Construct/UnSelected").gameObject)
+    table.insert(self.UnSelects, self:Find("Cut4Cam90/AssemblyRatio2/Left/Tabs/Advanced/UnSelected").gameObject)
+    table.insert(self.UnSelects, self:Find("Cut4Cam90/AssemblyRatio2/Left/Tabs/SoulStone/UnSelected").gameObject)
+
+    self.m_ScrollView = self:Find("Cut4Cam90/AssemblyRatio2/Left/Partners/Scroll View"):GetComponent(typeof(SuperScrollViewController))
+    self.m_ItemGrid = self:Find("Cut4Cam90/AssemblyRatio2/Left/Partners/ItemGrid").gameObject
+    self.m_RoleImage = self:Find("Cut4Cam90/AssemblyRatio2/Center/RoleImage"):GetComponent(typeof(RawImage))
+    self.m_DisplayRawimg = self:Find("Cut4Cam90/AssemblyRatio2/Center/DisplayRawimg"):GetComponent(typeof(DisplayRawimg))
+    self.TabsObjs = {}
+    self.TabCls = {}
+
+    self.m_Detail = self:Find("Cut4Cam90/AssemblyRatio2/Right/Detail").gameObject
+	local DetailRedPoint=self:Find("Cut4Cam90/AssemblyRatio2/Left/Tabs/Detail/RedPoint").gameObject
+    self.Detail = Detail.new(self.m_Detail,DetailRedPoint)
+    table.insert(self.TabsObjs, self.m_Detail)
+    table.insert(self.TabCls, self.Detail)
+
+    self.m_Construct = self:Find("Cut4Cam90/AssemblyRatio2/Right/Construct").gameObject
+	local ConstructRedPoint=self:Find("Cut4Cam90/AssemblyRatio2/Left/Tabs/Construct/RedPoint").gameObject
+	 self.Construct = Construct.new(self.m_Construct,ConstructRedPoint)
+    table.insert(self.TabsObjs, self.m_Construct)
+    table.insert(self.TabCls, self.Construct)
+
+    self.m_Advanced = self:Find("Cut4Cam90/AssemblyRatio2/Right/Advanced").gameObject
+	local AdvancedRedPoint=self:Find("Cut4Cam90/AssemblyRatio2/Left/Tabs/Advanced/RedPoint").gameObject
+	self.Advanced = Advanced.new(self.m_Advanced,AdvancedRedPoint)
+    table.insert(self.TabsObjs, self.m_Advanced)
+    table.insert(self.TabCls, self.Advanced)
+
+    self.m_SoulStone = self:Find("Cut4Cam90/AssemblyRatio2/Right/SoulStone").gameObject
+	local SoulStoneRedPoint=self:Find("Cut4Cam90/AssemblyRatio2/Left/Tabs/SoulStone/RedPoint").gameObject
+
+	self.SoulStone = SoulStone.new(self.m_SoulStone,SoulStoneRedPoint)
+    table.insert(self.TabsObjs, self.m_SoulStone)
+    table.insert(self.TabCls, self.SoulStone)
+
+    self.m_ScrollView:NewScroll(
+        self.m_ItemGrid,
+        0,
+        function(tr, idx)
+            self:OnItemRefesh(tr, idx)
+        end
+    )
+
+    self.MenuNames = {}
+    table.insert(self.MenuNames, LanguageHelp:GetLanguageByKey("HudMenuWidget_13") .. LanguageHelp:GetLanguageByKey("partner_sys_24"))
+    table.insert(self.MenuNames, LanguageHelp:GetLanguageByKey("HudMenuWidget_13") .. LanguageHelp:GetLanguageByKey("partner_sys_33"))
+    table.insert(self.MenuNames, LanguageHelp:GetLanguageByKey("HudMenuWidget_13") .. LanguageHelp:GetLanguageByKey("partner_sys_34"))
+    table.insert(self.MenuNames, LanguageHelp:GetLanguageByKey("HudMenuWidget_13") .. LanguageHelp:GetLanguageByKey("partner_sys_35"))
+    CloseBtnFunc = function()
+        self:OnClickCloseBtn()
+    end
+    DetailFunc = function()
+        self:OnClickDetail()
+    end
+    ConstructFunc = function()
+        self:OnClickConstruct()
+    end
+    AdvancedFunc = function()
+        self:OnClickAdvanced()
+    end
+    SoulStoneFunc = function()
+        self:OnClickSoulStone()
+    end
+    EditTeamFunc = function()
+        self:OnClickEditTeam()
+    end
+	
+	PartnerUpgradeNewRetEventFunc=function(data)
+		self:PartnerUpgradeNewRetEvent(data);
+	end
+
+
+end
+
+function PartnerMainWindow:Start()
+    self.m_CloseBtn.OnClick = CloseBtnFunc
+    self.m_DetailBtn.OnClick = DetailFunc
+    self.m_ConstructBtn.OnClick = ConstructFunc
+    self.m_AdvancedBtn.OnClick = AdvancedFunc
+    self.m_SoulStoneBtn.OnClick = SoulStoneFunc
+    self.m_EditTeam.OnClick = EditTeamFunc
+
+    UIManager.Instance:SetRawCamrea(true)
+end
+
+function PartnerMainWindow:PartnerUpgradeNewRetEvent(data)
+	if self.PartnerItems == nil then
+		return
+	end
+	for i = 1, #self.PartnerItems do
+		self.PartnerItems[i]:SetRedPoint()
+	end
+end
+
+function PartnerMainWindow:OnTeamCloseHandler()
+    UIManager.Instance:SetRawCamrea(true)
+    self:CleanAllSelected()
+    self:SetPartnerInfo()
+    --if self.PartnerItems ~= nil then
+        --for i = 1, #self.PartnerItems do
+            --self.PartnerItems[i]:UpdateContent(self.Partners[i], self.SelectIndex) -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+        --end
+    --end
+	self:Sort()
+	local index=0;
+	for k, v in pairs(self.Partners) do
+		if v.Index== self.SelectIndex then
+			break;
+		end
+		index=index+1
+	end
+	--self.SelectIndex = self.Partners[1].Index
+	self.m_ScrollView:ContinueScroll(#self.Partners,false,index)
+	--NevigateByIdx
+end
+
+function PartnerMainWindow:OnClickEditTeam()
+    UIManager.Instance:SetRawCamrea(false)
+    self:PushDisplayGob()
+    self.m_avatarDataCell = nil
+    UIManager.Instance:OpenWindowAsync(
+        PartnerWindowPath,
+        nil,
+        function()
+            self:OnTeamCloseHandler()
+        end,
+        CS.StarProjectDef.MainPageCommond.HideBoth
+    )
+end
+
+function PartnerMainWindow:OnItemRefesh(tr, idx)
+    if self.PartnerItems == nil then
+        return
+    end
+    for i = 1, #self.PartnerItems do
+        if self.PartnerItems[i].transform == tr then
+            self.PartnerItems[i]:UpdateContent(self.Partners[idx + 1], self.SelectIndex) -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+        end
+    end
+    local bi =
+        PartnerHead.new(
+        tr.gameObject,
+        self.m_PartnerRoot,
+        self.AtlasPath,
+        function(index)
+            self:OnSelect(index)
+        end
+    )
+    bi.prefab:SetActive(true)
+    bi:UpdateContent(self.Partners[idx + 1], self.SelectIndex) -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+    table.insert(self.PartnerItems, bi)
+end
+
+function PartnerMainWindow:Sort()
+	-- 状态权重映射表
+	local stateWeights = {
+		[CS.ProtoMsg.PartnerState.InBattle] = 2,
+		[CS.ProtoMsg.PartnerState.Concretization] = 2,
+		[CS.ProtoMsg.PartnerState.Assist] = 1
+	}
+
+	-- 辅助函数，获取伙伴的质量，如果伙伴信息不存在则返回0
+	local function getQuality(partnerIndex)
+		local config = ConfigDataAccessor.Partner[partnerIndex]
+		return config and config.Quality or 0
+	end
+
+	-- 排序函数
+	table.sort(self.Partners, function(p1, p2)
+			-- 获取状态权重，如果状态未知则默认为0
+			local t1 = stateWeights[p1.State] or 0
+			local t2 = stateWeights[p2.State] or 0
+
+			-- 如果状态权重不同，根据权重排序
+			if t1 > t2 then return true end
+			if t1 < t2 then return false end
+
+			-- 状态权重相同，比较等级
+			local lv1 = p1.Level or 0
+			local lv2 = p2.Level or 0
+
+			if lv1 > lv2 then return true end
+			if lv1 < lv2 then return false end
+
+			-- 等级相同，比较质量
+			local quality1 = getQuality(p1.Index)
+			local quality2 = getQuality(p2.Index)
+
+			return quality1 >quality2
+		end)
+end
+function PartnerMainWindow:CleanAllSelected()
+    -- 无限列表
+    for i = 1, #self.PartnerItems do
+        self.PartnerItems[i]:OnSelect(false)
+    end
+end
+
+function PartnerMainWindow:OnSelect(selectIndex)
+    self.SelectIndex = selectIndex
+    self:CleanAllSelected()
+    self:SetPartnerInfo()
+end
+
+function PartnerMainWindow:ItemUseJump(jumpType, selectIdx)
+    if jumpType == 1 then
+        --打开伙伴升级（详情-基础）
+        self:OpenDetail(true)
+    elseif jumpType == 2 then
+        --打开伙伴洗礼(详情-资质)
+        self:OnClickConstruct()
+    elseif jumpType == 3 then
+        --打开伙伴觉醒（进阶）
+        if selectIdx > 0 then
+            self.SelectIndex = selectIdx
+            self:OnSelect(self.SelectIndex)
+        end
+        self:OnClickAdvanced()
+    elseif jumpType == 4 then
+        --打开魂石伙伴装备
+        self:OnClickSoulStone()
+    end
+end
+function PartnerMainWindow:GetSelectPartner()
+    if self.Partners == nil then
+        return nil
+    end
+
+    for _k, _v in pairs(self.Partners) do
+        if _v.Index == self.SelectIndex then
+            return _v
+        end
+    end
+end
+
+function PartnerMainWindow:SetPartnerInfo()
+    local data = self:GetSelectPartner()
+    if data == nil then
+        return
+    end
+
+    local config = ConfigDataAccessor.Partner[data.Index]
+
+    if config ~= nil then
+        local avatarDataCell = ConfigDataAccessor.Avatar[config.AvatarID]
+        if avatarDataCell ~= nil then
+            self:SetModel(avatarDataCell, String2Vector3(config.ModelScale), String2Vector3(config.ModelRot), String2Vector3(config.ModelPos), config.ModelAnima)
+        end
+    end
+
+    if self.TabCls[self.TabIndex] ~= nil then
+        self.TabCls[self.TabIndex]:OnEnable()
+        self.TabCls[self.TabIndex]:OnOpen(data)
+    end
+	for k, v in pairs(self.TabCls) do
+		v:SetRedPoint(data)
+	end
+end
+
+function PartnerMainWindow:PushDisplayGob()
+    if self.m_ModelViewDisplay ~= nil then
+        ResourceManager.Instance:PushGameObject("Roles/Template/Display_Model", self.m_ModelViewDisplay.gameObject)
+        -- GameObject.Destroy(self.m_ModelViewDisplay.gameObject);
+        self.m_ModelViewDisplay = nil
+        self.m_DisplayRawimg:SetModelView(self.m_ModelViewDisplay)
+    end
+end
+
+function PartnerMainWindow:SetModel(avatarDataCell, scale, localRotate, localPos, animName)
+    if self.m_avatarDataCell ~= avatarDataCell then
+        ------- 设置模型
+        self:PushDisplayGob()
+        self.m_avatarDataCell = avatarDataCell
+        ResourceManager.Instance:PopGameObject(
+            "Roles/Template/Display_Model",
+            function(go)
+                if go == nil then
+                    return
+                end
+                if self.m_avatarDataCell == nil then
+                    ResourceManager.Instance:PushGameObject("Roles/Template/Display_Model", go)
+                    return
+                end
+                UIManager.Instance:SetModel2UI2(go, self.m_avatarDataCell.AvatarID, CS.StarProjectDef.ThreeDModelPos.Raw, scale, Vector3.zero, localRotate, localPos, animName)
+                go:SetActive(true)
+                self.m_ModelViewDisplay = go:GetComponent(typeof(RoleViewDisplay))
+                self.m_DisplayRawimg:SetModelView(self.m_ModelViewDisplay)
+
+                if self.m_ModelViewDisplay ~= nil then
+                    local rotation = Quaternion.Euler(0, 0, 0)
+                    self.m_ModelViewDisplay:SetRotation(rotation)
+                    self.m_DisplayRawimg:SetState(true)
+                end
+
+                ------- 设置模型
+                self.m_RoleImage.texture = ResourceManager.Instance.RenderTexture
+            end
+        )
+    end
+    if self.m_ModelViewDisplay ~= nil then
+        local rotation = Quaternion.Euler(0, 0, 0)
+        self.m_ModelViewDisplay:SetRotation(rotation)
+        self.m_DisplayRawimg:SetState(true)
+    end
+end
+
+function PartnerMainWindow:OnEnable()
+end
+
+function PartnerMainWindow:OnDisable()
+    if self.TabCls ~= nil then
+        for k, v in pairs(self.TabCls) do
+            if v ~= nil then
+                v:OnDisable()
+            end
+        end
+    end
+end
+
+function PartnerMainWindow:OnDestroy()
+end
+
+function PartnerMainWindow:OnOpen(arg)
+	local BankItemIDListRetEvent=LuaModuleDispatcher:Event(ModuleDef.BattleTeamModule,"PartnerUpgradeNewRetEvent");
+	BankItemIDListRetEvent:AddListener(PartnerUpgradeNewRetEventFunc)
+
+    local partnerMgr = BusinessManager.Instance:GetPartnerMDMgr()
+    local partners = partnerMgr:GetPartners()
+    self.Partners = {}
+    for k, v in pairs(partners) do
+        table.insert(self.Partners, v)
+    end
+
+    self:Sort()
+    self.SelectIndex = self.Partners[1].Index
+    self.m_ScrollView:ContinueScroll(#self.Partners)
+    self:OnTabIndexChange(1)
+    self:SetPartnerInfo()
+end
+
+function PartnerMainWindow:OnClose(arg)
+    UIManager.Instance:SetRawCamrea(false)
+	local BankItemIDListRetEvent=LuaModuleDispatcher:Event(ModuleDef.BattleTeamModule,"PartnerUpgradeNewRetEvent");
+	BankItemIDListRetEvent:RemoveListener(PartnerUpgradeNewRetEventFunc)
+    self:PushDisplayGob()
+end
+
+function PartnerMainWindow:OnClickCloseBtn()
+    self.Close()
+end
+
+function PartnerMainWindow:OnTabIndexChange(index)
+    if self.TabIndex ~= nil and self.TabIndex > 0 and self.TabIndex < 5 then
+        self.UnSelects[self.TabIndex]:SetActive(true)
+        self.Selects[self.TabIndex]:SetActive(false)
+    end
+
+    self.TabCls[self.TabIndex]:OnDisable()
+
+    if index > 0 and index < 5 then
+        self.UnSelects[index]:SetActive(false)
+        self.Selects[index]:SetActive(true)
+
+        self.TabIndex = index
+    end
+
+    for k, v in pairs(self.TabsObjs) do
+        v:SetActive(k == index)
+    end
+
+    self.m_BackText.text = self.MenuNames[index]
+end
+
+function PartnerMainWindow:OnClickDetail()
+    self:OpenDetail(false)
+end
+
+function PartnerMainWindow:OpenDetail(useUpgrade)
+    self:OnTabIndexChange(1)
+    local data = self:GetSelectPartner()
+    if data == nil then
+        return
+    end
+    self.Detail:OnEnable()
+    self.Detail:OnOpen(data, useUpgrade)
+end
+
+function PartnerMainWindow:OnClickConstruct()
+    self:OnTabIndexChange(2)
+    local data = self:GetSelectPartner()
+    if data == nil then
+        return
+    end
+    self.Construct:OnEnable()
+    self.Construct:OnOpen(data)
+end
+
+function PartnerMainWindow:OnClickAdvanced()
+    --self.SelectIndex
+    self:OnTabIndexChange(3)
+    local data = self:GetSelectPartner()
+    if data == nil then
+        return
+    end
+    self.Advanced:OnEnable()
+    self.Advanced:OnOpen(data)
+end
+
+function PartnerMainWindow:OnClickSoulStone()
+    self:OnTabIndexChange(4)
+    local data = self:GetSelectPartner()
+    if data == nil then
+        return
+    end
+    self.SoulStone:OnEnable()
+    self.SoulStone:OnOpen(data)
+end
+
+return PartnerMainWindow

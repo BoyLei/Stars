@@ -1,0 +1,100 @@
+SignUpWindow = class("SignUpWindow", UIPanel)
+
+local SignUpItem = require("View/UIWindow/PvpWindow/SignUpItem")
+
+function SignUpWindow:Awake()
+
+end
+
+function SignUpWindow:BindModule(m)
+	SignUpWindow.module = m;
+end
+
+function SignUpWindow:InitControls()
+	self.transform = self.prefab.transform;
+	self.gameObject = self.transform.gameObject;
+
+	local signUpItemGo = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/SV/Viewport/Content/Item").gameObject;
+
+	local titleText = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Title"):GetComponent(typeof(Text));
+
+	local recyclePlay = ConfigDataAccessor.RecyclePlay;
+	titleText.text = recyclePlay[3].PlayName..LanguageHelp:GetLanguageByKey("Local_Str_apply");
+
+	local battleFieldSessionList = ConfigDataAccessor.BattleFieldSessionList;
+	self.allSession = {};
+	for k,v in pairs(battleFieldSessionList) do
+		if self.allSession[v.Session] == nil then
+			self.allSession[v.Session] = {};
+		end
+		self.allSession[v.Session][v.StageType] = v;
+	end
+
+	self.allItems = {};
+	for k,v in pairs(self.allSession) do
+		local go = newObject(signUpItemGo);
+		go.transform:SetParent(signUpItemGo.transform.parent);
+		go.transform.localPosition = Vector3.zero;
+		go.transform.localScale = Vector3.one;
+		go:SetActive(true);
+
+		local signUpItem = SignUpItem:New(go);
+		self.allItems[k] = signUpItem;
+	end
+end
+
+function SignUpWindow:InitData(data)
+	if data == nil then
+		return;
+	end
+	
+	for k,v in pairs(self.allSession) do
+		local isSigned = false;
+		for k2,v2 in pairs(data.StageData) do
+			if k2 == k then
+				isSigned = true;
+				break;
+			end
+		end
+		self.allItems[k]:Init(self.allSession[k],isSigned,self.module.actStartTime);
+	end
+end
+
+function SignUpWindow:SetSignUpStage()
+
+end
+
+function SignUpWindow:OnShow()
+end
+
+function SignUpWindow:Start()
+
+end
+
+function SignUpWindow:OnEnable()
+
+end
+
+function SignUpWindow:OnDisable()
+
+end
+
+function SignUpWindow:OnDestroy()
+
+end
+
+function SignUpWindow:OnOpen(arg)
+	self.IsOpen = true;
+end
+
+function SignUpWindow:OnClose(arg)
+	self:CloseWindow();
+	self.module.signUpWindow = nil
+end
+
+function SignUpWindow:CloseWindow()
+	self.IsOpen = false;
+	self.module.signUpWindow = nil
+end
+
+return SignUpWindow

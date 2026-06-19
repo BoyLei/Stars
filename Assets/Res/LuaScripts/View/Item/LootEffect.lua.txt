@@ -1,0 +1,224 @@
+--[[
+*文件名   :   LootEffect
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/7 17:52:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local LootEffect = {}
+
+LootEffect.__index = LootEffect
+
+function LootEffect:New(_go)
+    local self = {}
+    setmetatable(self, LootEffect)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.Target = nil
+    self.speed = 0
+    self.min_distance = 0
+    self.IsTrace = false
+    self.distanceToTarget = 0
+    self.move_flag = true
+    self.TargetPosition = Vector3.zero
+    self.HitAngle = 30
+
+    self.HitEffect = nil --击中特效
+
+    self.OffSetY = 1.0 --Y偏移
+
+    self.IsUsed = false
+
+    MonoHelper.AddUpdateListener(
+        function()
+            self:UpdateBezierPos()
+        end
+    )
+
+    return self --返回自身
+end
+
+function LootEffect:SetUse(b)
+    self.IsUsed = b
+    self.gameObject:SetActive(b)
+end
+
+function LootEffect:SetShellData(target, speed, distance, hitAngle, isTrace)
+    self.Target = target
+    self.TargetPosition = self.Target.position + Vector3(0, self.OffSetY, 0)
+    self.speed = speed
+    self.min_distance = distance
+    self.HitAngle = hitAngle
+    self.IsTrace = isTrace
+    self.distanceToTarget = Vector3.Distance(self.transform.position, self.Target.position)
+end
+
+function LootEffect:UpdatePos()
+    if not (self.IsUsed) then
+        return
+    end
+    if self.move_flag then
+        local dis = Vector3.Distance(self.transform.position, self.TargetPosition)
+
+        print(dis)
+        if dis > 100 then
+            --超过100米直接消失
+
+            self.gameObject:SetActive(false)
+            self.IsUsed = false
+            self.move_flag = false
+            --UI显示
+            LuaModuleDispatcher:SendMessage(ModuleDef.DropInfoListModule, "OnAddDrop", {self.dropinfo})
+
+            return
+        end
+
+        if self.IsTrace then
+            self.TargetPosition = self.Target.position + Vector3(0, self.OffSetY, 0)
+        end
+        self.transform:LookAt(self.TargetPosition)
+        local angle = math.min(1, dis / self.distanceToTarget) * self.HitAngle
+        self.transform.rotation = self.transform.rotation * CS.UnityEngine.Quaternion.Euler(CS.UnityEngine.Mathf.Clamp(-angle, -42, 42), 0, 0)
+        local currentDist = dis
+        if currentDist < self.min_distance then
+            self.move_flag = false
+        end
+        self.transform:Translate(Vector3.forward * math.min(self.speed * Time.deltaTime, currentDist))
+    else
+        self.transform.position = self.TargetPosition
+
+        --特效
+        --GameObject vfx = Instantiate(HitEffect);
+        --vfx.transform.position = transform.position;
+
+        self.gameObject:SetActive(false)
+
+        self.IsUsed = false
+
+        --UI显示
+        LuaModuleDispatcher:SendMessage(ModuleDef.DropInfoListModule, "OnAddDrop", {self.dropinfo})
+    end
+end
+
+function LootEffect:InitItem()
+    self.IsUsed = false
+
+    self.gameObject:SetActive(false)
+end
+
+function LootEffect:SetItem(pos, quality, id, num, entityId)
+    self.dropinfo = {}
+    self.dropinfo.Itemid = id
+    self.dropinfo.ItemNum = num
+    self.dropinfo.EntityID = entityId
+
+    self.transform.position = pos
+
+    --生成掉落表现
+
+    if quality == 99 then
+        quality = 1
+    end
+
+    local aim = GameManager.Instance.M_MainPlayerCtrlBase.Container.transform:GetChild(0)
+    --self:SetShellData(aim, 10, 0.2 , 45, true);
+    self:InitBezier(pos, aim)
+
+    self.gameObject:SetActive(true)
+    self.IsUsed = true
+    self.move_flag = true
+
+    --end);
+end
+
+function LootEffect:UpdateBezierPos()
+    if not (self.IsUsed) then
+        return
+    end
+    if self.move_flag then
+        self.TargetPosition = self.Target.position + Vector3(0, self.OffSetY, 0)
+        if self.percent >= 1 then
+            self.move_flag = false
+        end
+
+        self.percent = self.percent + self.percentSpeed * CS.UnityEngine.Time.deltaTime
+        if self.percent > 1 then
+            self.percent = 1
+        end
+
+        self.transform.position = self:Bezier3D(self.percent, self.startPos, self.midPos, self.TargetPosition)
+
+        local dis = Vector3.Distance(self.transform.position, self.TargetPosition)
+
+        if dis > 30 then
+            --超过30米直接消失
+
+            self.gameObject:SetActive(false)
+            self.IsUsed = false
+            self.move_flag = false
+            --UI显示
+            LuaModuleDispatcher:SendMessage(ModuleDef.DropInfoListModule, "OnAddDrop", {self.dropinfo})
+        end
+    else
+        self.transform.position = self.TargetPosition
+
+        self.gameObject:SetActive(false)
+
+        self.IsUsed = false
+
+        --UI显示
+        LuaModuleDispatcher:SendMessage(ModuleDef.DropInfoListModule, "OnAddDrop", {self.dropinfo})
+    end
+end
+
+function LootEffect:InitBezier(startPos, target)
+    self.Target = target
+    self.lastTargetPos = target.position
+
+    self.startPos = startPos
+
+    local tempStartPos = Vector2(self.startPos.x, self.startPos.z)
+    local tempEndPos = Vector2(self.lastTargetPos.x, self.lastTargetPos.z)
+
+    self.midPos = self:GetMiddePosition(tempStartPos, tempEndPos)
+    self.midPos.y = self.midPos.y + self.startPos.y + 1
+
+    local speed = 5
+    if self.dropinfo.Itemid == 121 or self.dropinfo.Itemid == 122 then
+        speed = CS.UnityEngine.Random.Range(10, 15)
+    else
+        speed = CS.UnityEngine.Random.Range(8.0 / 2, 15.0 / 2)
+    end
+    self.percentSpeed = speed / (self.lastTargetPos - self.startPos).magnitude
+
+    self.transform.position = self.startPos
+
+    self.percent = 0
+end
+
+function LootEffect:GetMiddePosition(a, b)
+    local m = Vector2.Lerp(a, b, 0.1)
+
+    local normal = Vector2.Perpendicular(a - b).normalized
+
+    local rd = CS.UnityEngine.Random.Range(-5, 5)
+
+    local curveRatio = 0.3
+
+    local result2D = m + (a - b).magnitude * curveRatio * rd * normal
+
+    local result3D = Vector3(result2D.x, (a - b).magnitude * curveRatio, result2D.y)
+
+    return result3D
+end
+
+function LootEffect:Bezier3D(t, a, b, c)
+    local ab = Vector3.Lerp(a, b, t)
+    local bc = Vector3.Lerp(b, c, t)
+    return Vector3.Lerp(ab, bc, t)
+end
+
+return LootEffect

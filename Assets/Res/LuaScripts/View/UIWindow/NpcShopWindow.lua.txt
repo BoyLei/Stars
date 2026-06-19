@@ -1,0 +1,306 @@
+--[[
+*文件名   :   NpcShopWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/09 17:09:51"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+NpcShopWindow=class("NpcShopWindow",UIPanel)
+NpcShopWindow.IsOpen=false;
+
+local ShopItem=require("View/Item/ShopItem");
+
+local ObjectPool= require("Common/Helper/ObjectPool")
+local CurrencyBar =require("View/Item/CurrencyBar")
+
+function NpcShopWindow:Awake()
+
+end
+
+function NpcShopWindow:BindModule(m)
+	self.module=m;
+end
+
+function NpcShopWindow:InitItems()
+	self.transform =self.prefab.transform;
+	self.gameObject=self.transform.gameObject;
+
+
+	self.ShopItemList={};
+	--无限列表
+	self.go_ShopItem = self.transform:Find("Cut4Cam90/AssemblyRatio2/ShopItem").gameObject;
+
+	self.tr_ItemRoot=self.transform:Find("Cut4Cam90/AssemblyRatio2/Scroll View/Mask/List");
+	self.go_ShopItem:SetActive(false);
+	self.ShopScorllView=self.transform:Find("Cut4Cam90/AssemblyRatio2/Scroll View"):GetComponent(typeof(SuperScrollViewController));
+	self.ShopScorllView:NewScroll(self.go_ShopItem, 0, function (tr,idx)
+		self:OnShopItemRefesh(tr,idx);
+	end);
+
+	self.m_Character=self:Find("Cut4Cam90/AssemblyRatio2/Char"):GetComponent(typeof(Image));
+	self.name=self:Find("Cut4Cam90/AssemblyRatio2/TalkBg/name"):GetComponent(typeof(Text));
+	self.content=self:Find("Cut4Cam90/AssemblyRatio2/TalkBg/Talk"):GetComponent(typeof(Text));
+	--self.go_namebg=self:Find("Cut4Cam90/AssemblyRatio2/TalkBg/nameBg").gameObject;
+
+
+	--子商店Tag
+	local _go1= self.transform:Find("Cut4Cam90/AssemblyRatio2/SubShopTitleMenu/Scroll View/Mask/List/SubShopItem").gameObject;
+	self.subTagsPool=ObjectPool:New(4,"View/Item/SelectBtn",_go1,_go1.transform.parent,function (ritem)
+		ritem:PoolInit(function (idx)
+			--点击事件
+			self:OnSubShopTagClick(idx);
+		end)
+	end,function (ritem)
+		ritem:SetUse(false);
+	end)
+
+
+	self.currencyBar=CurrencyBar:New(nil,self.transform:Find("Cut4Cam90/AssemblyRatio2/CurrencyAhchor"));
+end
+
+function NpcShopWindow:OpenShop(shopID)
+
+	self.ShopID=shopID;
+
+
+	local shopCfg=ConfigDataAccessor.Shop[self.ShopID];
+
+	if shopCfg.AvatarID>0 then
+		--加载立绘和对话
+		local avatarDataCell= ConfigDataAccessor.Avatar[shopCfg.AvatarID];
+		if avatarDataCell ~= nil then
+			local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID];
+			if headCfg ~= nil then
+
+				--ResourceHelper:LoadIconAsync(self.m_Character, "", headCfg.HalfDrawing, false)
+				ResourceHelper:LoadSpriteAtlasAsync(self.m_Character,  ResourceHelper.HeadAtlasPath .. headCfg.HalfDrawing , headCfg.HalfDrawing , false,function() 
+					
+				end)
+
+			end
+		end
+
+		local idx=math.random(1,#shopCfg.Dialog_id);
+		local dialog= shopCfg.Dialog_id[idx];
+		--local data=LocalDataManager.Instance:GetCommonDialogDataCell(dialog);
+		local data=ConfigDataAccessor.CommonDialog[dialog];
+		local targetID=GameManager.Instance.mainPlayerId;
+		if targetID~= nil and targetID~=0 then
+			local playerName=GameManager.Instance:GetEntityNameById(targetID);
+			if playerName~= nil and playerName~="" then
+				data.Name = string.gsub(data.Name, "@player",playerName) ;
+				data.Dialog_desc = string.gsub(data.Dialog_desc, "@player", playerName) ;
+			end
+		end
+
+		self.name.text=data.Name;
+		self.content.text=data.Dialog_desc;
+
+		if data.Name==nil or data.Name=="" then
+			--self.go_namebg:SetActive(false);
+		else
+			--self.go_namebg:SetActive(true);
+		end
+
+	end
+
+
+
+
+	self.subTagsPool:RecycleAll();
+	local subShopNames=string.split(shopCfg.Sub_shopname,",");
+	for i=1,#shopCfg.Sub_shopid do
+		local subTag=self.subTagsPool:Spawn();
+		subTag:InitItem(i,nil);
+		subTag:SetText(subShopNames[i]);
+	end
+
+	self:OnSubShopTagClick(1);
+
+
+	self:RefeshBar();
+end
+
+function NpcShopWindow:RefeshShop()
+	self:RefeshItems();
+end
+
+
+function NpcShopWindow:OnShopItemRefesh(tr,idx)
+
+
+	for i=1,#self.ShopItemList do
+		if self.ShopItemList[i].transform == tr then
+            self.ShopItemList[i]:SetItem(self.ItemDataList[idx+1]);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+		end
+
+	end
+
+
+    local bi = ShopItem:New(tr.gameObject);
+	bi:InitItem(function (ritem)
+		self:OnItemClick(ritem);
+	end)
+	bi.gameObject:SetActive(true);
+	bi:SetItem(self.ItemDataList[idx+1]);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+    table.insert(self.ShopItemList, bi);
+
+end
+
+
+function NpcShopWindow:OnItemClick(ritem)
+	self.module:OpenBuyMenu(ritem);
+
+	--self.module:SendShopBuyReq(self.ShopSubID,ritem.GoodsId,1);
+end
+
+function NpcShopWindow:ClearItemData()
+
+	if self.ItemDataList==nil then
+		self.ItemDataList ={}
+	else
+		for k,_ in pairs(self.ItemDataList) do self.ItemDataList[k] = nil end
+	end
+end
+
+
+
+function NpcShopWindow:OnSubShopTagClick(idx)
+
+	for i=1,#self.subTagsPool.m_ObjPool do 
+		self.subTagsPool.m_ObjPool[i]:MakeSelected(false);
+	end
+	self.subTagsPool.m_ObjPool[idx]:MakeSelected(true);
+
+	local shopCfg=ConfigDataAccessor.Shop[self.ShopID];
+	self.ShopSubID=shopCfg.Sub_shopid[idx];
+
+
+	self:RefeshItems();
+
+
+end
+
+function NpcShopWindow:RefeshBar()
+		
+	--刷新货币
+	self.currencyBar:RefeshBar(ConfigDataAccessor.Shop[self.ShopID].Currency);
+end
+
+
+function NpcShopWindow:RefeshItems()
+	
+	--获取List
+	self:ClearItemData();
+
+	for k,v in pairs(ConfigDataAccessor.Goods) do
+		local good=v;
+		if good.Sub_shopid==self.ShopSubID then
+
+
+			local canBuy=true;
+            for i=1,#good.DeleteCondition do
+                if good.DeleteCondition[i] > 0 then
+                    local isMet = GameManager.Instance:IsConditionMete(good.DeleteCondition[i]); -- 判断是否满足
+                    if isMet then
+                        canBuy=false;
+                    end
+                end
+            end
+
+			if canBuy then
+				local shopData={};
+				shopData.cfg=good;
+				self.module:CheckBuyLimit(shopData);
+				--限购相关
+				table.insert( self.ItemDataList,shopData);
+			end
+		end
+	end
+
+
+	--排序
+	self:SortItem(self.ItemDataList);
+
+
+	self.ShopScorllView:ContinueScroll(#self.ItemDataList,false);
+
+
+	self:RefeshBar();
+
+end
+
+function NpcShopWindow:SortItem(tbl)
+
+	if #tbl > 1 then
+
+		table.sort(tbl, function(a, b)
+			if a.SoldOutFlag < b.SoldOutFlag then
+				-- 按照是否已售罄升序
+				return true
+			elseif a.SoldOutFlag == b.SoldOutFlag then
+				-- 如果已售罄相等，按购买条件升序
+				if a.MeteFlag < b.MeteFlag then
+					return true
+				elseif a.MeteFlag == b.MeteFlag then
+					-- 如果Type相等，按Id升序
+					return a.cfg.Id < b.cfg.Id
+				end
+			end
+			return false
+		end)
+
+	end
+
+end
+
+function NpcShopWindow:Start()
+	print("NpcShopWindow:Start")
+end
+
+function NpcShopWindow:OnEnable()
+	
+end
+
+function NpcShopWindow:OnDisable()
+	
+end
+
+function NpcShopWindow:OnDestroy()
+
+end
+
+function NpcShopWindow:OnOpen(arg)
+	self.IsOpen=true;
+end
+
+function NpcShopWindow:OnClose(arg)
+	self:CloseWindow();
+end
+
+function NpcShopWindow:OnCloseInfoClick()
+	--关闭道具Tips
+	if self.module.IsOpenTips then
+		self.module.IsOpenTips=false;
+		self.module:CloseItemTips();
+	else
+
+		UIManager.Instance:CloseWindow("Item/NpcShopWindow");
+	end
+end
+
+
+function NpcShopWindow:CloseWindow()
+
+	if self.module.IsOpenTips then
+		self.module.IsOpenTips=false;
+		self.module:CloseItemTips();
+	end
+
+	self.IsOpen=false;
+	self.module:OnCloseNpcShop();
+end
+
+return  NpcShopWindow

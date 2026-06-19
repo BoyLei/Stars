@@ -1,0 +1,227 @@
+local PartnerTaskPanel = {}
+PartnerTaskPanel.__index = PartnerTaskPanel
+
+local PartnerTaskItem = require("View/UIWindow/SignInWindow/PartnerTaskItem")
+PartnerTaskPanel.ItemList = {}
+PartnerTaskPanel.PreviewDataList = {}
+-- local TaskItem = require("View/UIWindow/SignInWindow/TaskItem")
+-- local TaskRewardItem = require("View/UIWindow/SignInWindow/TaskRewardItem")
+
+function PartnerTaskPanel:New(obj)
+    local self = {};
+    setmetatable(self, PartnerTaskPanel);
+
+    self:InitAllComponent(obj)
+
+    return self;
+end
+
+function PartnerTaskPanel:InitAllComponent(obj)
+    self.gameObject = obj;
+    self.transform = obj.transform;
+
+    self.AimName = self.transform:Find("AimName"):GetComponent(typeof(Text));
+    self.Desc = self.transform:Find("Desc"):GetComponent(typeof(Text));
+    self.ImgChara = self.transform:Find("ImgChara"):GetComponent(typeof(Image));
+
+    -- 道具列表
+    self.PartnerTaskItemList = {};
+    -- 无限列表
+    self.go_PartnerTaskItem = self.transform:Find("TaskRoot/Mask/List/PartnerTaskItem").gameObject;
+
+    self.tr_ItemRoot = self.transform:Find("TaskRoot/Mask/List");
+    self.go_PartnerTaskItem:SetActive(false);
+    self.go_PartnerTaskItem.transform:SetParent(self.transform);
+    self.PartnerTaskScorllView = self.transform:Find("TaskRoot"):GetComponent(typeof(SuperScrollViewController));
+    self.PartnerTaskScorllView:NewScroll(self.go_PartnerTaskItem, 0, function(tr, idx)
+        self:OnPartnerTaskItemRefesh(tr, idx);
+    end);
+
+end
+
+function PartnerTaskPanel:OnPartnerTaskItemRefesh(tr, idx)
+
+    for i = 1, #self.PartnerTaskItemList do
+        if self.PartnerTaskItemList[i].transform == tr then
+            self.PartnerTaskItemList[i]:SetItem(self.ItemDataList[idx + 1]); -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+        end
+
+    end
+
+    local bi = PartnerTaskItem:New(tr.gameObject);
+
+    bi.gameObject:SetActive(true);
+    bi:SetItem(self.ItemDataList[idx + 1]); -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+
+    table.insert(self.PartnerTaskItemList, bi);
+
+end
+
+function PartnerTaskPanel:Refesh()
+
+    if self.ItemDataList == nil then
+        self.ItemDataList = {}
+    else
+        for k, _ in pairs(self.ItemDataList) do
+            self.ItemDataList[k] = nil
+        end
+    end
+
+    -- self.go_red1:SetActive(false);
+    -- self.go_red2:SetActive(false);
+
+    -- 计算当前阶段
+    local StateNow = nil;
+    for i = 1, #ConfigDataAccessor.PartnerTarget do
+        StateNow = ConfigDataAccessor.PartnerTarget[i];
+        local finishSearchState = false;
+        for j = 1, #StateNow.TaskId do
+            local state = 0;
+            local idNow = StateNow.TaskId[j];
+            -- 任务状态
+            if not (TaskHelper.IsTaskFinsh(idNow)) then
+                -- 已经完成
+                finishSearchState = true;
+            end
+        end
+        if finishSearchState then
+            break
+        end
+    end
+
+    self.AimName.text = StateNow.Decs;
+    self.Desc.text = StateNow.RewardDecs;
+
+    --[[
+	self.ImgChara.gameObject:SetActive(false);
+	ResourceHelper:LoadIconAsync(self.ImgChara, "", StateNow.Pic, true,function() 
+		self.ImgChara.gameObject:SetActive(true);
+	end)
+	]]
+
+    for i = 1, #StateNow.TaskId do
+
+        local state = 0;
+
+        local idNow = StateNow.TaskId[i];
+        local jumpId = 0;
+
+        -- 任务状态
+        if TaskHelper.ContainTask(idNow) then
+            -- 正在进行
+            local TaskInfo = TaskHelper.GetRunningTask(idNow)
+            if TaskInfo ~= nil then
+                if TaskInfo.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStageRunning then
+                    -- 任务进行中
+                    state = 1;
+
+                    local taskTarget = TaskHelper.GetTaskTarget(idNow)
+                    if taskTarget ~= nil then
+                        -- 任务进行中
+                        if taskTarget.FindPath.FindPathType == CS.Task.E_FindPath.JumpTo then
+                            jumpId = taskTarget.FindPath.JumpID;
+                            -- JumpBySystemJumpById(taskTarget.FindPath.JumpID);
+                        end
+
+                        -- 未完成的任务目标
+                    end
+
+                elseif TaskInfo.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStageFinished then
+                    -- 任务已完成未提交
+                    state = 2;
+                end
+            end
+        elseif TaskHelper.IsTaskFinsh(idNow) then
+            -- 已经完成
+            state = 0;
+        end
+
+        local data = {};
+        data.TaskID = idNow;
+        data.JumpID = jumpId;
+        data.State = state;
+        table.insert(self.ItemDataList, data);
+
+    end
+
+    self:SortItem(self.ItemDataList)
+
+    self.PartnerTaskScorllView:ContinueScroll(#self.ItemDataList, false);
+
+end
+
+function PartnerTaskPanel:Show(b)
+    self.gameObject:SetActive(b);
+    if b then
+
+        ---提交任务服务器回调
+        CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.SubmitTaskAckID, function(data)
+            self:OnSubmitTaskAck(data)
+        end, nil);
+
+        ---一键提交任务服务器回调
+        CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.BatchSubmitTaskAckID, function(data)
+            self:OnBatchSubmitTaskAck(data)
+        end, nil);
+
+        self:Refesh();
+
+    else
+
+        ---提交任务服务器回调
+        CS.SGF.Network.NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.SubmitTaskAckID, function(data)
+            self:OnSubmitTaskAck(data)
+        end, nil);
+
+        ---一键提交任务服务器回调
+        CS.SGF.Network.NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.BatchSubmitTaskAckID, function(data)
+            self:OnBatchSubmitTaskAck(data)
+        end, nil);
+    end
+end
+
+function PartnerTaskPanel:OnBatchSubmitTaskAck(data)
+    local SubmitTaskAck = data.data
+
+    local Ret = SubmitTaskAck.Ret; -- RepeatedField<global::ProtoMsg.SubmitTaskAck>
+
+    Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_120"));
+
+    DOVirtual.DelayedCall(0.3, function()
+        self:Refesh();
+    end)
+end
+
+function PartnerTaskPanel:OnSubmitTaskAck(data)
+    local SubmitTaskAck = data.data
+
+    if SubmitTaskAck.Ret == CS.ProtoMsg.SubmitTaskAck.Types.ResultType.Ok then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_120"));
+
+        DOVirtual.DelayedCall(0.3, function()
+            self:Refesh();
+        end)
+    else
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_122"));
+
+    end
+end
+
+function PartnerTaskPanel:SortItem(tbl)
+
+    if #tbl > 1 then
+
+        table.sort(tbl, function(a, b)
+            if a.State > b.State then
+                -- 任务状态降序
+                return true
+            end
+            return false
+        end)
+
+    end
+
+end
+
+return PartnerTaskPanel

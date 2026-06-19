@@ -1,0 +1,61 @@
+LuaModuleTest = class("LuaModuleTest",BaseLuaModule)
+
+--LuaModule 消息模块
+LuaModuleTest.ModuleMessages=
+{
+	--ModuleManager.Instance.SendMessage(ModuleDef.LuaModuleTest, "OnTestModuleMessage", new object[] { 1,2.0f,"abc"});
+	--方法名 + 函数
+	["OnTestModuleMessage"]=function(...)
+		LuaModuleTest:OnTestModuleMessage(...);
+	end,
+
+}
+
+--
+function LuaModuleTest:OnTestModuleMessage(...)
+	print("LuaModuleTest:OnTestModuleMessage");
+	-- ... 注意下标从0 开始
+	--local tb=...
+	--for i = 0, 2 do
+		--print(tb[i])
+	--end
+end
+
+function LuaModuleTest:OnShow(a)
+	print("arg:"..a.."------")
+end
+
+
+--LuaModule 创建
+function LuaModuleTest:OnModuleCreate(arg)
+	LuaModuleDispatcher:Register(ModuleDef.LuaModuleTest,self)
+	local table=self.LuaEventTable;
+
+	--监听Event table 事件
+	table:GetEvent("OnShow"):AddListener(function (a)
+			self:OnShow(a);
+		end);
+	
+	self.super:OnModuleCreate(arg);
+end
+
+--LuaModule 消息处理
+function LuaModuleTest:OnModuleMessage(msg,...)
+	self.ModuleMessages[msg](...);
+end
+
+
+--LuaModule显示
+function LuaModuleTest:OnModuleShow(arg)
+	print(arg)
+	print("LuaModuleTest:OnModuleShow")
+end
+
+--LuaModule 释放
+function LuaModuleTest:OnModuleRelease()
+	LuaModuleDispatcher:UnRegister(ModuleDef.LuaModuleTest)
+end
+
+
+return  LuaModuleTest
+

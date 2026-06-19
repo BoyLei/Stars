@@ -1,0 +1,182 @@
+--[[
+*文件名   :   EventRewardBoss
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local EventRewardBoss = {}
+
+EventRewardBoss.__index = EventRewardBoss
+
+local ItemGrid=require("View/Item/ItemGrid");
+
+
+function EventRewardBoss:New(_go) 
+    local self = {};    
+    setmetatable(self, EventRewardBoss); 
+    
+
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+    --道具
+    self.items={}
+    for i=1,3 do
+        self.items[i]={}
+
+        for j=1,6 do
+            local it = ItemGrid:New(self.transform:Find("Item"..i.."/Items/ItemGrid"..j).gameObject);
+            it:InitItem(false,function(ritem)  
+                self:OnItemClick(ritem);
+            end);
+            table.insert( self.items[i],it);
+        end
+    end
+
+
+    self:Show(false);
+
+    return self;    --返回自身
+end
+
+
+function EventRewardBoss:OnItemClick(ritem)
+	LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",{ ritem.BaseID,false ,0,ritem.transform,0});
+end
+
+function EventRewardBoss:Show(b,playMode)
+    self.gameObject:SetActive(b);
+    if b then
+
+        self.PlayMode=playMode;
+
+        self:Refesh();
+
+
+    end
+end
+
+
+
+function EventRewardBoss:Refesh()
+
+    local gBSCfg=ConfigDataAccessor.GVEBossSelect;
+    local gBRCfg=ConfigDataAccessor.GVEBossReward;
+
+    self.EffectLv=0;
+    local GVEStartI2S = GameManager.Instance.GVEStartI2S;
+    if GVEStartI2S~=nil and GVEStartI2S.PlayID==self.PlayMode then
+        --生效等级
+        self.EffectLv=GVEStartI2S.EffectLv;
+    end
+
+
+    if self.EffectLv==0 then
+        local openServerDay=0;
+        if GameManager.Instance.GloInfoSrv~=nil then
+            openServerDay=GameManager.Instance.GloInfoSrv.GRisk.OffDay;
+        end
+        self.EffectLv=ConfigDataAccessor.GetGVEEffectLevel(openServerDay);
+    end
+
+
+
+    local rewards={};
+
+    --boss等级
+    for i=1,3 do
+        rewards[i]={};
+
+        for k,v in pairs(gBSCfg) do
+
+            if v.PlayMode==self.PlayMode and v.BossType==i then;
+
+
+                for k2,v2 in pairs(gBRCfg) do
+                    if v2.PlayMode==self.PlayMode and v2.Boss==v.UseBoss and self.EffectLv==v2.EffectLevel then;
+
+                        for j=1,#v2.Reward do
+
+                            
+                            local Id=v2.Reward[j];
+                            if rewards[i][Id]==nil then
+                                rewards[i][Id] = 0;
+                            end
+
+                        end
+
+                    end
+
+                end
+            end
+
+        end
+
+    end
+
+
+    
+
+    --消耗道具
+	for i=1,3 do
+        for j=1,#self.items[i] do
+            self.items[i][j].gameObject:SetActive(false);
+        end
+
+        
+
+        local sortTb={};
+        for k,v in pairs(rewards[i]) do
+            local data={};
+            data.BaseID=k
+            data.Num=v
+            data.Quality=ConfigDataAccessor.Item[k].Quality;
+            table.insert( sortTb, data )
+        end
+        self:SortItem(sortTb)
+
+        for j=1,#sortTb do
+            if j<=#self.items[i] then
+                self.items[i][j].gameObject:SetActive(true);
+                self.items[i][j]:SetItemNum(sortTb[j].BaseID,sortTb[j].Num);
+            end
+        end
+
+        --[[
+        local idx=0;
+        for k,v in pairs(rewards[i]) do
+            idx=idx+1;
+            if idx<=#self.items[i] then
+                self.items[i][idx].gameObject:SetActive(true);
+                self.items[i][idx]:SetItemNum(k,v);
+            end
+        end
+        ]]
+
+	end
+
+
+        
+
+end
+
+function EventRewardBoss:SortItem(tbl)
+	if #tbl > 1 then
+
+
+		table.sort(tbl, function(a, b)
+			if a.Quality > b.Quality then
+				-- 按照稀有度降序
+				return true
+			end
+			return false
+		end)
+
+	end
+end
+
+
+return EventRewardBoss;

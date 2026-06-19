@@ -1,0 +1,56 @@
+--[[
+*文件名   :   AfternoonGveRankPartGuildItem
+*内  容   :   Item
+*说  明   :
+*创建日期 :   "2023/05/31 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local AfternoonGveRankPartGuildItem = {}
+
+AfternoonGveRankPartGuildItem.__index = AfternoonGveRankPartGuildItem
+
+
+local ItemGrid=require("View/Item/ItemGrid");
+
+
+function AfternoonGveRankPartGuildItem:New(_go)
+    local self = {}
+    setmetatable(self, AfternoonGveRankPartGuildItem)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.Rank = self.transform:Find("Rank"):GetComponent(typeof(Text))
+    self.GuildName = self.transform:Find("GuildName"):GetComponent(typeof(Text))
+    self.Score = self.transform:Find("Score"):GetComponent(typeof(Text))
+
+    if self.transform:Find("RankBg")~=nil then
+        self.RankBg= self.transform:Find("RankBg"):GetComponent(typeof(Image))
+    end
+
+    return self --返回自身
+end
+
+
+function AfternoonGveRankPartGuildItem:SetItem(data)
+    if data.Rank==-1 then
+        self.Rank.text="";
+        self.GuildName.text="";--暂时没有之后补
+        self.Score.text="";
+        if self.RankBg~= nil then
+            self.RankBg.gameObject:SetActive(false);
+        end
+    else
+
+        self.Rank.text=data.Rank;
+        self.GuildName.text=data.GuildName;--暂时没有之后补
+        self.Score.text=data.Score;
+        if self.RankBg~= nil then
+            self.RankBg.gameObject:SetActive(true);
+        end
+    end
+end
+
+
+return AfternoonGveRankPartGuildItem

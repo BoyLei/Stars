@@ -1,0 +1,82 @@
+local RecordItem = {}
+RecordItem.__index = RecordItem
+
+function RecordItem:New(obj)
+    local self = {};
+    setmetatable(self, RecordItem);
+
+    self:InitControls(obj)
+
+    return self;
+end
+
+function RecordItem:InitControls(obj)
+    self.gameObject = obj;
+    self.transform = obj.transform;
+
+    self.quanlity = self.transform:Find("Quality"):GetComponent(typeof(Text));
+    self.ssr = self.transform:Find("Ssr"):GetComponent(typeof(Text));
+    self.sr = self.transform:Find("Sr"):GetComponent(typeof(Text));
+    self.r = self.transform:Find("R"):GetComponent(typeof(Text));
+    self.n = self.transform:Find("N"):GetComponent(typeof(Text));
+
+    self.time = self.transform:Find("Time"):GetComponent(typeof(Text));
+end
+
+function RecordItem:Init(data)
+    -- self.quanlity.text = data.Quality;
+    -- self.name.text = data.PartnerName;
+
+    self.ssr.text = ConfigDataAccessor.Partner[data.PartnerID].Name
+    self.sr.text = ConfigDataAccessor.Partner[data.PartnerID].Name
+    self.r.text = ConfigDataAccessor.Partner[data.PartnerID].Name
+    self.n.text = ConfigDataAccessor.Partner[data.PartnerID].Name
+
+    self.ssr.gameObject:SetActive(false);
+    self.sr.gameObject:SetActive(false);
+    self.r.gameObject:SetActive(false);
+    self.n.gameObject:SetActive(false);
+
+    local p = ConfigDataAccessor.Partner[data.PartnerID];
+	self.n.gameObject:SetActive(p.Quality==1);
+	self.r.gameObject:SetActive(p.Quality==2);
+	self.sr.gameObject:SetActive(p.Quality==3);
+	self.ssr.gameObject:SetActive(p.Quality==4);
+	if p.Quality == 4 then
+		self.quanlity.text = LanguageHelp:GetLanguageByKey("Local_Str_Quality_5");--"SSR";
+	elseif p.Quality == 3 then
+		self.quanlity.text = LanguageHelp:GetLanguageByKey("Local_Str_Quality_4");--"SR";
+	elseif p.Quality == 2 then
+		self.quanlity.text = LanguageHelp:GetLanguageByKey("Local_Str_Quality_2");--"R";
+	elseif p.Quality == 1 then
+		self.quanlity.text = LanguageHelp:GetLanguageByKey("Local_Str_Quality_1");--"N";
+	end
+    --[[local poolData = ConfigDataAccessor.CardPool[data.PoolID];
+    for _, v in pairs(g) do
+        if v.IncludePartner == data.PartnerID then
+            local pg = v.PartnerGroup;
+
+            if poolData.NGroup == pg then
+                self.quanlity.text = "N";
+                self.n.gameObject:SetActive(true);
+                break
+            elseif poolData.RGroup == pg then
+                self.quanlity.text = "R";
+                self.r.gameObject:SetActive(true);
+                break
+            elseif poolData.SRGroup == pg then
+                self.quanlity.text = "SR";
+                self.sr.gameObject:SetActive(true);
+                break
+            elseif poolData.SSRGroup == pg then
+                self.quanlity.text = "SSR";
+                self.ssr.gameObject:SetActive(true);
+                break
+            end
+        end
+    end]]--
+
+    self.time.text = MillsSecToFullString2(data.GetTime);
+end
+
+return RecordItem

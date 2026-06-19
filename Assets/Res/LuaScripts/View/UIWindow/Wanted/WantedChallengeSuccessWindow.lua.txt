@@ -1,0 +1,169 @@
+---------------------------------------------------------------------
+-- Stars (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-09-19 14:20:43
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class WantedChallengeSuccessWindow
+WantedChallengeSuccessWindow = class("WantedChallengeSuccessWindow", UIPanel)
+
+local ItemWantedSuc = require("View/UIWindow/Wanted/ItemWantedSuc")
+
+ItemWantedSuc.IsOpen = false
+ItemWantedSuc.m_ItemList = {}
+
+function WantedChallengeSuccessWindow:Awake()
+    self.transform = self.prefab.transform
+    self.gameObject = self.transform.gameObject
+
+    local FrameTransForm = self.transform:Find("Cut4Cam90/AssemblyRatio2").transform
+    -- 关闭按钮
+    local JBtnSure = FrameTransForm:Find("Root/JBtnSure"):GetComponent(typeof(JButton))
+    self.CloseBtnFun = function()
+        self:OnClickSureJBtn()
+    end
+    JBtnSure.OnClick = self.CloseBtnFun
+    -- 提示倒计时
+    self.Tips = FrameTransForm:Find("Root/Tips"):GetComponent(typeof(Text));
+    -- 警告
+    self.Warning = FrameTransForm:Find("Root/Top/Warning"):GetComponent(typeof(Text));
+    -- 三个阶段的目标数据
+    self.m_ItemList = {}
+    for i = 1, 3 do
+        self.m_ItemList[i] = ItemWantedSuc:New(FrameTransForm:Find("Root/Scroll View/Viewport/Content/Item" .. i)
+            .gameObject)
+    end
+
+    --------------------------- 初始化一次性的数据
+
+    --------------------------- 初始化一次性的数据
+
+    -- update事件
+    self.UpdateFun = function()
+        self:UpdateTime();
+    end
+end
+
+function WantedChallengeSuccessWindow:Start()
+end
+
+function WantedChallengeSuccessWindow:OnEnable()
+end
+
+function WantedChallengeSuccessWindow:OnDisable()
+end
+
+function WantedChallengeSuccessWindow:OnDestroy()
+    MonoHelper.RemoveUpdateListener(self.UpdateFun);
+end
+
+function WantedChallengeSuccessWindow:OnOpen(arg)
+    self.IsOpen = true
+    MonoHelper.AddUpdateListener(self.UpdateFun);
+    self:InitData(arg);
+end
+
+function WantedChallengeSuccessWindow:OnClose(arg)
+    self:CloseWindow()
+    MonoHelper.RemoveUpdateListener(self.UpdateFun);
+end
+
+----------------------------------------------------- 业务逻辑↓↓↓↓ ------------------------------------------
+
+function WantedChallengeSuccessWindow:InitData(arg)
+    local info = arg
+    self.m_Countdown = SystemConstConfigs.DailyCopy_Delay;
+    self.Tips.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_WantedChallengeSuccessWindow_Tips"), {self.m_Countdown});
+
+    local module = ModuleManager.Instance:GetModule(ModuleDef.TeamModule)
+    local luatable = module:GetLuaTable()
+    local teamInfo = luatable:GetTeamInfo()
+    local myTeamID = 0
+    if teamInfo ~= nil and teamInfo.TeamID ~= 0 then
+        myTeamID = teamInfo.TeamID
+    end
+    local isHaveMyTeam = false;
+    local Count = #self.m_ItemList;
+    for i = 1, Count, 1 do
+        local item = self.m_ItemList[i]
+        local data = nil
+        local drop = nil
+        if info.RankInfos ~= nil and info.RankInfos.Count >= i then
+            data = info.RankInfos[i - 1]
+        end
+        if info.DropList ~= nil and info.DropList.Count >= i then
+            drop = info.DropList[i - 1]
+        end
+        item:SetItem(data, i, drop, myTeamID)
+        if data ~= nil then
+            if data.TeamID == myTeamID then
+                isHaveMyTeam = true;
+            end
+        end
+    end
+    self:SetTips(isHaveMyTeam)
+end
+
+function WantedChallengeSuccessWindow:SetTips(isHaveMyTeam)
+    local tips = "";
+    local isReceiveTask = false
+    local rewNum = 0
+    local info = GameManager.Instance:GetMainPlayerWantTaskMD()
+    if info ~= nil then
+        isReceiveTask = info.IsAcc
+        rewNum = info.RewNum
+    end
+    -- 次数是否已经达到上限
+    local count = SystemConstConfigs.TeamWantedAwardLimits;
+    if isReceiveTask == false then
+        tips = LanguageHelp:GetLanguageByKey("Local_Str_Tips61");
+    elseif rewNum >= count then
+        tips = LanguageHelp:GetLanguageByKey("Local_Str_Tips62");
+    elseif isHaveMyTeam == false then
+        tips = LanguageHelp:GetLanguageByKey("Local_Str_Tips63");
+    end
+    self.Warning.text = tips;
+end
+
+-- 更新倒计时
+function WantedChallengeSuccessWindow:UpdateTime()
+    if self.m_Countdown > 0 and self.IsOpen then
+        local fixedDeltaTime = Time.deltaTime;
+        self.m_Countdown = self.m_Countdown - fixedDeltaTime;
+        local times = math.floor(self.m_Countdown + 0.5);
+        self.Tips.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_WantedChallengeSuccessWindow_Tips"), {times});
+        if self.m_Countdown <= 0 then
+            self:OnClickSureJBtn()
+        end
+    end
+end
+
+----------------------------------------------------- 无限列表 【STAR】 ------------------------------------------
+
+----------------------------------------------------- 无限列表 【END】 ------------------------------------------
+
+----------------------------------------------------- 初始化一次性数据 【STAR】 ------------------------------------------
+
+----------------------------------------------------- 初始化一次性数据 【END】 ------------------------------------------
+
+----------------------------------------------------- 按钮点击事件 【STAR】 ------------------------------------------
+
+-- 点击【确定】按钮
+function WantedChallengeSuccessWindow:OnClickSureJBtn()
+    -- 发送退出副本请求
+    -- 这里要等服务器的回复
+    --self.Close();
+    LuaModuleDispatcher:SendMessage(ModuleDef.WantedModule, "SendLeaveInstanceReq", nil);
+end
+
+----------------------------------------------------- 按钮点击事件 【END】 ------------------------------------------
+
+-- 关闭界面
+function WantedChallengeSuccessWindow:CloseWindow()
+    self.IsOpen = false
+end
+
+return WantedChallengeSuccessWindow

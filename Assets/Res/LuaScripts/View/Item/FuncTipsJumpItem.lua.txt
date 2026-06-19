@@ -1,0 +1,73 @@
+--[[
+*文件名   :   FuncTipsJumpItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/1 14:50:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local FuncTipsJumpItem = {}
+
+FuncTipsJumpItem.__index = FuncTipsJumpItem
+
+function FuncTipsJumpItem:New(_go) 
+    local self = {};    
+    setmetatable(self, FuncTipsJumpItem); 
+    
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+    self.Desc1=self.transform:Find("Open/name"):GetComponent(typeof(Text));
+    self.Desc2=self.transform:Find("Lock/name"):GetComponent(typeof(Text));
+
+    self.go_Can=self.transform:Find("Open").gameObject;
+    self.go_Can:SetActive(false);
+
+    self.go_Cant=self.transform:Find("Lock").gameObject;
+    self.go_Cant:SetActive(false);
+
+
+
+
+    --点击事件
+	local btnClick=self.transform:Find("Open/GoBtn/Click"):GetComponent(typeof(JButton));
+	btnClick.OnClick=(function() 
+        if self.OnItemCkick ~= nil then
+		    self.OnItemCkick(); 
+        end
+	end);
+
+    
+    self.IsUsed=false;
+    self.gameObject:SetActive(false);
+
+    return self;    --返回自身
+end
+
+function FuncTipsJumpItem:SetUse(b)
+    self.IsUsed=b;
+    self.gameObject:SetActive(b);
+end
+
+function FuncTipsJumpItem:InitItem()
+    self:SetUse(false);
+end
+
+function FuncTipsJumpItem:SetItem(canJump,desc,onItemCkick)
+    self:SetUse(true);
+
+    self.OnItemCkick=onItemCkick;
+    self.CanJump=canJump;
+
+    self.Desc1.text=desc;
+    self.Desc2.text=desc;
+
+    self.go_Can:SetActive(self.CanJump);
+    self.go_Cant:SetActive(not(self.CanJump));
+end
+
+
+
+
+return FuncTipsJumpItem;

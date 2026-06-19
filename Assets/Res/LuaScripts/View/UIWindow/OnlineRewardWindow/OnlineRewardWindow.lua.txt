@@ -1,0 +1,172 @@
+OnlineRewardWindow = class("OnlineRewardWindow", UIPanel)
+
+local RewardItem = require("View/UIWindow/OnlineRewardWindow/RewardItem")
+
+local UpdateFun = nil;
+function OnlineRewardWindow:Awake()
+
+end
+
+function OnlineRewardWindow:BindModule(m)
+	OnlineRewardWindow.module = m;
+end
+
+function OnlineRewardWindow:InitControls()
+	self.transform = self.prefab.transform;
+	self.gameObject = self.transform.gameObject;
+	self.progressRT = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Progress/Mask");
+	self.timeTxt = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Time"):GetComponent(typeof(Text));
+	self.timeTxt.text="";
+	self.rewardItemGo = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Items/Item").gameObject;
+	
+	self.allNodes = {}
+	for i=1, 6 do
+		local node = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Progress/Node"..i).gameObject;
+		self.allNodes[i] = node;
+	end
+
+	self.tipsBtn=self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/TipsBtn"):GetComponent(typeof(Button));
+	self.tipsBtn.onClick:AddListener(function()
+		UIManager.Instance:OpenWindow("Common/GamePlayInfoWindow", 122, CS.StarProjectDef.MainPageCommond.HideNone);
+	end);
+end
+
+function OnlineRewardWindow:InitData(data)
+	if data == nil then
+		return;
+	end
+	
+	if UpdateFun ~= nil then
+		MonoHelper.RemoveSecTimeUpdateListener(UpdateFun);
+	end
+	
+	data = data.OnlineTimeAward;
+	local onlineTime = data.Day5OnlineTime;
+	local latestRecordTime = data.LatestRecordTime;
+	local haveGotAwardBitmask = data.HaveGotAwardBitmask;
+	local rewardGroupId = data.RewardGroupId;
+	
+	local dt = GameManager.Instance:GetServerTimeStamp()/1000 - latestRecordTime;
+	self.totalTime = onlineTime + dt;
+
+	if self.allRewards ~= nil then
+		for _,v in pairs(self.allRewards) do
+			GameObject.Destroy(v.gameObject);
+		end
+	end
+	self.allRewards = {};
+
+	local groupRewards = {};
+	local rewards = ConfigDataAccessor.TimeRewardList;
+	for k,v in pairs(rewards) do
+		if v.RewardGroup == rewardGroupId then
+			table.insert(groupRewards, v);
+		end
+	end
+
+	for k,v in pairs(groupRewards) do
+		local go = newObject(self.rewardItemGo);
+		go.transform:SetParent(self.rewardItemGo.transform.parent);
+		go.transform.localPosition = Vector3.zero;
+		go.transform.localScale = Vector3.one;
+		go:SetActive(true);
+
+		local ri = RewardItem:New(go);
+		ri:Init(k, v, haveGotAwardBitmask, self.totalTime, groupRewards);
+		self.allRewards[k] = ri;
+	end
+
+	UpdateFun = function()
+		--local dt = GameManager.Instance:GetServerTimeStamp()/1000 - latestRecordTime;
+		self:SetProgress(groupRewards);
+		self.totalTime = self.totalTime + 1;
+		for k,v in pairs(self.allRewards) do
+			v:Update(self.totalTime);
+			self.timeTxt.text = self:FormatTime(self.totalTime);
+		end
+	end
+	MonoHelper.AddSecTimeUpdateListener(UpdateFun);
+	UpdateFun();
+	
+	self:SetProgress(groupRewards);
+end
+
+function OnlineRewardWindow:SetProgress(groupRewards)
+	local maxTime = 0;
+	for k,v in pairs(groupRewards) do
+		if v.AccrueTime > maxTime then
+			maxTime = v.AccrueTime;
+		end
+	end
+	-- local xSize = self.totalTime/maxTime/60;
+	-- if xSize > 1 then
+	-- 	xSize = 1;
+	-- end
+	-- self.progressRT.localScale = Vector3(xSize,1,1);
+	
+	local at = self.totalTime/60;
+	local xSize = 0;
+	for k,v in pairs(groupRewards) do
+		local preTime = 0
+		if k>1 then
+			preTime = groupRewards[k-1].AccrueTime;
+		end
+		if at >= (v.AccrueTime - preTime) then
+			xSize = xSize + 1/6;
+		elseif at > 0 then
+			xSize = xSize + (at/(v.AccrueTime - preTime))/6;
+		end
+		at = at - (v.AccrueTime - preTime);
+	end
+	self.progressRT.localScale = Vector3(xSize,1,1);
+	
+	xSize = xSize + 0.00001;
+	local curIndex = xSize*6;
+	for i=1, 6 do
+		self.allNodes[i]:SetActive(i<=curIndex);
+	end
+end
+
+function OnlineRewardWindow:FormatTime(seconds)
+    local minutes = math.floor(seconds / 60)
+    local remainingSeconds = math.floor(seconds % 60);
+	local str = string.format("%02d:%02d", minutes, remainingSeconds);
+    return StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_OnlineReward_4"),{str});
+end
+
+function OnlineRewardWindow:OnShow()
+end
+
+function OnlineRewardWindow:Start()
+end
+
+function OnlineRewardWindow:OnEnable()
+	
+end
+
+function OnlineRewardWindow:OnDisable()
+
+end
+
+function OnlineRewardWindow:OnDestroy()
+
+end
+
+function OnlineRewardWindow:OnOpen(arg)
+	self.IsOpen = true;
+end
+
+function OnlineRewardWindow:OnClose(arg)
+	if UpdateFun ~= nil then
+		MonoHelper.RemoveSecTimeUpdateListener(UpdateFun);
+	end
+	self:CloseWindow();
+	self.module.OnlineRewardWindowView = nil
+end
+
+function OnlineRewardWindow:CloseWindow()
+	self.IsOpen = false;
+	self.module.OnlineRewardWindowView = nil
+end
+
+return OnlineRewardWindow

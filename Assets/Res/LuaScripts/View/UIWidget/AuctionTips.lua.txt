@@ -1,0 +1,79 @@
+--[[
+*文件名   :   AuctionTips
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/09 09:44:49"
+*创建人   :   "DL"
+*版权所有 :   游卡网络科技技术有限公司
+]] local AuctionTips =
+    class("AuctionTips", UIPanel)
+
+function AuctionTips:Awake()
+    self.transform = self.prefab.transform
+    self.gameObject = self.transform.gameObject
+
+    self.root = self.transform:Find("Cut4Cam90")
+
+    self.toggle = self.root:Find("Toggle"):GetComponent(typeof(Toggle))
+    self.toggle.onValueChanged:AddListener(
+        function(isOn)
+            self.onToggleCb(isOn)
+            -- self.Close();
+        end
+    )
+
+    local cancelJBtn = self.root:Find("BtnRoot/Btn0"):GetComponent(typeof(JButton))
+    cancelJBtn.OnClick = function()
+        if self.onClick == nil then
+            self.Close()
+            return
+        end
+
+        self.onClick(false)
+        self.Close()
+    end
+
+    local sureJBtn = self.root:Find("BtnRoot/Btn1"):GetComponent(typeof(JButton))
+    sureJBtn.OnClick = function()
+        if self.onClick == nil then
+            self.Close()
+            return
+        end
+
+        self.onClick(true)
+        self.Close()
+    end
+
+    self.resIcon = self.root:Find("Resource/Icon"):GetComponent(typeof(Image))
+    self.resPrice = self.root:Find("Resource/Price"):GetComponent(typeof(Text))
+
+    -- self.uiWidget = self:GetComponent(typeof(UIWidget));
+end
+
+function AuctionTips:SetClickCb(toggleCb, clickCb)
+    self.onToggleCb = toggleCb
+    self.onClick = clickCb
+end
+
+--
+function AuctionTips:Create(itemID, count)
+    local itemCfg = ConfigDataAccessor.Item[itemID]
+    self.resPrice.text = count
+    --LoadIcon(self.resIcon, itemCfg.Icon);
+    if itemCfg ~= nil then
+        ResourceHelper:LoadIconAsync(self.resIcon, "", itemCfg.Icon, false)
+    end
+end
+
+function AuctionTips:OnOpen(arg)
+    self:Create(arg.itemID, arg.count)
+    self.toggle:SetIsOnWithoutNotify(arg.isNoneConfirm)
+    self:SetClickCb(arg.toggleCb, arg.clickCb)
+end
+
+function AuctionTips:OnClose(arg)
+    self.onToggleCb = nil
+    self.onClick = nil
+end
+
+return AuctionTips

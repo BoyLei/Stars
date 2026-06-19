@@ -1,0 +1,1167 @@
+--[[
+*文件名   :   ExchangeModule
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/10/24 10:00:05"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]] ExchangeModule = class("ExchangeModule", BaseLuaModule)
+
+-- 页码 切换搜索页码重置
+ExchangeModule.M_PageNum = 1;
+
+-- 当前搜索模式名称
+ExchangeModule.M_CurrentSearchName = nil;
+
+-- 更具排序类型和排序或者倒序生成
+ExchangeModule.M_CurrentSortBy = 0;
+
+local RechargeWindowPath = "Recharge/Prefab/RechargeWindow";
+
+-- 搜索器
+ExchangeModule.M_Searchs = {
+    -- 查bankitemtype表
+	--CS.MsgIDEnum.BankLogByItemIDRetID
+    [CS.MsgIDEnum.BankQueryListReqID] = CS.ProtoMsg.BankQueryListReq(),
+
+    -- 查bankitemtype表
+    [CS.MsgIDEnum.BankTypeListReqID] = CS.ProtoMsg.BankTypeListReq(),
+
+    -- 指定道具商品 查bankitem表 查询商品
+    [CS.MsgIDEnum.BankItemListReqID] = CS.ProtoMsg.BankItemListReq(),
+
+    ---查询指定SubType道具类型数据 查 bankitemid 表 C --> center
+    [CS.MsgIDEnum.BankSubTypeListReqID] = CS.ProtoMsg.BankSubTypeListReq()
+}
+
+-- LuaModule 消息模块
+ExchangeModule.ModuleMessages = {
+    -- 设置
+    ["OnDisable"] = function(...)
+        ExchangeModule:OnDisable(...);
+    end,
+
+    -- 模糊搜索
+    ["OnFuzzySearch"] = function(...)
+        ExchangeModule:FuzzySearch(...)
+    end,
+
+    ---获取排序索引
+    ["OnGetSortIndex"] = function(...)
+        ExchangeModule:GetSortIndex(...)
+    end,
+
+    -- 查询官方指导价
+    ["OnQueryGuidePrice"] = function(...)
+        ExchangeModule:BankGetItemPriceReq(...)
+    end,
+
+    ---打开道具品类筛选
+    ["OnOpenItemTypeFilter"] = function(...)
+        ExchangeModule:OpenItemTypeFilter(...)
+    end,
+
+    ---打开商品筛选
+    ["OnOpenGoodsFilter"] = function(...)
+        ExchangeModule:OpenGoodsFilter(...)
+    end,
+
+    ---刷新道具品类
+    ["OnFreshItems"] = function(...)
+        ExchangeModule:OnFreshItems(...)
+    end,
+
+    ---请求下一下或者上一页 道具
+    ["OnQueryItemsByPage"] = function(...)
+        ExchangeModule:OnQueryItemsByPage(...)
+    end,
+
+    ---刷新道具品类
+    ["OnFreshGoods"] = function(...)
+        ExchangeModule:OnFreshGoods(...)
+    end,
+
+    ---请求下一下或者上一页商品
+    ["OnQueryGoodsByPage"] = function(...)
+        ExchangeModule:OnQueryGoodsByPage(...)
+    end,
+
+    -- 设置排序规则
+    ["OnSetOrderRule"] = function(...)
+        ExchangeModule:SetOrderRule(...)
+    end,
+
+    --------------------与服务器消息---------------------------
+
+    ------------------------发给Center服-----------------------
+    ---查询指定SubType道具类型数据 查 bankitemid 表 C --> center
+    ["OnBankSubTypeListReq"] = function(...)
+        ExchangeModule:BankSubTypeListReq(...)
+    end,
+
+    ---所有道具类型  查 bankitemid 表 C --> center
+    ["OnBankTypeListReq"] = function(...)
+        ExchangeModule:BankTypeListReq(...)
+    end,
+    ---指定道具商品 查 bankgoods 表 C --> Center
+    ["OnBankItemListReq"] = function(...)
+        ExchangeModule:BankItemListReq(...)
+    end,
+    ---商品查询 有词条查 bankgoods 表 无词条查 bankitemid 表C --> Center
+    ["OnBankQueryListReq"] = function(...)
+        ExchangeModule:BankQueryListReq(...)
+    end,
+    ---请求我自己在卖的商品 C --> Center
+    ["OnBankMyGoodsReq"] = function(...)
+        ExchangeModule:BankMyGoodsReq(...)
+    end,
+
+    ---交易行下架商品 C --> Center只是修改状态
+    ["OnBankOffShelfGoodsReq"] = function(...)
+        ExchangeModule:BankOffShelfGoodsReq(...)
+    end,
+    ---交易行获取收益 C --> Center把玩家的商品还给玩家操作后数据就没了，然后通过消息进玩家背包；需要实现重试逻辑；
+    ["OnBankGetIncomeReq"] = function(...)
+        ExchangeModule:BankGetIncomeReq(...)
+    end,
+    ---交易行获取道具最近日志 C --> Center只需要返回最近20行并时间在24小时内的数据
+    ["OnBankLogByItemIDReq"] = function(...)
+        ExchangeModule:BankLogByItemIDReq(...)
+    end,
+    ---我是买家的交易日志  C --> Center
+    ["OnBankLogByBuyReq"] = function(...)
+        ExchangeModule:BankLogByBuyReq(...)
+    end,
+
+    ---我是卖家的交易日志  C --> Center
+    ["OnBankLogBySellReq"] = function(...)
+        ExchangeModule:BankLogBySellReq(...)
+    end,
+    ---交易行购买商品 C --》 Center统一回复
+    ["OnBankBuyGoodsReq"] = function(...)
+        ExchangeModule:BankBuyGoodsReq(...)
+    end,
+    ---交易行设置关注商品 C -->Center
+    ["OnBankSetMyFollowReq"] = function(...)
+        ExchangeModule:BankSetMyFollowReq(...)
+    end,
+
+    -------------------------------发给Lobby服务-----------------
+    ---交易行设置关注道具 C -->Lobby
+    ["OnBankSetMyFollowItemIDReq"] = function(...)
+        ExchangeModule:BankSetMyFollowItemIDReq(...)
+    end,
+    ---交易行上架商品 C--> Lobby客户端发消息到Lobby先进行检查操作然后生成BankAddGoodsSrv发给Center
+    ["OnBankAddGoodsReq"] = function(...)
+        ExchangeModule:BankAddGoodsReq(...)
+    end,
+    ---我关注的商品列表 C --> S
+    ["OnBankMyFollowReq"] = function(...)
+        ExchangeModule:BankMyFollowReq(...)
+    end,
+
+    ---我关注的商品列表 C --> S
+    ["OnBankBuyGoodsMaxReq"] = function(...)
+        ExchangeModule:BankBuyGoodsMaxReq(...)
+    end
+}
+
+-- LuaModule 创建
+function ExchangeModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.ExchangeModule, self)
+    self.M_PageNum = 1;
+    -- 初始化
+
+    --[[我关注的商品列表 Center --> C Lobby
+	也发一份给Lobby服务器，这边也更新一下。]]
+    self.BankMyFollowRetEvent = LuaModuleDispatcher:Event(ModuleDef.ExchangeModule, "BankMyFollowRetEvent");
+    self.BankMyFollowRet = function(data)
+        self:OnBankMyFollowRet(data)
+    end
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.BankMyFollowRetID, self.BankMyFollowRet, self)
+
+    --[[交易行商品列表 Center --> C]]
+    self.BankGoodsListRetEvent = LuaModuleDispatcher:Event(ModuleDef.ExchangeModule, "BankGoodsListRetEvent");
+    self.BankGoodsListRet = function(data)
+        self:OnBankGoodsListRet(data)
+    end
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.BankGoodsListRetID, self.BankGoodsListRet, self)
+
+    --[[所有道具类型返回 center --> C]]
+    self.BankItemIDListRetEvent = LuaModuleDispatcher:Event(ModuleDef.ExchangeModule, "BankItemIDListRetEvent");
+    self.BankItemIDListRet = function(data)
+        self:OnBankItemIDListRet(data)
+    end
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.BankItemIDListRetID, self.BankItemIDListRet, self)
+
+    --[[返回我自己在卖的商品 Center --> C]]
+    self.BankMyGoodsRetEvent = LuaModuleDispatcher:Event(ModuleDef.ExchangeModule, "BankMyGoodsRetEvent");
+    self.BankMyGoodsRet = function(data)
+        self:OnBankMyGoodsRet(data)
+    end
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.BankMyGoodsRetID, self.BankMyGoodsRet, self)
+
+    --[[交易行上架商品 成功回复 Center --> C]]
+    self.BankAddGoodsRetEvent = LuaModuleDispatcher:Event(ModuleDef.ExchangeModule, "BankAddGoodsRetEvent");
+    self.BankAddGoodsRet = function(data)
+        self:OnBankAddGoodsRet(data)
+    end
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.BankAddGoodsRetID, self.BankAddGoodsRet, self)
+
+    --[[我是买家的交易日志  Center --> C]]
+    self.BankLogByBuyRetEvent = LuaModuleDispatcher:Event(ModuleDef.ExchangeModule, "BankLogByBuyRetEvent");
+    self.BankLogByBuyRet = function(data)
+        self:OnBankLogByBuyRet(data)
+    end
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.BankLogByBuyRetID, self.BankLogByBuyRet, self)
+
+    --[[我是卖家的交易日志  Center --> C]]
+    self.BankLogBySellRetEvent = LuaModuleDispatcher:Event(ModuleDef.ExchangeModule, "BankLogBySellRetEvent");
+    self.BankLogBySellRet = function(data)
+        self:OnBankLogBySellRet(data)
+    end
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.BankLogBySellRetID, self.BankLogBySellRet, self)
+
+    --[[交易行道具指导价返回 Center --》 C]]
+    self.BankGetItemPriceRetEvent = LuaModuleDispatcher:Event(ModuleDef.ExchangeModule, "BankGetItemPriceRetEvent");
+    self.BankGetItemPriceRet = function(data)
+        self:OnBankGetItemPriceRet(data)
+    end
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.BankGetItemPriceRetID, self.BankGetItemPriceRet, self)
+
+    --[[交易行购买商品 Center --》 C]]
+    self.BankBuyGoodsRetEvent = LuaModuleDispatcher:Event(ModuleDef.ExchangeModule, "BankBuyGoodsRetEvent");
+    self.BankBuyGoodsRet = function(data)
+        self:OnBankBuyGoodsRet(data)
+    end
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.BankBuyGoodsRetID, self.BankBuyGoodsRet, self)
+
+    --[[交易行设置关注商品  Lobby-C]]
+    self.BankSetMyFollowRetEvent = LuaModuleDispatcher:Event(ModuleDef.ExchangeModule, "BankSetMyFollowRetEvent");
+    self.BankSetMyFollowRet = function(data)
+        self:OnBankSetMyFollowRet(data)
+    end
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.BankSetMyFollowRetID, self.BankSetMyFollowRet, self)
+
+    self.BankSetMyFollowItemIDRetEvent = LuaModuleDispatcher:Event(ModuleDef.ExchangeModule,
+        "BankSetMyFollowItemIDRetEvent");
+    self.BankSetMyFollowItemIDRet = function(data)
+        self:OnBankSetMyFollowItemIDRet(data)
+    end
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.BankSetMyFollowItemIDRetID, self.BankSetMyFollowItemIDRet, self)
+
+    --[[交易行获取道具最近日志 Center --> C]]
+    self.BankLogByItemIDRetEvent = LuaModuleDispatcher:Event(ModuleDef.ExchangeModule, "BankLogByItemIDRetEvent");
+    self.BankLogByItemIDRet = function(data)
+        self:OnBankLogByItemIDRet(data)
+    end
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.BankLogByItemIDRetID, self.BankLogByItemIDRet, self)
+
+    CS.StarProject.GlobalEvent.OnBackLogin:AddListener(function(againLoginType)
+        self.M_PageNum = 1;
+        -- 当前搜索模式名称
+        self.M_CurrentSearchName = 0;
+        -- 更具排序类型和排序或者倒序生成
+        self.M_CurrentSortBy = 0;
+    end)
+
+end
+
+-- LuaModule 消息处理
+function ExchangeModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...);
+end
+
+function ExchangeModule:OnDisable(...)
+
+end
+
+-- LuaModule显示
+function ExchangeModule:OnModuleShow(arg)
+
+    -- for k, v in pairs(ConfigDataAccessor.Item) do
+    -- self:QueryGuidePrice(v.Id)
+    -- end
+
+end
+
+---打开道具品类筛选
+function ExchangeModule:OpenItemTypeFilter(...)
+    local tb = ...;
+    local ItemType = 0; ---道具类型
+    local msgName =CS.MsgIDEnum.BankQueryListReqID;
+    -- self.M_Searchs[msgName]
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        ItemType = tb[1];
+    else
+        -- C#调用
+        ItemType = tb[0];
+    end
+
+    LuaModuleDispatcher:SendMessage(ModuleDef.SelectorModule, "OnOpenSelectorByType", {ItemType, -- 确认事件
+    function(data)
+        self.M_PageNum = 1;
+        local msgName = CS.MsgIDEnum.BankQueryListReqID;
+        local message = self.M_Searchs[msgName]
+        -- 是否只看有货（bankitemid表有效）
+        local InStock = false;
+        if data.commonSelector[1] ~= nil then
+            InStock = data.commonSelector[1] == 1;
+        end
+        message.InStock = InStock;
+
+        -- 是否符合玩家等级
+        local IsPlayerLv = false;
+        if data.commonSelector[2] ~= nil then
+            IsPlayerLv = data.commonSelector[2] == 1;
+        end
+        message.IsPlayerLv = IsPlayerLv;
+
+        -- 是否符合玩家职业
+        local IsJobID = false;
+        if data.commonSelector[3] ~= nil then
+            IsJobID = data.commonSelector[3] == 1;
+        end
+        message.IsJobID = IsJobID;
+
+        -- 大于等于品质
+        local QualityMin = 0;
+        if data.selectQuality ~= nil then
+            QualityMin = data.selectQuality
+        end
+        message.QualityMin = QualityMin;
+        -- 小于等于品质
+
+        -- message.QualityMax = 11;
+        -- 大于等于玩家等级
+        local PlayerLv = 0;
+        if data.levelRange ~= nil then
+            PlayerLv = data.levelRange
+        end
+        message.PlayerLv = PlayerLv;
+
+        -- 道具类型
+        message.SubType:Clear();
+        if data.equipType ~= nil and type(data.equipType) == "table" then
+            for k, v in pairs(data.equipType) do
+                message.SubType:Add(v)
+            end
+        end
+
+        -- 筛选器没筛选到数据
+        if message.SubType.Count == 0 and data.ItemType ~= nil then
+            local temp = ConfigDataAccessor.ItemMainType[data.ItemType];
+            if temp ~= nil then
+                for k, v in pairs(temp.SubTypes) do
+                    message.SubType:Add(v.Id)
+                end
+            end
+        end
+
+        -- 词条品质
+        message.EntryQuality = 0;
+        local quality = {};
+        if data.wordsData ~= nil and data.wordsData.quality ~= nil then
+            quality = data.wordsData.quality
+        end
+
+        for k, v in pairs(quality) do
+            if v ~= 0 then
+                message.EntryQuality = k;
+                break
+            end
+        end
+
+        -- 大于等于词条数 如果不带词条的话，写个-1
+        message.EntryNum = -1;
+        local wordsNum = {};
+        if data.wordsData ~= nil and data.wordsData.wordsNum ~= nil then
+            wordsNum = data.wordsData.wordsNum
+        end
+        for k, v in pairs(wordsNum) do
+            if v ~= 0 then
+                message.EntryNum = k;
+                break
+            end
+        end
+
+        -- 包含词条id
+        message.Entrys:Clear();
+        if data.wordsData ~= nil and data.wordsData.words ~= nil and type(data.wordsData.words) == "table" then
+            for k, v in pairs(data.wordsData.words) do
+                message.Entrys:Add(v)
+            end
+        end
+        -- 排序列：使用枚举
+        message.OrderBy = self.M_CurrentSortBy;
+        -- 页码
+        message.PageNum = self.M_PageNum;
+        if message.PageNum < 0 then
+            message.PageNum = 0;
+        end
+
+        SendClient2CenterReq(message);
+
+        self.M_CurrentSearchName = msgName;
+    end, ---取消事件
+    function()
+
+    end});
+
+end
+
+---打开商品筛选
+function ExchangeModule:OpenGoodsFilter(...)
+    local tb = ...;
+    local ItemID = 0; ---道具类型
+
+    local msgName = CS.MsgIDEnum.BankItemListReqID;
+    -- self.M_Searchs[msgName]
+
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        ItemID = tb[1];
+    else
+        -- C#调用
+        ItemID = tb[0];
+    end
+
+    LuaModuleDispatcher:SendMessage(ModuleDef.SelectorModule, "OnOpenSelectorByItemID", {ItemID, -- 确认事件
+    function(data)
+        self.M_PageNum = 1;
+        local msgName = CS.MsgIDEnum.BankItemListReqID;
+        local message = self.M_Searchs[msgName]
+        -- 道具ID
+        message.ItemID = ItemID;
+        -- 词条品质
+        local quality = 0;
+        if data.quality ~= nil then
+           -- quality = data.quality
+           for k,v in pairs(data.quality) do 
+                if v ~= 0 then 
+                    quality = k
+                end
+           end
+        end
+        message.EntryQuality = quality;
+        -- 大于等于词条数 如果不带词条的话，写个-1
+        local wordsNum = -1;
+        if data.wordsNum ~= nil then
+            for k,v in pairs(data.wordsNum) do 
+                if v ~= 0 then 
+                    wordsNum = k
+                end
+            end
+        end
+        message.EntryNum = wordsNum;
+        -- 包含词条id
+        message.Entrys:Clear();
+        if data.words ~= nil and type(data.words) == "table" then
+            for k, v in pairs(data.words) do
+                message.Entrys:Add(v);
+            end
+        end
+        -- 排序列：使用枚举
+        message.OrderBy = self.M_CurrentSortBy;
+        -- 页码
+        message.PageNum = self.M_PageNum;
+        if message.PageNum < 0 then
+            message.PageNum = 0;
+        end
+
+        SendClient2CenterReq(message);
+
+        self.M_CurrentSearchName = msgName;
+    end, ---取消事件
+    function()
+
+    end});
+end
+
+---获取排序索引
+function ExchangeModule:GetSortIndex(...)
+    local tb = ...;
+    local fType = 0;
+    local order = 0;
+    local id = 0;
+    local cb = nil;
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        fType = tb[1];
+        order = tb[2];
+        id = tb[3];
+        cb = tb[4];
+    else
+        -- C#调用
+        fType = tb[0];
+        order = tb[1];
+        id = tb[2];
+        cb = tb[3]
+    end
+
+    if cb ~= nil then
+        cb((fType * 100 + order * 10 + id))
+    end
+end
+
+---模糊搜索
+function ExchangeModule:FuzzySearch(...)
+    local tb = ...;
+    local pattern = "";
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        pattern = tb[1];
+    else
+        -- C#调用
+        pattern = tb[0];
+    end
+
+    if pattern == nil or pattern == "" or pattern == " " or pattern == '' or pattern == ' ' then
+        return nil;
+    end
+    local list = {}
+
+    for k, v in pairs(ConfigDataAccessor.Item) do
+        local start, _, _ = string.find(v.Name, pattern)
+        if start then
+            table.insert(list, v.Id);
+        end
+    end
+
+    self:BankTypeListReq({list, pattern})
+end
+
+-- 交易行下架商品 C --> Center	只是修改状态
+function ExchangeModule:BankOffShelfGoodsReq(...)
+    local tb = ...;
+    local list = {};
+
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        list = tb[1];
+    else
+        -- C#调用
+        list = tb[0];
+    end
+
+    local message = CS.ProtoMsg.BankOffShelfGoodsReq();
+    message.GoodsIDList:Clear();
+    for k, v in pairs(list) do
+        message.GoodsIDList:Add(v.value)
+    end
+
+    SendClient2CenterReq(message);
+
+end
+
+---所有道具类型  查 bankitemid 表 C --> center
+function ExchangeModule:BankTypeListReq(...)
+    local tb = ...;
+    local Items = {};
+    local pattern = "";
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        Items = tb[1];
+        pattern = tb[2];
+    else
+        -- C#调用
+        Items = tb[0];
+        pattern = tb[1];
+    end
+
+    if #Items > 0 then
+        local msgName = CS.MsgIDEnum.BankTypeListReqID;
+
+        self.M_PageNum = 1;
+        self.M_Searchs[msgName].PageNum = self.M_PageNum;
+        self.M_Searchs[msgName].OrderBy = self.M_CurrentSortBy;
+        self.M_Searchs[msgName].ItemIDs:Clear();
+
+        for k, v in pairs(Items) do
+            self.M_Searchs[msgName].ItemIDs:Add(v)
+        end
+        self.M_Searchs[msgName].Node = pattern
+        self.M_CurrentSearchName = msgName;
+
+        local message = self.M_Searchs[msgName];
+        SendClient2CenterReq(message);
+
+    else
+		self.M_CurrentSearchName = 0;
+        ---空数据就不发给服务器,客户端直接模拟回复
+        local message = CS.ProtoMsg.BankItemIDListRet()
+        message.PageNum = self.M_PageNum;
+        if message.PageNum < 0 then
+            message.PageNum = 0;
+        end
+        message.Node = pattern;
+        if self.BankItemIDListRetEvent ~= nil then
+            self.BankItemIDListRetEvent:Invoke(message)
+        end
+    end
+end
+
+---查询  道具类型+排序
+function ExchangeModule:BankSubTypeListReq(...)
+    local tb = ...;
+    local ItemType = 0;
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        ItemType = tb[1];
+    else
+        -- C#调用
+        ItemType = tb[0];
+    end
+    local msgName = CS.MsgIDEnum.BankSubTypeListReqID;
+    self.M_PageNum = 1;
+    self.M_Searchs[msgName].PageNum = self.M_PageNum;
+    self.M_Searchs[msgName].OrderBy = self.M_CurrentSortBy;
+    self.M_Searchs[msgName].SubTypes:Clear();
+
+    local temp = ConfigDataAccessor.ItemMainType[ItemType];
+    if temp ~= nil then
+        for k, v in pairs(temp.SubTypes) do
+            self.M_Searchs[msgName].SubTypes:Add(v.Id)
+        end
+    end
+    self.M_CurrentSearchName = msgName;
+
+    local message = self.M_Searchs[msgName];
+    SendClient2CenterReq(message);
+
+end
+
+---指定道具商品 查 bankgoods 表 C --> Center
+---ItemID + 词条搜索   此处查询仅仅需要重新赋值 排序，其他数据应该界面筛选好
+function ExchangeModule:BankItemListReq(...)
+    local tb = ...;
+    local tb = ...;
+    local ItemID = 0;
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        ItemID = tb[1];
+    else
+        -- C#调用
+        ItemID = tb[0];
+    end
+    local msgName =CS.MsgIDEnum.BankItemListReqID;
+    self.M_PageNum = 1;
+    self.M_Searchs[msgName].OrderBy = self.M_CurrentSortBy;
+    self.M_Searchs[msgName].PageNum = self.M_PageNum;
+    self.M_Searchs[msgName].ItemID = ItemID;
+    self.M_CurrentSearchName = msgName;
+
+    local message = self.M_Searchs[msgName];
+    SendClient2CenterReq(message);
+
+end
+
+---商品查询 有词条查 bankgoods 表 无词条查 bankitemid C --> Center
+---
+function ExchangeModule:BankQueryListReq(...)
+    local tb = ...;
+
+    local msgName = CS.MsgIDEnum.BankQueryListReqID;
+    self.M_PageNum = 1;
+    self.M_Searchs[msgName].OrderBy = self.M_CurrentSortBy;
+    self.M_Searchs[msgName].PageNum = self.M_PageNum;
+    self.M_CurrentSearchName = msgName
+
+    local message = self.M_Searchs[msgName];
+    SendClient2CenterReq(message);
+end
+
+---我关注的商品列表 C --> S
+function ExchangeModule:BankMyFollowReq(...)
+    local battleSocket = NetworkManager.Instance.gameSocket;
+    if battleSocket == nil then
+        Log("FriendModule:OnClient2ThirdReq() battleSocket=nil err!!!!");
+        return;
+    end
+    local message = CS.ProtoMsg.BankMyFollowReq();
+    battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message, false);
+end
+
+---可以上架的商品数扩展  C--》Lobby 通用回复
+function ExchangeModule:BankBuyGoodsMaxReq(...)
+
+    local tb = ...
+    local Max = 0;
+
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        Max = tb[1];
+    else
+        -- C#调用
+        Max = tb[0];
+    end
+
+    local battleSocket = NetworkManager.Instance.gameSocket;
+    if battleSocket == nil then
+        Log("FriendModule:OnClient2ThirdReq() battleSocket=nil err!!!!");
+        return;
+    end
+    local message = CS.ProtoMsg.BankBuyGoodsMaxReq();
+    message.GoodsMax = Max;
+    battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message, false);
+end
+
+---请求我自己在卖的商品 C --> Center
+function ExchangeModule:BankMyGoodsReq(...)
+    local msg = CS.ProtoMsg.BankMyGoodsReq();
+
+    SendClient2CenterReq(msg);
+end
+
+---交易行上架商品 C--> Lobby
+-- 客户端发消息到Lobby先进行检查操作
+-- 然后生成BankAddGoodsSrv发给Center
+function ExchangeModule:BankAddGoodsReq(...)
+    local tb = ...;
+    local ItemUID = 0;
+    local ItemNum = 0;
+    local Price = 0;
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        ItemUID = tb[1];
+        ItemNum = tb[2];
+        Price = tb[3];
+    else
+        -- C#调用
+        ItemUID = tb[0];
+        ItemNum = tb[1];
+        Price = tb[1];
+    end
+    local battleSocket = NetworkManager.Instance.gameSocket;
+    if battleSocket == nil then
+        Log("FriendModule:OnClient2ThirdReq() battleSocket=nil err!!!!");
+        return;
+    end
+    local message = CS.ProtoMsg.BankAddGoodsReq();
+    message.ItemUID = ItemUID;
+    message.ItemNum = ItemNum;
+    message.Price = Price;
+    battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message, false);
+end
+
+---交易行获取收益 C --> Center
+-- 把玩家的商品还给玩家
+-- 操作后数据就没了，然后通过消息进玩家背包；
+-- 需要实现重试逻辑；
+function ExchangeModule:BankGetIncomeReq(...)
+    local tb = ...;
+
+    local list = {}
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        list = tb[1];
+    else
+        -- C#调用
+        list = tb[0];
+    end
+
+    local message = CS.ProtoMsg.BankGetIncomeReq();
+
+    for k, v in pairs(list) do
+        message.GoodsIDList:Add(v.value)
+    end
+
+    SendClient2CenterReq(message);
+
+end
+
+---交易行获取道具最近日志 C --> Center
+-- 只需要返回最近20行并时间在24小时内的数据
+function ExchangeModule:BankLogByItemIDReq(...)
+    local tb = ...;
+    local ItemID = 0;
+
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        ItemID = tb[1];
+    else
+        -- C#调用
+        ItemID = tb[0];
+    end
+    local message = CS.ProtoMsg.BankLogByItemIDReq();
+    message.ItemID = ItemID;
+
+    SendClient2CenterReq(message);
+
+end
+
+---我是买家的交易日志  C --> Center
+function ExchangeModule:BankLogByBuyReq(...)
+    local message = CS.ProtoMsg.BankLogByBuyReq();
+
+    SendClient2CenterReq(message);
+
+end
+
+---我是卖家的交易日志  C --> Center
+function ExchangeModule:BankLogBySellReq(...)
+    local message = CS.ProtoMsg.BankLogBySellReq();
+
+    SendClient2CenterReq(message);
+
+end
+
+--[[交易行购买商品 C --》 Center
+统一回复]]
+function ExchangeModule:BankBuyGoodsReq(...)
+    local tb = ...;
+    local GoodsID = 0;
+
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        GoodsID = tb[1];
+    else
+        -- C#调用
+        GoodsID = tb[0];
+    end
+    local message = CS.ProtoMsg.BankBuyGoodsReq();
+    message.GoodsID = GoodsID;
+
+    SendClient2CenterReq(message);
+
+end
+
+---交易行设置关注商品 C -->Center
+function ExchangeModule:BankSetMyFollowReq(...)
+    local tb = ...;
+    local GoodsID = 0;
+    local IsFollow = false;
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        GoodsID = tb[1];
+        IsFollow = tb[2];
+    else
+        -- C#调用
+        GoodsID = tb[0];
+        IsFollow = tb[1];
+    end
+    local message = CS.ProtoMsg.BankSetMyFollowReq();
+    message.GoodsID = GoodsID;
+    message.IsFollow = IsFollow;
+
+    SendClient2CenterReq(message);
+
+end
+
+---交易行设置关注道具 C -->Lobby
+function ExchangeModule:BankSetMyFollowItemIDReq(...)
+    local tb = ...;
+    local ItemID = 0;
+    local IsFollow = false;
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        ItemID = tb[1];
+        IsFollow = tb[2];
+    else
+        -- C#调用
+        ItemID = tb[0];
+        IsFollow = tb[1];
+    end
+
+    local message = CS.ProtoMsg.BankSetMyFollowItemIDReq();
+    message.ItemID = ItemID;
+    message.IsFollow = IsFollow;
+    local battleSocket = NetworkManager.Instance.gameSocket;
+    if battleSocket == nil then
+        return;
+    end
+    battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message, false);
+end
+
+--[[交易行获取道具指导价 C --》Center]]
+function ExchangeModule:BankGetItemPriceReq(...)
+
+    local tb = ...;
+    local ItemID = 0;
+
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        ItemID = tb[1];
+
+    else
+        -- C#调用
+        ItemID = tb[0];
+    end
+
+    local msg = CS.ProtoMsg.BankGetItemPriceReq();
+    msg.ItemID = ItemID;
+
+    SendClient2CenterReq(msg);
+
+end
+
+---刷新道具品类
+function ExchangeModule:OnFreshItems(...)
+    if self.M_CurrentSearchName ==0 then
+        return
+    end
+    local message = self.M_Searchs[self.M_CurrentSearchName]
+    if message == nil then
+        return
+    end
+    message.PageNum = 0;
+
+    SendClient2CenterReq(message);
+
+end
+
+---请求下一下或者上一页 道具
+function ExchangeModule:OnQueryItemsByPage(...)
+    local tb = ...;
+    local Index = 0;
+
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        Index = tb[1];
+    else
+        -- C#调用
+        Index = tb[0];
+    end
+    if self.M_CurrentSearchName == 0 then
+        return
+    end
+    local message = self.M_Searchs[self.M_CurrentSearchName]
+    if message == nil then
+        return
+    end
+
+    print("page" .. (self.M_PageNum + Index))
+
+    message.PageNum = self.M_PageNum + Index
+    if message.PageNum < 0 then
+        message.PageNum = 0;
+    end
+
+    SendClient2CenterReq(message);
+
+end
+
+---刷新道具品类
+function ExchangeModule:OnFreshGoods(...)
+    if self.M_CurrentSearchName == 0 then
+        return
+    end
+    local message = self.M_Searchs[self.M_CurrentSearchName]
+    if message == nil then
+        return
+    end
+
+    SendClient2CenterReq(message);
+
+end
+
+---请求下一下或者上一页商品
+function ExchangeModule:OnQueryGoodsByPage(...)
+    local tb = ...;
+    local Index = 0;
+
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        Index = tb[1];
+    else
+        -- C#调用
+        Index = tb[0];
+    end
+
+    if self.M_CurrentSearchName == 0 then
+        return
+    end
+    local message = self.M_Searchs[self.M_CurrentSearchName]
+    if message == nil then
+        return
+    end
+    print("page" .. (self.M_PageNum + Index))
+    message.PageNum = self.M_PageNum + Index
+    if message.PageNum < 0 then
+        message.PageNum = 0;
+    end
+
+    SendClient2CenterReq(message);
+
+end
+
+-- 设置排序规则
+function ExchangeModule:SetOrderRule(...)
+    local tb = ...;
+    local needQuery = false;
+    local pageType = 0;
+    local Order = 0;
+    local Index = 0;
+
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        needQuery = tb[1];
+        pageType = tb[2];
+        Order = tb[3];
+        Index = tb[4];
+    else
+        -- C#调用
+        needQuery = tb[0];
+        pageType = tb[1];
+        Order = tb[2];
+        Index = tb[3];
+    end
+
+    self.M_CurrentSortBy = (pageType * 100 + Index * 10 + Order);
+    if needQuery then
+        self.M_PageNum = 1;
+        if self.M_CurrentSearchName == 0 then
+            return
+        end
+        local message = self.M_Searchs[self.M_CurrentSearchName]
+        if message == nil then
+            return
+        end
+
+        message.PageNum = self.M_PageNum;
+        if message.PageNum < 1 then
+            message.PageNum = 1;
+        end
+        message.OrderBy = self.M_CurrentSortBy;
+
+        SendClient2CenterReq(message);
+
+    end
+
+end
+
+--[[我关注的商品列表 Center --> C Lobby
+也发一份给Lobby服务器，这边也更新一下。]]
+function ExchangeModule:OnBankMyFollowRet(data)
+    if self.BankMyFollowRetEvent ~= nil then
+        self.BankMyFollowRetEvent:Invoke(data.data)
+    end
+end
+--[[交易行商品列表 Center --> C]]
+function ExchangeModule:OnBankGoodsListRet(data)
+    if self.BankGoodsListRetEvent ~= nil then
+        self.BankGoodsListRetEvent:Invoke(data.data)
+    end
+    self.M_PageNum = data.data.PageNum
+end
+--[[所有道具类型返回 center --> C]]
+function ExchangeModule:OnBankItemIDListRet(data)
+    if self.BankItemIDListRetEvent ~= nil then
+        self.BankItemIDListRetEvent:Invoke(data.data)
+    end
+    self.M_PageNum = data.data.PageNum
+    print("PageNum" .. self.M_PageNum .. " Count" .. data.data.Datas.Count)
+end
+
+--[[返回我自己在卖的商品 Center --> C]]
+function ExchangeModule:OnBankMyGoodsRet(data)
+    if self.BankMyGoodsRetEvent ~= nil then
+        self.BankMyGoodsRetEvent:Invoke(data.data)
+    end
+end
+
+--[[交易行上架商品 成功回复 Center --> C]]
+function ExchangeModule:OnBankAddGoodsRet(data)
+    if self.BankAddGoodsRetEvent ~= nil then
+        self.BankAddGoodsRetEvent:Invoke(data.data)
+    end
+end
+--[[我是买家的交易日志  Center --> C]]
+function ExchangeModule:OnBankLogByBuyRet(data)
+    if self.BankLogByBuyRetEvent ~= nil then
+        self.BankLogByBuyRetEvent:Invoke(data.data)
+    end
+end
+--[[我是卖家的交易日志  Center --> C]]
+function ExchangeModule:OnBankLogBySellRet(data)
+    if self.BankLogBySellRetEvent ~= nil then
+        self.BankLogBySellRetEvent:Invoke(data.data)
+    end
+end
+
+--[[交易行道具指导价返回 Center --》 C]]
+function ExchangeModule:OnBankGetItemPriceRet(data)
+    if self.BankGetItemPriceRetEvent ~= nil then
+        self.BankGetItemPriceRetEvent:Invoke(data.data)
+    end
+end
+
+--[[交易行购买商品 Center --》 C]]
+function ExchangeModule:OnBankBuyGoodsRet(data)
+    if self.BankBuyGoodsRetEvent ~= nil then
+        self.BankBuyGoodsRetEvent:Invoke(data.data)
+    end
+end
+
+--[[交易行设置关注商品  Lobby-C]]
+function ExchangeModule:OnBankSetMyFollowRet(data)
+    if self.BankSetMyFollowRetEvent ~= nil then
+        self.BankSetMyFollowRetEvent:Invoke(data.data)
+    end
+end
+
+--[[交易行设置关注道具 Lobby--> C]]
+function ExchangeModule:OnBankSetMyFollowItemIDRet(data)
+    if self.BankSetMyFollowItemIDRetEvent ~= nil then
+        self.BankSetMyFollowItemIDRetEvent:Invoke(data.data)
+    end
+end
+
+function ExchangeModule:OnBankLogByItemIDRet(data)
+    if self.BankLogByItemIDRetEvent ~= nil then
+        self.BankLogByItemIDRetEvent:Invoke(data.data)
+    end
+end
+
+-- LuaModule 释放
+function ExchangeModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.ExchangeModule)
+    --[[我关注的商品列表 Center --> C Lobby
+	也发一份给Lobby服务器，这边也更新一下。]]
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.BankMyFollowRetID, self.BankMyFollowRet, self);
+    --[[交易行商品列表 Center --> C]]
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.BankGoodsListRetID, self.BankGoodsListRet, self);
+    --[[所有道具类型返回 center --> C]]
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.BankItemIDListRetID, self.BankItemIDListRet, self);
+    --[[返回我自己在卖的商品 Center --> C]]
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.BankMyGoodsRetID, self.BankMyGoodsRet, self);
+    --[[交易行上架商品 成功回复 Center --> C]]
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.BankAddGoodsRetID, self.BankAddGoodsRet, self);
+    --[[我是买家的交易日志  Center --> C]]
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.BankLogByBuyRetID, self.BankLogByBuyRet, self);
+    --[[我是卖家的交易日志  Center --> C]]
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.BankLogBySellRetID, self.BankLogBySellRet, self);
+    --[[交易行道具指导价返回 Center --》 C]]
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.BankGetItemPriceRetID, self.BankGetItemPriceRet, self);
+    --[[交易行购买商品 Center --》 C]]
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.BankBuyGoodsRetID, self.BankBuyGoodsRet, self);
+    --[[交易行设置关注商品 返回 Lobby-Client]]
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.BankSetMyFollowRetID, self.BankSetMyFollowRet, self);
+    --[[交易行设置关注道具 返回 Lobby-Client]]
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.BankSetMyFollowItemIDRetID, self.BankSetMyFollowItemIDRet, self);
+    --[[交易行获取道具最近日志 Center --> C]]
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.BankLogByItemIDRetID, self.BankLogByItemIDRet, self)
+end
+
+return ExchangeModule
+

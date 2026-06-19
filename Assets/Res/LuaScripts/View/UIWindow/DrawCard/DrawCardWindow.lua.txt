@@ -1,0 +1,619 @@
+DrawCardWindow = class("DrawCardWindow", UIPanel)
+
+local DrawCardHD = require("View/UIWindow/DrawCard/DrawCardHD")
+local DrawCardXS = require("View/UIWindow/DrawCard/DrawCardXS")
+local DrawCardYQ = require("View/UIWindow/DrawCard/DrawCardYQ")
+local DrawCardCZ = require("View/UIWindow/DrawCard/DrawCardCZ")
+local CurrencyBar = require("View/Item/CurrencyBar")
+
+function DrawCardWindow:Awake()
+
+end
+
+function DrawCardWindow:BindModule(m)
+    DrawCardWindow.module = m;
+    self.onCloseDestroy(false);
+end
+
+function DrawCardWindow:InitControls()
+    self.transform = self.prefab.transform;
+    self.gameObject = self.transform.gameObject;
+    self.startdraw = false
+    self.hd = self.transform:Find("Cut4Cam90/AssemblyRatio2/CardPools/huodong");
+    self.xs = self.transform:Find("Cut4Cam90/AssemblyRatio2/CardPools/xinshou");
+    self.yq = self.transform:Find("Cut4Cam90/AssemblyRatio2/CardPools/youqing");
+    self.cz = self.transform:Find("Cut4Cam90/AssemblyRatio2/CardPools/changzhu");
+
+    self.leftTimes = self.transform:Find("Cut4Cam90/AssemblyRatio2/CardDetail/LeftTimes"):GetComponent(typeof(Text));
+    self.poolTimes = self.transform:Find("Cut4Cam90/AssemblyRatio2/CardDetail/PoolTimes").gameObject;
+    self.poolTimesTxt = self.transform:Find("Cut4Cam90/AssemblyRatio2/CardDetail/PoolTimes/Times"):GetComponent(typeof(Text));
+    self.poolDesc = self.transform:Find("Cut4Cam90/AssemblyRatio2/CardDetail/Desc"):GetComponent(typeof(Text));
+
+    self.cardPools = {}
+    self.cardPools[1] = self.cz;
+    self.cardPools[2] = self.hd;
+    self.cardPools[3] = self.xs;
+    self.cardPools[4] = self.yq;
+
+    self.cardPoolSelector = {}
+    self.residentBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/PoolSelect/Viewport/Content/Resident")
+    -- :GetComponent(typeof(Button));
+    -- self.residentBtn.onClick:AddListener(function()
+    --     self:OnSelectType(1);
+    -- end);
+    self.residentRedPoint = self.residentBtn.transform:Find("RedPoint").gameObject;
+
+    self.limitTimeBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/PoolSelect/Viewport/Content/LimitTime")
+    -- :GetComponent(typeof(Button));
+    -- self.limitTimeBtn.onClick:AddListener(function()
+    --     self:OnSelectType(2);
+    -- end);
+    self.limitTimeRedPoint = self.limitTimeBtn.transform:Find("RedPoint").gameObject;
+
+    self.newPlayerBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/PoolSelect/Viewport/Content/NewPlayer")
+    -- :GetComponent(typeof(Button));
+    -- self.newPlayerBtn.onClick:AddListener(function()
+    --     self:OnSelectType(3);
+    -- end);
+    self.newPlayerRedPoint = self.newPlayerBtn.transform:Find("RedPoint").gameObject;
+
+    self.friendShipBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/PoolSelect/Viewport/Content/FriendShip")
+    -- :GetComponent(typeof(Button));
+    -- self.friendShipBtn.onClick:AddListener(function()
+    --     self:OnSelectType(4);
+    -- end);
+    self.friendShipRedPoint = self.friendShipBtn.transform:Find("RedPoint").gameObject;
+
+    self.cardPoolSelector[1] = self.residentBtn;
+    self.cardPoolSelector[2] = self.limitTimeBtn;
+    self.cardPoolSelector[3] = self.newPlayerBtn;
+    self.cardPoolSelector[4] = self.friendShipBtn;
+
+    self.cardDetail = self.transform:Find("Cut4Cam90/AssemblyRatio2/CardPoolDetail"):GetComponent(typeof(Button));
+    self.cardDetail.onClick:AddListener(function()
+        -- 打开抽卡详情
+        LuaModuleDispatcher:SendMessage(ModuleDef.DrawCardModule, "OnOpenDetailInfoWindow", {self.curId});
+    end);
+
+    self.singleTimeGo = self.transform:Find("Cut4Cam90/AssemblyRatio2/SingleTime").gameObject;
+    self.singleCost = self.transform:Find("Cut4Cam90/AssemblyRatio2/SingleTime/Image (1)/Num"):GetComponent(typeof(Text));
+    self.tenTimeGo = self.transform:Find("Cut4Cam90/AssemblyRatio2/TenTimes").gameObject;
+    self.tenCost = self.transform:Find("Cut4Cam90/AssemblyRatio2/TenTimes/Cost"):GetComponent(typeof(Text));
+    self.discountGo = self.transform:Find("Cut4Cam90/AssemblyRatio2/TenTimes/Discount").gameObject;
+
+    local languagetype = LanguageManager.Instance:GetLanguageType()
+    local rect = self.discountGo.transform:GetComponent(typeof(RectTransform))
+    if languagetype == 1 then 
+        rect.anchoredPosition = Vector2(120,-4.1)
+    elseif languagetype == 2 then 
+        rect.anchoredPosition = Vector2(140,-4.1)
+    end
+
+    self.singleTimeBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/SingleTimeBtn"):GetComponent(typeof(Button));
+    self.singleTimeBtn.onClick:AddListener(function()
+		self:SingleDC();
+    end);
+    self.singleTimeRedPoint = self.singleTimeBtn.transform:Find("RedPoint").gameObject;
+    self.tenTimeBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/TenTimesBtn"):GetComponent(typeof(Button));
+    self.tenTimeBtn.onClick:AddListener(function()
+			local cardPool = ConfigDataAccessor.CardPool;
+			local costNum = 10;
+			if cardPool[self.curId].SaleRaito > 0 then
+				costNum = cardPool[self.curId].SaleRaito / 1000;
+			end
+			CS.StarProjectDef.UIAPI.ShowMsgBox(30, function(str)
+					if str == "SURE" then
+						self:TenDC();
+					end
+				end, costNum, ConfigDataAccessor.Item[cardPool[self.curId].UseToken].Name);
+    end);
+    self.tenTimeRedPoint = self.tenTimeBtn.transform:Find("RedPoint").gameObject;
+    
+    self.currencyBar = CurrencyBar:New(nil, self.transform:Find("Cut4Cam90/AssemblyRatio2/CurrencyAhchor"));
+    self.singleLimit = self.transform:Find("Cut4Cam90/AssemblyRatio2/SingleLimit"):GetComponent(typeof(Text));
+
+    self.allCardPools = {};
+    self.allCardPoolSelectors = {};
+    self.allCardPoolRedPoints = {};
+
+    self:InitCardPool();
+
+    local cardPools = ConfigDataAccessor.CardPool;
+    local coins = {104001, 104002, 4};
+    self.currencyBar:RefeshBar(coins);
+    self.currencyBar:PlayAnim(true);
+   
+
+    self.coinImg1 = self.transform:Find("Cut4Cam90/AssemblyRatio2/SingleTime/Image (1)/Coin"):GetComponent(typeof(Image));
+    self.coinImg2 = self.transform:Find("Cut4Cam90/AssemblyRatio2/TenTimes/Coin"):GetComponent(typeof(Image));
+
+    local useCoin = nil;
+    for _, v in pairs(ConfigDataAccessor.CardPool) do
+        if useCoin == nil then
+            useCoin = v.UseToken;
+            break
+        end
+    end
+    local cfg = ConfigDataAccessor.Item[useCoin];
+    self.currentUseCoin = useCoin;
+    -- LoadIcon(self.coinImg1, cfg.Icon);
+    ResourceHelper:LoadIconAsync(self.coinImg1, "", cfg.Icon, false)
+
+    -- LoadIcon(self.coinImg2, cfg.Icon);
+    ResourceHelper:LoadIconAsync(self.coinImg2, "", cfg.Icon, false)
+
+    self.tenLimit = self.transform:Find("Cut4Cam90/AssemblyRatio2/TenLimit"):GetComponent(typeof(Text));
+    --self.leftTimes = self.transform:Find("Cut4Cam90/AssemblyRatio2/LeftTimes"):GetComponent(typeof(Text));
+
+    self.singleCostBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/SingleTime/Image (1)/Coin"):GetComponent(typeof(Button));
+    self.singleCostBtn.onClick:AddListener(function() 
+        LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", {cfg.Id, false, 0, self.singleCostBtn.transform, 0})
+    end);
+    self.tenCostBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/TenTimes/Coin"):GetComponent(typeof(Button));
+    self.tenCostBtn.onClick:AddListener(function() 
+        LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", {cfg.Id, false, 0, self.tenCostBtn.transform, 0})
+    end);
+end
+
+function DrawCardWindow:SingleDC()
+    if self.startdraw == true then 
+        return
+    end
+   
+	local coinNum = 0;
+	local costNum = 1;
+	if BusinessManager.Instance:GetItemByItemBaseId(self.currentUseCoin) ~= nil then
+		coinNum = BusinessManager.Instance:GetItemByItemBaseId(self.currentUseCoin).Num;
+	end
+	if coinNum < costNum then
+		self.module.dcType = 1;
+		self:MoneyLimit(coinNum, costNum);
+		return;
+	end
+
+	-- 单次抽卡
+	local gachaReq = CS.ProtoMsg.GachaReq();
+	gachaReq.IsTen = false;
+	gachaReq.PoolID = self.curId;
+	CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+		gachaReq, false);
+    self.startdraw = true
+	self.singleTimeBtn.interactable = false;
+	DOVirtual.DelayedCall(1, function()
+			self:RefreshBtns();
+			-- self.singleTimeBtn.interactable = true;
+		end);
+end
+
+function DrawCardWindow:TenDC()
+    if self.startdraw == true then 
+        return
+    end
+	local cardPool = ConfigDataAccessor.CardPool;
+	local costNum = 10;
+	if cardPool[self.curId].SaleRaito > 0 then
+		costNum = cardPool[self.curId].SaleRaito / 1000;
+	end
+
+	local coinNum = 0;
+	if BusinessManager.Instance:GetItemByItemBaseId(self.currentUseCoin) ~= nil then
+		coinNum = BusinessManager.Instance:GetItemByItemBaseId(self.currentUseCoin).Num;
+	end
+	
+    local info = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.ComCount):GetData(19);
+
+    if coinNum < costNum then
+        self.module.dcType = 10;
+        self:MoneyLimit(coinNum, costNum);
+    else
+        local gachaReq = CS.ProtoMsg.GachaReq();
+        gachaReq.IsTen = true;
+        gachaReq.PoolID = self.curId;
+        CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType
+            .ServerTypeLobby, gachaReq, false);
+        self.startdraw = true
+        self.tenTimeBtn.interactable = false;
+        DOVirtual.DelayedCall(1, function()
+                self:RefreshBtns();
+            end);
+    end
+end
+
+function DrawCardWindow:MoneyLimit(coinNum, costNum)
+	local cfg = ConfigDataAccessor.Item[self.currentUseCoin];
+	local needNum = costNum - coinNum;
+	-- Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_No_Item"));
+
+	local goodId = ConfigDataAccessor.SystemList[215].Value;
+	for k, v in pairs(ConfigDataAccessor.Goods) do
+		local good = v;
+		if k == goodId then
+			local id = good.Price[1];
+			local changeRate = good.Price[2];
+			CS.StarProjectDef.UIAPI.ShowMsgBox(31, function(str)
+					if str == "SURE" then
+						local bdNum = 0;
+						bdNum = BusinessManager.Instance:GetCurrencyNum(id);
+						if bdNum < needNum*changeRate then
+							local cfg2 = ConfigDataAccessor.Item[id];
+							local cfg3 = ConfigDataAccessor.Item[3];
+							CS.StarProjectDef.UIAPI.ShowMsgBox(58, function(str)
+									if str == "SURE" then
+										local currencyExchangeReq = CS.ProtoMsg.CurrencyExchangeReq();
+										currencyExchangeReq.Num = needNum*changeRate-bdNum;
+
+										CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, currencyExchangeReq, false);
+									end
+								end, cfg2.Name, needNum*changeRate-bdNum, cfg3.Name)
+						else
+							self:SendShopBuyReq(good.Sub_shopid,goodId,needNum);
+						end
+					end
+				end, cfg.Name, needNum*changeRate, needNum);
+			break;
+		end
+	end
+    self.startdraw = false
+end
+
+function DrawCardWindow:SendShopBuyReq(shopID,goodID,goodNum)
+	local shopBuyReq = CS.ProtoMsg.ShopBuyReq();
+	shopBuyReq.ShopID = shopID;--商店ID
+	shopBuyReq.GoodID = goodID;--商品ID
+	shopBuyReq.GoodNum = goodNum;--商品数量
+
+	CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, shopBuyReq, false);
+end
+
+function DrawCardWindow:IsTimesLimit(id)
+    if self.module.timesLimit == nil then
+        return false;
+    end
+
+    local data = self.module.timesLimit;
+    local v = ConfigDataAccessor.CardPool[id];
+    if v.GachaTimesLimits > 0 then
+        if data.Count == 0 then
+            return false;
+        else
+            for i = 0, data.Count - 1 do
+                if data[i].PoolID == id then
+                    return data[i].History >= v.GachaTimesLimits;
+                end
+            end
+        end
+    end
+    return false;
+end
+
+function DrawCardWindow:InitCardPool()
+    local cardPool = ConfigDataAccessor.CardPool;
+    local firstSelect = nil;
+    local tb = {}
+    for k, v in pairs(cardPool) do
+        table.insert(tb, 1, v);
+    end
+    table.sort(tb, function(a, b)
+        return a.DisplayOrder < b.DisplayOrder
+    end);
+
+    for k, v in pairs(self.allCardPoolSelectors) do
+        GameObject.Destroy(v.gameObject);
+    end
+    self.allCardPoolSelectors = {};
+    for k, v in pairs(self.allCardPools) do
+        GameObject.Destroy(v.gameObject);
+    end
+    self.allCardPools = {};
+
+    local lv = GameManager.Instance:GetPlayerLevel();
+    local curSelExist = false;
+
+    local curPoolTypes = {};
+	self.allCardPoolRedPoints = {};
+    for _, v in ipairs(tb) do
+        local skip = GameManager.Instance:IsConditionMete(v.DisplayCondition);
+        skip = skip and not self:IsTimesLimit(v.ID);
+        if skip == true then
+            if firstSelect == nil then
+                firstSelect = v.ID;
+            end
+            if self.curId ~= nil and self.curId == v.ID then
+                curSelExist = true;
+            end
+            local go = newObject(self.cardPools[v.CardPoolType].gameObject)
+            go.transform:SetParent(self.cardPools[v.CardPoolType].parent);
+            go.transform.localPosition = Vector3.zero;
+            local rect = go.transform:GetComponent(typeof(RectTransform));
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+            go.transform.localScale = Vector3.one;
+            go:SetActive(true);
+            go.transform:SetAsLastSibling();
+
+            local drawCardItem = nil;
+            if v.CardPoolType == 1 then
+                drawCardItem = DrawCardCZ:New(go, v.ID);
+            elseif v.CardPoolType == 2 then
+                drawCardItem = DrawCardHD:New(go, v.ID);
+            elseif v.CardPoolType == 3 then
+                drawCardItem = DrawCardXS:New(go);
+            elseif v.CardPoolType == 4 then
+                drawCardItem = DrawCardYQ:New(go);
+            end
+
+            self.allCardPools[v.ID] = drawCardItem;
+            -- table.insert(self.allCardPools, drawCardItem);
+
+            go = newObject(self.cardPoolSelector[v.CardPoolType].gameObject)
+            go.transform:SetParent(self.cardPoolSelector[v.CardPoolType].parent);
+            go.transform.localPosition = Vector3.zero;
+            go.transform.localScale = Vector3.one;
+            go:SetActive(true);
+            go.transform:SetAsLastSibling();
+            local btn = go:GetComponent(typeof(Button));
+            btn.onClick:AddListener(function()
+                self:OnSelectType(v.ID);
+
+                for ik,item in pairs(self.allCardPoolSelectors) do
+					item.transform:Find("Sel").gameObject:SetActive(v.ID == ik);
+                end
+            end);
+            self.allCardPoolSelectors[v.ID] = btn;
+            -- table.insert(self.allCardPoolSelectors, btn);
+
+            table.insert(curPoolTypes, v.ID);
+
+            self.allCardPoolRedPoints[v.ID] = go.transform:Find("RedPoint").gameObject;
+        end
+    end
+	
+	local curSle = nil;
+    if firstSelect ~= nil and not curSelExist then
+        self:OnSelectType(firstSelect);
+		curSle = firstSelect;
+    elseif self.curId ~= nil then
+        self:OnSelectType(self.curId);
+		curSle = self.curId;
+    end
+	
+	if self.allCardPoolSelectors ~= nil then
+		for ik,item in pairs(self.allCardPoolSelectors) do
+			item.transform:Find("Sel").gameObject:SetActive(curSle == ik);
+		end
+	end
+
+    -- self.recordPoolTypes = {};
+    if self.recordPoolTypes == nil then
+        self.recordPoolTypes = {};
+        for k, v in pairs(curPoolTypes) do
+            self.recordPoolTypes[k] = v;
+        end
+    else
+        for k, v in pairs(curPoolTypes) do
+            local f = false;
+            for k2, v2 in pairs(self.recordPoolTypes) do
+                if v == v2 then
+                    f = true;
+                    break
+                end
+            end
+            -- 如果之前不存在,显示红点
+            -- if not f then
+            -- 	local conditionType = nil;
+            -- 	if v == 1 then
+            -- 		conditionType = RedPointConditionType.Gacha1;
+            -- 	elseif v == 2 then
+            -- 		conditionType = RedPointConditionType.Gacha2;
+            -- 	elseif v == 3 then
+            -- 		conditionType = RedPointConditionType.Gacha3;
+            -- 	else
+            -- 		conditionType = RedPointConditionType.Gacha4;
+            -- 	end
+            -- 	RedPointManager.Instance:TriggerConditionTypeBoolValue(conditionType, true);
+            -- end
+        end
+    end
+
+    self:InitRedPoint();
+end
+
+function DrawCardWindow:OnSelectType(id)
+    self.curId = id;
+    for k, v in pairs(self.allCardPools) do
+        v.gameObject:SetActive(k == id);
+    end
+
+    -- for k,v in pairs(self.allCardPoolSelectors) do
+    --     v.gameObject:SetActive(k == id);
+    -- end
+
+    local cardPool = ConfigDataAccessor.CardPool;
+    self.singleTimeBtn.gameObject:SetActive(cardPool[id].CardPoolType ~= 3);
+    self.singleTimeGo:SetActive(cardPool[id].CardPoolType ~= 3);
+	if cardPool[id].CardPoolType == 3 then
+		self.singleLimit.gameObject:SetActive(false);
+	end
+
+    --self.singleCost.text = "启梦消耗 1";
+    self.singleCost.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_DrawCardWindow_singleCost"), {1});
+
+    self.tenCost.text = "10";
+    if cardPool[id].SaleRaito > 0 then
+        self.tenCost.color =  Color(100/255, 235/255, 164/255,1)
+        --self.tenCost.text = "启梦消耗 10 <color=#64EBA4>x" .. (math.floor(cardPool[id].SaleRaito / 1000)) .. "</color>";
+        self.tenCost.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_DrawCardWindow_tenCost"), {(math.floor(cardPool[id].SaleRaito / 1000)),10});
+        self.discountGo:SetActive(true);
+        
+    else
+        self.tenCost.color =  Color(1, 1, 1,1)
+        --self.tenCost.text = "启梦消耗 10";
+        self.tenCost.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_DrawCardWindow_singleCost"), {10});
+        
+        self.discountGo:SetActive(false);
+    end
+	
+	self:InitRedPoint();
+
+    self.poolTimes:SetActive(cardPool[id].GachaTimesLimits > 0);
+    if cardPool[id].GachaTimesLimits > 0 then
+		self.poolTimesTxt.text = "0/"..cardPool[id].GachaTimesLimits;
+
+        local data = self.module.timesLimit;
+        if cardPool[id].GachaTimesLimits > 0 then
+            for i = 0, data.Count - 1 do
+                if data[i].PoolID == id then
+                    self.poolTimesTxt.text = data[i].History.."/"..cardPool[id].GachaTimesLimits;
+                    break;
+                end
+            end
+        end
+    end
+    self.poolDesc.text = cardPool[id].CardPoolDesc;
+end
+
+function DrawCardWindow:RefreshSsrTimes(id, t, ft)
+    if self.allCardPools[id] ~= nil then
+        self.allCardPools[id]:RefreshSsrTimes(t, ft);
+    end
+end
+
+function DrawCardWindow:RefreshLimitTimes(id, t, total)
+    self:InitCardPool();
+    if self.allCardPools[id] ~= nil then
+        self.allCardPools[id]:RefreshLimitTimes(t, total);
+    end
+end
+
+function DrawCardWindow:RefreshBtns()
+    --self:InitCardPool();
+    local info = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.ComCount):GetData(19);
+    if info ~= nil then
+        self.singleTimeBtn.interactable = info.RemainCount >= 1;
+        self.tenTimeBtn.interactable = info.RemainCount >= 10;
+
+        self.singleLimit.gameObject:SetActive(info.RemainCount < 1);
+        self.tenLimit.gameObject:SetActive(info.RemainCount < 10);
+		
+		
+		local cardPool = ConfigDataAccessor.CardPool;
+        self.singleTimeGo:SetActive(info.RemainCount >= 1 and cardPool[self.curId].CardPoolType ~= 3);
+        self.tenTimeGo:SetActive(info.RemainCount >= 10);
+    end
+
+    --self.leftTimes.text = "本日启梦次数：" .. (info.AddCount - info.RemainCount) .. "/" .. info.AddCount;
+    self.leftTimes.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_DrawCardWindow_leftTimes"), {(info.AddCount - info.RemainCount), info.AddCount});
+
+end
+
+function DrawCardWindow:OnShow()
+    -- print("TestWindow:OnShow" .. self.prefab.name)
+
+    local cardPools = ConfigDataAccessor.CardPool;
+    local coins = {104001, 104002, 4};
+    self.currencyBar:RefeshBar(coins);
+end
+
+function DrawCardWindow:RefreshCoin()
+    local cardPools = ConfigDataAccessor.CardPool;
+    local coins = {104001, 104002, 4};
+    self.currencyBar:OnListener();
+    self.currencyBar:RefeshBar(coins);
+
+    self:InitRedPoint();
+end
+
+function DrawCardWindow:InitRedPoint()
+    local coinNum = 0;
+    if BusinessManager.Instance:GetItemByItemBaseId(104001) ~= nil then
+        coinNum = BusinessManager.Instance:GetItemByItemBaseId(104001).Num;
+    end
+
+    local remainCount = 0;
+    local info = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.ComCount):GetData(19);
+    if info ~= nil then
+        remainCount = info.RemainCount;
+    end
+
+    local cardPool = ConfigDataAccessor.CardPool;
+    self.singleTimeRedPoint:SetActive(false);
+    self.tenTimeRedPoint:SetActive(false);
+    for k,v in pairs(self.allCardPoolRedPoints) do
+        local costNum = 10;
+        if cardPool[k].SaleRaito > 0 then
+            costNum = cardPool[k].SaleRaito / 1000;
+        end
+
+        local gachaRedDot = ConfigDataAccessor.GachaRedDot;
+        if gachaRedDot[k] == nil then
+            v:SetActive(false);
+        else
+            if gachaRedDot[k].BehaviorType == 1 then
+                v:SetActive(coinNum >= 1 and remainCount>=1);
+                if k == self.curId then
+                    self.singleTimeRedPoint:SetActive(coinNum >= 1 and remainCount>=1);
+                end
+            elseif gachaRedDot[k].BehaviorType == 2 then
+                if v ~= nil then
+                    v:SetActive(coinNum >= costNum and remainCount>=10);
+                end
+                if k == self.curId then
+                    self.tenTimeRedPoint:SetActive(coinNum >= costNum and remainCount>=10);
+                end
+            else
+                v:SetActive((coinNum >= 1 or coinNum >= costNum) and remainCount>=1);
+                if k == self.curId then
+                    self.singleTimeRedPoint:SetActive(coinNum >= 1 and remainCount>=1);
+                    self.tenTimeRedPoint:SetActive(coinNum >= costNum and remainCount>=10);
+                end
+            end
+        end
+    end
+	
+	self.module:RedPoint();
+end
+
+function DrawCardWindow:Start()
+
+end
+
+function DrawCardWindow:OnEnable()
+
+end
+
+function DrawCardWindow:OnDisable()
+
+end
+
+function DrawCardWindow:OnDestroy()
+
+end
+
+function DrawCardWindow:OnOpen(arg)
+    self.IsOpen = true;
+    local canvasgroup = UIRoot.UiPageRoot:GetComponent(typeof(CanvasGroup))
+    canvasgroup.alpha = 1
+  --  UIRoot.UiPageRoot:SetActive(true)
+end
+
+function DrawCardWindow:OnClose(arg)
+    self:CloseWindow();
+    ModuleManager.Instance:HideModule(ModuleDef.DrawCardModule);
+    --self.module.drawCardWindow=nil;
+end
+
+function DrawCardWindow:CloseWindow()
+    self.IsOpen = false;
+	self.startdraw = false
+    self.currencyBar:PlayAnim(false);
+    self.currencyBar:OffListener();
+
+    --self.module.drawCardWindow=nil;
+
+    -- RedPointManager.Instance:TriggerConditionTypeBoolValue(RedPointConditionType.Gacha1, false);
+    -- RedPointManager.Instance:TriggerConditionTypeBoolValue(RedPointConditionType.Gacha2, false);
+    -- RedPointManager.Instance:TriggerConditionTypeBoolValue(RedPointConditionType.Gacha3, false);
+    -- RedPointManager.Instance:TriggerConditionTypeBoolValue(RedPointConditionType.Gacha4, false);
+end
+
+return DrawCardWindow

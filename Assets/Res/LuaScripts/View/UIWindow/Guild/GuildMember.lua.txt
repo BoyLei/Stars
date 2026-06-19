@@ -1,0 +1,484 @@
+--[[
+*文件名   :   GuildMember
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] local GuildMember = {}
+
+GuildMember.__index = GuildMember
+
+local GuildDutyManager = require("View/Uiwindow/Guild/GuildDutyManager")
+local GuildApplyFor = require("View/Uiwindow/Guild/GuildApplyFor")
+local GuildMemberItem = require("View/Uiwindow/Guild/GuildMemberItem")
+local GuildSilence = require("View/Uiwindow/Guild/GuildSilence")
+
+function GuildMember:New(_go, guildInfoWindow)
+    local self = {}
+    setmetatable(self, GuildMember)
+
+    self.GuildInfoWindow = guildInfoWindow
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.GuildSilence =
+        GuildSilence:New(
+        self.transform.parent:Find("Silence").gameObject,
+        function()
+            self:RefeshGuildMemberData() -- 刷新
+        end
+    )
+    self.GuildApplyFor = GuildApplyFor:New(self.transform.parent:Find("ApplyFor").gameObject, self)
+    self.GuildDutyManager = GuildDutyManager:New(self.transform.parent:Find("DutyManager").gameObject, self)
+
+    -- 道具列表
+    self.BagItemList = {}
+    -- 无限列表
+    self.go_BagItem = self.transform:Find("Scroll View/Mask/List/GuildMemberItem").gameObject
+
+    self.tr_ItemRoot = self.transform:Find("Scroll View/Mask/List")
+    self.go_BagItem:SetActive(false)
+    self.go_BagItem.transform:SetParent(self.transform)
+    self.BagScorllView = self.transform:Find("Scroll View"):GetComponent(typeof(SuperScrollViewController))
+    self.BagScorllView:NewScroll(
+        self.go_BagItem,
+        0,
+        function(tr, idx)
+            self:OnBagItemRefesh(tr, idx)
+        end
+    )
+
+    -- 退出冒险团按钮
+    self.transform:Find("BtnQuit"):GetComponent(typeof(JButton)).OnClick = (function()
+        self:OnBtnQuitClick()
+    end)
+
+    -- 申请记录按钮
+    self.transform:Find("BtnLog"):GetComponent(typeof(JButton)).OnClick = (function()
+        self:OnBtnLogClick()
+    end)
+    self.btnLogGo = self.transform:Find("BtnLog").gameObject
+
+    -- 职位管理按钮
+    self.transform:Find("BtnDuity"):GetComponent(typeof(JButton)).OnClick = (function()
+        self:OnBtnDuityClick()
+    end)
+    self.btnDuityGo = self.transform:Find("BtnDuity").gameObject
+
+    -- 是否自动同意按钮
+    self.go_AutoConfirm = self.transform:Find("AutoConfirm/selected").gameObject
+    self.transform:Find("AutoConfirm"):GetComponent(typeof(JButton)).OnClick = (function()
+        self:OnAutoConfirmClick()
+    end)
+    self.autoConfirmGo = self.transform:Find("AutoConfirm").gameObject
+
+    -- 退出冒险团回调（通用回复）
+    self.message1 = function(data)
+        self:OnGuildQuitReqRet(data)
+    end
+
+    -- 是否自动同意回调
+    self.message2 = function(data)
+        self:OnGuildMyUpAutoReqRet(data)
+    end
+
+    -- 解除禁言回调
+    self.message3 = function(data)
+        self:OnGuildMyUnbankChatReqRet(data)
+    end
+
+    self:Show(false)
+    return self -- 返回自身
+end
+
+function GuildMember:OnAutoConfirmClick()
+    self.IsAutoConfirm = not (self.IsAutoConfirm)
+    self:SetIsAutoConfirm()
+
+    -- 发送是否自动同意请求
+    local msg = CS.ProtoMsg.GuildMyUpAutoReq()
+    msg.AutoApply = self.IsAutoConfirm
+    SendClient2CenterReq(msg)
+end
+
+function GuildMember:SetIsAutoConfirm()
+    if self.gameObject.activeSelf then
+        self.go_AutoConfirm:SetActive(self.IsAutoConfirm)
+    end
+end
+
+-- 点击退出冒险团
+function GuildMember:OnBtnQuitClick()
+    -- 团长是否能退出冒险团的判断  团长在退出冒险团前需先转让出团长职位（点击“退出冒险团”，弹出提示“LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_203”）")
+    local posLevelID = BusinessManager.Instance:GetGuildPosLevel()
+    if posLevelID == 1001 and #self.ItemDataList > 1 then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_203"))
+        return
+    end
+
+    if posLevelID == 1001 then
+        local guildName = self.GuildInfoWindow.module.GuildInfo.GuName
+        -- 团长的确认框(解散冒险团)
+        CS.StarProjectDef.UIAPI.ShowMsgBox(
+            28,
+            function(str)
+                if str == "SURE" then
+                    -- 退出冒险团
+                    local msg = CS.ProtoMsg.GuildQuitReq()
+                    SendClient2CenterReq(msg)
+                end
+            end,
+            guildName
+        )
+    else
+        -- 会员的确认框（退出冒险团）
+        CS.StarProjectDef.UIAPI.ShowMsgBox(
+            26,
+            function(str)
+                if str == "SURE" then
+                    -- 退出冒险团
+                    local msg = CS.ProtoMsg.GuildQuitReq()
+                    SendClient2CenterReq(msg)
+                end
+            end
+        )
+    end
+end
+
+function GuildMember:RefeshGuildMemberData()
+    self.GuildInfoWindow:RefeshGuildMemberData()
+end
+
+-- 是否自动同意回调
+function GuildMember:OnGuildMyUpAutoReqRet(args)
+    local RetMsgID = args.MsgRet.RetMsgID -- 对应的消息号(这个可以判断是哪个协议)
+    local RetCode = args.MsgRet.RetCode -- 错误码，对应弹窗配置表ID，0为成功
+    if RetCode == 0 then
+        -- 成功
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_204"))
+
+        self.GuildInfoWindow.module.GuildInfo.AutoApply = self.IsAutoConfirm
+    else
+        -- 不需要处理，交给上层去处理
+        -- Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_16"));
+        -- args.IsDialog=true--如果这里写true那么上层就不会出现系统报错提示文字
+        -- 失败后做出的处理，常常是解锁UI
+    end
+end
+
+function GuildMember:OnGuildMyUnbankChatReqRet(args)
+    local RetMsgID = args.MsgRet.RetMsgID -- 对应的消息号(这个可以判断是哪个协议)
+    local RetCode = args.MsgRet.RetCode -- 错误码，对应弹窗配置表ID，0为成功
+    if RetCode == 0 then
+        -- 成功
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_206"))
+
+        self:RefeshGuildMemberData()
+    else
+        -- 不需要处理，交给上层去处理
+        -- Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_16"));
+        -- args.IsDialog=true--如果这里写true那么上层就不会出现系统报错提示文字
+        -- 失败后做出的处理，常常是解锁UI
+    end
+end
+
+-- 退出冒险团回调
+function GuildMember:OnGuildQuitReqRet(args)
+    local RetMsgID = args.MsgRet.RetMsgID -- 对应的消息号(这个可以判断是哪个协议)
+    local RetCode = args.MsgRet.RetCode -- 错误码，对应弹窗配置表ID，0为成功
+    if RetCode == 0 then
+        -- 成功
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_95"))
+
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+    else
+        -- 不需要处理，交给上层去处理
+        -- Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_16"));
+        -- args.IsDialog=true--如果这里写true那么上层就不会出现系统报错提示文字
+        -- 失败后做出的处理，常常是解锁UI
+    end
+end
+
+function GuildMember:OnBagItemRefesh(tr, idx)
+    for i = 1, #self.BagItemList do
+        if self.BagItemList[i].transform == tr then
+            self.BagItemList[i]:SetItem(self.ItemDataList[idx + 1]) -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+        end
+    end
+
+    local bi =
+        GuildMemberItem:New(
+        tr.gameObject,
+        function(gitem)
+            self:OnSilenceClick(gitem)
+        end
+    )
+
+    bi.gameObject:SetActive(true)
+    bi:SetItem(self.ItemDataList[idx + 1]) -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+
+    table.insert(self.BagItemList, bi)
+end
+
+function GuildMember:OnSilenceClick(gitem)
+    -- 不能操作自己
+    if math.floor(gitem.Info.Eid) == math.floor(GameManager.Instance.mainPlayerId) then
+        return
+    end
+
+    local btnStrs = {};
+    local btnCBs = {};
+    -- -- 检查是否还有剩余的次数（需要服务器在aoi中补充）
+    -- local btnStrs = {LanguageHelp:GetLanguageByKey("Local_Str_Player_Info")}
+    -- local btnCBs = {
+    --     function()
+    --         self:OnPlayerInfo(gitem.PID)
+    --     end
+    -- }
+    -- if BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.Friend) then
+    --     table.insert(btnStrs, LanguageHelp:GetLanguageByKey("Local_Str_add_friends"))
+    --     table.insert(
+    --         btnCBs,
+    --         function()
+    --             self:AddFriend(gitem.PID)
+    --         end
+    --     )
+    -- end
+    -- -- if BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.TeamFind) then
+    -- --    table.insert(btnStrs,LanguageHelp:GetLanguageByKey("Local_Str_Team"))
+    -- --    table.insert(btnCBs,function ()
+    -- --        self:OnTeam(gitem.PID)
+    -- --    end)
+    -- -- end
+    -- 检查是否有权限
+    local canSilenceMember = self.GuildInfoWindow:IsHaveGuildPower(3)
+    if not (canSilenceMember) then
+        if gitem.Info.PID ~= BusinessManager.Instance:GetUserPID() then
+            --LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnOpenFriendTipsWidget", {nil, btnStrs, btnCBs, gitem.transform})
+            LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnOtherOpenFriendTipsWidget", {gitem.PID, btnStrs, btnCBs, gitem.transform, true});
+        end
+        return
+    else
+        -- 判断是否权限比别人大
+        if gitem.PosLevelID <= BusinessManager.Instance:GetGuildPosLevel() then
+            if gitem.Info.PID ~= BusinessManager.Instance:GetUserPID() then
+                --LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnOpenFriendTipsWidget", {nil, btnStrs, btnCBs, gitem.transform})
+                LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnOtherOpenFriendTipsWidget", {gitem.PID, btnStrs, btnCBs, gitem.transform, true});
+            end
+            return
+        end
+    end
+
+    table.insert(btnStrs, LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_207"))
+    table.insert(
+        btnCBs,
+        function()
+            self.GuildSilence:Show(true, gitem.Info)
+        end
+    )
+    -- 判断是否需要解除禁言
+
+    local serverTime = GameManager.Instance:GetServerTimeStamp() / 1000
+    local ProhibEndTime = gitem.Info.BanChatTime -- 禁言结束时间
+    local leftTime = ProhibEndTime - serverTime
+    if leftTime > 0 then
+        table.insert(btnStrs, LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_205"))
+        table.insert(
+            btnCBs,
+            function()
+                -- 解除禁言
+                local msg = CS.ProtoMsg.GuildMyUnbankChatReq()
+                msg.BePIDlist:Add(gitem.Info.PID)
+                SendClient2CenterReq(msg)
+            end
+        )
+    end
+    if gitem.Info.PID ~= BusinessManager.Instance:GetUserPID() then
+        --LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnOpenFriendTipsWidget", {nil, btnStrs, btnCBs, gitem.transform})
+        LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnOtherOpenFriendTipsWidget", {gitem.PID, btnStrs, btnCBs, gitem.transform, true});
+    end
+end
+
+-- 点击申请记录按钮
+function GuildMember:OnBtnLogClick()
+    self.GuildApplyFor:Show(true)
+end
+
+-- 点击职位管理按钮
+function GuildMember:OnBtnDuityClick()
+    self.GuildDutyManager:Show(true)
+end
+
+function GuildMember:Show(b)
+    self.gameObject:SetActive(b)
+    if b then
+        self:Refesh()
+
+        self.GuildDutyManager:Refesh()
+    else
+        self.GuildDutyManager:Show(false)
+        self.GuildSilence:Show(false)
+    end
+end
+
+function GuildMember:OnMessage()
+    CS.SGF.Network.MsgRetManager.Instance:OnMessageEnum(self.message1, CS.MsgIDEnum.GuildQuitReqID)
+    CS.SGF.Network.MsgRetManager.Instance:OnMessageEnum(self.message2, CS.MsgIDEnum.GuildMyUpAutoReqID)
+    CS.SGF.Network.MsgRetManager.Instance:OnMessageEnum(self.message3, CS.MsgIDEnum.GuildMyUnbankChatReqID)
+    self.GuildApplyFor:OnMessage()
+    self.GuildDutyManager:OnMessage()
+    self.GuildSilence:OnMessage()
+end
+
+function GuildMember:OffMessage()
+    CS.SGF.Network.MsgRetManager.Instance:OffMessageEnum(self.message1, CS.MsgIDEnum.GuildQuitReqID)
+    CS.SGF.Network.MsgRetManager.Instance:OffMessageEnum(self.message2, CS.MsgIDEnum.GuildMyUpAutoReqID)
+    CS.SGF.Network.MsgRetManager.Instance:OffMessageEnum(self.message3, CS.MsgIDEnum.GuildMyUnbankChatReqID)
+    self.GuildApplyFor:OffMessage()
+    self.GuildDutyManager:OffMessage()
+    self.GuildSilence:OffMessage()
+end
+
+function GuildMember:Refesh()
+    if self.ItemDataList == nil then
+        self.ItemDataList = {}
+    else
+        for k, _ in pairs(self.ItemDataList) do
+            self.ItemDataList[k] = nil
+        end
+    end
+
+    -- 设置是否自动同意
+    self.IsAutoConfirm = self.GuildInfoWindow.module.GuildInfo.AutoApply
+    self:SetIsAutoConfirm()
+
+    local UserInfos = self.GuildInfoWindow.module.UserInfos
+
+    for i = 0, UserInfos.Count - 1 do
+        local v = UserInfos[i]
+
+        local offInfo = v.Offline
+        local gUInfo = v.Player
+
+        local data = {}
+
+        data.ModelID = offInfo.ModelID
+        data.Eid = offInfo.EID
+        data.Level = offInfo.Level
+        data.RiskLevel = offInfo.RiskLevel
+        data.Power = offInfo.Power
+        data.IsOnline = offInfo.IsOnline -- 登录状态
+        data.LogOutTime = offInfo.LogOutTime -- 下线时间
+
+        data.PID = gUInfo.PID
+        data.UserName = offInfo.UserName
+        data.PlayerPosLv = gUInfo.PlayerPosLv -- 职位等级
+        data.Activation = gUInfo.Activation
+        data.TUserNum = gUInfo.TUserNum -- 踢人次数
+        data.BanChatNum = gUInfo.BanChatNum -- 禁言次数
+        data.BanChatTime = gUInfo.BanChatTime -- 禁言结束时间
+
+        if v.IsOnline then
+            data.OnlineState = 1
+        else
+            data.OnlineState = 0
+        end
+
+        data.PosLevelID = 0
+        if data.PlayerPosLv == CS.ProtoMsg.GuLevelEnum.GuPresident then -- 团长
+            data.PosLevelID = 1001
+        elseif data.PlayerPosLv == CS.ProtoMsg.GuLevelEnum.GuVicePresident then -- 副团长
+            data.PosLevelID = 1002
+        elseif data.PlayerPosLv == CS.ProtoMsg.GuLevelEnum.GuElite then -- 精英
+            data.PosLevelID = 1003
+        elseif data.PlayerPosLv == CS.ProtoMsg.GuLevelEnum.GuOrdinary then -- 普通成员
+            data.PosLevelID = 1004
+        end
+
+        table.insert(self.ItemDataList, data)
+    end
+
+    self:SortItem(self.ItemDataList)
+    self.BagScorllView:ContinueScroll(#self.ItemDataList, false)
+
+    -- 判断冒险团权限
+
+    -- 审批
+    local canAccepNewMember = self.GuildInfoWindow:IsHaveGuildPower(1)
+    self.autoConfirmGo:SetActive(canAccepNewMember)
+    self.btnLogGo:SetActive(canAccepNewMember)
+
+    -- 职位管理
+    local canChangePower = (self.GuildInfoWindow:IsHaveGuildPower(4) or self.GuildInfoWindow:IsHaveGuildPower(2)) -- 管人或者t人
+    self.btnDuityGo:SetActive(canChangePower)
+end
+
+function GuildMember:SortItem(tbl)
+    if #tbl > 1 then
+        table.sort(
+            tbl,
+            function(a, b)
+                -- 在线状态降序
+                if a.OnlineState > b.OnlineState then
+                    return true
+                elseif a.OnlineState == b.OnlineState then
+                    -- 职位ID升序
+                    if a.PosLevelID < b.PosLevelID then
+                        return true
+                    end
+                end
+                return false
+            end
+        )
+    end
+end
+function GuildMember:OnPlayerInfo(PID)
+    if PID == nil then
+        return
+    end
+    LuaModuleDispatcher:SendMessage(ModuleDef.PlayerPreviewModule, "SendGetOtherPlayerNameplateReq", {PID})
+end
+function GuildMember:AddFriend(PID)
+    if PID == nil then
+        return
+    end
+    local FriendModule = ModuleManager.Instance:GetModule(ModuleDef.FriendModule)
+    if FriendModule then
+        local luatable = FriendModule:GetLuaTable()
+        local friendRelation = luatable:GetFriendRelation(PID)
+        if friendRelation == 0 then
+            local pids = {PID}
+            local key = "ItemRecommendFriend_" .. PID
+            LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnSendApplyToAddFriendReq", {pids, key, self.OnApplyToAddFriendRespFun})
+        elseif friendRelation == 1 then
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_PlayerIsFriend"));
+        elseif friendRelation == 2 then
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_friend_request_fail_5"));
+        end
+    end
+end
+function GuildMember:OnTeam(PID)
+    if PID == nil then
+        return
+    end
+    local module = ModuleManager.Instance:GetModule(ModuleDef.TeamModule)
+    if module then
+        local luatable = module:GetLuaTable()
+        local isCaptain = luatable:EntityIsCaptain(GameManager.Instance.mainPlayerId)
+        if isCaptain then
+            local joinTeamReq = CS.ProtoMsg.JoinTeamReq()
+            joinTeamReq.TeamID = module.tinfo.TeamID
+            CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace, joinTeamReq, false)
+        else
+            if module.tinfo and module.tinfo.TeamID ~= 0 then
+                Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_OnlyCaptainInvite"))
+            else
+                Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_CreateTeam"))
+            end
+        end
+    end
+end
+return GuildMember

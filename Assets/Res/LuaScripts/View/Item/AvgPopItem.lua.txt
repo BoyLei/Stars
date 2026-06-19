@@ -1,0 +1,227 @@
+--[[
+*文件名   :   AvgPopItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/7 16:32:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local AvgPopItem = {}
+
+AvgPopItem.__index = AvgPopItem
+
+function AvgPopItem:New(_go)
+    local self = {}
+    setmetatable(self, AvgPopItem)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.m_rectBg = self.transform:GetComponent(typeof(RectTransform))
+    --self.m_TalkBoxContent=self.transform:Find("TalkBoxContent"):GetComponent(typeof(Text));
+    self.m_TalkBoxContent = self.transform:Find("ContentText/RichText"):GetComponent(typeof(Text))
+    self.m_TalkBoxContent2 = self.transform:Find("ContentText/RichText/RichText2"):GetComponent(typeof(Text))
+
+    self.tw_content = nil
+    self.talkConetntNow = nil
+    self.text_speed = 20
+    self.PopEntityID = 0
+    --动画相关
+    self.anim = self.transform:GetComponent(typeof(Animator))
+
+    MonoHelper.AddLaterUpdateListener(
+        function()
+            self:UpdatePos()
+        end
+    )
+
+    return self --返回自身
+end
+
+function AvgPopItem:InitItem()
+    self:SetUse(false)
+end
+
+function AvgPopItem:SetUse(b)
+    self.IsUsed = b
+    self.gameObject:SetActive(b)
+end
+
+function AvgPopItem:SetItem(info)
+    self:SetUse(true)
+    self.anim:Play("Go")
+    self.PopEntityID = info.PopEntityID
+    self.EffectID_AvgPop = info.EffectID_AvgPop
+    self:GetTalkContentById(info.idx)
+end
+
+--获取配置Item
+function AvgPopItem:CommonDialogDataCellById(idx)
+    local data = ConfigDataAccessor.CommonDialog[idx]
+    --local data=LocalDataManager.Instance:GetCommonDialogDataCell(idx);
+
+    if data == nil then
+        print("对话加载失败 id=", idx)
+    end
+
+    local targetID = GameManager.Instance.mainPlayerId
+    if targetID ~= nil and targetID ~= 0 then
+        local playerName = GameManager.Instance:GetEntityNameById(targetID)
+        if playerName ~= nil and playerName ~= "" then
+            data.Name2 = string.gsub(data.Name, "@player", playerName)
+            data.Dialog_desc2 = string.gsub(data.Dialog_desc, "@player", playerName)
+        end
+    end
+
+    return data
+    --self:RefeshTalkInfo();
+end
+
+function AvgPopItem:GetTalkContentById(idx)
+    --self.talkConetntNow = LocalDataManager.Instance:GetCommonDialogDataCell(idx);
+    self.talkConetntNow = self:CommonDialogDataCellById(idx)
+    self:RefeshTalkInfo()
+    self:UpdatePos()
+end
+
+function AvgPopItem:GetNextTalkContent()
+    --等待时间
+    local waitTime = self.talkConetntNow.Show_time / 1000
+
+    --延迟一段时间后调用
+    DOVirtual.DelayedCall(
+        waitTime,
+        function()
+            local nextIds = self.talkConetntNow.Next_dialog_id
+
+            if #nextIds > 1 then
+                --有问题直接结束
+                self:FinishTalk()
+            else
+                --结束对话
+                if nextIds[1] == 0 then
+                    self:FinishTalk()
+                else
+                    --切换到下一句对话
+                    self:GetTalkContentById(nextIds[1])
+                end
+            end
+        end
+    )
+end
+
+function AvgPopItem:RefeshTalkInfo()
+    --显示内容
+
+    self.m_TalkBoxContent.text = self.talkConetntNow.Dialog_desc2
+    self.m_TalkBoxContent2.text = self.talkConetntNow.Dialog_desc2
+    self:GetNextTalkContent()
+
+    --[[
+	if self.tw_content~= nil then
+		self.tw_content:Kill();
+	end
+	self.m_TalkBoxContent.text="";
+	self.tw_content=self.m_TalkBoxContent:DOText(self.talkConetntNow.Dialog_desc2,self.text_speed):SetSpeedBased():SetEase(Ease.Linear):OnComplete(function ()
+
+		self:GetNextTalkContent();
+	end):OnUpdate(function ()
+		--计算文本框大小
+	
+		self:ResizeTalkBg();
+	end);
+
+
+	if self.tw_content2~= nil then
+		self.tw_content2:Kill();
+	end
+	self.m_TalkBoxContent2.text="";
+	self.tw_content2=self.m_TalkBoxContent2:DOText(self.talkConetntNow.Dialog_desc2,self.text_speed):SetSpeedBased():SetEase(Ease.Linear);
+	]]
+    --播放语音
+    if self.talkConetntNow.Voice_id ~= 0 then
+    --Util.PlayAvgVoice("Weapon_sword__pickup");
+    end
+end
+
+function AvgPopItem:ResizeTalkBg()
+    --self.m_rectBg.sizeDelta=Vector2(self.m_rectBg.sizeDelta.x,self.m_TalkBoxContent.preferredHeight+86);
+end
+
+function AvgPopItem:FinishTalk()
+    --[[
+	if self.tw_content~= nil then
+		self.tw_content:Kill();
+	end
+	if self.tw_content2~= nil then
+		self.tw_content2:Kill();
+	end
+	]]
+    CS.StarProject.GlobalEvent.OnSelectEffect:Invoke(self.EffectID_AvgPop, 0)
+
+    self.PopEntityID = 0
+
+    self.anim:Play("Out")
+
+    if self.tw ~= nil then
+        self.tw:Kill()
+    end
+
+    self.tw =
+        DOVirtual.DelayedCall(
+        0.3,
+        function()
+            self:SetUse(false)
+        end
+    )
+end
+
+function AvgPopItem:UpdatePos()
+    --更新坐标位置
+    if self.PopEntityID ~= 0 then
+        local worldPoint = GameManager.Instance:GetEntityUpPosById(self.PopEntityID)
+        worldPoint.x = worldPoint.x - 0.6
+        worldPoint.y = worldPoint.y + 0.6
+
+        --[[
+
+		--世界坐标转UI坐标
+
+		--世界相机
+		local mainCam = GameManager.Instance:GetGameCamera();
+		local screenPos= mainCam:WorldToScreenPoint(worldPoint);
+
+
+		--UI相机
+		local uiCam =UIManager.Instance.M_Canvas.worldCamera;
+		local uiPos= uiCam:ScreenToWorldPoint(screenPos);
+		uiPos.x=uiPos.x+1.2;
+		
+		--self.transform.position=uiPos;
+        self.transform.position=Vector3.Lerp(self.transform.position, uiPos, Time.deltaTime*20); 
+
+
+		]]
+        if GameManager.Instance.M_Map == nil then
+            self:FinishTalk()
+        else
+            local isInScreen = CS.PositionConvert.IsPointInFrustum(worldPoint)
+
+            local MapSpaceType = GameManager.Instance.M_Map:GetMapType()
+            if MapSpaceType ~= CS.ProtoMsg.SpaceType.SpaceScene and MapSpaceType ~= CS.ProtoMsg.SpaceType.SpaceDefault then
+                --副本里特判
+                isInScreen = true
+            end
+
+            if isInScreen then
+                local uiPos = CS.PositionConvert.ConvertWorldToCanvasPosition(worldPoint)
+                --self.m_rectBg.anchoredPosition=Vector2.Lerp(self.m_rectBg.anchoredPosition, uiPos, Time.deltaTime*20);
+                self.m_rectBg.anchoredPosition = uiPos
+            else
+                self:FinishTalk()
+            end
+        end
+    end
+end
+
+return AvgPopItem

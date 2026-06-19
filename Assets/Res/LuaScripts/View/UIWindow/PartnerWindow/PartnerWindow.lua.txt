@@ -1,0 +1,217 @@
+--[[
+*文件名   :   PartnerWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/12/13 10:25:30"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+PartnerWindow=class("PartnerWindow",UIPanel)
+PartnerWindow.m_CloseBtn=nil;
+PartnerWindow.m_Root=nil;
+PartnerWindow.TabMenu=nil;
+PartnerWindow.m_IntroduceBtn=nil;
+PartnerWindow.WindowScript=nil;
+PartnerWindow.MenuObj=nil;
+PartnerWindow.Show=0;
+PartnerWindow.NoPartner=nil;
+PartnerWindow.OldIndex=-1;
+PartnerWindow.OnCloseCall=nil;
+
+function PartnerWindow:Awake()
+	self.m_CloseBtn=self:Find("Cut4Cam90/AssemblyRatio2/LeftTop/CloseBtn"):GetComponent(typeof(Button));
+	self.m_Root=self:Find("Cut4Cam90/AssemblyRatio2/Root"):GetComponent(typeof(RectTransform));
+	self.TabMenu=self:Find("Cut4Cam90/AssemblyRatio2/Menu/Tabs"):GetComponent(typeof(StarUITabMenu));
+	self.MenuObj=self:Find("Cut4Cam90/AssemblyRatio2/Menu").gameObject
+	self.m_IntroduceBtn=self:Find("Cut4Cam90/AssemblyRatio2/LeftTop/IntroduceBtn"):GetComponent(typeof(Button));
+	self.WindowScript=self.prefab:GetComponent(typeof(CS.SGF.UI.Framework.UIWindow));
+	self.m_CloseBtn.onClick:AddListener(function() self:OnClickCloseBtn() end);
+	-- self.m_IntroduceBtn.onClick:AddListener(function() self:OnClickIntroduceBtn() end);
+	self.Show=1;
+	self.NoPartner=self:Find("Cut4Cam90/AssemblyRatio2/NoPartner").gameObject
+
+	self.onCloseDestroy(false)
+end
+
+function PartnerWindow:Start()
+
+end
+
+function PartnerWindow:OnEnable()
+
+end
+
+function PartnerWindow:OnDisable()
+
+end
+
+function PartnerWindow:OnDestroy()
+
+end
+
+function  PartnerWindow:ForceTab(index)
+	self.OldIndex=self.TabMenu.CurrentIndex
+	self.TabMenu:Check(index);
+
+end
+
+function PartnerWindow:GetOldTabIndex()
+	return self.OldIndex
+end
+
+function PartnerWindow:ItemUseJump(jumpType)
+	if jumpType==1 then
+		--打开伙伴洗礼(详情-资质)
+		self:OnTabMenuItemClick(2,2);
+	elseif jumpType==2 then
+		--打开伙伴升级（详情-基础）
+		self:OnTabMenuItemClick(2);
+	elseif jumpType==3 then
+		--打开伙伴觉醒（进阶）
+		self:OnTabMenuItemClick(3);
+	end
+end
+
+
+function PartnerWindow:OnTabMenuItemClick(index,DetailSubTag)
+	local datas=nil;
+	if index==1 then
+		--阵容
+		self:CloseLastWidget();
+		self.WindowScript:ClearWidget();
+		LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OnOpenBattleTeam");
+	elseif index==2 then
+		--详情
+		self:CloseLastWidget();
+		self.WindowScript:ClearWidget();
+		LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OpenDetailWidget",{0,DetailSubTag});
+
+	elseif index==3 then
+		--进阶
+		self:CloseLastWidget();
+		self.WindowScript:ClearWidget();
+		LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OpenStarRiseWidget",0);
+	elseif index==4 then
+		--装备
+		self:CloseLastWidget();
+		self.WindowScript:ClearWidget();
+		LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OpenEquipWidget",0);
+	end
+	self.OldIndex=self.TabMenu.CurrentIndex
+	self.TabMenu:Check(index);
+	local active=false;
+	if index==2 or index==3 or index==4 then
+		local module=ModuleManager.Instance:GetModule(ModuleDef.BattleTeamModule);
+		local luatable=module:GetLuaTable();
+		local list=luatable:GetAllPartners();
+
+		if list==nil or #list<1 then
+			active=true
+		end
+	end
+	self.NoPartner:SetActive(active);
+
+end
+
+function PartnerWindow:PlaySwitch()	
+
+end
+
+function PartnerWindow:OnOpen(arg)
+	self.OnCloseCall=arg;
+	self.PlayAnimation("PartnerWindowAnim_Open")
+	self.NoPartner:SetActive(false);
+	self.WindowScript:ClearWidget();
+	self:FreshMenu();
+	LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OnPartnerWindowInit", {self.m_Root.transform,self});
+
+
+	
+	self.TabMenu:Init(1,function (index)
+			--self.PlayAnimation("PartnerWindowAnim_Switch")
+			
+			--DelayInvoker.DelayInvoke(self,0.2,function ()
+					 --end);
+			
+			self:OnTabMenuItemClick(index);
+
+		end)
+	LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OnOpenBattleTeam");
+	RedPointManager.Instance:TriggerConditionTypeBoolValue(RedPointConditionType.Partner_New,LocalCache.GetPartnerRedPointData.NewPartners.Count>0);
+	RedPointManager.Instance:TriggerConditionType(RedPointConditionType.Partner_CanInBattle);
+	RedPointManager.Instance:TriggerConditionType(RedPointConditionType.Partner_CanAssist);
+	RedPointManager.Instance:TriggerConditionType(RedPointConditionType.Partner_Equip);
+	RedPointManager.Instance:TriggerConditionType(RedPointConditionType.Partner_Team);
+	RedPointManager.Instance:TriggerConditionType(RedPointConditionType.Partner_Level);
+end
+
+function PartnerWindow:CloseLastWidget()
+	--关闭itemtips
+	LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips",{  });
+
+	local lastName=	self:CurrentWidgetName()
+	if lastName~=nil and lastName~="" then
+		UIManager.Instance:CloseWidget(lastName,self.m_Root);
+	end
+end
+
+function PartnerWindow:OnClose(arg)
+	self.OldIndex=-1;
+	if self.OnCloseCall~=nil then
+		self.OnCloseCall()
+	end
+end
+function PartnerWindow:FreshMenu()
+	return 
+	--self.MenuObj:SetActive(self.Show>0)
+
+end
+function PartnerWindow:OnShowMenu()
+	self.Show=self.Show+1;
+	self:FreshMenu();
+end
+
+function PartnerWindow:OnHideMenu()
+	self.Show=self.Show-1;
+	self:FreshMenu();
+end
+function PartnerWindow:CurrentWidgetName()
+	return self.WindowScript:GetWidgetName();
+end
+
+function PartnerWindow:OnClickCloseBtn()
+
+	--关闭itemtips
+	LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips",{  });
+
+	---当前WidgetName
+	local currentName=self.WindowScript:GetWidgetName();
+	if currentName~=nil and currentName~="" then
+		Log(currentName);
+		UIManager.Instance:CloseWidget(currentName,self.m_Root);
+	end
+
+	if self.WindowScript:BackWidget() then
+
+		self.PlayAnimation("PartnerWindowAnim_Close", function ()
+				SetSelectPartner(0)
+				self.Close();
+			end)
+
+
+	else
+		local widgetInfo=self.WindowScript:GetWidgetInfo();
+
+		if widgetInfo~=nil then
+			UIManager.Instance:OpenWidget(widgetInfo);
+		end
+	end
+end
+
+function PartnerWindow:OnClickIntroduceBtn()
+
+end
+
+
+
+return  PartnerWindow

@@ -1,0 +1,248 @@
+--[[
+*文件名   :   ItemTransJobTask
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/08 20:04:35"
+*创建人   :   "quzhenxin"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local ItemTransJobTask = {}
+ItemTransJobTask.__index = ItemTransJobTask
+
+ItemTransJobTask.Transform = nil
+ItemTransJobTask.TaskCfg = nil;         -- 转职任务配置
+ItemTransJobTask.ConditionCfg = nil;
+ItemTransJobTask.ConditionCfgID = 1;    -- 配置条件ID
+ItemTransJobTask.ConditionCfgCount = 1; -- 配置条件总数
+ItemTransJobTask.CurCount = 1;          -- 当前数量
+ItemTransJobTask.IsGet = false;         -- 是否完成
+ItemTransJobTask.IsCanClick = false;    -- 是否完成
+ItemTransJobTask.OnItemClick = nil;     -- 点击回调
+
+
+function ItemTransJobTask:New(_go, onItemClick)
+    local self = {}
+    setmetatable(self, ItemTransJobTask)
+
+    self.Transform = _go.transform
+
+    self.SelfJBtn = self.Transform:Find("JtnSelf"):GetComponent(typeof(JButton))
+    self.JBtnSelfFun = function()
+        self:OnClickSelfJBtn()
+    end
+    self.SelfJBtn.OnClick = self.JBtnSelfFun
+    -- 任务完成状态
+    self.Finish = self.Transform:Find("State/Finish").gameObject;
+    -- 任务描述
+    self.TaskDes = self.Transform:Find("TaskDes"):GetComponent(typeof(Text));
+    -- 任务进度
+    self.TaskProgress = self.Transform:Find("TaskProgress"):GetComponent(typeof(Text));
+    -- 红点
+    self.RedPoint = self.Transform:Find("RedPoint").gameObject;
+    -- 奖励
+    local ItemPreviewGo = self.Transform:Find("ItemPreview").gameObject;
+    self.ItemPreview = StructAccessor.ItemPreview.new(ItemPreviewGo);
+
+    self.TaskCfg = nil;
+    self.ConditionCfg = nil;
+    self.ConditionCfgID = 1;    -- 配置条件ID
+    self.ConditionCfgCount = 1; -- 配置条件总数
+    self.OnItemClick = onItemClick;
+
+    return self
+end
+
+---comment
+---@param taskCfg 转职任务配置
+function ItemTransJobTask:OnUpdateContent(taskCfg)
+    self.TaskCfg = taskCfg;
+    local params = {};
+    self.ConditionCfgCount = 1;
+    local cfgList = ConfigDataAccessor.GetCMconditionByGroupID(self.TaskCfg.ConditionID);
+    if cfgList ~= nil and #cfgList > 0 then
+        self.ConditionCfg = cfgList[1];
+        if self.ConditionCfg.ConditionType == 21 then
+            -- 品质
+            local color = GetQualityName(tonumber(self.ConditionCfg.Args1));
+            table.insert(params, color);
+
+            self.ConditionCfgID = tonumber(self.ConditionCfg.Args1);
+            if self.ConditionCfg.Args2 ~= "" then
+                self.ConditionCfgCount = tonumber(self.ConditionCfg.Args2);
+            elseif self.ConditionCfg.Args1 ~= "" then
+                self.ConditionCfgCount = tonumber(self.ConditionCfg.Args1);
+            end
+            
+        elseif self.ConditionCfg.ConditionType == 27 then
+            
+            -- 战力
+            local aimBattleScore = tonumber(self.ConditionCfg.Args2);
+            local selfBattleScore = FightPowerManager.Instance:GetSeverPowerByModuleType(tonumber(self.ConditionCfg.Args1),
+            (tonumber(self.ConditionCfg.Args3) == 0));
+
+            table.insert(params, aimBattleScore);
+
+            self.ConditionCfgID = tonumber(self.ConditionCfg.Args1);
+            self.ConditionCfgCount =aimBattleScore;
+
+        elseif self.ConditionCfg.ConditionType == 28 then
+
+            -- 角色累计获得的技能点数
+            local points = tonumber(self.ConditionCfg.Args1);
+            table.insert(params, points);
+
+            self.ConditionCfgID = tonumber(self.ConditionCfg.Args1);
+            self.ConditionCfgCount = points;
+
+
+        else
+            table.insert(params, self.ConditionCfg.Args1);
+
+            self.ConditionCfgID = tonumber(self.ConditionCfg.Args1);
+            if self.ConditionCfg.Args2 ~= "" then
+                self.ConditionCfgCount = tonumber(self.ConditionCfg.Args2);
+            elseif self.ConditionCfg.Args1 ~= "" then
+                self.ConditionCfgCount = tonumber(self.ConditionCfg.Args1);
+            end
+
+        end
+
+    end
+    self.TaskDes.text = StringFormat(self.TaskCfg.AchieveDec, params);
+    self.TaskProgress.text = "" .. "/" .. self.ConditionCfgCount;
+
+    self.IsGet = false;
+    local HeroMD = GameManager.Instance.HeroMD;
+    local TransJobRewardList = HeroMD.TransJobRewardList;
+    for i = 0, TransJobRewardList.List.Count - 1, 1 do
+        local taskID = TransJobRewardList.List[i];
+        if self.TaskCfg.ID == taskID then
+            self.IsGet = true;
+        end
+    end
+    self.Finish:SetActive(self.IsGet);
+    self.RedPoint:SetActive(false);
+
+    local items = self.TaskCfg.RewardID;
+    local nums = self.TaskCfg.RewardNum;
+    local CostItems = {}
+    for i = 1, #items do
+        table.insert(CostItems, { ItemID = items[i], ItemNum = nums[i] })
+    end
+    self.ItemPreview:SetItems(CostItems);
+    self.ItemPreview:SetShowGetState(0, false);
+
+    self.Transform.name = "ItemTransJobTask_" .. self.TaskCfg.ConditionID;
+end
+
+-- 检查任务进度
+function ItemTransJobTask:CheckTaskProgress(isGet)
+    if self.ConditionCfg == nil then
+        return;
+    end
+    if self.IsGet == false then
+        self.IsGet = isGet;
+    end
+    self.CurCount = 0;
+    if self.IsGet then
+        self.CurCount = self.ConditionCfgCount;
+        self.RedPoint:SetActive(false);
+        self.Finish:SetActive(true);
+        self.ItemPreview:SetShowGetState(2, true);
+        self.SelfJBtn.gameObject:SetActive(false);
+    else
+        if self.ConditionCfg.ConditionType == 1 then
+            -- 等级达到{0}级
+            self.CurCount = GameManager.Instance:GetPlayerLevel()
+        elseif self.ConditionCfg.ConditionType == 18 then
+            -- 强化至XX级装备XX件
+            local maxEquipNum = 9; --装备槽位上限，之后读表
+            for i = 1, maxEquipNum, 1 do
+                local equipSlotData = GameManager.Instance:GetEquipSlotData(i);
+                if equipSlotData ~= nil then
+                    local upLv = equipSlotData.UpLv;
+                    if upLv >= self.ConditionCfgID then
+                        self.CurCount = self.CurCount + 1;
+                    end
+                end
+            end
+        elseif self.ConditionCfg.ConditionType == 19 then
+            -- 拥有X级的伙伴X个
+            local partnerMDMgr = BusinessManager.Instance:GetPartnerMDMgr();
+            if partnerMDMgr ~= nil then
+                self.CurCount = partnerMDMgr:GetLevelPartnerCount(self.ConditionCfgID);
+            end
+        elseif self.ConditionCfg.ConditionType == 20 then
+            -- 拥有X个铭刻完成的纹章
+            local allitems = BusinessManager.Instance:GetItemsByItemType(5, 0);
+            if allitems ~= nil then
+                for i = 0, allitems.Count - 1, 1 do
+                    local it = allitems[i];
+                    local combatSkills = it.CombatSkills;
+                    local curPolish = combatSkills.CurPolish;        --已经铭刻的次数
+                    local itemCfg = ConfigDataAccessor.Item[it.BaseID];
+                    local maxNum = GetMaxPolishNum(itemCfg.Quality); --铭刻次数的上限
+                    if curPolish == maxNum then
+                        self.CurCount = self.CurCount + 1;
+                    end
+                end
+            end
+        elseif self.ConditionCfg.ConditionType == 21 then
+            -- 拥有{0}个{1}品质装备
+            self.CurCount = BusinessManager.Instance:GetWearEquipQualityCount(self.ConditionCfgID);
+        elseif self.ConditionCfg.ConditionType == 22 then
+            -- 全部技能等级达到{0}级
+            self.CurCount = GameManager.Instance:HeroSkillTotalLevel();
+
+        elseif self.ConditionCfg.ConditionType == 27 then
+            -- 战力
+            local aimBattleScore = tonumber(self.ConditionCfg.Args2);
+            local selfBattleScore = FightPowerManager.Instance:GetSeverPowerByModuleType(tonumber(self.ConditionCfg.Args1),
+            (tonumber(self.ConditionCfg.Args3) == 0));
+
+            self.CurCount = selfBattleScore;
+
+        elseif self.ConditionCfg.ConditionType == 28 then
+            -- 角色累计获得的技能点数
+            local skillPoint = GameManager.Instance:GetSkillPoint();
+            local skillPointUsed = GameManager.Instance:GetSkillPointUsed();
+
+            self.CurCount =skillPoint+skillPointUsed;
+
+        end
+
+        local isShow = self.CurCount >= self.ConditionCfgCount;
+        self.RedPoint:SetActive(isShow);
+        local state = 0;
+        if isShow then
+            state = 1;
+        end
+        self.ItemPreview:SetShowGetState(state, true);
+        self.SelfJBtn.gameObject:SetActive(isShow);
+    end
+
+    self:SetProgressText();
+end
+
+function ItemTransJobTask:SetProgressText()
+    if self.CurCount >= self.ConditionCfgCount then
+        self.CurCount=self.ConditionCfgCount;--钳制一下
+        self.TaskProgress.text = "<color=#6EFFAF>" .. self.CurCount .. "</color>/" .. self.ConditionCfgCount;
+    else
+        self.TaskProgress.text = "<color=#FF6E78>" .. self.CurCount .. "</color>/" .. self.ConditionCfgCount;
+    end
+end
+
+function ItemTransJobTask:OnClickSelfJBtn()
+    if self.CurCount < self.ConditionCfgCount then
+        return;
+    end
+    if self.IsGet then
+        return;
+    end
+    if self.OnItemClick ~= nil and self.TaskCfg ~= nil then
+        self.OnItemClick(self.TaskCfg.ID)
+    end
+end
+
+return ItemTransJobTask

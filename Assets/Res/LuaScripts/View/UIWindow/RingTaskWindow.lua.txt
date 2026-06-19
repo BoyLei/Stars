@@ -1,0 +1,345 @@
+--[[
+*文件名   :   RingTaskWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/09 17:09:51"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+RingTaskWindow = class("RingTaskWindow", UIPanel)
+RingTaskWindow.IsOpen = false
+
+local ObjectPool = require("Common/Helper/ObjectPool")
+local RingTaskItem = require("View/UIWindow/RingTask/RingTaskItem")
+
+function RingTaskWindow:Awake()
+    self:InitItems()
+end
+
+function RingTaskWindow:InitItems()
+    self.transform = self.prefab.transform
+    self.gameObject = self.transform.gameObject
+
+    local btnCloseInfo = self.transform:Find("Background"):GetComponent(typeof(Button))
+    btnCloseInfo.onClick:AddListener(
+        function()
+            self:OnCloseInfoClick()
+        end
+    )
+
+    self.go_root = self.transform:Find("Cut4Cam90").gameObject
+
+    --额外奖励相关
+    self.exProgress = self.transform:Find("Cut4Cam90/AssemblyRatio2/Life/Ex/process"):GetComponent(typeof(Image))
+    self.exNum = self.transform:Find("Cut4Cam90/AssemblyRatio2/Life/Ex/num"):GetComponent(typeof(Text))
+    --额外奖励对象池
+    local _go2 = self.transform:Find("Cut4Cam90/AssemblyRatio2/Life/ItemGrid").gameObject
+    local _parent2 = self.transform:Find("Cut4Cam90/AssemblyRatio2/Life/Grid2/Mask/List")
+    self.rewardItemPool2 =
+        ObjectPool:New(
+        6,
+        "View/Item/ItemGrid",
+        _go2,
+        _parent2,
+        --生成回调
+        function(ritem)
+            ritem:InitItem(
+                false,
+                --不使用底板
+                --点击回调
+                function(ritem)
+                    self:OnItemClick(ritem)
+                end
+            )
+        end,
+        --回收回调
+        function(ritem)
+            ritem:SetUse(false)
+        end
+    )
+    _go2:SetActive(false)
+
+    --任务列表
+    self.taskList = {}
+    for i = 1, 3 do
+        local go = self.transform:Find("Cut4Cam90/AssemblyRatio2/Mack/RingTaskItem" .. i).gameObject
+        local rti = RingTaskItem:New(go)
+        table.insert(self.taskList, rti)
+    end
+
+    --时间
+    self.timeLeft = self.transform:Find("Cut4Cam90/AssemblyRatio2/Mack/timeBg/time"):GetComponent(typeof(Text))
+
+    --介绍
+    self.info = self.transform:Find("Cut4Cam90/AssemblyRatio2/Life/info"):GetComponent(typeof(Text))
+    self.rect_info = self.transform:Find("Cut4Cam90/AssemblyRatio2/Life/info"):GetComponent(typeof(RectTransform))
+
+    self.UpdateFun = function()
+        self:RefeshLeftTime()
+    end
+
+    --打开大转盘
+    self.go_canGet = self.transform:Find("Cut4Cam90/AssemblyRatio2/Life/BtnBox_CanGet").gameObject
+    self.go_canGet:GetComponent(typeof(JButton)).OnClick = (function()
+        LuaModuleDispatcher:SendMessage(ModuleDef.RingTaskModule, "OnOpenRingTaskRandomWidget", {})
+    end)
+
+    self.go_cantGet = self.transform:Find("Cut4Cam90/AssemblyRatio2/Life/BtnBox_CantGet").gameObject
+    self.go_cantGet:GetComponent(typeof(JButton)).OnClick = (function()
+        LuaModuleDispatcher:SendMessage(ModuleDef.RingTaskModule, "OnOpenRingTaskRandomWidget", {})
+    end)
+
+    self.go_box_Got = self.transform:Find("Cut4Cam90/AssemblyRatio2/Life/Box_Got").gameObject
+
+    self.RefeshReward = function()
+        self:OnRingTaskExRet()
+    end
+
+    --刷新时间
+    MonoHelper.AddUpdateListener(self.UpdateFun)
+end
+
+function RingTaskWindow:RefeshItem()
+    --TaskHelper.IsTaskFinsh(int taskID)
+    self.transform:SetAsLastSibling()
+    self.TaskIDs = BusinessManager.Instance:GetAllRingTaskIDs()
+
+    local finishNum = 0
+    local allTaskNum = self.TaskIDs.Count - 1
+    for i = 0, self.TaskIDs.Count - 2 do
+        local isfinish = self.taskList[i + 1]:SetItem(self.TaskIDs[i])
+        if isfinish then
+            finishNum = finishNum + 1
+        end
+    end
+
+    if self.IsFirstOpen then
+        --第一个播放解锁
+        self.taskList[1]:PlayUnLockAnim()
+    end
+    if self.FinishIdx > 0 and self.FinishIdx < 4 then
+        if self.FinishIdx == allTaskNum then
+            self.taskList[allTaskNum]:PlayCompleteAnim()
+        else
+            --当前完成
+            self.taskList[self.FinishIdx]:PlayCompleteAnim()
+            --下一个解锁
+            self.taskList[self.FinishIdx + 1]:PlayUnLockAnim()
+        end
+    end
+
+    local pLv = GameManager.Instance:GetPlayerLevel()
+
+    local ringTaskGroupCfg = ConfigDataAccessor.GetRingTaskGroupByLevel(pLv)
+
+    --所有道具
+    self.rewardItemPool2:RecycleAll()
+    for i = 1, #ringTaskGroupCfg.AwardsDisplay do
+        local item = self.rewardItemPool2:Spawn()
+        item:SetItemNum(ringTaskGroupCfg.AwardsDisplay[i], ringTaskGroupCfg.AwardsDisplayNum[i])
+        item.transform.localScale = Vector3(0.9, 0.9, 0.9)
+    end
+
+    local aim_val = finishNum / allTaskNum
+    if self.tw ~= nil then
+        self.tw:Kill()
+    end
+    self.exProgress.fillAmount = 0
+    self.tw = self.exProgress:DOFillAmount(aim_val, 0.25):SetEase(Ease.Linear):SetDelay(0.05)
+
+    self.exNum.text = "<size=90>" .. finishNum .. "</size>/" .. allTaskNum
+
+    --是否已经领取奖励
+    if TaskHelper.IsTaskFinsh(self.TaskIDs[self.TaskIDs.Count - 1]) then
+        --self.info.alignment = CS.UnityEngine.TextAnchor.UpperCenter
+        --self.info.text="已领取额外奖励。";
+        self.info.text = LanguageHelp:GetLanguageByKey("Local_Str_RingTaskWindow_info")
+
+        self.go_box_Got:SetActive(true)
+        self.go_canGet:SetActive(false)
+        self.go_cantGet:SetActive(false)
+    else
+        --self.info.alignment = CS.UnityEngine.TextAnchor.UpperLeft
+        --self.info.text="每日完成3个研究手册任务后即可在主城任务厅<color=#ffff00>抽取</color>额外奖励。";
+        self.info.text = LanguageHelp:GetLanguageByKey("Local_Str_RingTaskWindow_info2")
+
+        if self:CheckIsFinishAll(self.TaskIDs[self.TaskIDs.Count - 2]) then
+            self.go_box_Got:SetActive(false)
+            self.go_canGet:SetActive(true)
+            self.go_cantGet:SetActive(false)
+        else
+            self.go_box_Got:SetActive(false)
+            self.go_canGet:SetActive(false)
+            self.go_cantGet:SetActive(true)
+        end
+    end
+
+    if #ringTaskGroupCfg.AwardsDisplay > 4 then
+        --self.rect_info.anchoredPosition = Vector2(10, -335)
+    else
+        --self.rect_info.anchoredPosition = Vector2(10, -269)
+    end
+
+    self.CanUpdate = true
+    self:RefeshLeftTime()
+end
+
+function RingTaskWindow:CheckIsFinishAll(id)
+    local isFinish = false
+
+    if id ~= nil and id > 0 then
+        local idNow = id
+        local isLast = false
+        local configNow = TaskHelper.GetTaskConfig(idNow)
+        local baseNow = nil
+        if configNow ~= nil then
+            baseNow = configNow.Base
+        else
+            isLast = true
+        end
+
+        --读取配置表的环任务
+        local ringTaskCfg = ConfigDataAccessor.GetRingTaskConfigById(id)
+        while not (isLast) do
+            --任务状态
+            if TaskHelper.ContainTask(idNow) then
+                --正在进行
+                self.TaskId = idNow
+                isLast = true
+            elseif TaskHelper.IsTaskFinsh(idNow) then
+                if baseNow.NextTaskID == 0 then
+                    --已经完成
+                    self.TaskId = idNow
+                    isLast = true
+                    isFinish = true
+                else
+                    --继续往下查
+                    configNow = TaskHelper.GetTaskConfig(baseNow.NextTaskID)
+                    if configNow ~= nil then
+                        idNow = baseNow.NextTaskID
+                        baseNow = configNow.Base
+                    else
+                        --结束
+                        baseNow = nil
+                        isLast = true
+                        print("任务ID：" .. baseNow.NextTaskID .. "不存在")
+                    end
+                end
+            else
+                --还没开始
+                self.TaskId = idNow
+                isLast = true
+            end
+        end
+    end
+
+    return isFinish
+end
+
+function RingTaskWindow:RefeshLeftTime()
+    if self.CanUpdate then
+        local serverTime = math.floor(GameManager.Instance:GetServerTimeStamp() / 1000)
+        local leftSecond = self.NextRefeshTime - serverTime
+        --self.timeLeft.text="刷新时间："..SecToStringColon2(leftSecond);
+        self.timeLeft.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_RingTaskWindow_timeLeft"), {SecToStringColon2(leftSecond)})
+
+        if leftSecond <= 0 then
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Play_Reset"))
+            self:OnCloseInfoClick()
+        end
+    end
+end
+
+function RingTaskWindow:OnItemClick(bitem)
+    --设置道具Tips
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", {bitem.BaseID, false, bitem.EntityID, bitem.transform, 0})
+    self.IsOpenTips = true
+    --关闭回调
+end
+
+function RingTaskWindow:CloseItemTips()
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips", {})
+end
+
+function RingTaskWindow:Start()
+    print("RingTaskWindow:Start2")
+end
+
+function RingTaskWindow:OnEnable()
+end
+
+function RingTaskWindow:OnDisable()
+end
+
+function RingTaskWindow:OnDestroy()
+end
+
+function RingTaskWindow:OnOpen(arg)
+    self.IsOpen = true
+
+    --是否是第一次打开【播放第一个的解锁表现】
+    self.IsFirstOpen = arg[0]
+    --当前是第几个已经完成，不是最后一个就播放解锁，否则播放转盘
+    self.FinishIdx = arg[1]
+
+    --计算剩余刷新时间
+    local System_DailyReset = ConfigDataAccessor.SystemList[63].Value --0点之后的多少秒
+    local serverTime = math.floor(GameManager.Instance:GetServerTimeStamp() / 1000)
+    self.NextRefeshTime = GetWeeHourTime(serverTime) + System_DailyReset
+    if self.FinishIdx > 0 then
+        self.go_root:SetActive(false)
+        DOVirtual.DelayedCall(
+            0.5,
+            function()
+                self.go_root:SetActive(true)
+                self:RefeshItem()
+            end
+        )
+    else
+        self:RefeshItem()
+    end
+
+    -- 任务状态变化
+    CS.StarProject.GlobalEvent.OnFinishRingTaskRandom:AddListener(self.RefeshReward)
+end
+
+function RingTaskWindow:OnClose(arg)
+    self.CanUpdate = false
+    self:CloseWindow()
+
+    --刷新时间
+    MonoHelper.RemoveUpdateListener(self.UpdateFun)
+    CS.StarProject.GlobalEvent.OnFinishRingTaskRandom:RemoveListener(self.RefeshReward)
+end
+
+function RingTaskWindow:OnRingTaskExRet()
+    --self.info.alignment = CS.UnityEngine.TextAnchor.UpperCenter
+    --self.info.text="已领取额外奖励。";
+    self.info.text = LanguageHelp:GetLanguageByKey("Local_Str_RingTaskWindow_info")
+
+    self.go_box_Got:SetActive(true)
+    self.go_canGet:SetActive(false)
+    self.go_cantGet:SetActive(false)
+end
+
+function RingTaskWindow:OnCloseInfoClick()
+    --关闭道具Tips
+    if self.IsOpenTips then
+        self.IsOpenTips = false
+        self:CloseItemTips()
+    else
+        self.CanUpdate = false
+        UIManager.Instance:CloseWindow("RingTask/RingTaskWindow")
+    end
+end
+
+function RingTaskWindow:CloseWindow()
+    if self.IsOpenTips then
+        self.IsOpenTips = false
+        self:CloseItemTips()
+    end
+
+    self.IsOpen = false
+end
+
+return RingTaskWindow

@@ -1,0 +1,219 @@
+--[[
+*文件名   :   SellPrice
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/10/20 16:18:01"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+SellPrice=class("SellPrice",UIPanel)
+SellPrice.m_Num=nil;
+SellPrice.m_left=nil;
+SellPrice.m_jian=nil;
+SellPrice.m_right=nil;
+SellPrice.m_jia=nil;
+SellPrice.m_Slider=nil;
+SellPrice.m_Input=nil;
+SellPrice.m_Price=nil;
+SellPrice.m_Edit=nil;
+SellPrice.m_StandPrice=nil;
+
+SellPrice.Min=0;
+SellPrice.Max=0;
+SellPrice.Current=0;
+SellPrice.CallBack=nil;
+SellPrice.Step=1;
+SellPrice.ItemID=0;
+SellPrice.GuidePrice=0;
+local leftFunc=nil;
+local jianFunc=nil;
+local rightFunc=nil;
+local jiaFunc=nil;
+local SliderFunc=nil;
+local EditFunc=nil;
+local InputFunc=nil;
+local OnBankGetItemPriceRetFunc=nil;
+
+function SellPrice:ctor(go, atlas)
+	self.prefab = go;
+	self.AtlasPath = atlas;
+	self.m_Num=self:Find("Num"):GetComponent(typeof(Text));
+	self.m_left=self:Find("left"):GetComponent(typeof(JButton));
+	self.m_jian=self:Find("jian"):GetComponent(typeof(JButton));
+	self.m_right=self:Find("right"):GetComponent(typeof(JButton));
+	self.m_jia=self:Find("jia"):GetComponent(typeof(JButton));
+	self.m_Slider=self:Find("Slider"):GetComponent(typeof(Slider));
+	self.m_Input=self:Find("Edit/Input"):GetComponent(typeof(InputField));
+	self.m_Price=self:Find("Edit/Input/Price"):GetComponent(typeof(Text));
+	self.m_Edit=self:Find("Edit"):GetComponent(typeof(JButton));
+	self.m_StandPrice=self:Find("StandPrice"):GetComponent(typeof(Text));
+
+	leftFunc=function() self:OnClickleft(); end;
+	jianFunc=function() self:OnClickjian(); end;
+	rightFunc=function() self:OnClickright(); end;
+	jiaFunc=function() self:OnClickjia(); end;
+	SliderFunc=function(v) self:OnValueChangeSlider(v); end;
+	EditFunc=function() self:OnClickEdit(); end;
+	InputFunc=function(input) self:OnInputFieldValChanged(input); end
+	OnBankGetItemPriceRetFunc=function(data)
+		self:OnBankGetItemPriceRet(data)
+	end
+	self.ItemID=0;
+	self:Start();
+
+end
+
+function SellPrice:Start()
+	self.m_left.OnClick= leftFunc;
+	self.m_jian.OnClick= jianFunc;
+	self.m_right.OnClick= rightFunc;
+	self.m_jia.OnClick= jiaFunc;
+	self.m_Slider.onValueChanged:AddListener(SliderFunc);
+	self.m_Edit.OnClick= EditFunc;
+	self.m_Input.onEndEdit:AddListener(InputFunc);
+	local BankGetItemPriceRetEvent=LuaModuleDispatcher:Event(ModuleDef.ExchangeModule,"BankGetItemPriceRetEvent");
+	BankGetItemPriceRetEvent:AddListener(OnBankGetItemPriceRetFunc)
+end
+
+
+function SellPrice:OnDestroy()
+	self.m_left.OnClick= nil;
+	self.m_jian.OnClick= nil;
+	self.m_right.OnClick= nil;
+	self.m_jia.OnClick= nil;
+	self.m_Slider.onValueChanged:RemoveListener(SliderFunc);
+	self.m_Edit.OnClick= nil;
+	self.m_Input.onEndEdit:RemoveListener(InputFunc);
+	local BankGetItemPriceRetEvent=LuaModuleDispatcher:Event(ModuleDef.ExchangeModule,"BankGetItemPriceRetEvent");
+	BankGetItemPriceRetEvent:RemoveListener(OnBankGetItemPriceRetFunc)
+end
+
+
+function  SellPrice:OnInputFieldValChanged(inputtext)
+	local input=tonumber(inputtext)
+	self.m_Slider.value=input
+	self.Current=input
+	self:OnVauleChange();
+end
+
+--查询官方指导价回复
+function SellPrice:OnBankGetItemPriceRet(data)
+	if self.ItemID~=0 and data.ItemID then
+		self.GuidePrice=data.GuidePrice;
+		
+		local config=ConfigDataAccessor.Item[self.ItemID]
+		if config~=nil then
+			self.Min=math.floor(self.GuidePrice*config.LowerLimit/100)
+			self.Max=math.floor(self.GuidePrice*config.UpperLimit/100)
+			--self.m_StandPrice.text="官方指导价:"..self.GuidePrice
+			self.m_StandPrice.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_SellPrice_StandPrice"), {self.GuidePrice});
+
+			self.m_Slider.minValue=self.Min
+			self.m_Slider.maxValue=self.Max
+			self.m_Slider.value=self.GuidePrice
+			self.Step=math.max(1,math.floor(self.GuidePrice*0.05))
+			self.Current=tonumber(self.m_Slider.value);
+			self.m_Input.text=self.Current;
+			self:OnVauleChange();
+		end
+	end
+end
+
+function SellPrice:OnEnable()
+
+end
+
+function SellPrice:OnDisable()
+
+end
+
+function SellPrice:OnOpen(ItemData,cb)
+	self.CallBack=cb;
+	self.ItemID=ItemData.BaseID;
+	--查询指导价
+	LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule,"OnQueryGuidePrice",{self.ItemID})
+	--local config=ConfigDataAccessor.Item[self.ItemID]
+	--if config~=nil then
+		
+		--local price=math.floor(config.InitialPrice *1.0)
+		--self.GuidePrice=price;
+		--self.Min=math.floor(self.GuidePrice*config.LowerLimit/100)
+		--self.Max=math.floor(self.GuidePrice*config.UpperLimit/100)
+		--self.m_StandPrice.text="官方指导价:"..self.GuidePrice
+		--self.m_Slider.minValue=self.Min
+		--self.m_Slider.maxValue=self.Max
+		--self.m_Slider.value=self.GuidePrice
+		--self.Step=math.max(1,math.floor(self.GuidePrice*0.05))
+		--self.Current=tonumber(self.m_Slider.value);
+		--self:OnVauleChange();
+	--end
+end
+
+function SellPrice:OnClose(arg)
+
+end
+
+function SellPrice:OnClickleft()
+	self.m_Slider.value=self.Min
+	self.Current=self.Min
+	self:OnVauleChange();
+end
+
+function SellPrice:OnClickjian()
+	if self.Current>self.Min then
+		self.Current=self.Current-self.Step
+	end
+	self.m_Slider.value=self.Current
+	self:OnVauleChange();
+end
+
+function SellPrice:OnClickright()
+	self.Current=self.Max
+	self.m_Slider.value=self.Max
+	self:OnVauleChange();
+end
+
+function SellPrice:OnClickjia()
+	if self.Current<self.Max then
+		self.Current=self.Current+self.Step
+	end
+	self.m_Slider.value=self.Current
+	self:OnVauleChange();
+end
+
+function SellPrice:OnValueChangeSlider(vaule)
+	self.Current=math.floor(vaule)
+	self:OnVauleChange();
+end
+
+function SellPrice:OnClickEdit()
+
+end
+
+
+function SellPrice:OnVauleChange()
+	if self.Current<=self.Min then
+		self.Current=self.Min
+	end
+
+	if self.Current>=self.Max then
+		self.Current=self.Max
+	end
+
+	if self.GuidePrice<self.Current then
+		--上浮
+		self.m_Num.text="+"..math.floor(((self.Current-self.GuidePrice)/self.GuidePrice)*100).."%"
+	elseif self.GuidePrice>self.Current then
+		--下浮
+		self.m_Num.text="-"..math.floor(((self.GuidePrice-self.Current)/self.GuidePrice)*100).."%"
+	else
+		self.m_Num.text=""
+	end
+	self.m_Input.text=math.floor(self.Current);
+	self.m_Price.text=math.floor(self.Current)
+	if self.CallBack~=nil then
+		self.CallBack(self.Current);
+	end
+end
+
+return  SellPrice

@@ -1,0 +1,203 @@
+--[[
+*文件名   :   LootItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/7 16:32:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local LootItem = {}
+
+LootItem.__index = LootItem
+
+function LootItem:New(_go)
+    local self = {}
+    setmetatable(self, LootItem)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.tr_MeshRoot = self.transform:Find("MeshRoot")
+    self.go_perfab = nil
+    self.perfabName = ""
+
+    self.rb = self.transform:GetComponent(typeof(CS.UnityEngine.Rigidbody))
+
+    --[[
+    self.name = self.transform:Find("ItemName/Name"):GetComponent(typeof(TextMeshPro))
+    self.name.gameObject:SetActive(false)
+    ]]
+    self.go_effectRoot = self.transform:Find("DropEff").gameObject
+    self.go_eff = {}
+    for i = 1, 5 do
+        local eff = self.transform:Find("DropEff/Eff" .. i).gameObject
+        eff:SetActive(false)
+        table.insert(self.go_eff, eff)
+    end
+
+    self.gravity = 35.0 * 1.5
+    self.velocityScale = 1.5 * 2
+    self.addSpeed = -4
+    --self.gravity = 15.0;
+    --self.velocityScale = 1;
+    self.velocity = Vector3.up
+    self.startPosition = nil
+
+    self.DropRange = 2.5
+
+    self.ModelName = ""
+
+    self.go_model = nil
+
+    self.isShowEff = false
+    self.CanCheckEff = false
+
+    self.quality = 0
+    self.IsUsed = false
+
+    self.Enable = true
+
+    MonoHelper.AddUpdateListener(
+        function()
+            self:UpdateLoot()
+        end
+    )
+
+    return self --返回自身
+end
+
+function LootItem:InitItem(onCreateEff)
+    self.OnCreateEff = onCreateEff --创建特效回调
+    self.IsUsed = false
+    self.gameObject:SetActive(false)
+end
+
+function LootItem:SetItem(info)
+    self.isShowEff = false
+    self.CanCheckEff = false
+    self.Enable = true
+
+    local pos = info.pos
+    local itemId = info.baseID
+    local num = info.num
+
+    local cfg = ConfigDataAccessor.Item[itemId]
+    --local cfg=LocalDataManager.Instance:GetItemDataCell(itemId);
+    local quality = cfg.Quality
+
+    self.id = itemId
+    self.num = num
+    self.enyityID = info.entityID
+
+    self.velocity = Vector3.up
+    self.velocity = self.velocity * CS.UnityEngine.Random.Range(4, 6) * self.velocityScale
+    self.velocity = self.velocity + Vector3(CS.UnityEngine.Random.Range(self.DropRange * -1, self.DropRange), 0, CS.UnityEngine.Random.Range(self.DropRange * -1, self.DropRange))
+
+    self.rb.useGravity = false
+    self.rb.isKinematic = true
+
+    self.quality = quality
+    self.transform.position = pos
+
+    self.startPosition = self.transform.position
+
+    --self.name.text = cfg.Name
+    --self.name.color = GetLootQualityColorRGB(self.quality)
+    --self.name.gameObject:SetActive(false)
+
+    --加载模型
+    local avatarDataCell = ConfigDataAccessor.Avatar[cfg.AvatarID]
+    if avatarDataCell ~= nil then
+        local modelDataCell = ConfigDataAccessor.Model[avatarDataCell.ModelId]
+        if modelDataCell ~= nil then
+            self:LoadModel(modelDataCell.ModelsPath)
+        end
+    end
+
+    for i = 1, #self.go_eff do
+        self.go_eff[i]:SetActive(false)
+    end
+    if quality == 99 then
+        quality = 1
+    end
+    self.go_eff[quality]:SetActive(true)
+    self.go_effectRoot:SetActive(false)
+
+    self.IsUsed = true
+    self.gameObject:SetActive(true)
+end
+
+function LootItem:SetUse(b)
+    self.IsUsed = b
+    self.gameObject:SetActive(b)
+end
+
+--加载模型
+function LootItem:LoadModel(path)
+    --加载成功之后
+    if path ~= "" and self.perfabName ~= path then
+        self.perfabName = path
+
+        if self.go_perfab ~= nil then
+            GameObject.Destroy(self.go_perfab)
+        end
+
+        self.go_perfab = ResourceManager.Instance:LoadGameObject(path)
+
+        self.go_perfab.transform:SetParent(self.tr_MeshRoot)
+        self.go_perfab.transform.localScale = Vector3(0.7, 0.7, 0.7)
+        self.go_perfab.transform.localPosition = Vector3(0, 0, 0)
+    end
+end
+
+function LootItem:UpdateLoot()
+    if self.startPosition == nil then
+        self:SetUse(false)
+    end
+
+    if not (self.IsUsed) then
+        return
+    end
+
+    if self.Enable then
+        self.rb.position = self.rb.position + self.velocity * Time.deltaTime
+
+        if self.velocity.y < -4 then
+            self.velocity.y = -4
+        else
+            self.velocity = self.velocity - Vector3.up * self.gravity * Time.deltaTime
+        end
+
+        if math.abs(self.rb.position.y - self.startPosition.y) < 0.25 and self.velocity.y < 0 then
+            self.rb.useGravity = true
+            self.rb.isKinematic = false
+            self.rb.velocity = self.velocity + Vector3(0, self.addSpeed, 0)
+            self.CanCheckEff = true
+            self.Enable = false
+        end
+    end
+
+    if self.CanCheckEff and not (self.isShowEff) and math.abs(self.rb.velocity.y) < 0.01 then
+        self.isShowEff = true
+
+        self.go_effectRoot:SetActive(true)
+        --self.name.gameObject:SetActive(true);
+
+        local time = 1.8
+        if self.id == 121 or self.id == 122 then
+            time = 0.5
+        end
+        DOVirtual.DelayedCall(
+            time,
+            function()
+                self.gameObject:SetActive(false)
+                self.IsUsed = false
+
+                --产生特效
+                self.OnCreateEff(self.transform.position, self.quality, self.id, self.num, self.enyityID)
+            end
+        )
+    end
+end
+
+return LootItem

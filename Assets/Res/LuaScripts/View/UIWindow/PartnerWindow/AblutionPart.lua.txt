@@ -1,0 +1,369 @@
+--[[
+*文件名   :   AblutionPart
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/02/20 14:46:18"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+AblutionPart=class("AblutionPart",UIPanel)
+
+AblutionPart.m_Has=nil;
+AblutionPart.m_None=nil;
+AblutionPart.m_Topped=nil;
+AblutionPart.m_PropScrollView=nil;
+
+AblutionPart.m_CostBtn=nil;
+AblutionPart.m_CostNum=nil;
+AblutionPart.m_CostIcon=nil;
+AblutionPart.m_SaveBtn=nil;
+AblutionPart.GridItem=nil;
+
+
+AblutionPart.IsNew=false
+AblutionPart.Props={};
+AblutionPart.PropPartnerItems={};
+AblutionPart.Data=nil;
+AblutionPart.CostItems={}
+AblutionPart.m_ItemPreview=nil;
+AblutionPart.m_ItemPreviewGo=nil;
+AblutionPart.m_CanTopped=false;
+
+function AblutionPart:ctor(go,atlas,griditem,isNew)
+	self.prefab=go;
+	self.AtlasPath=atlas;
+	self.GridItem=griditem;
+	self.IsNew=isNew;
+	self.m_Has=self:Find("Has").gameObject;
+	self.m_None=self:Find("None").gameObject;
+	self.m_Topped=self:Find("tooped").gameObject;
+	self.m_PropScrollView=self:Find("Has/PropScrollView"):GetComponent(typeof(SuperScrollViewController));
+	self.m_CostBtn=self:Find("Has/CostButton"):GetComponent(typeof(Button));
+	self.m_CostNum=self:Find("Has/CostButton/CostNum"):GetComponent(typeof(Text));
+	self.m_CostIcon=self:Find("Has/CostButton/Image"):GetComponent(typeof(Image));
+	self.m_SaveBtn=self:Find("Has/SaveButton"):GetComponent(typeof(Button));
+	self.m_ItemPreviewGo=self:Find("Has/ItemPreview").gameObject
+
+	self.m_CostBtn.onClick:AddListener(function() self:OnClickCostButton() end);
+	self.m_SaveBtn.onClick:AddListener(function() self:OnClickSaveButton() end);
+
+	self.m_PropScrollView:NewScroll(self.GridItem, 0, function (tr,idx)
+			self:OnPropItemRefesh(tr,idx);
+		end);
+	self.m_ItemPreview=StructAccessor.ItemPreview.new(self.m_ItemPreviewGo);
+
+end
+
+
+function AblutionPart:OnFresh(data,tr)
+	local PropName=tr.transform:Find("PropName"):GetComponent(typeof(Text));
+	local slider=tr.transform:Find("Slider"):GetComponent(typeof(Slider));
+	local PropValue=tr.transform:Find("PropValue"):GetComponent(typeof(Text));
+	PropName.text=data.PropName;
+	slider.value=data.PropValue/data.PropMax
+
+	if self.IsNew then
+		local temp=	data.PropValue -data.OldValue
+		local isfull=data.PropValue>=data.PropMax;
+		if isfull then
+			--PropValue.text="<color=#ffffcc>"..data.PropValue .."       资质已满".."</color>"
+			PropValue.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_AblutionPart_PropValue"), {data.PropValue});
+
+		else
+			if temp>0 then
+				PropValue.text="<color=#00ff00>"..data.PropValue.."   ↑("..temp..")</color>"
+				--up
+			elseif temp<0 then
+				--low
+				PropValue.text="<color=#ff0000>"..data.PropValue.."   ↓("..(temp)..")</color>"
+
+			else
+				PropValue.text="<color=#FFFFFF>"..data.PropValue.."</color>"
+			end
+		end
+
+	else
+		PropValue.text="<color=#FFFFFF>"..data.PropValue.."/"..data.PropMax.."</color>"
+	end
+end
+
+function AblutionPart:OnPropItemRefesh(tr,idx)
+	if self.PropPartnerItems==nil then
+		return;
+	end
+	for i=1,#self.PropPartnerItems do
+		if self.PropPartnerItems[i].transform == tr then
+			local data=self.Props[idx+1];
+			self:OnFresh(data,tr);
+
+			return
+		end
+	end
+
+	tr.gameObject:SetActive(true);
+	local data=self.Props[idx+1];
+	self:OnFresh(data,tr);
+	table.insert(self.PropPartnerItems, tr);
+end
+
+function AblutionPart:OnClickSaveButton()
+	if self.IsNew then
+		local config=ConfigDataAccessor.Partner[self.Data.Index];
+		if config==nil then
+			return
+		end
+		local haslow=false;
+		local qualificate=ConfigDataAccessor.Qualifications[config.QualificationID][self.Data.AptitudeBreakStep]
+		if qualificate~=nil then
+
+			for i = 1, #qualificate.QualiFications do
+
+				local t=self.Data.AMD.Aptitudes[qualificate.QualiFications[i]]
+				if t.UnSaveValue <t.BaseValue then
+					haslow=true;
+					break;
+				end
+			end
+		end
+		local id=4;
+		if haslow then
+			id=5;
+		end
+		UIAPI.ShowMsgBox(id,function (EventName)
+				if EventName=="SURE" then
+					LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OnPartnerChristenSaveReq",{self.Data.Index,true});
+				else
+					--LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OnPartnerChristenSaveReq",{self.Data.Index,false});
+				end
+			end)
+
+	end
+end
+
+
+function AblutionPart:DoChristen()
+	local hasHeight=false;
+	local config=ConfigDataAccessor.Partner[self.Data.Index];
+	if config==nil then
+		return
+	end
+	--消耗组ID
+	local qualificate=ConfigDataAccessor.QualificationsExpend[config.QualificationsExpendID][self.Data.AptitudeBreakStep]
+	if qualificate~=nil then
+
+		local totalUnSave=0;
+		local totalBase=0;
+		for i = 1, #qualificate.QualiFications do
+
+			local t=self.Data.AMD.Aptitudes[qualificate.QualiFications[i]]
+			totalUnSave=totalUnSave+t.UnSaveValue;
+			totalBase=totalBase+t.BaseValue;
+		end
+		hasHeight=totalUnSave>totalBase
+	end
+
+
+	if hasHeight then
+		UIAPI.ShowMsgBox(3,function (EventName)
+				if EventName=="SURE" then
+					if self:SuitCost(qualificate) then
+						LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OnPartnerChristenReq",self.Data.Index);
+					end
+				end
+			end)
+	else
+		if self:SuitCost(qualificate) then
+			LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OnPartnerChristenReq",self.Data.Index);
+		end
+	end
+end
+
+function AblutionPart:SuitCost(qualificate)
+	local money=	BusinessManager.Instance:GetCurrencyNum(qualificate.Money[1])
+	if money< qualificate.Money[2] then
+		--金币不足
+		local itemName=ConfigDataAccessor.Item[qualificate.Money[1]]
+		if itemName~=nil then
+			--Util.ShowMessage(itemName.Name.."不足");
+			Util.ShowMessage(StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_ShopItem_buyErrorMsg"), {itemName.Name}))
+		end
+		print("金币不足")
+		return false;
+	end
+
+	local itemSuit=true;
+	for i = 1, #qualificate.Item_id do
+		local temp=BusinessManager.Instance:GetCurrencyNum(qualificate.Item_id[i])
+		if temp< qualificate.Item_num[i] then
+			itemSuit=false;
+			break;
+		end
+	end
+
+	if not itemSuit then
+		Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_No_Item"));
+		print(LanguageHelp:GetLanguageByKey("Local_Str_No_Item"))
+		return false;
+	end
+
+	return true;
+end
+
+function AblutionPart:DoTopped()
+
+	local config=ConfigDataAccessor.Partner[self.Data.Index];
+	if config~=nil then
+		local qualificate=ConfigDataAccessor.Qualifications[config.QualificationID][self.Data.AptitudeBreakStep]
+		if qualificate~=nil then
+			if self.Data.CurStar<qualificate.Star then
+				print(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_213"))
+				Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_213"));
+				return
+			end
+			if self:SuitCost(qualificate) then
+				LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OnPartnerLimitBreakReq",self.Data.Index);
+			end
+		end
+	end
+
+end
+
+function AblutionPart:OnClickCostButton()
+	if not self.IsNew then
+		if self.m_CanTopped then
+			self:DoTopped();
+		else
+			self:DoChristen();
+		end
+	end
+end
+
+function AblutionPart:OnDestroy()
+
+end
+
+function AblutionPart:OnOpen(data,cantopped)
+	self.Data=data;				---伙伴数据
+	self.m_CanTopped=cantopped;	---能否突破
+
+	local config=ConfigDataAccessor.Partner[data.Index];
+	if config==nil then
+		return
+	end
+
+	local qualificate=ConfigDataAccessor.Qualifications[config.QualificationID][data.AptitudeBreakStep]
+	if qualificate==nil then
+		return
+	end
+	self.Props={}
+	if self.IsNew then
+		if self.m_CanTopped then
+			----
+			self.m_Topped:SetActive(true)
+			self.m_Has:SetActive(false)
+			self.m_None:SetActive(false)
+		else
+			self.m_Topped:SetActive(false)
+			local isEmpty=true;
+			for i = 1, #qualificate.QualiFications do
+				local AoiAttr= ConfigDataAccessor.ParConversion[qualificate.QualiFications[i]]
+				if AoiAttr~=nil then
+					local t=data.AMD.Aptitudes[qualificate.QualiFications[i]]
+					if t.UnSaveValue >0 then
+						isEmpty=false;
+					end
+					table.insert(self.Props,{PropName=AoiAttr.Name,PropValue=data.AMD.Aptitudes[qualificate.QualiFications[i]].UnSaveValue,
+							OldValue=data.AMD.Aptitudes[qualificate.QualiFications[i]].BaseValue,
+							PropMax=qualificate.Value_max[i]})
+				end
+			end
+
+			if isEmpty then
+				self.m_Has:SetActive(false)
+				self.m_None:SetActive(true)
+			else
+				self.m_Has:SetActive(true)
+				self.m_None:SetActive(false)
+				self.m_PropScrollView:ContinueScroll(#self.Props);
+			end
+
+		end
+	else
+		for i = 1, #qualificate.QualiFications do
+			local AoiAttr= ConfigDataAccessor.ParConversion[qualificate.QualiFications[i]]
+			if AoiAttr~=nil then
+				table.insert(self.Props,{PropName=AoiAttr.Name,PropValue=data.AMD.Aptitudes[qualificate.QualiFications[i]].BaseValue,PropMax=qualificate.Value_max[i]})
+			end
+		end
+		self.m_PropScrollView:ContinueScroll(#self.Props);
+		if self.m_CanTopped then
+			----
+
+			local expend=ConfigDataAccessor.Qualifications[config.QualificationID][data.AptitudeBreakStep]
+			if expend~=nil then
+				local itemcfg= ConfigDataAccessor.Item[expend.Money[1]];
+				if itemcfg~=nil then
+					ResourceHelper:LoadIconAsync(self.m_CostIcon, "", itemcfg.Icon, false)
+
+					-- ResourceManager.Instance:LoadSpriteAsync(itemcfg.Icon,function (sp)
+					-- 		if sp~=nil and self.m_CostIcon~=nil then
+					-- 			self.m_CostIcon.sprite=sp;
+					-- 		end
+					-- 	end)
+				end
+
+				--self.m_CostNum.text=tostring(expend.Money[2]).."突破"
+				self.m_CostNum.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_AblutionPart_CostNum"), {tostring(expend.Money[2])});
+
+				self.CostItems={}
+				for i = 1, #expend.Item_id do
+					--不足红色
+				
+					local c=BusinessManager.Instance:GetCurrencyNum(expend.Item_id[i])
+					local text=c.."/"..expend.Item_num[i]
+					if c< expend.Item_num[i] then
+						text= "<color=#FF0000>".. c.."/"..expend.Item_num[i].."</color>"
+					end
+					table.insert(self.CostItems,{ItemID=expend.Item_id[i],ItemNum=text})
+				end
+				self.m_ItemPreview:SetItems(self.CostItems);
+
+			end
+
+		else
+			local expend=ConfigDataAccessor.QualificationsExpend[config.QualificationsExpendID][data.AptitudeBreakStep]
+			if expend~=nil then
+				local itemcfg= ConfigDataAccessor.Item[expend.Money[1]];
+				if itemcfg~=nil then
+					ResourceHelper:LoadIconAsync(self.m_CostIcon, "", itemcfg.Icon, false)
+
+					-- ResourceManager.Instance:LoadSpriteAsync(itemcfg.Icon,function (sp)
+					-- 		if sp~=nil and self.m_CostIcon~=nil then
+					-- 			self.m_CostIcon.sprite=sp;
+					-- 		end
+					-- 	end)
+				end
+				--self.m_CostNum.text=tostring(expend.Money[2]).."洗礼"
+				self.m_CostNum.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_AblutionPart_CostNum2"), {tostring(expend.Money[2])});
+
+				self.CostItems={}
+				for i = 1, #expend.Item_id do
+					local t=tonumber(expend.Item_num[i])
+					local c=BusinessManager.Instance:GetCurrencyNum(expend.Item_id[i])
+					local text=c.."/"..t
+					if c< t then
+						text= "<color=#FF0000>".. c.."/"..t.."</color>"
+					end
+					table.insert(self.CostItems,{ItemID=expend.Item_id[i],ItemNum=text})
+				end
+				self.m_ItemPreview:SetItems(self.CostItems);
+
+			end
+		end
+	end
+
+end
+
+
+return  AblutionPart

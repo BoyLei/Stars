@@ -1,0 +1,96 @@
+--[[
+*文件名   :   WorldLinePlotWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/10/31 15:00:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] WorldLinePlotWidget = class("WorldLinePlotWidget", UIPanel)
+
+WorldLinePlotWidget.WorldLineData = {}
+
+function WorldLinePlotWidget:Awake()
+    self.gameObject = self.prefab;
+    self.transform = self.prefab.transform;
+    self.onCloseDestroy(true)
+
+    self.m_IconImage = self.transform:Find("Cut4Cam90/AssemblyRatio2/AnimRoot/TouchNode/UINode/Icon"):GetComponent(typeof(Image))
+    self.m_NameText = self.transform:Find("Cut4Cam90/AssemblyRatio2/AnimRoot/TouchNode/UINode/Name"):GetComponent(typeof(Text))
+    self.m_DescText = self.transform:Find("Cut4Cam90/AssemblyRatio2/AnimRoot/TouchNode/UINode/Desc"):GetComponent(typeof(Text))
+    self.m_LinkBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/AnimRoot/TouchNode/UINode/LinkBtn"):GetComponent(typeof(JButton))
+
+    self.m_LinkBtn.OnClick = function()
+        self:OnClickCheckBtn();
+    end
+end
+
+function WorldLinePlotWidget:OnClickCheckBtn()
+    LuaModuleDispatcher:SendMessage(ModuleDef.WorldLineModule, "OnOpenWorldLine", {self.WorldLineData.ID});
+    self:Close()
+end
+
+function WorldLinePlotWidget:RenderAllView(data)
+    self.WorldLineData = data
+    ResourceHelper:LoadIconByAtlasAsync(self.m_IconImage, "UI/Icons/Atlas/IconSkill", self.WorldLineData.SkillIcon, true)
+    self.m_IconImage.gameObject:SetActive(false)
+    if self.WorldLineData.Image ~= "" then
+        ResourceHelper:LoadIconAsync(
+                    self.m_IconImage,
+                    "",
+                    self.WorldLineData.Image,
+                    false,
+                    function()
+                        if self.m_IconImage ~= nil and not Util.IsNull(self.m_IconImage.gameObject) then
+                            self.m_IconImage.gameObject:SetActive(true)
+                        end
+                    end
+                )
+    end
+
+    self.m_NameText.text = self.WorldLineData.NodeTitle
+    local task = TaskHelper.GetTaskConfig(self.WorldLineData.AccessTask)
+    if task ~= nil then
+        self.m_DescText.text = task.Base.ChapterName
+    else
+        self.m_DescText.text = ""
+    end
+
+    self.m_LinkBtn.gameObject:SetActive(BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.WorldLine))
+end
+
+function WorldLinePlotWidget:BindModule(m)
+    self.Module = m;
+end
+
+function WorldLinePlotWidget:Start()
+
+end
+
+function WorldLinePlotWidget:OnEnable()
+
+end
+
+function WorldLinePlotWidget:OnDisable()
+
+end
+
+function WorldLinePlotWidget:OnDestroy()
+    if self.Module ~= nil then
+        self.Module:OnWorldLinePlotWidgetDestroy()
+    end
+end
+
+function WorldLinePlotWidget:OnOpen(arg)
+    -- self.WorldLineData = arg
+    self.timer = DOVirtual.DelayedCall(5, function ()
+        self:Close()
+    end)
+end
+
+function WorldLinePlotWidget:OnClose(arg)
+    if self.timer ~= nil then
+        self.timer:Kill()
+    end
+end
+
+return WorldLinePlotWidget

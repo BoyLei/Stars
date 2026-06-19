@@ -1,0 +1,46 @@
+--[[
+*文件名   :   AvgMindBoxSelectItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/10/24 18:00:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local AvgMindBoxSelectItem = {}
+
+AvgMindBoxSelectItem.__index = AvgMindBoxSelectItem
+
+function AvgMindBoxSelectItem:New(_go, onItemCkick)
+    local self = {}
+    setmetatable(self, AvgMindBoxSelectItem)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.m_content = self.transform:Find("Anim/content"):GetComponent(typeof(Text))
+
+    self.Idx = 0
+
+    --点击事件
+    local btnClick = self.transform:Find("Anim/SelectItem"):GetComponent(typeof(Button))
+    btnClick.onClick:AddListener(
+        function()
+            SoundManager.Instance:PlayEventName("UI_Telepathy_Message_Click_01", nil, nil)
+
+            if onItemCkick ~= nil then
+                onItemCkick(self.Idx, self.contendID, self.contentText)
+            end
+        end
+    )
+
+    return self --返回自身
+end
+
+function AvgMindBoxSelectItem:SetItem(contentText, idx, cID)
+    self.m_content.text = contentText
+    self.contentText = contentText
+    self.Idx = idx
+    self.contendID = cID
+end
+
+return AvgMindBoxSelectItem

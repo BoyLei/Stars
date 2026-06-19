@@ -1,0 +1,50 @@
+-- 表情选择界面
+local EmojiSelect = {}
+EmojiSelect.__index = EmojiSelect
+
+local EmojiItem = require("View/UIWindow/Chat/ChatInput/EmojiItem")
+
+function EmojiSelect:New(obj, win)
+    local self = {};
+    setmetatable(self, EmojiSelect);
+
+    self:InitControls(obj, win)
+
+    return self;
+end
+
+function EmojiSelect:InitControls(obj, win)
+    self.gameObject = obj;
+    self.transform = obj.transform;
+
+    self.window = win;
+    self.emojiItemGo = self.transform:Find("ScrollView/Viewport/Content/SmallEmojiItem").gameObject;
+    
+    local count = 16;
+    for i=1, count do
+        self:AddItem(i);
+    end
+end
+
+function EmojiSelect:AddItem(id)
+    local go = newObject(self.emojiItemGo);
+    go.transform:SetParent(self.emojiItemGo.transform.parent);
+    go.transform.localPosition = Vector3.zero;
+    go.transform.localScale = Vector3.one;
+    go:SetActive(true);
+
+    local emojiItem = EmojiItem:New(go, self.window);
+    local index = "Emoticon_nom_" .. id;
+    if id < 10 then
+        index = "Emoticon_nom_0" .. id;
+    end
+    ResourceHelper:GetSpriteByNameAsync(ResourceHelper.AtlasPathEmo1, index, function(sp)
+        emojiItem:SetItem(id, sp);
+    end);
+end
+
+function EmojiSelect:Show(show)
+    self.gameObject:SetActive(show);
+end
+
+return EmojiSelect

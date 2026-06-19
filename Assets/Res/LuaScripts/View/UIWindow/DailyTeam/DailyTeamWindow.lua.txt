@@ -1,0 +1,381 @@
+--[[
+*文件名   :   DailyTeamWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/06/25 16:23:27"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+DailyTeamWindow=class("DailyTeamWindow",UIPanel)
+local DailyTeamBossItem=require('View/UIWindow/DailyTeam/DailyTeamBossItem');
+local DailyTeamRuleItem=require('View/UIWindow/DailyTeam/DailyTeamRuleItem');
+local RuleTips=require('View/UIWindow/DailyTeam/RuleTips');
+
+DailyTeamWindow.m_Tabs=nil;
+DailyTeamWindow.m_IntroduceBtn=nil;
+DailyTeamWindow.m_CloseBtn=nil;
+DailyTeamWindow.m_Dropdown=nil;
+DailyTeamWindow.m_Image=nil;
+DailyTeamWindow.m_SceneDesc=nil;
+--DailyTeamWindow.m_Power=nil;
+DailyTeamWindow.m_Num=nil;
+DailyTeamWindow.m_ItemPreviewGo=nil;
+DailyTeamWindow.m_AwardNum=nil;
+DailyTeamWindow.m_UnLock=nil;
+DailyTeamWindow.m_FightBtn=nil;
+DailyTeamWindow.m_ItemPreview=nil;
+DailyTeamWindow.m_JBtnTickets=nil;
+DailyTeamWindow.m_Tickets1=nil;
+DailyTeamWindow.m_UnLockLevel=nil;
+DailyTeamWindow.DropMap={}
+DailyTeamWindow.CurrentDropIndex=0;
+DailyTeamWindow.m_DropdownName=nil;
+--Boss
+DailyTeamWindow.m_BossScrollView=nil;
+DailyTeamWindow.m_BossItem=nil;
+DailyTeamWindow.BossItemDatas={};
+DailyTeamWindow.BossItemList={};
+--
+
+--Buff
+DailyTeamWindow.m_BuffScrollView=nil;
+DailyTeamWindow.m_BuffItem=nil;
+DailyTeamWindow.BuffItemDatas={};
+DailyTeamWindow.BuffItemList={};
+
+DailyTeamWindow.RuleTips=nil;
+--
+local CountConfigID=11;
+local IntroduceBtnFunc=nil;
+local CloseBtnFunc=nil;
+local FightBtnFunc=nil;
+local OnDropDownFunc=nil;
+
+
+function DailyTeamWindow:Awake()
+	self.m_IntroduceBtn=self:Find("Cut4Cam90/AssemblyRatio2/L/LeftTop/IntroduceBtn"):GetComponent(typeof(JButton));
+	self.m_CloseBtn=self:Find("Cut4Cam90/AssemblyRatio2/L/LeftTop/CloseBtn"):GetComponent(typeof(JButton));
+	self.m_Dropdown=self:Find("Cut4Cam90/AssemblyRatio2/L/Left/Dropdown"):GetComponent(typeof(Dropdown));
+	self.m_DropdownName=self:Find("Cut4Cam90/AssemblyRatio2/L/Left/Dropdown/DropdownName"):GetComponent(typeof(Text));
+	self.m_Image=self:Find("Cut4Cam90/AssemblyRatio2/L/Left/Image"):GetComponent(typeof(Image));
+	self.m_SceneDesc=self:Find("Cut4Cam90/AssemblyRatio2/U/Center/info/Text"):GetComponent(typeof(Text));
+	--self.m_Power=self:Find("Cut4Cam90/AssemblyRatio2/Right/Power"):GetComponent(typeof(Text));
+	self.m_Num=self:Find("Cut4Cam90/AssemblyRatio2/R/Right/Num"):GetComponent(typeof(Text));
+	self.m_ItemPreviewGo=self:Find("Cut4Cam90/AssemblyRatio2/R/Right/ItemPreview").gameObject;
+	self.m_AwardNum=self:Find("Cut4Cam90/AssemblyRatio2/R/Right/AwardNum"):GetComponent(typeof(Text));
+	self.m_UnLock=self:Find("Cut4Cam90/AssemblyRatio2/U/Center/UnLock"):GetComponent(typeof(Text));
+	self.m_FightBtn=self:Find("Cut4Cam90/AssemblyRatio2/R/Right/FightBtn"):GetComponent(typeof(JButton));
+	self.m_ItemPreview=StructAccessor.ItemPreview.new(self.m_ItemPreviewGo);
+	self.m_JBtnTickets=self:Find("Cut4Cam90/AssemblyRatio2/R/Right/JBtnTickets").gameObject
+	self.m_Tickets1=self:Find("Cut4Cam90/AssemblyRatio2/R/Right/JBtnTickets/Tickets1"):GetComponent(typeof(Text));
+	self.m_BossScrollView=self:Find("Cut4Cam90/AssemblyRatio2/U/Center/Items/ScrollView"):GetComponent(typeof(SuperScrollViewController));
+	self.m_BossItem=self:Find("Cut4Cam90/AssemblyRatio2/U/Center/Items/Item").gameObject;
+	self.m_BossScrollView:NewScroll(self.m_BossItem, 0, function (tr,idx)
+			self:OnBossItemRefesh(tr,idx);
+		end);
+
+	local RuleTipsGo=self:Find("Cut4Cam90/AssemblyRatio2/RuleTips").gameObject;
+
+	self.RuleTips=RuleTips.new(RuleTipsGo,self.AtlasPath);
+
+	self.m_BuffScrollView=self:Find("Cut4Cam90/AssemblyRatio2/R/Right/Buffs/ScrollView"):GetComponent(typeof(SuperScrollViewController));
+	self.m_BuffItem=self:Find("Cut4Cam90/AssemblyRatio2/R/Right/Buffs/Item").gameObject;
+	self.m_BuffScrollView:NewScroll(self.m_BuffItem, 0, function (tr,idx)
+			self:OnBuffItemRefesh(tr,idx);
+		end);
+
+	self.m_UnLockLevel=self:Find("Cut4Cam90/AssemblyRatio2/L/Left/Dropdown/Label (1)"):GetComponent(typeof(Text));
+
+	IntroduceBtnFunc=function() self:OnClickIntroduceBtn(); end;
+	CloseBtnFunc=function() self:OnClickCloseBtn(); end;
+	FightBtnFunc=function() self:OnClickFightBtn(); end;
+	OnDropDownFunc=function(index)
+		self:OnDropDownHandler(index);
+	end;
+end
+
+
+function  DailyTeamWindow:OnBossItemRefesh(tr,idx)
+	if self.BossItemList==nil then
+		return;
+	end
+	for i=1,#self.BossItemList do
+		if self.BossItemList[i].transform == tr then
+			self.BossItemList[i]:UpdateContent(self.BossItemDatas[idx+1]);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+			return
+		end
+	end
+
+	local bi = DailyTeamBossItem.new(tr.gameObject,self.AtlasPath);
+	bi.prefab:SetActive(true);
+	bi:UpdateContent(self.BossItemDatas[idx+1]);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+	table.insert(self.BossItemList, bi);
+end
+
+
+function DailyTeamWindow:OnBuffItemRefesh(tr,idx)
+	if self.BuffItemList==nil then
+		return;
+	end
+	for i=1,#self.BuffItemList do
+		if self.BuffItemList[i].transform == tr then
+			self.BuffItemList[i]:UpdateContent(self.BuffItemDatas[idx+1],function (id,pos)
+					self:OnClickRuleItem(id,pos)
+				end);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+			return
+		end
+	end
+
+	local bi = DailyTeamRuleItem.new(tr.gameObject,self.AtlasPath);
+	bi.prefab:SetActive(true);
+	bi:UpdateContent(self.BuffItemDatas[idx+1],function (id,pos)
+			self:OnClickRuleItem(id,pos)
+		end);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+	table.insert(self.BuffItemList, bi);
+end
+
+function DailyTeamWindow:OnClickRuleItem(id,pos)
+	self.RuleTips:OnShow(id,pos)
+end
+
+function DailyTeamWindow:Start()
+	-- self.m_IntroduceBtn.OnClick= IntroduceBtnFunc;
+	self.m_CloseBtn.OnClick= CloseBtnFunc;
+	self.m_FightBtn.OnClick=FightBtnFunc;
+	self.m_Dropdown.onValueChanged:AddListener(OnDropDownFunc);
+end
+function DailyTeamWindow:OnDropDownHandler(index)
+	self.CurrentDropIndex=index;
+	self:OnFresh();
+end
+
+function DailyTeamWindow:OnEnable()
+
+end
+
+function DailyTeamWindow:OnDisable()
+
+end
+
+function DailyTeamWindow:OnDestroy()
+
+end
+
+function DailyTeamWindow:OnOpen(arg)
+	self:InitDropdown();
+
+end
+
+function DailyTeamWindow:OnClose(arg)
+
+end
+
+function DailyTeamWindow:InitCount(config)
+
+	if config~=nil then
+
+		-- 冒险等级
+		local curRiskLevel = GameManager.Instance.M_MainPlayerCtrlBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Int,CS.StarProjectDef.AOIAttrDefine.PlayerLevel)
+
+		if config.UnlockLevel> curRiskLevel then
+
+
+			--local msg="冒险等级达到 ";
+			local msg = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_SecretAreaWindow_NotEnterTips2"), {config.UnlockLevel});
+
+			self.m_Tickets1.text=msg
+
+			self.m_JBtnTickets:SetActive(true)
+			self.m_AwardNum.gameObject:SetActive(false)
+			self.m_FightBtn.gameObject:SetActive(false)
+		else
+			local count=0;
+			local module= ModuleManager.Instance:GetModule(ModuleDef.GamePlayChoiceModule)
+			if module~=nil then
+				local luamodule=module:GetLuaTable()
+				if luamodule~=nil then
+					local countinfo= luamodule:GetComCountInfo(CountConfigID);
+					if countinfo~=nil then
+						count=countinfo.RemainCount
+					end
+				end
+			end
+			--self.m_AwardNum.text="今日剩余次数:"..count
+			self.m_AwardNum.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_DailyTeamWindow_AwardNum"), {count});
+
+			self.m_JBtnTickets:SetActive(false)
+			self.m_AwardNum.gameObject:SetActive(true)
+			self.m_FightBtn.gameObject:SetActive(true)
+		end
+
+
+	end
+
+end
+
+function DailyTeamWindow:InitDropdown()
+	self.m_Dropdown:ClearOptions();
+	self.DropMap={}
+	local curRiskLevel = GameManager.Instance.M_MainPlayerCtrlBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Int,CS.StarProjectDef.AOIAttrDefine.PlayerLevel)
+	self.CurrentDropIndex=0;
+	local level=0;
+	local list= List_String()
+	local config= ConfigDataAccessor.TeamDailyCopy
+	for i = 0, #config do
+		local area=StringFormat(LanguageHelp:GetLanguageByKey("DailyTeamWindow_SYS_1"), {config[i].UnlockLevel,config[i].AreaName});
+		list:Add(area)
+		self.DropMap[i]=	config[i].ID
+		if curRiskLevel >=config[i].UnlockLevel then
+			if config[i].UnlockLevel>level then
+				level=config[i].UnlockLevel
+				self.CurrentDropIndex=list.Count-1
+			end
+		end
+	end
+	self.m_Dropdown:AddOptions(list);
+	self.m_Dropdown.value=self.CurrentDropIndex
+	self:OnFresh();
+end
+
+
+function DailyTeamWindow:InitBoss(BossGroupID,level)
+	self.BossItemDatas={}
+	local ms=ConfigDataAccessor.CopyBoss[BossGroupID]
+	if ms~=nil then
+		for k, v in pairs(ms) do
+			if v~=nil then
+				local monster=	ConfigDataAccessor.Monster[v.ID]
+				if monster~=nil then
+					table.insert(self.BossItemDatas,{Name=monster.Name,Level=level,Head=monster.HeadIcon})
+				end
+			end
+		end
+	end
+	self.m_BossScrollView:ContinueScroll(#self.BossItemDatas);
+end
+
+function DailyTeamWindow:InitRule(RuleGroupID)
+	self.BuffItemDatas={}
+	local ms=ConfigDataAccessor.CopyRule[RuleGroupID]
+	if ms~=nil then
+		for k, v in pairs(ms) do
+			if v~=nil then
+				local lf=	ConfigDataAccessor.LevelAffix[v.RuleID]
+				if lf~=nil then
+					table.insert(self.BuffItemDatas,{ID=v.RuleID,Icon=lf.LittleIcon})
+				end
+			end
+		end
+	end
+	self.m_BuffScrollView:ContinueScroll(#self.BuffItemDatas);
+end
+
+function DailyTeamWindow:InitAward(awards)
+
+	local CostItems={}
+	for k, v in pairs(awards) do
+		table.insert(CostItems,{ItemID=v,ItemNum=1})
+	end
+	self.m_ItemPreview:SetItems(CostItems);
+end
+
+function DailyTeamWindow:OnFresh()
+
+	local id=self.DropMap[self.CurrentDropIndex]
+	local config= ConfigDataAccessor.TeamDailyCopy[id]
+	if config~=nil then
+		ResourceHelper:LoadIconAsync(self.m_Image, "", config.BackGroud, true)
+
+		-- ResourceManager.Instance:LoadSpriteAsync(config.BackGroud,function (sp)
+		-- 		if self.m_Image ~= nil and sp ~= nil then
+		-- 			self.m_Image.sprite = sp;
+		-- 			self.m_Image:SetNativeSize()
+		-- 		end
+		-- 	end)
+		--self.m_Power.text=config.Fight
+		--self.m_UnLock.text="副本解锁等级 "..config.UnlockLevel
+		self.m_UnLock.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_DailyTeamWindow_UnLock"), {config.UnlockLevel});
+		self.m_UnLockLevel.text="Lv."..config.UnlockLevel--StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_DailyTeamWindow_UnLock"), {config.UnlockLevel});
+		self.m_SceneDesc.text=config.Desc
+
+		self.m_DropdownName.text=config.AreaName
+		self:InitBoss(config.BOSSGroupID,config.UnlockLevel)
+		self:InitRule(config.RuleGroupID)
+		self:InitAward(config.CommonAwardsShow);
+	end
+	self:InitCount(config);
+end
+
+function DailyTeamWindow:OnClickIntroduceBtn()
+
+end
+
+function DailyTeamWindow:OnClickCloseBtn()
+	self.Close();
+end
+
+function DailyTeamWindow:OnClickFightBtn()
+	local id=self.DropMap[self.CurrentDropIndex]
+	local config= ConfigDataAccessor.TeamDailyCopy[id]
+	if config~=nil then
+		local curRiskLevel = GameManager.Instance.M_MainPlayerCtrlBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Int,CS.StarProjectDef.AOIAttrDefine.PlayerLevel)
+
+			if config.UnlockLevel> curRiskLevel then
+				--local msg="冒险等级"..config.AdvGrade.."可解锁"
+				local msg=StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_SecretAreaWindow_NotEnterTips2"), {config.UnlockLevel})
+
+				Util.ShowMessage(msg);
+				return
+			end
+	
+
+		--1 没有队伍 创建队伍
+		--2、有队伍 且是队长  则开始挑战
+		--3、有队伍 不是队长  飘字提示 仅有队长才能发起挑战
+		local module=ModuleManager.Instance:GetModule(ModuleDef.TeamModule);
+		local luatable=module:GetLuaTable();
+		local teamInfo=luatable:GetTeamInfo();
+		local hasTeam=false;
+		local isCaptain=false;
+		if teamInfo~=nil and teamInfo.TeamID~=0 and teamInfo.UserInfos.Count>0 then
+			hasTeam=true;
+			for i = 0,teamInfo.UserInfos.Count -1 do
+				local info=teamInfo.UserInfos[i];
+				if info~=nil then
+					if info.IsCaptain then
+						if info.Eid==GameManager.Instance.mainPlayerId then
+							isCaptain=true;
+						end
+					end
+				end
+			end
+		end
+		if hasTeam then
+			if isCaptain then
+
+				LuaModuleDispatcher:SendMessage(ModuleDef.DailyTeamModule, "OnTeamDailyStartChallengeReq",id);
+			else
+				Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_152"));
+			end
+		else
+			-- 队长集合
+			UIAPI.ShowMsgBox(16, function(EventName)
+					if EventName == "SURE" then
+						self:QueryTeamInfo(config.PlayID);
+
+					end
+				end)
+		end
+	end
+end
+
+function DailyTeamWindow:QueryTeamInfo(playID)
+	--TeamLobbyWindow
+	local getAllTeamInfoReq = CS.ProtoMsg.GetAllTeamInfoReq();
+	getAllTeamInfoReq.Select = CS.ProtoMsg.SelectTeamType.Null;
+	getAllTeamInfoReq.PlayID=playID
+	CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace,
+		getAllTeamInfoReq, false);
+end
+
+return  DailyTeamWindow

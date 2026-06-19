@@ -1,0 +1,144 @@
+---------------------------------------------------------------------
+-- Star (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2022-12-16 14:29:18
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class PartnerHeadItem
+
+PartnerHeadItem = class("PartnerHeadItem",UIPanel)
+PartnerHeadItem.Icon=nil;
+PartnerHeadItem.Selected=nil;
+PartnerHeadItem.CallBack=nil;
+PartnerHeadItem.Index=0;
+PartnerHeadItem.Btn=nil;
+
+PartnerHeadItem.BgRare=nil;	-- 星级背景
+PartnerHeadItem.PartnerName=nil;
+PartnerHeadItem.PartnerLevel=nil;
+PartnerHeadItem.RedPointNew=nil;
+PartnerHeadItem.RedPoint=nil;
+PartnerHeadItem.UpStarItem=0;
+PartnerHeadItem.CurStar=0;
+PartnerHeadItem.Quality=0;
+PartnerHeadItem.Stars=nil;
+PartnerHeadItem.IsNotFullStar=false;
+PartnerHeadItem.SoureType=""
+function PartnerHeadItem:ctor(go,parent,atlas,callBack)
+	self.prefab=go;
+	self.AtlasPath=atlas;
+	self.CallBack=callBack;
+	self.Btn=go:GetComponent(typeof(JButton));
+	self.Icon=self:Find("Icon"):GetComponent(typeof(Image));
+	self.BgRare=self:Find("BgRare"):GetComponent(typeof(Image));
+	self.Selected=self:Find("Select").gameObject;
+	self.Btn.OnClick=(function() self:OnClickHandler() end);
+
+	self.PartnerName=self:Find("PartnerName"):GetComponent(typeof(Text));
+	self.PartnerLevel=self:Find("PartnerLevel"):GetComponent(typeof(Text));
+	self.RedPointNew=self:Find("RedPointNew").gameObject;
+	self.RedPoint=self:Find("RedPoint").gameObject;
+	self.Stars={};
+	table.insert(self.Stars,self:Find("Stars/Star1").gameObject);
+	table.insert(self.Stars,self:Find("Stars/Star2").gameObject);
+	table.insert(self.Stars,self:Find("Stars/Star3").gameObject);
+	table.insert(self.Stars,self:Find("Stars/Star4").gameObject);
+	table.insert(self.Stars,self:Find("Stars/Star5").gameObject);
+	table.insert(self.Stars,self:Find("Stars/Star6").gameObject);
+
+end
+
+--点击事件
+function PartnerHeadItem:OnClickHandler()
+	self.CallBack(self.Index);
+	self:OnSelect(true);
+	LocalCache.GetPartnerRedPointData:RemovePartner(self.Index);
+	self:SetRedPoint();
+end
+
+function PartnerHeadItem:OnSelect(select)
+	self.Selected:SetActive(select)
+end
+
+function PartnerHeadItem:SetRedPoint()
+	self.RedPointNew:SetActive(false)
+	self.RedPoint:SetActive(false)
+	if self.SoureType=="PartnerDetail" then
+		local isNew= LocalCache.GetPartnerRedPointData:IsNewPartner(self.Index);
+		self.RedPointNew:SetActive(isNew)
+	elseif self.SoureType=="StarRise" then
+		local red=false;
+		if self.IsNotFullStar then
+			local Cnt=999999;
+			local starExpend= ConfigDataAccessor.StarExpend[self.Quality][(self.CurStar+1)]
+			if starExpend~=nil then
+				Cnt=starExpend.Item_num
+			end
+			red= BusinessManager.Instance:GetCurrencyNum(self.UpStarItem)>=Cnt
+		end
+		self.RedPoint:SetActive(red)
+	end
+
+end
+
+--数据更新
+function PartnerHeadItem:UpdateContent(data,selectIndex,soureType)
+	self.Index=data.Index;
+	self.SoureType=soureType;
+	self:OnSelect(data.Index==selectIndex)
+	local config=ConfigDataAccessor.Partner[data.Index];
+	if config~=nil then
+		self.UpStarItem=config.UpStarItem
+		self.CurStar=data.CurStar;
+		self.Quality=config.Quality;
+		local avatarDataCell= ConfigDataAccessor.Avatar[config.AvatarID];
+		if avatarDataCell ~= nil then
+			local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID];
+			if headCfg ~= nil then
+				self:GetSpriteByAtlas(headCfg.HeadAtlasName,headCfg.MinHead,function (sp)
+						self.Icon.sprite=sp;
+						self.Icon:SetNativeSize()
+					end);
+			end
+		end
+
+		local qualityName = self:GetQualityName(config.Quality);
+		ResourceHelper:GetSpriteInAtlasByName(self.AtlasPath, qualityName,function (sp)
+				if sp ~= nil then
+					self.BgRare.sprite=sp;
+				end
+			end);
+
+
+		self.PartnerName.text = config.Name;
+	end
+	self.IsNotFullStar=data.CurStar<6
+	self:SetRedPoint();
+	self.PartnerLevel.text = data.Level;
+
+	-- 设置星星
+	for i = 1, #self.Stars do
+		self.Stars[i]:SetActive(i <= data.CurStar);
+	end
+end
+
+-- 获得品质-颜色图标
+function PartnerHeadItem:GetQualityName(quality)
+
+	if quality== 1 then
+		return "Partner_select_white"
+	elseif quality== 2 then
+		return "Partner_select_blue"
+	elseif quality== 3 then
+		return "Partner_select_purple"
+	elseif quality== 4 then
+		return "Partner_select_orange"
+	end
+
+	return "";
+end
+
+return  PartnerHeadItem;

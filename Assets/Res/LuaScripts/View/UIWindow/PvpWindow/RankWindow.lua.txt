@@ -1,0 +1,58 @@
+RankWindow = class("RankWindow", UIPanel)
+
+function RankWindow:Awake()
+
+end
+
+function RankWindow:BindModule(m)
+	RankWindow.module = m;
+end
+
+function RankWindow:InitControls()
+	self.transform = self.prefab.transform;
+	self.gameObject = self.transform.gameObject;
+
+	local rootTrans = self.transform:Find("Cut4Cam90/AssemblyRatio2");
+	
+	for i=1, 5 do
+		
+	end
+end
+
+function RankWindow:OnShow()
+end
+
+function RankWindow:Start()
+
+end
+
+function RankWindow:OnEnable()
+
+end
+
+function RankWindow:OnDisable()
+
+end
+
+function RankWindow:OnDestroy()
+
+end
+
+function RankWindow:OnOpen(arg)
+	self.IsOpen = true;
+end
+
+function RankWindow:OnClose(arg)
+	self:CloseWindow();
+
+end
+
+function RankWindow:CloseWindow()
+	self.IsOpen = false;
+
+	self.currencyBar:PlayAnim(false);
+	self.currencyBar:OffListener();
+
+end
+
+return RankWindow

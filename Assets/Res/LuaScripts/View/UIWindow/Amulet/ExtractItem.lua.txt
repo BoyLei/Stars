@@ -1,0 +1,168 @@
+--[[
+*文件名   :   ExtractItem
+*内  容   :   定轨组中的一行
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local ExtractItem = {}
+
+ExtractItem.__index = ExtractItem
+
+function ExtractItem:New(_go)
+    local self = {}
+    setmetatable(self, ExtractItem)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.skillIcon = self.transform:Find("iconbg/icon"):GetComponent(typeof(Image))
+
+    self.title = self.transform:Find("title"):GetComponent(typeof(Text))
+    self.add = self.transform:Find("add"):GetComponent(typeof(Text))
+
+    self.anim = self.transform:GetComponent(typeof(Animator)) --数量
+
+    self.go_selected = self.transform:Find("selected").gameObject
+    self:MakeSelected(false)
+
+    --点击自己
+    local btnClick = self.transform:GetComponent(typeof(JButton))
+    if btnClick ~= nil then
+        btnClick.OnClick = (function()
+            if self.OnClick ~= nil then
+                self.OnClick(self)
+            end
+        end)
+    end
+
+    --详细信息
+    local btnInfo = self.transform:Find("iconbg"):GetComponent(typeof(JButton))
+    if btnInfo ~= nil then
+        btnInfo.OnClick = (function()
+            LuaModuleDispatcher:SendMessage(ModuleDef.AmuletModule, "OnShowEmblemSkillInfo", {self.SkillID})
+        end)
+    end
+
+    return self --返回自身
+end
+
+function ExtractItem:PlayRefeshAnim()
+    if self.anim ~= nil then
+        self.anim:Play("ExtratItem_Refesh")
+    end
+end
+
+function ExtractItem:PlayShowAnim()
+    if self.anim ~= nil then
+        self.anim:Play("ExtratItem_Show")
+    end
+end
+
+function ExtractItem:SetItem(idx, onClick)
+    self.Idx = idx
+    self.OnClick = onClick
+end
+
+function ExtractItem:MakeSelected(b)
+    self.go_selected:SetActive(b)
+end
+
+function ExtractItem:MakeSelectedColor(b)
+    self.go_selected:SetActive(b)
+    if b then
+        --self.title.color = Color(214 / 255, 183 / 255, 153 / 255)
+    else
+        --self.title.color = Color(200 / 255, 200 / 255, 200 / 255)
+    end
+end
+
+function ExtractItem:Refesh(maxnum, cs, isPlayShow)
+    if cs ~= nil then
+        self.SkillID = cs.ID --技能id
+
+        self.Cs = cs
+
+        --显示图标
+        local ID = cs.ID --技能id
+        local Points = cs.Points --点数分布，二进制文件
+
+        local pList = self:_byte2bin(Points)
+
+        --点的数量
+        local num = 0
+
+        for i = 1, maxnum do
+            --self.points[i].gameObject:SetActive(true);
+
+            if pList[33 - i] > 0 then
+                --self.pointIcons[i].gameObject:SetActive(true);
+                num = num + 1
+            end
+        end
+
+        --计算技能等级
+        local lv = 1
+
+        local pd = ConfigDataAccessor.GetPassiveDesc(ID, lv)
+        ResourceHelper:LoadIconByAtlasAsync(self.skillIcon, ResourceHelper.AtlasPathEtchSkill, pd.IconPath, false)
+
+        self.title.text = pd.SkillName
+        --self.add.text = "精通 +" .. num
+        self.add.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_master"), {num})
+
+        if isPlayShow then
+            self:PlayShowAnim()
+        end
+    end
+end
+
+function ExtractItem:RefeshSortItem(data)
+    if data ~= nil then
+        --显示图标
+        local WarSkillId = data.WarSkillId --技能id
+
+        if WarSkillId > 0 then
+            local Points = data.Points
+            local lv = data.Lv
+
+            local pList = self:_byte2bin(Points)
+
+            self.skillIcon.gameObject:SetActive(true)
+            local pd = ConfigDataAccessor.GetPassiveDesc(WarSkillId, lv)
+            ResourceHelper:LoadIconByAtlasAsync(self.skillIcon, ResourceHelper.AtlasPathEtchSkill, pd.IconPath, false)
+
+            self.title.text = pd.SkillName
+            --self.add.text = "精通 +" .. Points
+            self.add.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_master"), {Points})
+
+            self.WarSkillId = WarSkillId
+            self.SkillName = self.title.text
+        else
+            self.skillIcon.gameObject:SetActive(false)
+            self.title.text = LanguageHelp:GetLanguageByKey("Local_Str_AllSkill")
+            self.add.text = ""
+
+            self.WarSkillId = 0
+            self.SkillName = self.title.text
+        end
+    end
+end
+
+function ExtractItem:_byte2bin(n)
+    --print("_byte2bin"..n);
+
+    local t = {}
+    for i = 32, 0, -1 do
+        t[#t + 1] = math.floor(n / 2 ^ i)
+        n = n % 2 ^ i
+    end
+
+    --print(table.concat(t));
+
+    return t
+    --return table.concat(t)
+end
+
+return ExtractItem

@@ -1,0 +1,252 @@
+--[[
+*文件名   :   DonateSumbitWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/09 17:09:51"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+DonateSumbitWidget = class("DonateSumbitWidget", UIPanel)
+DonateSumbitWidget.IsOpen = false
+
+local DonateSumbitItem = require("View/Item/DonateSumbitItem")
+
+
+function DonateSumbitWidget:Awake()
+    self:InitItems()
+end
+
+function DonateSumbitWidget:BindModule(m)
+    self.module = m
+end
+
+function DonateSumbitWidget:InitItems()
+    self.transform = self.prefab.transform
+    self.gameObject = self.transform.gameObject
+
+    local btnCloseInfo = self.transform:Find("Cut4Cam90/AssemblyRatio2/CloseBtn"):GetComponent(typeof(JButton))
+    btnCloseInfo.OnClick = (function()
+        self:OnCloseInfoClick()
+    end)
+
+    local btnConfirm = self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnConfirm"):GetComponent(typeof(JButton))
+    btnConfirm.OnClick = (function()
+        self:OnBtnConfirmClick()
+    end)
+
+    self.Desc = self.transform:Find("Cut4Cam90/AssemblyRatio2/Desc"):GetComponent(typeof(Text))
+
+
+    self.DonateSumbitItemList={};
+	--无限列表
+	self.go_DonateSumbitItem = self.transform:Find("Cut4Cam90/AssemblyRatio2/DonateSumbitItem").gameObject;
+
+	self.tr_ItemRoot=self.transform:Find("Cut4Cam90/AssemblyRatio2/Items/Scroll View/Mask/List");
+	self.go_DonateSumbitItem:SetActive(false);
+	self.DonateSumbitScorllView=self.transform:Find("Cut4Cam90/AssemblyRatio2/Items/Scroll View"):GetComponent(typeof(SuperScrollViewController));
+	self.DonateSumbitScorllView:NewScroll(self.go_DonateSumbitItem, 0, function (tr,idx)
+		self:OnDonateSumbitItemRefesh(tr,idx);
+	end);
+
+end
+
+function DonateSumbitWidget:OnItemClick(ritem)
+    if ritem.IsSelected then
+        --取消选中
+        for i = #self.selectedIds, 1, -1 do
+            if self.selectedIds[i] == ritem.EntityID then
+                self.selectedNum = self.selectedNum - 1
+                table.remove(self.selectedIds, i)
+                ritem:MakeSelected(false)
+                self:RefeshSelected()
+            end
+        end
+    else
+        --选中
+        if self.selectedNum < self.canSelectedMaxNum then
+            self.selectedNum = self.selectedNum + 1
+            table.insert(self.selectedIds, ritem.EntityID)
+            ritem:MakeSelected(true)
+            self:RefeshSelected()
+        else
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_87"))
+        end
+    end
+end
+
+
+
+function DonateSumbitWidget:RefeshItems(donateOrderListId)
+
+    local dcfg=ConfigDataAccessor.DonateOrderList[donateOrderListId];
+
+
+    self.canSelectedMaxNum = dcfg.Num;
+
+    self.selectedNum = 0;
+    if self.selectedIds==nil then
+        self.selectedIds ={}
+    else
+        for k,_ in pairs(self.selectedIds) do self.selectedIds[k] = nil end
+    end
+
+
+    --获取List
+    if self.ItemDataList==nil then
+        self.ItemDataList ={}
+    else
+        for k,_ in pairs(self.ItemDataList) do self.ItemDataList[k] = nil end
+    end
+
+
+
+    local itemSets=GetItemEntityIDsByItemSet(dcfg.ItemSet);--获取所有道具组的id
+	--排序
+	self:SortItem(itemSets);
+
+
+    for i=1,#itemSets do
+        local data={};
+        data.entityID=itemSets[i];
+        data.isSelected=false;
+        table.insert( self.ItemDataList, data )
+    end
+
+
+	self.DonateSumbitScorllView:ContinueScroll(#self.ItemDataList,false);
+
+
+    --自动选择
+    for i=1,self.canSelectedMaxNum do
+        self:OnItemClick(self.DonateSumbitItemList[i]);
+    end
+
+    self:RefeshSelected();
+end
+
+
+function DonateSumbitWidget:SortItem(tbl)
+
+	if #tbl > 1 then
+
+		table.sort(tbl, function(a, b)
+
+			local itemDataA = BusinessManager.Instance:GetItemByItemEntityId(a);
+			local itemDataB = BusinessManager.Instance:GetItemByItemEntityId(b);
+
+				
+            local qualityA=ConfigDataAccessor.Item[itemDataA.BaseID].Quality;
+            local qualityB=ConfigDataAccessor.Item[itemDataB.BaseID].Quality;
+           
+			if qualityA < qualityB then
+				--按稀有度升序
+				return true
+			end
+			return false
+		end)
+
+	end
+
+end
+
+
+function DonateSumbitWidget:OnDonateSumbitItemRefesh(tr,idx)
+
+
+	for i=1,#self.DonateSumbitItemList do
+		if self.DonateSumbitItemList[i].transform == tr then
+            self.DonateSumbitItemList[i]:SetItem(self.ItemDataList[idx+1]);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+		end
+
+	end
+
+
+    local bi = DonateSumbitItem:New(tr.gameObject);
+	bi:InitItem(function (ritem)
+		self:OnItemClick(ritem);
+	end)
+	bi.gameObject:SetActive(true);
+	bi:SetItem(self.ItemDataList[idx+1]);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+    table.insert(self.DonateSumbitItemList, bi);
+
+end
+
+
+function DonateSumbitWidget:RefeshSelected()
+    --self.Desc.text = "可提交以下道具完成委托（" .. self.selectedNum .. "/" .. self.canSelectedMaxNum .. "）"
+    self.Desc.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_DonateSumbitWidget_Desc"), {self.selectedNum,self.canSelectedMaxNum});
+end
+
+function DonateSumbitWidget:OnBtnConfirmClick()
+    if self.selectedNum < self.canSelectedMaxNum then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_DonateSumbitWidget_Message"))
+        return
+    end
+
+    --发送选择请求
+    local guildDonateSubmitReq = CS.ProtoMsg.GuildDonateSubmitReq()
+    guildDonateSubmitReq.OrderIndex = self.OrderIndex;
+    for i = 1, #self.selectedIds do
+        guildDonateSubmitReq.ItemIDList:Add(self.selectedIds[i])
+    end
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, guildDonateSubmitReq, false)
+
+    --全部关闭
+    UIManager.Instance:CloseWidget("Donate/DonateSumbitWidget", nil, true)
+end
+
+
+function DonateSumbitWidget:Start()
+    print("DonateSumbitWidget:Start")
+end
+
+function DonateSumbitWidget:OnEnable()
+end
+
+function DonateSumbitWidget:OnDisable()
+end
+
+function DonateSumbitWidget:OnDestroy()
+end
+
+function DonateSumbitWidget:OnOpen(arg)
+    self.IsOpen = true
+
+    local id = arg.DonateOrderListId;
+    self.OrderIndex=arg.OrderIndex;
+
+    self:RefeshItems(id)
+end
+
+function DonateSumbitWidget:OnClose(arg)
+    self:CloseWidget()
+end
+
+function DonateSumbitWidget:OnCloseInfoClick()
+
+
+    UIManager.Instance:CloseWidget("Donate/DonateSumbitWidget", nil, true)
+
+
+    --[[
+
+    --关闭道具Tips
+    if self.module.IsOpenTips then
+        self.module.IsOpenTips = false
+        self.module:CloseItemTips()
+
+        self:CleanAllSelected()
+    else
+        UIManager.Instance:CloseWidget("Common/DonateSumbitWidget", nil, true)
+    end
+
+    ]]
+
+end
+
+function DonateSumbitWidget:CloseWidget()
+    self.IsOpen = false
+end
+
+return DonateSumbitWidget

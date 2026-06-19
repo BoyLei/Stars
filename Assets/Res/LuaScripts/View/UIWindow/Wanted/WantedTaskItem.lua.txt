@@ -1,0 +1,129 @@
+--@class WantedTaskItem
+WantedTaskItem = class("WantedTaskItem", UIPanel)
+
+local ItemWantedTarget = require("View/UIWindow/Wanted/ItemWantedTarget")
+
+WantedTaskItem.m_TaskName = nil;
+WantedTaskItem.m_Content = nil;
+WantedTaskItem.m_BossIcon = nil;
+WantedTaskItem.m_select = nil;
+WantedTaskItem.Btn = nil;
+WantedTaskItem.Data = nil;
+WantedTaskItem.IsFind = false;
+WantedTaskItem.IsShow = false;
+local BtnFun = nil;
+
+WantedTaskItem.m_TargetItemList = {}
+
+function WantedTaskItem:ctor(go, atlas)
+    self.prefab = go;
+    self.AtlasPath = atlas;
+
+    self.Btn = go.transform:GetComponent(typeof(JButton));
+    BtnFun = function()
+        self:OnClickHandler();
+    end
+    self.Btn.OnClick = BtnFun;
+    -- 选中高亮节点
+    self.m_select = self:Find("select").gameObject;
+    -- 次数
+    self.TimeTips = self:Find("TimeTips"):GetComponent(typeof(Text))
+    -- 三个阶段的目标数据
+    self.m_TargetItemList = {}
+    for i = 1, 3 do
+        self.m_TargetItemList[i] = ItemWantedTarget:New(
+            self:Find("Wanted" .. i).gameObject,
+            i, nil)
+    end
+
+    self.IsFind = false;
+    self.IsShow = false;
+
+    -- 第一次初始化的时候拿一次数据
+    self:SetTimeTips()
+end
+
+-- 设置今日次数
+function WantedTaskItem:SetTimeTips()
+    local starTime = 0
+    local isReceiveTask = false
+    local info = GameManager.Instance:GetMainPlayerWantTaskMD()
+    if info ~= nil then
+        starTime = info.RewNum
+        isReceiveTask = info.IsAcc
+    end
+    local count = SystemConstConfigs.TeamWantedAwardLimits
+    local haveTime = count - starTime
+    self.TimeTips.text = haveTime .. "/" .. count
+    local isShow = false;
+    if isReceiveTask and starTime < count then
+        isShow = true
+    end
+    self:SetShow(isShow)
+end
+
+-- 设置3档的目标信息
+function WantedTaskItem:SetTargetItemList()
+    if self.IsShow then
+        local WantedModule = LuaModuleDispatcher:GetModule(ModuleDef.WantedModule);
+        local allData = WantedModule:GetAllTarNumInfo()
+        for i = 1, #self.m_TargetItemList, 1 do
+            local item = self.m_TargetItemList[i]
+            local data = allData[i]
+            item:SetItem(data, self.IsShow)
+        end
+    else
+        for i = 1, #self.m_TargetItemList, 1 do
+            local item = self.m_TargetItemList[i]
+            item:SetCountdown(self.IsShow)
+        end
+    end
+end
+
+--点击事件
+function WantedTaskItem:OnClickHandler()
+    if self.IsFind then
+        return
+    end
+    self.IsFind = true;
+    self:OnSelect(true);
+    GameManager.Instance:FindGoWantedEntity(-1, function(result)
+        DelayInvoker.DelayInvoke(self, 0.2, function()
+            self.IsFind = false;
+            self:OnSelect(false);
+        end);
+    end);
+end
+
+-- 设置选中状态
+function WantedTaskItem:OnSelect(select)
+    self.m_select:SetActive(select);
+end
+
+-- 通知通缉任务更新状态
+-- 0全刷1刷新阶位信息2刷新次数
+function WantedTaskItem:SetWantedTask(informState)
+    -- 全部刷新
+    Log("通缉任务 刷新状态-》" .. informState);
+
+    if informState == 0 then
+        self:SetTimeTips();
+    elseif informState == 1 then
+        -- 设置3档的目标信息
+        self:SetTargetItemList()
+    elseif informState == 2 then
+        -- 设置今日次数
+        self:SetTimeTips();
+    end
+end
+
+function WantedTaskItem:SetShow(isShow)
+    if self.IsShow == isShow then
+        return
+    end
+    self.IsShow = isShow
+    self.prefab:SetActive(self.IsShow)
+    self:SetTargetItemList()
+end
+
+return WantedTaskItem;

@@ -1,0 +1,167 @@
+--[[
+*文件名   :   AttrDeclareWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/03 17:33:55"
+*创建人   :   "quzhenxin"
+*版权所有 :   游卡网络科技技术有限公司
+]] AttrDeclareWidget = class("AttrDeclareWidget", UIPanel)
+AttrDeclareWidget.m_Scroll = nil;
+AttrDeclareWidget.m_ScrollViewNevigation = nil;
+AttrDeclareWidget.m_ItemAttrDeclarePrefab = nil;
+AttrDeclareWidget.m_ItemAttrDeclareSonPrefab = nil;
+AttrDeclareWidget.BtnClose = nil;
+
+AttrDeclareWidget.m_transform = nil;
+AttrDeclareWidget.m_EntityBase = nil;
+
+AttrDeclareWidget.BaseAttrConfList = {};
+AttrDeclareWidget.HighAttrConfList = {};
+AttrDeclareWidget.CurCheckAttr = nil;
+
+AttrDeclareWidget.ItemAttrDeclareList = {};
+
+AttrDeclareWidget.AttrDeclareWidgetPath = "PlayerAttrWindow/Prefabs/AttrDeclareWidget";
+AttrDeclareWidget.RootParent = nil;
+
+AttrDeclareWidget.mainPlayerLevel = 1;
+
+local ItemAttrDeclare = require("View/UIWindow/PlayerAttrWindow/ItemAttrDeclare");
+
+function AttrDeclareWidget:Awake()
+    self.m_transform = self.prefab.transform;
+    self.m_Scroll = self:Find("Bg/Scroll View"):GetComponent(typeof(ScrollRect));
+    self.m_ScrollViewNevigation = self:Find("Bg/Scroll View"):GetComponent(typeof(ScrollViewNevigation));
+    self.m_ItemAttrDeclarePrefab = self:Find("Bg/ItemAttrDeclare");
+    self.m_ItemAttrDeclareSonPrefab = self:Find("Bg/ItemAttrDeclareSon");
+    local BtnClose = self:Find("BtnClose"):GetComponent(typeof(Button));
+    local BtnClose2 = self:Find("BtnClose2"):GetComponent(typeof(Button));
+    local BtnClose3 = self:Find("BtnClose3"):GetComponent(typeof(Button));
+
+    -- self.BtnClose.onClick:RemoveAllListeners();
+    self.BtnCloseFun = function()
+        --self:CloseWidget();
+		CS.StarProject.GlobalEvent.OnEquipClickEvent:Invoke(true)
+    end
+    BtnClose.onClick:AddListener(self.BtnCloseFun);
+    BtnClose2.onClick:AddListener(self.BtnCloseFun);
+    BtnClose3.onClick:AddListener(self.BtnCloseFun);
+
+    self.ItemDeclareClickFun = function(data)
+        self:NevigateItem(data);
+    end
+end
+
+function AttrDeclareWidget:Start()
+
+end
+
+function AttrDeclareWidget:OnEnable()
+
+end
+
+function AttrDeclareWidget:OnDisable()
+
+end
+
+function AttrDeclareWidget:OnDestroy()
+
+end
+
+function AttrDeclareWidget:OnOpen(arg)
+    self:InitDeclareData(arg);
+end
+
+function AttrDeclareWidget:InitDeclareData(arg)
+    if arg == nil then
+        self:CloseWidget();
+        return;
+    end
+
+    local list = arg;
+    if list == nil then
+        return;
+    end
+
+    self.mainPlayerLevel = GameManager.Instance:GetPlayerLevel();
+
+    self.m_EntityBase = list[1];
+    self.BaseAttrConfList = list[2];
+    self.HighAttrConfList = list[3];
+    local CurCheckAttrData = list[4];
+
+    self.m_Scroll.content.transform.DestroyChildren(self.m_Scroll.content.transform);
+    self.ItemAttrDeclareList = {};
+    -- 创建基础属性
+    self:CreateItemDeclarePrefab(0, self.BaseAttrConfList);
+
+    -- 创建高级属性
+    for k, v in pairs(self.HighAttrConfList) do
+        self:CreateItemDeclarePrefab(k, self.HighAttrConfList[k]);
+    end
+
+    DOVirtual.DelayedCall(0.1, function()
+        self:SetCheckAttr(CurCheckAttrData);
+    end)
+    --self:SetCheckAttr(CurCheckAttrData);
+end
+
+function AttrDeclareWidget:SetCheckAttr(attrData)
+    if attrData == nil then
+        return;
+    end
+
+    if not self.m_transform.gameObject.activeSelf then
+        self.m_transform.gameObject:SetActive(true);
+    end
+
+    if self.CurCheckAttr ~= nil then
+        self:CleanBaseAttrAllSelected();
+    end
+
+    self.CurCheckAttr = attrData;
+
+    for i = 1, #self.ItemAttrDeclareList do
+        self.ItemAttrDeclareList[i]:CheckItemByAttrId(self.CurCheckAttr.AttrId);
+    end
+end
+
+function AttrDeclareWidget:NevigateItem(gob)
+    if gob == nil then
+        return;
+    end
+    DOVirtual.DelayedCall(0.1, function()
+        self.m_ScrollViewNevigation:Nevigate(gob:GetComponent(typeof(RectTransform)));
+    end)
+end
+
+-- 清空所有基础属性的选中
+function AttrDeclareWidget:CleanBaseAttrAllSelected()
+    for i = 1, #self.ItemAttrDeclareList do
+        self.ItemAttrDeclareList[i]:CleanBaseAttrAllSelected();
+    end
+end
+
+function AttrDeclareWidget:OnClose(arg)
+
+end
+
+function AttrDeclareWidget:CloseWidget()
+    UIManager.Instance:CloseWidget(self.AttrDeclareWidgetPath, self.RootParent, false);
+end
+
+---------------- [更新/设置] [属性变化] [START]------------
+
+---------------- [更新/设置] [属性变化] [END]------------
+
+function AttrDeclareWidget:CreateItemDeclarePrefab(k, data)
+    local go = newObject(self.m_ItemAttrDeclarePrefab);
+    go.transform:SetParent(self.m_Scroll.content);
+    go.transform.localPosition = Vector3.zero;
+    go.transform.localScale = Vector3.one;
+    local item = ItemAttrDeclare:New(go);
+    item:SetItem(k, data, self.m_ItemAttrDeclareSonPrefab, self.mainPlayerLevel, self.ItemDeclareClickFun);
+    table.insert(self.ItemAttrDeclareList, item);
+end
+
+return AttrDeclareWidget

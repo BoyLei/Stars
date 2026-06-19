@@ -1,0 +1,257 @@
+--[[
+*文件名   :   EventTipsWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/10/31 15:00:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+EventTipsWidget=class("EventTipsWidget",UIPanel)
+EventTipsWidget.IsOpen=false;
+
+
+function EventTipsWidget:Awake()
+
+
+	self.transform =self.prefab.transform;
+
+	self.rectSelf=self.transform:GetComponent(typeof(RectTransform));
+
+
+
+	self.title=self.transform:Find("AnimRoot/Title"):GetComponent(typeof(Text));
+	self.time=self.transform:Find("AnimRoot/time"):GetComponent(typeof(Text));
+
+	self.curPoints=self.transform:Find("AnimRoot/Info/CurrPoints/num"):GetComponent(typeof(Text));
+	self.subTimes=self.transform:Find("AnimRoot/Info/SubPoints/num"):GetComponent(typeof(Text));
+
+
+	self.nextBossRefeshTime=self.transform:Find("AnimRoot/Info/NextBoss/num"):GetComponent(typeof(Text));
+
+
+
+	self.go_nextBoss=self.transform:Find("AnimRoot/Info/NextBoss").gameObject;
+	self.go_fightBoss=self.transform:Find("AnimRoot/Info/FightBoss").gameObject;
+
+
+
+
+	--提交积分按钮
+	self.go_SubmitBtn=self:Find("AnimRoot/SubmitBtn").gameObject;
+	self:Find("AnimRoot/SubmitBtn"):GetComponent(typeof(JButton)).OnClick = (function()
+		self:OnSubmitBtnClick();
+	end);
+
+
+	--切换UI按钮
+	self:Find("AnimRoot/SwitchBtn"):GetComponent(typeof(JButton)).OnClick = (function()
+		self:OnSwitchBtnClick();
+	end);
+
+
+
+	--活动倒计时
+	--刷新时间
+	self.NeedRefesh=false;
+	MonoHelper.AddUpdateListener(function ()
+		self:RefeshLeftTime();
+	end)
+
+
+	--动画相关
+	--self.anim=self.transform:GetComponent(typeof(Animator));
+
+
+	self.module= nil;
+
+end
+
+
+function EventTipsWidget:BindModule(m)
+	self.module=m;
+end
+
+
+function EventTipsWidget:OnSwitchBtnClick()
+	
+end
+
+function EventTipsWidget:OnSubmitBtnClick()
+
+	if self.canSubmit then
+		local gveDonateReq = CS.ProtoMsg.GVEDonateReq();
+		gveDonateReq.PlayerID = GameManager.Instance.mainPlayerId;
+		CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace, gveDonateReq, false);
+	else
+		if self.IsFull then
+			Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_256"));
+		else
+			Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_257"));
+		end
+	end
+
+end
+
+
+function EventTipsWidget:RefeshTips()
+
+	self:ClearAllAnim();
+	--self.anim:Play("EventTipsWidgetAnim_Open");
+
+	self.transform:SetAsLastSibling();
+
+
+	--活动数据
+	local GVEStartI2S = GameManager.Instance.GVEStartI2S;
+	self.NeedRefesh=false;
+	if GVEStartI2S~=nil then
+
+		local playID = GVEStartI2S.PlayID--玩法ID
+		self.duration = GVEStartI2S.Duration;--持续时间
+		local mapList = GVEStartI2S.MapList;--地图
+		self.tartTime = GVEStartI2S.StartTime;--开始时间
+		local bossList = GVEStartI2S.BossList;--boss列表
+
+
+		self.nextBossTime = GVEStartI2S.StartTime / 1000 + GVEStartI2S.CurWave* GVEStartI2S.BossInterval;--下次boss刷新时间
+
+
+		self.NeedRefesh=true;
+		
+		self:RefeshLeftTime();
+	end
+
+	--玩家属性
+	local M_MainPlayerCtrlBase=GameManager.Instance.M_MainPlayerCtrlBase;
+	if M_MainPlayerCtrlBase~=nil and M_MainPlayerCtrlBase.Data~=nil and M_MainPlayerCtrlBase.Data.Attrs~=nil then
+		local GVEBonus=	M_MainPlayerCtrlBase.Data.Attrs:GetProtoValue(CS.StarProjectDef.AOIAttrDefine.GVEBonus);
+		if GVEBonus~= nil and GVEBonus.PlayID>0 then
+
+			local remainBonus = GVEBonus.RemainBonus;--剩余积分
+			local donateBonus = GVEBonus.DonateBonus;--已上交积分
+			local donateTimes = GVEBonus.DonateTimes;--已上交次数
+			local actUpTime = GVEBonus.ActUpTime;--活动更新时间
+			local playID = GVEBonus.PlayID;--玩法ID
+			local notFirst = GVEBonus.NotFirst;--是否是第一次
+
+			
+			local nextTimes=donateTimes+1;
+
+			local scores={}
+			for k,v in pairs(ConfigDataAccessor.GVEPersonReward) do
+				if v.PlayMode==playID then
+					table.insert( scores, v.ScoOneP);
+				end
+			end
+
+			if donateTimes<#scores then
+				local nextscore= scores[nextTimes];
+				
+
+				if remainBonus>=nextscore then
+					--可以提交
+					self.canSubmit=true;
+					self.IsFull=false;
+					--self.go_SubmitBtn:SetActive(true);
+				else
+					--积分不够
+					self.canSubmit=false;
+					self.IsFull=false;
+					--self.go_SubmitBtn:SetActive(false);
+				end
+
+			else
+				--提交完了
+				self.canSubmit=false;
+				self.IsFull=true;
+				--self.go_SubmitBtn:SetActive(false);
+			end
+
+
+			self.curPoints.text=remainBonus;
+			--self.subTimes.text=""..donateTimes.."次";
+			self.subTimes.text=StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_subTimes"), {donateTimes});
+
+		end
+	end
+
+end
+
+function EventTipsWidget:RefeshLeftTime()
+
+	if self.NeedRefesh then
+		local serverNowTime = math.floor(GameManager.Instance:GetServerTimeStamp()/1000) 
+		local serverCloseTime = self.tartTime/1000+self.duration;
+		local leftTime=serverCloseTime-serverNowTime;
+
+		if leftTime>0 then
+			self.time.text=SecToStringColon2(leftTime);
+
+
+			local nextLeftBossTime = self.nextBossTime - serverNowTime;
+
+			if self.nextBossTime<serverCloseTime and nextLeftBossTime<30 then
+				self.go_nextBoss:SetActive(true);
+				self.nextBossRefeshTime.text=SecToStringColon2(nextLeftBossTime);
+			else
+				self.go_nextBoss:SetActive(false);
+				self.nextBossRefeshTime.text="";
+			end
+
+		else
+			--活动结束
+			self.NeedRefesh=false;
+			self:CloseWidget();
+		end
+
+	end
+
+end
+
+function EventTipsWidget:Start()
+
+end
+
+function EventTipsWidget:OnEnable()
+
+end
+
+function EventTipsWidget:OnDisable()
+
+end
+
+function EventTipsWidget:OnDestroy()
+
+end
+
+function EventTipsWidget:OnOpen(arg)
+
+	self.IsOpen=true;
+
+end
+
+function EventTipsWidget:OnClose(arg)
+	self.IsOpen=false;
+end
+
+function EventTipsWidget:CloseWidget()
+
+	self.IsOpen=false;
+	--self.anim:Play("EventTipsWidgetAnim_Close");
+	self:ClearAllAnim();
+	self.tw_close=DOVirtual.DelayedCall(0.01,function ()
+			UIManager.Instance:CloseWidget("Event/EventTipsWidget",nil,true);
+		end)
+
+
+end
+
+function EventTipsWidget:ClearAllAnim()
+	if self.tw_close~= nil then
+		self.tw_close:Kill();
+		self.tw_close=nil;
+	end
+end
+
+
+return  EventTipsWidget

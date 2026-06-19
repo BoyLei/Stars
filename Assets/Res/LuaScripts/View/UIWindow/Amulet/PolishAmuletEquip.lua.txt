@@ -1,0 +1,296 @@
+--[[
+*文件名   :   PolishAmuletEquip
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local PolishAmuletEquip = {}
+
+PolishAmuletEquip.__index = PolishAmuletEquip
+
+local EquipedAmuletItem=require("View/Uiwindow/Amulet/EquipedAmuletItem")
+local SelectBtn= require("View/Item/SelectBtn")
+function PolishAmuletEquip:New(_go,polishAmulet) 
+    local self = {};    
+    setmetatable(self, PolishAmuletEquip); 
+    
+    self.PolishAmulet=polishAmulet;
+
+
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+
+    
+    --道具列表
+    self.EquipedAmuletItemList={};
+	--无限列表
+	self.go_EquipedAmuletItem = self.transform:Find("Items/EquipedAmuletItem").gameObject;
+
+	self.rect_grid=self.transform:Find("Items/Scroll View/Mask/List"):GetComponent(typeof(RectTransform));
+
+	self.tr_ItemRoot=self.transform:Find("Items/Scroll View/Mask/List");
+	self.go_EquipedAmuletItem:SetActive(false);
+	self.go_EquipedAmuletItem.transform:SetParent(self.transform:Find("Items"));
+	self.EquipedAmuletScorllView=self.transform:Find("Items/Scroll View"):GetComponent(typeof(SuperScrollViewController));
+	self.EquipedAmuletScorllView:NewScroll(self.go_EquipedAmuletItem, 0, function (tr,idx)
+		self:OnEquipedAmuletItemRefesh(tr,idx);
+	end);
+
+	--装备菜单
+	self.EquipMenuBtns={};
+	for i=1,2 do 
+		local btn=SelectBtn:New(self.transform:Find("Items/EquipMenu/Scroll View/Mask/List/EquipTagItem"..i).gameObject);
+		btn:InitItem(i,function (idx)
+			self:OnEquipMenuBtnClick(idx);
+		end);
+		table.insert( self.EquipMenuBtns,btn);
+	end
+    self.EquipMenuIdx=1;
+
+
+
+    self:Show(false);
+
+    return self;    --返回自身
+end
+
+
+
+function PolishAmuletEquip:Show(b,eid)
+    self.gameObject:SetActive(b);
+    if b then
+
+		self.SelectedEid=0;
+		if eid~=nil then
+			self.SelectedEid=eid;
+		end
+
+		if self.SelectedEid==0 then
+			self:OnEquipMenuBtnClick(1);
+		else
+			local data=BusinessManager.Instance:GetItemByItemEntityId(self.SelectedEid);
+			if data~=nil then
+				local BaseID=data.BaseID;
+				local cfg=ConfigDataAccessor.Item[BaseID];
+				self:OnEquipMenuBtnClick(cfg.SubType);
+			end
+
+		end
+    end
+end
+
+function PolishAmuletEquip:Refesh()
+
+	--拿到所有的
+	self.allitems=BusinessManager.Instance:GetItemsByItemType(5,0);
+	self:ClearItemData();
+
+	if  self.EquipMenuIdx==1 then
+		--装备槽位1
+		self:GetDataByEquipType(1);
+	elseif self.EquipMenuIdx==2 then
+		--装备槽位2
+		self:GetDataByEquipType(2);
+	end
+
+	self:RefeshItems();
+	--关闭道具Tips
+	if GameManager.Instance.IsOpenItemTips then
+		LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips",{  });
+	end
+
+end
+
+
+------------------------------
+------------------------------无限列表相关
+
+
+
+--刷新装备列表
+function PolishAmuletEquip:RefeshItems()
+	
+
+
+	self:SortItem(self.ItemDataList);
+
+	self.EquipedAmuletScorllView:ContinueScroll(#self.ItemDataList,false);
+
+	
+
+end
+
+
+
+function PolishAmuletEquip:GetDataByEquipType(equipType)
+	for i=0,self.allitems.Count-1 do
+
+
+        --local cfg=LocalDataManager.Instance:GetItemDataCell(self.allitems[i].BaseID);
+		local cfg=ConfigDataAccessor.Item[self.allitems[i].BaseID];
+        if cfg.SubType == equipType then
+
+			local data=self.allitems[i];
+			local info={}
+			info.Data=data;
+			info.IsSelected=self.SelectedEid==data.EntityID;
+			info.Quality=cfg.Quality;
+
+            table.insert( self.ItemDataList,info);
+        end
+
+
+	end
+
+end
+
+function PolishAmuletEquip:OnEquipMenuBtnClick(idx,noResetPos)
+	if noResetPos==nil then
+		self.rect_grid.anchoredPosition=Vector2(self.rect_grid.anchoredPosition.x,0);
+	end
+
+	for i=1,#self.EquipMenuBtns do
+		self.EquipMenuBtns[i]:MakeSelected(false);
+	end
+
+	self:CleanAllSelected();
+
+    if idx==nil then
+        idx =self.EquipMenuIdx;
+    end
+
+	self.EquipMenuBtns[idx]:MakeSelected(true);
+	self.EquipMenuIdx=idx;
+
+	--清除掉右边的
+	self.PolishAmulet:SetSelectedItemData(nil);
+
+	self:Refesh();
+
+	if #self.EquipedAmuletItemList>0 then
+		if self.SelectedEid>0 then
+			--选中传过来的
+
+			local isSelected=false;
+			for i=1,#self.EquipedAmuletItemList do
+				if self.EquipedAmuletItemList[i].Info.Data.EntityID==self.SelectedEid then
+					self:OnItemClick(self.EquipedAmuletItemList[i]);
+					isSelected=true;
+					break;
+				end
+			end
+
+			if not(isSelected) then
+				local data=BusinessManager.Instance:GetItemByItemEntityId(self.SelectedEid);
+				--刷新右侧
+				self.PolishAmulet:SetSelectedItemData(data);
+			end
+
+			self.SelectedEid=0;
+		else
+			self:OnItemClick(self.EquipedAmuletItemList[1]);
+		end
+	end
+end
+
+
+function PolishAmuletEquip:CleanAllSelected()
+	--无限列表
+	for i=1,#self.EquipedAmuletItemList do
+		self.EquipedAmuletItemList[i]:MakeSelected(false);
+	end
+end
+
+function PolishAmuletEquip:OnEquipedAmuletItemRefesh(tr,idx)
+
+
+	for i=1,#self.EquipedAmuletItemList do
+		if self.EquipedAmuletItemList[i].transform == tr then
+            self.EquipedAmuletItemList[i]:SetItem(self.ItemDataList[idx+1]);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+		end
+
+	end
+
+	--tr.gameObject:SetActive(true);
+    local bi = EquipedAmuletItem:New(tr.gameObject);
+	bi:InitItem(function (ritem)
+		self:OnItemClick(ritem);
+	end)
+	bi.gameObject:SetActive(true);
+	bi:SetItem(self.ItemDataList[idx+1]);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+
+    table.insert(self.EquipedAmuletItemList, bi);
+
+end
+
+function PolishAmuletEquip:OnItemClick(bitem)
+
+	self:CleanAllSelected();
+	bitem:MakeSelected(true);
+	
+
+    --刷新右侧
+    self.PolishAmulet:SetSelectedItemData(bitem.Data);
+
+end
+
+function PolishAmuletEquip:ClearItemData()
+
+	if self.ItemDataList==nil then
+		self.ItemDataList ={}
+	else
+		for k,_ in pairs(self.ItemDataList) do self.ItemDataList[k] = nil end
+		--self.ItemDataList ={}
+	end
+end
+
+function PolishAmuletEquip:SortItem(tbl)
+
+	if #tbl > 1 then
+
+		--[[
+		table.sort(tbl, function(a, b)
+			if a.Heroid < b.Heroid then
+				-- 按是否装备降序
+				return true
+			elseif a.Heroid == b.Heroid then
+				-- 如果是否装备相等，按Type升序
+				if a.ItemType < b.ItemType then
+					return true
+				elseif a.ItemType == b.ItemType then
+					-- 如果Type相等，按稀有度降序
+					return a.Quality > b.Quality
+				end
+			end
+			return false
+		end)
+
+		]]
+		table.sort(tbl, function(a, b)
+			if a.Data.Heroid > b.Data.Heroid then
+				-- 按是否装备降序
+				return true
+			elseif a.Data.Heroid == b.Data.Heroid then
+				-- 如果是否装备相等，按Quality升序
+				return a.Quality > b.Quality
+			end
+			return false
+		end)
+
+	end
+
+end
+
+
+------------------------------无限列表相关
+------------------------------
+
+
+
+
+return PolishAmuletEquip;

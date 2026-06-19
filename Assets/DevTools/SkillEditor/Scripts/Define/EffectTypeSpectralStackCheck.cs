@@ -1,0 +1,64 @@
+
+///--------------------------------------------------------------------
+/// 文件名   :   EffectTypeSpectralStackCheck
+/// 内  容   :   
+/// 说  明   :  
+/// 创建日期 :   
+/// 创建人   :   Create By BaseDataConfig.xml
+/// 版权所有 :   游卡网络科技技术有限公司 
+///--------------------------------------------------------------------
+using Sirenix.OdinInspector;
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using Newtonsoft.Json;
+using MessagePack;
+using Newtonsoft.Json.Converters;
+namespace SkillEditor
+{
+    /// <summary>
+    /// 特殊判断量谱值
+    /// </summary>
+    [System.Serializable]
+    [MessagePackObject(keyAsPropertyName:true)]
+    public  class EffectTypeSpectralStackCheck:BaseEffectType 
+    {
+        /// <summary>
+        /// 量谱值
+        /// <summary>
+        [LabelText("量谱值")]
+        [ValueDropdown("_spectral")]
+        public Spectral Spectral= new Spectral();
+
+        /// <summary>
+        /// 检查值
+        /// <summary>
+        [LabelText("检查值")]
+        public int CheckValue;
+
+        /// <summary>
+        /// 比较符
+        /// <summary>
+        [LabelText("比较符")]
+        [ValueDropdown("_compoperator")]
+        public CompOperator CompOperator= new CompOperator();
+
+        /// <summary>
+        /// 输出Key
+        /// <summary>
+        [LabelText("输出Key")]
+        public OutputKey OutputKey= new OutputKey();
+
+        public IEnumerable _spectral()
+        {
+            return EnumDefineMap._spectral;
+        }
+
+        public IEnumerable _compoperator()
+        {
+            return EnumDefineMap._compoperator;
+        }
+
+    }
+
+}

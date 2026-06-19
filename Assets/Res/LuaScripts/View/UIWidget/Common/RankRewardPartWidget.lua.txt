@@ -1,0 +1,88 @@
+---@class RankRewardPartWidget
+
+RankRewardPartWidget = class("RankRewardPartWidget", UIPanel);
+
+RankRewardPartWidget.IsOpen = false;
+
+function RankRewardPartWidget:Awake()
+    self:Init();
+end
+
+function RankRewardPartWidget:Init()
+    self.transform = self.prefab.transform;
+    self.gameObject = self.transform.gameObject;
+
+    local FrameTransForm = self.transform:Find("Cut4Cam90/AssemblyRatio2").transform
+    -- 关闭按钮
+    local CloseJBtn = FrameTransForm:Find("CloseJBtn"):GetComponent(typeof(JButton))
+    self.CloseBtnFun = function()
+        self.Close()
+    end
+    CloseJBtn.OnClick = self.CloseBtnFun
+    -- 奖励
+    self.RewardItemPreviewGo = FrameTransForm:Find("Root/RankItemPreview").gameObject;
+    self.RewardItemPreview = StructAccessor.ItemPreview.new(self.RewardItemPreviewGo);
+    -- 按钮
+    self.ConfirmJBtn = FrameTransForm:Find("Root/ConfirmJBtn"):GetComponent(typeof(JButton));
+    self.ConfirmJBtn.OnClick = self.CloseBtnFun
+    -- 结算时间
+    self.RankRewardTimeText = FrameTransForm:Find("Root/RankRewardTimeText"):GetComponent(typeof(Text));
+    -- 我的排名
+    self.RankRewardText = FrameTransForm:Find("Root/RankRewardText"):GetComponent(typeof(Text));
+    --------------------------------------------- 事件
+end
+
+function RankRewardPartWidget:Start()
+end
+
+function RankRewardPartWidget:OnEnable()
+end
+
+function RankRewardPartWidget:OnDisable()
+end
+
+function RankRewardPartWidget:OnDestroy()
+end
+
+function RankRewardPartWidget:OnOpen(arg)
+    self.IsOpen = true;
+    self:InitData(arg);
+end
+
+function RankRewardPartWidget:OnClose(arg)
+    self:CloseWindow();
+end
+
+-- 初始化信息
+function RankRewardPartWidget:InitData(arg)
+    self:Rest();
+    --self.RankRewardTimeText.text = string.format(LanguageHelp:GetLanguageByKey("Local_Str_strRankRewardTime"), MillsSecToFullString4(arg.CutOffTime * 1000))
+    self.RankRewardTimeText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_strRankRewardTime"), {MillsSecToFullString4(arg.CutOffTime * 1000)})
+
+    --self.RankRewardText.text = string.format(LanguageHelp:GetLanguageByKey("Local_Str_strRankReward"), tostring(arg.Rank))
+    self.RankRewardText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_strRankReward"), {arg.Rank})
+
+    self.RewardItemPreview:SetItems(arg.CostItems);
+end
+
+-- 重置基础信息
+function RankRewardPartWidget:Rest()
+
+end
+
+----------------------------------------------------- 按钮点击事件 【STAR】 ------------------------------------------
+
+-- 点击确认
+function RankRewardPartWidget:OnClickTask0JBtn()
+
+end
+
+----------------------------------------------------- 按钮点击事件 【END】 ------------------------------------------
+
+-- 关闭界面
+function RankRewardPartWidget:CloseWindow()
+    self.IsOpen = false;
+    self:Rest();
+end
+
+return RankRewardPartWidget;

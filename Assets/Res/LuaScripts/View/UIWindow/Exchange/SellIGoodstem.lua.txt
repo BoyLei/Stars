@@ -1,0 +1,185 @@
+--[[
+*文件名   :   SellIGoodstem
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/10/18 19:50:16"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+SellIGoodstem=class("SellIGoodstem",UIPanel)
+SellIGoodstem.m_Has=nil;
+SellIGoodstem.m_Lock=nil;
+SellIGoodstem.m_Empty=nil;
+SellIGoodstem.m_Selected=nil;
+SellIGoodstem.m_BgRare=nil;
+SellIGoodstem.m_Icon=nil;
+--SellIGoodstem.m_Attention=nil;
+SellIGoodstem.m_Name=nil;
+SellIGoodstem.m_State=nil;
+SellIGoodstem.m_Mask=nil;
+SellIGoodstem.m_Num=nil;
+SellIGoodstem.m_Price=nil;
+SellIGoodstem.m_time=nil;
+SellIGoodstem.m_timeBg=nil;
+SellIGoodstem.m_Btn=nil;
+SellIGoodstem.OnSelectCallBack=nil;
+SellIGoodstem.ItemID=0;
+local SelectionFunc=nil;
+SellIGoodstem.Data=nil;
+
+function SellIGoodstem:ctor(go, atlas)
+	self.prefab = go;
+	self.AtlasPath = atlas;
+	self.m_Has=self:Find("Has").gameObject;
+	self.m_Lock=self:Find("Lock").gameObject;
+	self.m_Empty=self:Find("Empty").gameObject;
+	self.m_Selected=self:Find("Has/Selected").gameObject;
+	self.m_BgRare=self:Find("Has/BgRare"):GetComponent(typeof(Image));
+	self.m_Icon=self:Find("Has/BgRare/Icon"):GetComponent(typeof(Image));
+	--self.m_Attention=self:Find("Has/Attention"):GetComponent(typeof(Image));
+	self.m_Name=self:Find("Has/Name"):GetComponent(typeof(Text));
+	self.m_State=self:Find("Has/State"):GetComponent(typeof(Text));
+	self.m_Num=self:Find("Has/Info/Num"):GetComponent(typeof(Text));
+	self.m_Price=self:Find("Has/Info/Price"):GetComponent(typeof(Text));
+	self.m_timeBg=self:Find("Has/Time").gameObject
+	self.m_time=self:Find("Has/Time/time"):GetComponent(typeof(Text));
+	self.m_Mask=self:Find("Has/Mask").gameObject
+	self.m_Btn=self.prefab:GetComponent(typeof(JButton));
+	SelectionFunc=function() self:OnClickSelectBtn(); end;
+	self.m_Btn.OnClick= SelectionFunc;
+end
+
+function SellIGoodstem:OnClickSelectBtn()
+	if self.OnSelectCallBack~=nil then
+
+		local Index=self.Data.Index;
+		--售卖
+		local SellInfo=self.Data.SellInfo;
+		--是否锁定
+		local IsLock=self.Data.IsLock;
+
+		if IsLock then
+			self.OnSelectCallBack(1,Index,0);
+		elseif SellInfo==nil then
+			self.OnSelectCallBack(2,Index,0);
+		else
+			--仅正常售出的才能打开
+			if SellInfo~=nil and SellInfo.Status==1 then
+				self.OnSelectCallBack(3,Index,SellInfo.GoodsID);
+			end
+		end
+
+	end
+end
+function SellIGoodstem:Select(select)
+	self.m_Selected:SetActive(select)
+end
+
+function SellIGoodstem:UpdateContent(arg,cb)
+	self.Data=arg;
+	self.OnSelectCallBack=cb;
+	--索引
+	local Index=arg.Index;
+	---BankGoodsMD
+	--售卖
+	local SellInfo=arg.SellInfo;
+	--是否锁定
+	local IsLock=arg.IsLock;
+	self.m_Has:SetActive(false);
+	self.m_Lock:SetActive(false);
+	self.m_Empty:SetActive(false);
+
+	if IsLock then
+		self.m_Lock:SetActive(true);
+		return
+	end
+
+	if SellInfo==nil then
+		self.m_Empty:SetActive(true);
+		return
+	end
+
+
+	self.ItemID=SellInfo.ItemID;
+	self:Select(false);
+	local config=ConfigDataAccessor.Item[SellInfo.ItemID]
+	if config~=nil then
+		self.m_Name.text=config.Name
+		local quality=config.Quality;
+		ResourceHelper:LoadIconByAtlasAsync(
+			self.m_BgRare,
+			ResourceHelper.AtlasPathCommonItem,
+			"Bag_Grid_sq"..quality,
+			false
+		)
+		ResourceHelper:LoadIconAsync(self.m_Icon, "", config.Icon, false)
+	end
+
+	---是否关注
+	--self.m_Attention.gameObject:SetActive(self:IsAttention(SellInfo.ItemID))
+	local serverNow=TimeUtils.GetServerTimeNow()/1000
+	--print("当前服务器时间 "..serverNow)
+	--print("开始前时间 "..SellInfo.Stime.."公示时间"..(SellInfo.Stime-serverNow))
+	--print("结束时间 "..SellInfo.Etime.."剩余时间"..(SellInfo.Etime-serverNow))
+	self.m_Price.text=SellInfo.TotalPrice;
+	self.m_Num.text=SellInfo.ItemNum
+	local time=SellInfo.Etime-serverNow
+	local time_s=SellInfo.Stime-serverNow
+	self.m_State.text=self:GetStateName(SellInfo.Status,time)
+	if time_s>0 then
+		self.m_time.text= LanguageHelp:GetLanguageByKey("Local_Str_Publish")..SecondToFormat(time_s)
+	else
+		if time>0 then
+			self.m_time.text= SecondToFormat(time)
+		else
+			--self.m_time.text="0秒"
+			self.m_time.text="0" .. LanguageHelp:GetLanguageByKey("Local_Str_Time_second")
+
+		end
+	end
+	self.m_Has:SetActive(true);
+end
+
+function SellIGoodstem:GetStateName(state,ti)
+	--0：没有设置 1：正常售卖 2：已出售 3：已下架
+	self.m_timeBg:SetActive(true)
+	self.m_Mask:SetActive(false)
+	if state ==1 then
+		if ti<1 then
+			self.m_timeBg:SetActive(false)
+			self.m_Mask:SetActive(true)
+			return LanguageHelp:GetLanguageByKey("Local_Str_SOLD_OUT")
+		end
+	end
+	if state ==2 then
+		self.m_timeBg:SetActive(false)
+		self.m_Mask:SetActive(true)
+		return LanguageHelp:GetLanguageByKey("Local_Str_BeSold")
+	elseif state ==3 then
+		self.m_timeBg:SetActive(false)
+		self.m_Mask:SetActive(true)
+		return LanguageHelp:GetLanguageByKey("Local_Str_SOLD_OUT")
+	end
+
+	return ""
+
+end
+
+function SellIGoodstem:IsAttention(itemID)
+
+	local playerinfo= BusinessManager.Instance.M_BankPlayerMD;
+	local items={}
+	if playerinfo~=nil then
+		if playerinfo.FollowItem~=nil  and playerinfo.FollowItem.ItemIDList~=nil and playerinfo.FollowItem.ItemIDList.Count>0 then
+
+			for i = 1, playerinfo.FollowItem.ItemIDList.Count do
+				if itemID==playerinfo.FollowItem.ItemIDList[i-1] then
+					return true;
+				end
+			end
+		end
+	end
+	return false;
+end
+
+return  SellIGoodstem

@@ -1,0 +1,34 @@
+--[[
+*文件名   :   ItemTransJobAttr
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/08 20:04:35"
+*创建人   :   "quzhenxin"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local ItemTransJobAttr = {}
+ItemTransJobAttr.__index = ItemTransJobAttr
+
+function ItemTransJobAttr:New(_go)
+    local self = {}
+    setmetatable(self, ItemTransJobAttr)
+
+    self.Transform = _go.transform
+    -- 任务描述
+    self.AttrName = self.Transform:Find("AttrName"):GetComponent(typeof(Text));
+    -- 任务进度
+    self.Val = self.Transform:Find("Val"):GetComponent(typeof(Text));
+
+
+    return self
+end
+
+---comment
+---@param attrName 属性名
+---@param attrVal 属性值
+function ItemTransJobAttr:SetAttr(attrName, attrVal)
+    self.AttrName.text = attrName;
+    self.Val.text = "+" .. attrVal;
+end
+
+return ItemTransJobAttr

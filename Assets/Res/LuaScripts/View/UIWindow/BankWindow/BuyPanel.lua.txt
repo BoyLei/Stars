@@ -1,0 +1,194 @@
+local BuyPanel = {}
+BuyPanel.__index = BuyPanel
+
+function BuyPanel:New(win, obj)
+    local self = {};
+    setmetatable(self, BuyPanel);
+
+    self:InitControls(obj)
+
+    self.bw = win;
+    return self;
+end
+
+function BuyPanel:InitControls(obj)
+    self.gameObject = obj;
+    self.transform = obj.transform;
+
+    self.refreshTime = self.transform:Find("CurrentRate/RefreshTime"):GetComponent(typeof(Text))
+	self.diamondNum = self.transform:Find("CurrentRate/Diamond/Num"):GetComponent(typeof(Text))
+    self.diamondName = self.transform:Find("CurrentRate/Diamond/Name"):GetComponent(typeof(Text))
+	self.coinNum = self.transform:Find("CurrentRate/Coin/Num"):GetComponent(typeof(Text))
+	
+
+	self.myDiamondNum = self.transform:Find("Change/Num1"):GetComponent(typeof(Text))
+	self.myCoinNum = self.transform:Find("Change/Num2"):GetComponent(typeof(Text))
+	self.dimondChangeNum = self.transform:Find("Change/Num3"):GetComponent(typeof(Text))
+	self.coinChangeNum = self.transform:Find("Change/Num4"):GetComponent(typeof(Text))
+
+    self.slider=self.transform:Find("Change/Slider"):GetComponent(typeof(Slider));
+    self.slider.onValueChanged:AddListener(function()
+		self:OnSliderValChanged();
+	end);
+
+    self.leftBtn = self.transform:Find("Change/Left"):GetComponent(typeof(Button));
+    self.leftBtn.onClick:AddListener(function() self.slider.value = 0 end);
+    self.rightBtn = self.transform:Find("Change/Right"):GetComponent(typeof(Button));
+    self.rightBtn.onClick:AddListener(function() self.slider.value = 1 end);
+    self.minusBtn = self.transform:Find("Change/Minus"):GetComponent(typeof(Button));
+    
+    self.minusBtn.onClick:AddListener(function() 
+        local myDiaNum = BusinessManager.Instance:GetCurrencyNum(3);
+		if myDiaNum < 10 then
+				self.slider.value = 0;
+				return;
+		elseif myDiaNum >=10 and myDiaNum < 20 then
+				self.slider.value = 1;
+				return;
+		end
+		
+        self.curDia = self.curDia - 10;
+        if self.curDia < 10 then
+            self.curDia = 10;
+        end
+			
+		local maxDia = math.floor(myDiaNum/10) * 10;
+        self.slider.value = (self.curDia-10)/(maxDia-10);
+    end);
+    self.addBtn = self.transform:Find("Change/Add"):GetComponent(typeof(Button));
+    self.addBtn.onClick:AddListener(function() 
+        local myDiaNum = BusinessManager.Instance:GetCurrencyNum(3);
+        local maxDia = math.floor(myDiaNum/10) * 10;
+		if maxDia < 10 then
+				self.slider.value = 0;
+				return;
+		elseif maxDia >=10 and maxDia < 20 then
+				self.slider.value = 1;
+				return;
+		end
+
+        self.curDia = self.curDia + 10;
+        if self.curDia > maxDia then
+            self.curDia = maxDia;
+        end
+        self.slider.value = (self.curDia-10)/(maxDia-10)+0.000001;
+    end);
+	self.curRate = 0;
+
+    self.diamondIcon1 = self.transform:Find("CurrentRate/Diamond/Image"):GetComponent(typeof(Image))
+    self.diamondIcon2 = self.transform:Find("Change/Diamond2"):GetComponent(typeof(Image))
+    self.diamondIcon3 = self.transform:Find("Change/Diamond3"):GetComponent(typeof(Image))
+
+    local itemData = ConfigDataAccessor.Item[3]
+    ResourceHelper:LoadIconAsync(self.diamondIcon1, "", itemData.Icon, false)
+    ResourceHelper:LoadIconAsync(self.diamondIcon2, "", itemData.Icon, false)
+    ResourceHelper:LoadIconAsync(self.diamondIcon3, "", itemData.Icon, false)
+
+    self.coinIcon1 = self.transform:Find("CurrentRate/Coin/Image"):GetComponent(typeof(Image))
+    self.coinIcon2 = self.transform:Find("Change/Coin2"):GetComponent(typeof(Image))
+    self.coinIcon3 = self.transform:Find("Change/Coin3"):GetComponent(typeof(Image))
+
+    itemData = ConfigDataAccessor.Item[2]
+    ResourceHelper:LoadIconAsync(self.coinIcon1, "", itemData.Icon, false)
+    ResourceHelper:LoadIconAsync(self.coinIcon2, "", itemData.Icon, false)
+    ResourceHelper:LoadIconAsync(self.coinIcon3, "", itemData.Icon, false)
+	
+	self.reachLimit = self.transform:Find("Change/tt").gameObject;
+end
+
+function BuyPanel:OnSliderValChanged()
+	local myDiaNum = BusinessManager.Instance:GetCurrencyNum(3);
+	local maxDia = math.floor(myDiaNum/10) * 10;
+    local dm = self.slider.value * (maxDia - 10) + 10;
+    dm = math.floor(dm / 10) * 10;
+    local cm = math.floor(dm / 10 * self.curRate);
+
+    if BusinessManager.Instance:GetCurrencyNum(3) < 10 then
+        self.dimondChangeNum.text = "0";
+        self.coinChangeNum.text = "0";
+    else
+        self.dimondChangeNum.text = tostring(math.floor(dm));
+        self.coinChangeNum.text = tostring(math.floor(cm));
+    end
+
+    self.curDia = math.floor(dm);
+end
+
+function BuyPanel:Show(rate, time)
+	self.curRate = rate;
+	self.gameObject:SetActive(true);
+    self:SetRateAndTime(rate, time);
+
+    local coinNum = BusinessManager.Instance:GetCurrencyNum(2);
+	self.myCoinNum.text = tostring(coinNum);
+	local diamondNum2 = BusinessManager.Instance:GetCurrencyNum(3);
+	self.myDiamondNum.text = tostring(diamondNum2);
+    self.diamondName.text = ConfigDataAccessor.Item[3].Name;
+
+	self.dimondChangeNum.text = "10";
+    self.coinChangeNum.text = tostring(rate);
+
+    self.curDia = 10;
+    self.slider.value = 0;
+	
+	self.reachLimit:SetActive(diamondNum2 < 10);
+	
+    self.bw.confirmBtn.UnClick = diamondNum2 < 10;
+    self.bw.confirmBtn.ForbidClick = diamondNum2 < 10;
+
+	self:OnSliderValChanged();
+end
+
+function BuyPanel:RefreshData()
+	self.slider.value = 0;
+	
+	local coinNum = BusinessManager.Instance:GetCurrencyNum(2);
+	self.myCoinNum.text = tostring(coinNum);
+	local diamondNum2 = BusinessManager.Instance:GetCurrencyNum(3);
+	self.myDiamondNum.text = tostring(diamondNum2);
+	self.reachLimit:SetActive(diamondNum2 < 10);
+
+	self.bw.confirmBtn.UnClick = diamondNum2 < 10;
+	self.bw.confirmBtn.ForbidClick = diamondNum2 < 10;
+end
+
+
+function BuyPanel:Hide()
+	self.gameObject:SetActive(false);
+end
+
+function BuyPanel:SetRateAndTime(rate, stime)
+    self.curRate = rate;
+    self.refreshTime.text = self:GetTimeStr(stime);
+    self.diamondNum.text = "10";
+    self.coinNum.text = tostring(rate);
+end
+
+function BuyPanel:GetTimeStr(t)
+    if t == nil then
+		return StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_BuyPanel_warning"), {0,0});
+	end
+    
+    if t < 0 then
+        t = 0;
+    end
+
+    local m = 0;
+    local s = 0;
+    if t >= 60 then
+		m = math.floor(t / 60);
+    end
+    s = math.floor(t - m * 60);
+    if s < 0 then
+        s = 0;
+    end
+    --return "下次刷新:"..m.."分钟"..s.."秒";
+	return StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_BuyPanel_warning"), {m,s});
+
+end
+
+function BuyPanel:GetNum()
+    return tonumber(self.dimondChangeNum.text);
+end
+
+return BuyPanel

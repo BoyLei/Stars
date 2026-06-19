@@ -1,0 +1,159 @@
+--[[
+*文件名   :   EquipRecastChooseMenu
+*内  容   :	  榨取左侧道具栏
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] local EquipRecastChooseMenu = {}
+
+EquipRecastChooseMenu.__index = EquipRecastChooseMenu
+
+local ItemTipsEquip = require("View/Item/ItemTipsEquip")
+
+function EquipRecastChooseMenu:New(_go, equipRecast)
+    local self = {}
+    setmetatable(self, EquipRecastChooseMenu)
+
+    self.EquipRecast = equipRecast
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.Tips = {}
+    self.go_selected = {}
+    for i = 1, 3 do
+        local tip = ItemTipsEquip:New(self.transform:Find("Equip" .. i).gameObject)
+
+        table.insert(self.Tips, tip)
+        table.insert(self.go_selected, self.transform:Find("Equip" .. i .. "/Selected").gameObject)
+
+        self.transform:Find("Equip" .. i):GetComponent(typeof(JButton)).OnClick = (function()
+            self:OnChoose(i)
+        end)
+
+        -- 点击选择
+        local btnConfirm = self.transform:Find("Equip" .. i .. "/Selected/btn"):GetComponent(typeof(JButton))
+        btnConfirm.OnClick = (function()
+            self:OnConfirmClick()
+        end)
+    end
+    self.SelectedEquipEntityID = 0
+
+    -- 监听重铸回调报
+    self.message1 = function(data)
+        self:OnChooseEqRecastReqRet(data)
+    end
+
+    self.gameObject:SetActive(false)
+
+    return self -- 返回自身
+end
+
+function EquipRecastChooseMenu:OnMessage()
+    CS.SGF.Network.MsgRetManager.Instance:OnMessageEnum(self.message1, CS.MsgIDEnum.ChooseEqRecastReqID)
+end
+
+function EquipRecastChooseMenu:OffMessage()
+    CS.SGF.Network.MsgRetManager.Instance:OffMessageEnum(self.message1, CS.MsgIDEnum.ChooseEqRecastReqID)
+end
+
+function EquipRecastChooseMenu:Show(b)
+    self.gameObject:SetActive(b)
+    if b then
+        self:Refesh()
+    end
+end
+
+function EquipRecastChooseMenu:OnChooseEqRecastReqRet(args)
+    print("选择回调")
+
+    local RetMsgID = args.MsgRet.RetMsgID -- 对应的消息号(这个可以判断是哪个协议)
+
+    local RetCode = args.MsgRet.RetCode
+    if RetCode == 0 then
+        -- 成功
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_161"))
+
+        -- 刷新面板
+        self:Show(false)
+        self.EquipRecast:Reset(true)
+        self.EquipRecast.SelectedEntityID[1] = self.SelectedEquipEntityID
+        self.EquipRecast:Refesh(true)
+
+        DOVirtual.DelayedCall(
+            0.1,
+            function()
+                self.EquipRecast.equipRecastEquip:Show(true, true)
+            end
+        )
+    else
+        -- 不需要处理，交给上层去处理
+        -- args.IsDialog=true
+        -- Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_83"));
+    end
+end
+
+function EquipRecastChooseMenu:OnConfirmClick()
+    if self.SelectedEquipEntityID == 0 then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_163"))
+        return
+    end
+
+    local text = ""
+    if self.SelectedEquipIdx == 1 then
+        text = LanguageHelp:GetLanguageByKey("Local_Str_EquipRecastInfo_New_Result1")
+    elseif self.SelectedEquipIdx == 2 then
+        text = LanguageHelp:GetLanguageByKey("Local_Str_EquipRecastInfo_New_Result2")
+    elseif self.SelectedEquipIdx == 3 then
+        text = LanguageHelp:GetLanguageByKey("EquipUpgradeWindow_142")
+    end
+
+    CS.StarProjectDef.UIAPI.ShowMsgBox(
+        20,
+        function(str)
+            if str == "SURE" then
+                local chooseEqRecastReq = CS.ProtoMsg.ChooseEqRecastReq()
+                chooseEqRecastReq.ChooEID = self.SelectedEquipEntityID
+
+                CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, chooseEqRecastReq, false)
+            end
+        end,
+        text
+    )
+end
+
+function EquipRecastChooseMenu:OnChoose(idx)
+    for i = 1, #self.go_selected do
+        self.go_selected[i]:SetActive(false)
+        self.Tips[i].transform.localScale = Vector3(0.78, 0.78, 1)
+    end
+
+    self.go_selected[idx]:SetActive(true)
+    self.Tips[idx].transform.localScale = Vector3(0.82, 0.82, 1)
+
+    self.SelectedEquipEntityID = self.Tips[idx].EntityID
+
+    self.SelectedEquipIdx = idx
+end
+
+function EquipRecastChooseMenu:Refesh()
+    self.SelectedEquipEntityID = 0
+
+    for i = 1, #self.go_selected do
+        self.go_selected[i]:SetActive(false)
+    end
+
+    local eqRecastMD = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.EqRecasts):GetEqRecastMD()
+
+    if eqRecastMD ~= nil then
+        local itemInfos = eqRecastMD.RecastEqs.ItemInfos
+        for i = 0, itemInfos.Count - 1 do
+            local itemData = itemInfos[i]
+            self.Tips[i + 1]:RefeshEquipByData(itemData)
+            self.Tips[i + 1].transform.localScale = Vector3(0.78, 0.78, 1)
+        end
+    end
+end
+
+return EquipRecastChooseMenu

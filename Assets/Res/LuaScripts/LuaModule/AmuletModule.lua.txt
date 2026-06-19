@@ -1,0 +1,315 @@
+--[[
+*文件名   :   AmuletModule
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/02/03 13:39:39"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+AmuletModule = class("AmuletModule", BaseLuaModule)
+
+local AmuletWindowPath = "Amulet/AmuletWindow"
+
+AmuletModule.IsOpenTips = false
+
+--LuaModule 消息模块
+AmuletModule.ModuleMessages = {
+    --打开
+    --ModuleManager.Instance.SendMessage(ModuleDef.AmuletModule, "OnOpenEquip", new object[] { xxxx });
+    ["OnOpenAmulet"] = function(...)
+        AmuletModule:OnOpenAmuletMsg(...)
+    end,
+    --关闭
+    --ModuleManager.Instance.SendMessage(ModuleDef.AmuletModule, "OnCloseEquip", new object[] { xxxx });
+    ["OnCloseAmulet"] = function(...)
+        AmuletModule:OnCloseAmuletMsg(...)
+    end,
+    --刷新
+    --ModuleManager.Instance.SendMessage(ModuleDef.AmuletModule, "OnRefeshEquip", new object[] { xxxx });
+    ["OnRefeshAmulet"] = function(...)
+        AmuletModule:OnRefeshAmuletMsg(...)
+    end,
+    --刷新星次石
+    --ModuleManager.Instance.SendMessage(ModuleDef.AmuletModule, "OnRefeshEquip", new object[] { xxxx });
+    ["OnRefeshEmblem"] = function(...)
+        AmuletModule:OnRefeshEmblemMsg(...)
+    end,
+    --显示纹章技能
+    --ModuleManager.Instance.SendMessage(ModuleDef.AmuletModule, "OnRefeshEquip", new object[] { xxxx });
+    ["OnShowEmblemSkillInfo"] = function(...)
+        AmuletModule:OnShowEmblemSkillInfoMsg(...)
+    end,
+    --打开纹章装备
+    --ModuleManager.Instance.SendMessage(ModuleDef.AmuletModule, "OnOpenEquip", new object[] { xxxx });
+    ["OnOpenEmblemMenuCombine"] = function(...)
+        AmuletModule:OnOpenEmblemMenuCombineMsg(...)
+    end,
+    --打开纹章预览
+    ["OnOpenDefAmulet"] = function(...)
+        AmuletModule:OnOpenDefAmuletMsg(...)
+    end
+}
+
+--监听打开奖励面板
+function AmuletModule:OnOpenEmblemMenuCombineMsg(...)
+    if self.AmuletWindowView == nil then
+        return
+    end
+
+    local tb = ...
+
+    local AmuletType = 1
+    local AmuletSlotIdx = 1
+    local AmuletSlotIndex = 1
+    --列表
+    local parentWind = nil
+    if type(tb) == "table" then
+        --Lua调用
+        AmuletType = tb[1]
+        AmuletSlotIdx = tb[2]
+        AmuletSlotIndex = tb[3]
+    else
+        --C#调用
+        AmuletType = tb[0]
+        AmuletSlotIdx = tb[1]
+        AmuletSlotIndex = tb[2]
+    end
+
+    self.AmuletWindowView:OpenAmulet(2) --打开Tag页2
+    self.AmuletWindowView.emblemMenu.EmblemMenuEquip.itemList[AmuletType]:OnItemClick() --点击装备类型
+    self.AmuletWindowView.emblemMenu:ShowEmblemMenuCombine(AmuletSlotIdx, AmuletSlotIndex, true)
+    --self.AmuletWindowView.emblemMenu.EmblemMenuInfo.items[AmuletSlotIndex]:OnItemClick();--点击装备槽位
+end
+
+--打开纹章预览
+function AmuletModule:OnOpenDefAmuletMsg(...)
+    if self.AmuletWindowView == nil then
+        return
+    end
+
+    self.AmuletWindowView:OpenAmulet(1) --打开Tag页2
+end
+
+function AmuletModule:OnShowEmblemSkillInfoMsg(...)
+    local tb = ...
+    local sid = 0 --实体id
+    --列表
+    if type(tb) == "table" then
+        --Lua调用
+        sid = tb[1]
+    else
+        --C#调用
+        sid = tb[0]
+    end
+
+    if self.AmuletWindowView ~= nil then
+        --显示
+        self.AmuletWindowView:ShowEmblemSkillInfo(sid)
+    end
+end
+
+function AmuletModule:OnRefeshEmblemMsg(...)
+    local tb = ...
+
+    if self.AmuletWindowView ~= nil and self.AmuletWindowView.gameObject.activeSelf then
+        --显示
+        self.AmuletWindowView.emblemMenu:Refesh()
+        self.AmuletWindowView.emblemMenu.EmblemMenuInfo:Reselect()
+    end
+end
+
+function AmuletModule:OnRefeshAmuletMsg(...)
+    local tb = ...
+    self.EntityID = 0 --实体id
+    --列表
+    if type(tb) == "table" then
+        --Lua调用
+        self.EntityID = tb[1]
+        self.SlotID = tb[2] --装备槽ID
+    else
+        --C#调用
+        self.EntityID = tb[0]
+        self.SlotID = tb[1] --装备槽ID
+    end
+
+    if self.EntityID ~= nil and self.EntityID ~= 0 then
+        self.BaseID = BusinessManager.Instance:GetItemByItemEntityId(self.EntityID).BaseID
+    end
+
+    self.IsOpenTips = false
+
+    if self.AmuletWindowView ~= nil then
+        --显示
+        self.AmuletWindowView:RefeshAmuletUpgrade()
+    end
+end
+
+function AmuletModule:OnCloseAmuletMsg()
+    if self.AmuletWindowView ~= nil then
+        self.AmuletWindowView:CloseWindow()
+    end
+end
+
+--监听打开奖励面板
+function AmuletModule:OnOpenAmuletMsg(...)
+    local tb = ...
+    self.OpenFrom = 0 --0为主界面打开，1为ItemTips-强化打开，2为ItemTips-精炼打开，
+    self.EntityID = 0 --实体id
+    --列表
+    if type(tb) == "table" then
+        --Lua调用
+        self.OpenFrom = tb[1]
+        self.EntityID = tb[2]
+    else
+        --C#调用
+        self.OpenFrom = tb[0]
+        self.EntityID = tb[1]
+    end
+
+    -- local AmuletWindowCs =UIManager.Instance:OpenWindow(AmuletWindowPath,nil,CS.StarProjectDef.MainPageCommond.HideBoth);
+    -- if self.AmuletWindowView == nil then
+    -- 	self.AmuletWindowView=AmuletWindowCs:GetLuaPanel().ScriptTable;
+    -- 	self.AmuletWindowView:BindModule(self);
+    -- 	self.AmuletWindowView:InitItems();
+    -- 	self.evtOnCloseAmulet = LuaModuleDispatcher:Event(ModuleDef.AmuletModule, "OnCloseAmuletEvt")
+    -- end
+
+    -- --显示
+    -- if self.OpenFrom==0 then
+    -- 	self.AmuletWindowView:OpenAmulet(1);
+    -- else
+    -- 	self.AmuletWindowView:OpenAmulet(self.OpenFrom);
+    -- end
+
+    -- self.AmuletWindowView.currencyBar:OnListener();
+
+    self.AsyncLoadAmuletWindowCb = function(ui)
+        if ui ~= nil then
+            if self.AmuletWindowView == nil then
+                self.AmuletWindowView = ui:GetLuaPanel().ScriptTable
+                self.AmuletWindowView:BindModule(self)
+                self.AmuletWindowView:InitItems()
+                self.evtOnCloseAmulet = LuaModuleDispatcher:Event(ModuleDef.AmuletModule, "OnCloseAmuletEvt")
+            end
+            --显示
+            if self.OpenFrom == 0 then
+                self.AmuletWindowView:OpenAmulet(1)
+            else
+                self.AmuletWindowView:OpenAmulet(self.OpenFrom, self.EntityID)
+            end
+
+            self.AmuletWindowView.currencyBar:OnListener()
+        end
+        self.AsyncLoadAmuletWindowCb = nil
+    end
+    UIManager.Instance:OpenWindowAsync(AmuletWindowPath, self.AsyncLoadAmuletWindowCb, nil, CS.StarProjectDef.MainPageCommond.HideBoth)
+end
+
+function AmuletModule:OpenItemTips(baseID, entityID)
+    --print("AmuletModule:OpenItemTips:"..baseID);
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", {baseID, true, entityID, self.AmuletWindowView.tips_anchor, self.OpenFrom + 1})
+end
+
+function AmuletModule:CloseItemTips()
+    --print("AmuletModule:CloseItemTips");
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips", {})
+end
+
+--关闭回调
+function AmuletModule:OnCloseAmuletEvt(arg)
+    self.evtOnCloseAmulet:Invoke()
+    self.AmuletWindowView = nil
+end
+
+--关闭
+function AmuletModule:OnCloseAmulet()
+    self.AmuletWindowView.currencyBar:OffListener()
+
+    self:OnCloseAmuletEvt()
+
+    --LuaModuleDispatcher:SendMessage(ModuleDef.EquipModule, "OnCloseEquip", { });
+end
+
+--LuaModule 创建
+function AmuletModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.AmuletModule, self)
+
+    --技能书id列表
+
+    self.OnItemFirstInitHandler = function()
+        self:OnItemFirstInit()
+    end
+    self.OnItemChangeHandler = function(configID, Num)
+        self:OnItemChange(configID, Num)
+    end
+    CS.StarProject.GlobalEvent.OnItemChange:AddListener(self.OnItemChangeHandler)
+    CS.StarProject.GlobalEvent.OnItemFirstInit:AddListener(self.OnItemFirstInitHandler)
+end
+
+function AmuletModule:OnItemFirstInit()
+    local IsEnough = false
+
+    --拿到所有的
+    local cfgs = ConfigDataAccessor.Etch
+    for k, v in pairs(cfgs) do
+        local skillID = v.BattleSkillID
+
+        local etchId = k
+
+        local Points = 0
+
+        --鸣器的点数
+        local data = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.Tweeter):GetTweeterByBaseId(etchId)
+        if data == nil then
+            --默认是1级别
+            local lv = 1
+            local cfg = ConfigDataAccessor.EtchUP[lv]
+            Points = cfg.BattleSkillIPoint
+        else
+            --拿到当前等级
+            local lv = data.Level
+            local cfg = ConfigDataAccessor.EtchUP[lv]
+            Points = cfg.BattleSkillIPoint
+        end
+
+        local cfg = ConfigDataAccessor.EtchUP[Points]
+        local itemCostType = cfg.ItemCostType
+        local cfgMat = v
+
+        local aimID = cfgMat.ItemID[itemCostType]
+
+        local haveNum = BusinessManager.Instance:GetCurrencyNum(aimID)
+        IsEnough = haveNum >= cfg.ItemCost
+
+        if IsEnough then
+            break
+        end
+    end
+
+    --红点
+    RedPointManager.Instance:TriggerConditionTypeBoolValue(RedPointConditionType.SkillBook, IsEnough)
+end
+
+function AmuletModule:OnItemChange(configID, Num)
+    --检查技能书红点
+    local itemCfg = ConfigDataAccessor.Item[configID]
+    if itemCfg.ItemType == 7 then
+        self:OnItemFirstInit()
+    end
+end
+
+--LuaModule 消息处理
+function AmuletModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...)
+end
+
+--LuaModule显示
+function AmuletModule:OnModuleShow(arg)
+end
+
+--LuaModule 释放
+function AmuletModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.AmuletModule)
+end
+
+return AmuletModule

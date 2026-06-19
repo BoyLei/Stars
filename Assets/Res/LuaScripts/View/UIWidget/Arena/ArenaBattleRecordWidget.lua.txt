@@ -1,0 +1,95 @@
+--[[
+*文件名   :   ArenaBattleRecordWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/12/12 10:33:06"
+*创建人   :   "caojie"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+ArenaBattleRecordWidget=class("ArenaBattleRecordWidget",UIPanel)
+local ArenaBattleRecordItem=require("View/UIWidget/Arena/ArenaBattleRecordItem")
+
+function ArenaBattleRecordWidget:Awake()
+	self.transform=self.prefab.transform;
+	self.gameObject=self.transform.gameObject;
+
+	self.NoRecordRoot = self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/Contnet/NoRecordRoot").gameObject;
+	self.BattleRecordRoot = self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/Contnet/BattleRecordRoot").gameObject;
+	self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/Contnet/BtnClose"):GetComponent(typeof(JButton)).OnClick=(function()
+		self:OnPlayBack();
+	end);
+
+	-- self.MyRankItem=ArenaBattleRecordItem:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/Contnet/BattleRecordRoot/MyRankItem").gameObject);
+    --道具列表
+    self.AfternoonGveRankItemList={};
+	--无限列表
+	self.go_AfternoonGveRankItem = self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/Contnet/BattleRecordRoot/Scroll View/Mask/List/Item").gameObject;
+
+	self.tr_ItemRoot=self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/Contnet/BattleRecordRoot/Scroll View/Mask/List");
+	self.go_AfternoonGveRankItem:SetActive(false);
+	self.go_AfternoonGveRankItem.transform:SetParent(self.transform);
+	self.EventRewardPersonalScorllView=self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/Contnet/BattleRecordRoot/Scroll View"):GetComponent(typeof(SuperScrollViewController));
+	self.EventRewardPersonalScorllView:NewScroll(self.go_AfternoonGveRankItem, 0, function (tr,idx)
+		self:OnAfternoonGveRankItemRefesh(tr,idx);
+	end);
+end
+
+function ArenaBattleRecordWidget:OnAfternoonGveRankItemRefesh(tr,idx)
+	for i=1,#self.AfternoonGveRankItemList do
+		if self.AfternoonGveRankItemList[i].transform == tr then
+            self.AfternoonGveRankItemList[i]:SetItem(self.ItemDataList[idx+1]);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+		end
+	end
+
+    local bi = ArenaBattleRecordItem:New(tr.gameObject);
+	bi.gameObject:SetActive(true);
+	bi:SetItem(self.ItemDataList[idx+1]);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+
+    table.insert(self.AfternoonGveRankItemList, bi);
+end
+
+function ArenaBattleRecordWidget:Refesh()
+	local hasRecord = self.ItemDataList ~= nil and #self.ItemDataList > 0
+	self.NoRecordRoot:SetActive(not hasRecord)
+	self.BattleRecordRoot:SetActive(hasRecord)
+	if hasRecord then
+		self.EventRewardPersonalScorllView:ContinueScroll(#self.ItemDataList);
+	end
+end
+
+function ArenaBattleRecordWidget:Start()
+
+end
+
+function ArenaBattleRecordWidget:OnEnable()
+	
+end
+
+function ArenaBattleRecordWidget:OnDisable()
+	
+end
+
+function ArenaBattleRecordWidget:OnDestroy()
+
+end
+
+function ArenaBattleRecordWidget:RefeshData()
+
+end
+
+function ArenaBattleRecordWidget:OnOpen(arg)
+	self.ItemDataList = arg
+	self:Refesh();
+end
+
+function ArenaBattleRecordWidget:OnClose(arg)
+
+end
+
+function ArenaBattleRecordWidget:OnPlayBack()
+	self.gameObject:SetActive(false);
+	UIManager.Instance:CloseWidget("Arena/Prefab/ArenaBattleRecordWidget",nil,false);
+end
+
+return  ArenaBattleRecordWidget

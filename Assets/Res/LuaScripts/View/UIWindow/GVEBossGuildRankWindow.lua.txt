@@ -1,0 +1,183 @@
+--[[
+*文件名   :   GVEBossGuildRankWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/09/15 13:09:51"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] GVEBossGuildRankWindow = class("GVEBossGuildRankWindow", UIPanel)
+
+local GVEBossGuildRankItem = require("View/Uiwindow/Event/GVEBossGuildRankItem")
+
+function GVEBossGuildRankWindow:Awake()
+    self.transform = self.prefab.transform:Find("Cut4Cam90/AssemblyRatio2/Rank");
+    self.gameObject = self.transform.gameObject;
+
+    self.go_List = self.transform:Find("Scroll View").gameObject;
+
+    -- 道具列表
+    self.GVEBossGuildRankItemList = {};
+    -- 无限列表
+    self.go_GVEBossGuildRankItem = self.transform:Find("Scroll View/Mask/List/GVEBossGuildRankItem").gameObject;
+
+    self.tr_ItemRoot = self.transform:Find("Scroll View/Mask/List");
+    self.go_GVEBossGuildRankItem:SetActive(false);
+    self.go_GVEBossGuildRankItem.transform:SetParent(self.transform);
+    self.GVEBossGuildRankScorllView = self.transform:Find("Scroll View"):GetComponent(typeof(SuperScrollViewController));
+    self.GVEBossGuildRankScorllView:NewScroll(self.go_GVEBossGuildRankItem, 0, function(tr, idx)
+        self:OnGVEBossGuildRankItemRefesh(tr, idx);
+    end);
+
+    -- 自己的
+    self.MyGVEBossGuildRankItem = GVEBossGuildRankItem:New(self.transform:Find("MyGVEBossGuildRankItem").gameObject);
+
+    self.m_CloseBtn = self:Find("Block"):GetComponent(typeof(JButton));
+    self.m_CloseBtn.OnClick = (function()
+        self:OnClickCloseBtn()
+    end);
+
+    self.transform:Find("BtnClose"):GetComponent(typeof(JButton)).OnClick = (function()
+        self:OnClickCloseBtn()
+    end);
+
+    -- 消息接收
+    self.message1 = function(data)
+        self:OnGVEMyGuildDataRet(data)
+    end
+
+end
+
+function GVEBossGuildRankWindow:OnGVEMyGuildDataRet(data)
+
+    self.MyGVEBossGuildRankItem.gameObject:SetActive(false);
+    self.go_List:SetActive(true);
+
+    if self.ItemDataList == nil then
+        self.ItemDataList = {}
+    else
+        for k, _ in pairs(self.ItemDataList) do
+            self.ItemDataList[k] = nil
+        end
+    end
+
+    print("Boss冒险团排行榜回调");
+
+    local pb = data.data;
+
+    local Users = pb.Users.UserDatas;
+
+    local playerID = pb.PID;
+
+    for k, v in pairs(Users) do
+
+        local d = {};
+        d.name = v.MemberName;
+        d.score = v.Bonus;
+        d.playerID = k;
+        table.insert(self.ItemDataList, d);
+
+    end
+
+    if #self.ItemDataList > 0 then
+        self:SortItem(self.ItemDataList);
+    end
+
+    for i = 1, #self.ItemDataList do
+        if self.ItemDataList[i].playerID == playerID then
+            self.MyGVEBossGuildRankItem.gameObject:SetActive(true);
+            self.MyGVEBossGuildRankItem:SetItem(self.ItemDataList[i], i);
+        end
+    end
+
+    self.GVEBossGuildRankScorllView:ContinueScroll(#self.ItemDataList);
+
+end
+
+function GVEBossGuildRankWindow:SortItem(tbl)
+
+    if #tbl > 1 then
+
+        table.sort(tbl, function(a, b)
+            -- 积分降序
+            if a.score > b.score then
+                return true
+            end
+            return false
+        end)
+
+    end
+
+end
+
+function GVEBossGuildRankWindow:OnGVEBossGuildRankItemRefesh(tr, idx)
+
+    for i = 1, #self.GVEBossGuildRankItemList do
+        if self.GVEBossGuildRankItemList[i].transform == tr then
+            self.GVEBossGuildRankItemList[i]:SetItem(self.ItemDataList[idx + 1], idx + 1); -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+        end
+
+    end
+
+    local bi = GVEBossGuildRankItem:New(tr.gameObject);
+
+    bi.gameObject:SetActive(true);
+    bi:SetItem(self.ItemDataList[idx + 1], idx + 1); -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+
+    table.insert(self.GVEBossGuildRankItemList, bi);
+
+end
+
+function GVEBossGuildRankWindow:Start()
+
+end
+
+function GVEBossGuildRankWindow:OnEnable()
+
+end
+
+function GVEBossGuildRankWindow:OnDisable()
+
+end
+
+function GVEBossGuildRankWindow:OnDestroy()
+
+end
+
+function GVEBossGuildRankWindow:OnOpen(arg)
+
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.GVEMyGuildDataRetID, self.message1, nil);
+
+    self.MyGVEBossGuildRankItem.gameObject:SetActive(false);
+    self.go_List:SetActive(true);
+
+    -- local myGuildID=BusinessManager.Instance:GetGuildID();
+
+    local gVEBossHurtSortReq = CS.ProtoMsg.GVEMyGuildDataReq();
+    -- gVEBossHurtSortReq.GuildID = myGuildID;
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace,
+        gVEBossHurtSortReq, false);
+
+end
+
+function GVEBossGuildRankWindow:OnClose(arg)
+    -- self:CloseWindow();
+    CS.SGF.Network.NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.GVEMyGuildDataRetID, self.message1, nil);
+end
+
+function GVEBossGuildRankWindow:OnClickCloseBtn()
+
+    self.Close();
+
+    --[[
+	self.PlayAnimation("GVEBossGuildRankWindowAnim_Close", function ()
+		self.IsOpen=false;
+		self.module:OnCloseEvent();
+
+		self.Close();
+	end)
+	]]
+
+end
+
+return GVEBossGuildRankWindow

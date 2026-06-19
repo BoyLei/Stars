@@ -1,0 +1,46 @@
+--[[
+*文件名   :   GamePlayChoiceTag
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/25 18:01:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local GamePlayChoiceTag = {}
+
+GamePlayChoiceTag.__index = GamePlayChoiceTag
+
+function GamePlayChoiceTag:New(_go, cfgID)
+    local self = {}
+    setmetatable(self, GamePlayChoiceTag)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    local idx = 1
+    local config = ConfigDataAccessor.PlayOpenConditions[cfgID]
+    if config ~= nil then
+        local TagColors = string.split(config.TagColor, ",")
+        local DropTags = string.split(config.DropTag, ",")
+
+        for i = 1, #TagColors do
+            local Name = self.transform:Find("tag" .. i .. "/tt"):GetComponent(typeof(Text))
+            local Bg = self.transform:Find("tag" .. i):GetComponent(typeof(Image))
+            if DropTags[i] ~= nil then
+                Name.text = DropTags[i]
+            else
+                Name.text = ""
+            end
+            Bg.color = ConvertHexToColorWithAlpha(TagColors[i], 1)
+            idx = idx + 1
+        end
+    end
+
+    for i = idx, 3 do
+        self.transform:Find("tag" .. i).gameObject:SetActive(false)
+    end
+
+    return self --返回自身
+end
+
+return GamePlayChoiceTag

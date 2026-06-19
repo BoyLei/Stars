@@ -1,0 +1,142 @@
+--[[
+*文件名   :   EquipedAmuletItem
+*内  容   :   
+*说  明   :
+*创建日期 :   "2022/11/18 16:55:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local EquipedAmuletItem = {}
+
+EquipedAmuletItem.__index = EquipedAmuletItem
+
+function EquipedAmuletItem:New(_go)
+    local self = {}
+    setmetatable(self, EquipedAmuletItem)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.Num = self.transform:Find("Have/Num"):GetComponent(typeof(Text)) --数量
+    self.Icon = self.transform:Find("Have/Icon"):GetComponent(typeof(Image))
+    self.Rare = self.transform:Find("Have/BgRare"):GetComponent(typeof(Image))
+
+    if self.transform:Find("Have/Equip") ~= nil then
+        self.go_Equip = self.transform:Find("Have/Equip").gameObject
+        self.go_Equip:SetActive(false)
+    end
+
+    self.go_Selected = self.transform:Find("Have/Selected").gameObject
+    self.go_Selected:SetActive(false)
+
+    --技能图标
+    self.skillIcons = {}
+    for i = 1, 6 do
+        local ic = self.transform:Find("Have/SkillList/Skill" .. i .. "/icon"):GetComponent(typeof(Image))
+        table.insert(self.skillIcons, ic)
+    end
+
+    self.IsUsed = false
+
+    --点击事件
+    self.btnClick = self.transform:GetComponent(typeof(JButton))
+    self.btnClick.OnClick = (function()
+        if self.OnItemClick ~= nil then
+            if self.IsUsed then
+                self.OnItemClick(self)
+            else
+                self.OnItemClick(nil)
+            end
+        end
+    end)
+
+    return self --返回自身
+end
+
+--初始化Item
+function EquipedAmuletItem:InitItem(onItemClick)
+    self.OnItemClick = onItemClick
+    self:SetUse(false)
+end
+
+function EquipedAmuletItem:SetUse(b)
+    self.IsUsed = b
+
+    --如果没有有底板就隐藏
+    self.gameObject:SetActive(b)
+end
+
+--设置Item
+function EquipedAmuletItem:SetItem(data)
+    if data ~= nil then
+        self.Info = data
+        self.Data = data.Data
+
+        local baseID = self.Data.BaseID
+        local combatSkills = self.Data.CombatSkills
+        local gemSlots = self.Data.GemSlots
+
+        for i = 1, #self.skillIcons do
+            self.skillIcons[i].gameObject:SetActive(false)
+        end
+
+        --查看技能
+        for i = 0, combatSkills.List.Count - 1 do
+            if i + 1 <= #self.skillIcons then
+                self.skillIcons[i + 1].gameObject:SetActive(true) --暂时先去掉宝石
+
+                local cs = combatSkills.List[i]
+
+                --显示图标
+                local ID = cs.ID --技能id
+                local Points = cs.Points --点数分布，二进制文件
+
+                local pd = ConfigDataAccessor.GetPassiveDesc(ID, 1)
+                ResourceHelper:LoadIconByAtlasAsync(self.skillIcons[i + 1], ResourceHelper.AtlasPathEtchSkill, pd.IconPath, false)
+            end
+        end
+
+        --查看宝石
+        --[[
+        for i=0,gemSlots.List.Count-1 do
+            self.EmblemSlotIcon[i+1].gameObject:SetActive(false);--暂时先去掉宝石
+
+            --刷新宝石槽位颜色
+            local slotID=gemSlots.List[i].SlotID;
+            local gemID=gemSlots.List[i].GemID;
+
+        end
+        ]]
+        self:SetUse(true)
+        self.BaseID = baseID
+
+        local cfg = ConfigDataAccessor.Item[self.BaseID]
+        --LoadIcon(self.Icon,cfg.Icon);
+        ResourceHelper:LoadIconAsync(self.Icon, "", cfg.Icon, false)
+
+        --稀有度底板
+        local quality = cfg.Quality
+        --self.Rare.sprite = AtlasManager.Instance:GetSprite("ui/common/atlas/commonitem", "Bag_Grid_sq" .. quality)
+        ResourceHelper:LoadIconByAtlasAsync(self.Rare, ResourceHelper.AtlasPathCommonItem, "Bag_Grid_sq" .. quality, false)
+        self.Num.text = "" --阶级暂时没有
+
+        --判断是是否已装备
+        --是否显示已装备
+        self.go_Equip:SetActive(false)
+        if self.Data.EntityID ~= nil and self.Data.EntityID ~= 0 and self.Data.Heroid > 0 then
+            if self.go_Equip ~= nil then
+                self.go_Equip:SetActive(true)
+            end
+        end
+
+        self:MakeSelected(self.Info.IsSelected)
+    end
+end
+
+--是否被选中
+function EquipedAmuletItem:MakeSelected(b)
+    self.Info.IsSelected = b
+    self.go_Selected:SetActive(b)
+end
+
+return EquipedAmuletItem

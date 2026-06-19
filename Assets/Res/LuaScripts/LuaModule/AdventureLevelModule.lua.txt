@@ -1,0 +1,232 @@
+--[[
+*文件名   :   AdventureLevelModule
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/02/03 13:39:39"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] AdventureLevelModule = class("AdventureLevelModule", BaseLuaModule)
+AdventureLevelModule.IsOpenTips = false;
+
+local AdventureLevelUpgradeWidgetPath = "AdventureLevel/AdventureLevelUpgradeWidget";
+local AdventureLevelWindowPath = "AdventureLevel/AdventureLevelWindow";
+-- LuaModule 消息模块
+AdventureLevelModule.ModuleMessages = {
+    -- 打开
+    -- ModuleManager.Instance.SendMessage(ModuleDef.AdventureLevelModule, "OnOpenEquip", new object[] { xxxx }); 
+    ["OnOpenAdventureLevel"] = function(...)
+        AdventureLevelModule:OnOpenAdventureLevelMsg(...);
+    end,
+
+    -- 关闭
+    -- ModuleManager.Instance.SendMessage(ModuleDef.AdventureLevelModule, "OnCloseEquip", new object[] { xxxx }); 
+    ["OnCloseAdventureLevel"] = function(...)
+        AdventureLevelModule:OnCloseAdventureLevelMsg(...);
+    end,
+
+    -- 刷新
+    -- ModuleManager.Instance.SendMessage(ModuleDef.AdventureLevelModule, "OnRefeshEquip", new object[] { xxxx }); 
+    ["OnRefeshAdventureLevel"] = function(...)
+        AdventureLevelModule:OnRefeshAdventureLevelMsg(...);
+    end
+
+}
+
+function AdventureLevelModule:OnRefeshAdventureLevelMsg(...)
+
+    local tb = ...
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        -- self.EntityID=tb[1];
+    else
+        -- C#调用
+        -- self.EntityID=tb[0];
+    end
+
+    if self.AdventureLevelWindowView ~= nil then
+        -- 刷新
+        self.AdventureLevelWindowView:Refesh();
+    end
+
+end
+
+function AdventureLevelModule:OnCloseAdventureLevelMsg()
+    if self.AdventureLevelWindowView ~= nil then
+        self.AdventureLevelWindowView:CloseWindow();
+    end
+end
+
+-- 监听打开面板
+function AdventureLevelModule:OnOpenAdventureLevelMsg(...)
+
+    -- local tb = ...
+    -- 列表
+    -- if type(tb) == "table" then
+    --     -- Lua调用
+    --     -- self.OpenFrom=tb[1];
+    -- else
+    --     -- C#调用
+    --     -- self.OpenFrom=tb[0];
+    -- end
+
+    -- local AdventureLevelWindowCs = UIManager.Instance:OpenWindow(AdventureLevelWindowPath, nil,
+    --     CS.StarProjectDef.MainPageCommond.HideBoth);
+    -- if self.AdventureLevelWindowView == nil then
+    --     self.AdventureLevelWindowView = AdventureLevelWindowCs:GetLuaPanel().ScriptTable;
+    --     self.AdventureLevelWindowView:BindModule(self);
+    --     self.AdventureLevelWindowView:InitItems();
+    --     self.evtOnCloseAdventureLevel = LuaModuleDispatcher:Event(ModuleDef.AdventureLevelModule,
+    --         "OnCloseAdventureLevelEvt")
+    -- end
+
+    -- self:OnListener();
+    -- -- 显示
+    -- self.AdventureLevelWindowView:Open();
+
+    self.AsyncLoadAdventureLevelWindowCb = function(ui)
+        if ui ~= nil then
+            if self.AdventureLevelWindowView == nil then
+                self.AdventureLevelWindowView = ui:GetLuaPanel().ScriptTable;
+                self.AdventureLevelWindowView:BindModule(self);
+                self.AdventureLevelWindowView:InitItems();
+                self.evtOnCloseAdventureLevel = LuaModuleDispatcher:Event(ModuleDef.AdventureLevelModule,
+                    "OnCloseAdventureLevelEvt")
+            end
+            self:OnListener();
+            -- 显示
+            self.AdventureLevelWindowView:Open();
+        end
+        self.AsyncLoadAdventureLevelWindowCb = nil;
+    end
+    UIManager.Instance:OpenWindowAsync(AdventureLevelWindowPath, self.AsyncLoadAdventureLevelWindowCb, nil,
+        CS.StarProjectDef.MainPageCommond.HideBoth);
+
+end
+
+-- 关闭回调
+function AdventureLevelModule:OnCloseAdventureLevelEvt(arg)
+
+    self.evtOnCloseAdventureLevel:Invoke()
+
+    self.AdventureLevelWindowView = nil;
+end
+
+-- 关闭
+function AdventureLevelModule:OnCloseAdventureLevel()
+
+    self:OffListener();
+
+    self:OnCloseAdventureLevelEvt();
+
+    -- LuaModuleDispatcher:SendMessage(ModuleDef.EquipModule, "OnCloseEquip", { });
+end
+
+-- LuaModule 创建
+function AdventureLevelModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.AdventureLevelModule, self)
+
+    -- 冒险等级升级监听
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.RiskLevelUpRetID, function(data)
+        self:OnRiskLevelUpRet(data)
+    end, nil);
+
+end
+
+-- 冒险等级升级监听
+function AdventureLevelModule:OnRiskLevelUpRet(data)
+    if data == nil then
+        return;
+    end
+
+    -- 获取伙伴数据
+    local prevRiskLevel = data.data.NowRiskLevel - 1;
+
+    local cfg = ConfigDataAccessor.AdvGradeExp[data.data.NowRiskLevel];
+    local prewCfg = ConfigDataAccessor.AdvGradeExp[prevRiskLevel];
+
+    if cfg == nil then
+        return;
+    end
+    if prewCfg == nil then
+        return;
+    end
+
+    if prewCfg.IfBreak then
+        -- UIManager.Instance:OpenWidget(AdventureLevelUpgradeWidgetPath, false, data.data.NowRiskLevel, nil,
+        --     CS.StarProjectDef.MainPageCommond.HideNone, false, false);
+        UIManager.Instance:OpenWidgetAsync(AdventureLevelUpgradeWidgetPath, nil, false, data.data.NowRiskLevel, nil,
+            CS.StarProjectDef.MainPageCommond.HideNone, false, false);
+    else
+
+        if prewCfg.AdvOrder ~= cfg.AdvOrder then
+            -- 飘字升级成功
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_1"));
+            LuaModuleDispatcher:SendMessage(ModuleDef.PersonalTowerModule, "RefreshLevelRedPoint",
+                {data.data.NowRiskLevel});
+        end
+
+        local rewardsList = {};
+        -- 直接显示奖励
+        for i = 1, #prewCfg.AwardItem do
+            local rw = {};
+            rw.BaseID = prewCfg.AwardItem[i];
+            rw.Num = prewCfg.AwardNum[i];
+            rw.EntityID = 0;
+            table.insert(rewardsList, rw);
+        end
+        -- 弹窗逻辑（先塞进去之后在外面调用）
+        LuaModuleDispatcher:SendMessage(ModuleDef.RewardsPopModule, "OnOpenRewardsPop", {rewardsList});
+
+    end
+
+    -- 发送 冒险等级升级 的 全局事件
+    CS.StarProject.GlobalEvent.OnPlayerDataChange:Invoke(CS.StarProjectDef.AOIAttrDefine.RiskInfo, nil);
+
+end
+
+function AdventureLevelModule:OnListener()
+    -- 属性同步回调
+    if self.M_EntityBase == nil then
+        self.M_EntityBase = GameManager.Instance.M_MainPlayerCtrlBase;
+        self.attrLuaKey = "RiskInfo_" .. GameManager.Instance.mainPlayerId;
+
+        self.M_EntityBase.Data:AddAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.RiskInfo, self.attrLuaKey,
+            function(key, value)
+                print("属性同步开始")
+
+                if self.AdventureLevelWindowView ~= nil then
+                    -- 刷新
+                    self.AdventureLevelWindowView:Refesh();
+                end
+            end)
+    end
+
+end
+
+function AdventureLevelModule:OffListener()
+    -- 解绑属性同步回调
+    if self.M_EntityBase ~= nil then
+        self.M_EntityBase.Data:DelAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.RiskInfo, self.attrLuaKey);
+        self.M_EntityBase = nil;
+    end
+end
+
+-- LuaModule 消息处理
+function AdventureLevelModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...);
+end
+
+-- LuaModule显示
+function AdventureLevelModule:OnModuleShow(arg)
+
+end
+
+-- LuaModule 释放
+function AdventureLevelModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.AdventureLevelModule)
+    self.AdventureLevelWindowView = nil;
+end
+
+return AdventureLevelModule
+

@@ -1,0 +1,298 @@
+--[[
+*文件名   :   AdventureLevelRankUp
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] local AdventureLevelRankUp = {}
+
+AdventureLevelRankUp.__index = AdventureLevelRankUp
+
+local ItemGrid = require("View/Item/ItemGrid")
+local AdventureLevelRankUpItem = require("View/Uiwindow/AdventureLevel/AdventureLevelRankUpItem")
+
+function AdventureLevelRankUp:New(_go)
+    local self = {};
+    setmetatable(self, AdventureLevelRankUp);
+
+    self.gameObject = _go;
+    self.transform = _go.transform;
+
+    self.LvName = self.transform:Find("L/LvBg/Level"):GetComponent(typeof(Text));
+    self.Icon = self.transform:Find("L/Icon"):GetComponent(typeof(Image));
+
+    -- 道具
+    self.items = {}
+    for i = 1, 4 do
+        local it = ItemGrid:New(self.transform:Find("R/d2/Items/ItemGrid" .. i).gameObject);
+        it:InitItem(false, function(ritem)
+            self:OnItemClick(ritem)
+        end);
+        table.insert(self.items, it);
+    end
+
+    -- 条件
+    self.rankUpItems = {}
+    for i = 1, 7 do
+        local it = AdventureLevelRankUpItem:New(self.transform:Find("R/EffectList/Viewport/Content/RankUpItem" .. i)
+                                                    .gameObject);
+        table.insert(self.rankUpItems, it);
+    end
+
+    self.go_redPoint = self.transform:Find("R/RedPoint").gameObject;
+
+    self.btnColor = self.transform:Find("R/BtnConfirm/bg"):GetComponent(typeof(Image));
+
+    self.transform:Find("R/BtnConfirm"):GetComponent(typeof(JButton)).OnClick = (function()
+        self:OnRankUpClick();
+    end);
+
+    self:Show(false);
+
+    return self; -- 返回自身
+end
+
+function AdventureLevelRankUp:OnRankUpClick()
+    if self.CanRankUp then
+        -- 寻路到任务
+
+        -- 寻路去目标点
+        local config = TaskHelper.GetTaskConfig(self.TaskId)
+        if config ~= nil then
+            local TaskInfo = TaskHelper.GetRunningTask(self.TaskId)
+
+            if TaskInfo == nil then
+                return;
+            end
+
+            -- 任务进行中
+            if TaskInfo.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStageRunning then
+                local taskTarget = TaskHelper.GetTaskTarget(self.TaskId)
+                if taskTarget ~= nil then
+                    CS.StarProject.GlobalEvent.SelectTaskItem:Invoke(self.TaskId)
+
+                    UIManager.Instance:CloseAllLoadedWindowNWidget();
+                    TaskHelper.FindPathByTask(taskTarget.MapID, taskTarget.FindPath,taskTarget.TargetID, function(result)
+
+                        CS.StarProject.GlobalEvent.SelectTaskItem:Invoke(0)
+                        if result and
+                            (taskTarget.FindPath.FindPathType == CS.Task.E_FindPath.NPC or
+                                taskTarget.FindPath.FindPathType == CS.Task.E_FindPath.InterAction) then
+                            local EventID = TaskHelper.GetTaskRunningEventID(self.TaskId)
+                            self:OnFinishPathFinding(taskTarget.TargetID, self.TaskId, EventID, taskTarget.taskType)
+                        end
+                    end)
+                end
+            elseif TaskInfo.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStageFinished then
+                CS.StarProject.GlobalEvent.SelectTaskItem:Invoke(self.TaskId)
+                UIManager.Instance:CloseAllLoadedWindowNWidget();
+                -- 任务已完成未提交
+                TaskHelper.FindPathByNpc(config.TaskFinishInfo.FinishTaskMapID, config.TaskFinishInfo.FinishTaskNPC, 1, function(result)
+                    CS.StarProject.GlobalEvent.SelectTaskItem:Invoke(0)
+
+                    if result then
+                        self:OnFinishPathFinding(config.TaskFinishInfo.FinishTaskNPC, self.TaskId, 0, CS.Task.TaskType.Dialogue)
+                    end
+                end)
+            end
+        end
+
+    else
+
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_128"));
+
+    end
+
+end
+
+function AdventureLevelRankUp:OnFinishPathFinding(targetid, SourceID, SourceSubID, taskType)
+    if taskType == CS.Task.TaskType.Dialogue then
+        self:OnOpenDialogue(targetid, SourceID, SourceSubID)
+    elseif taskType == CS.Task.TaskType.InterAction then
+        self:OnInterAction(targetid, SourceID, SourceSubID)
+    end
+end
+
+function AdventureLevelRankUp:OnInterAction(objectID, SourceID, SourceSubID)
+    local uid = GameManager.Instance:GetObjectEntityIDByConfig(objectID)
+    BusinessManager.Instance:TurnToEntity(uid)
+    LuaModuleDispatcher:SendMessage(ModuleDef.InterActionModule, "QueryInter", uid, true, SourceID, SourceSubID)
+end
+
+function AdventureLevelRankUp:OnOpenDialogue(npcID, SourceID, SourceSubID)
+    local lobbyService = CS.ProtoMsg.LobbyServiceReq()
+    lobbyService.MapID = GameManager.Instance:GetCurMapId()
+    lobbyService.UID = GameManager.Instance:GetNPCEntityIDByConfig(npcID)
+    lobbyService.ObjID = npcID
+    lobbyService.SourceType = CS.ProtoMsg.MapServiceSourceTypeEnum.Task
+    lobbyService.SourceID = SourceID
+    lobbyService.SourceSubID = SourceSubID
+    lobbyService.ObjType = CS.ProtoMsg.ServiceObjEnum.ObjNpc
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+        lobbyService, false)
+end
+
+function AdventureLevelRankUp:OnItemClick(ritem)
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", {ritem.BaseID, false, 0, ritem.transform, 0});
+end
+
+function AdventureLevelRankUp:Show(b)
+    self.gameObject:SetActive(b);
+    if b then
+        self:Refesh();
+    end
+end
+
+function AdventureLevelRankUp:Refesh()
+
+    local RiskInfo = GameManager.Instance.M_MainPlayerCtrlBase.Data.Attrs:GetProtoValue(
+        CS.StarProjectDef.AOIAttrDefine.RiskInfo);
+    if RiskInfo ~= nil then
+
+        local curRiskLevel = RiskInfo.CurRiskLevel;
+
+        local cfg = ConfigDataAccessor.AdvGradeExp[curRiskLevel];
+
+        if cfg==nil then
+            return;
+        end
+
+        local openServerDay = 30;
+        if GameManager.Instance.GloInfoSrv ~= nil then
+            openServerDay = GameManager.Instance.GloInfoSrv.GRisk.OffDay;
+        end
+
+        self.TaskId = cfg.BreakTask;
+
+        -- 奖励道具
+        for i = 1, #self.items do
+            self.items[i].gameObject:SetActive(false);
+        end
+        for i = 1, #cfg.BreakAward do
+            self.items[i].gameObject:SetActive(true);
+
+            self.items[i]:SetItemNum(cfg.BreakAward[i], cfg.BreakAwardNum[i]);
+
+        end
+
+        self.LvName.text = cfg.AdvClass .. GetRomaNum(cfg.AdvOrder);
+
+        local order = cfg.AdvOrder;
+        -- self.Icon.sprite=AtlasManager.Instance:GetSprite("ui/adventurelevel/atlas/adventure","adventure_"..order);
+        ResourceHelper:LoadIconByAtlasAsync(self.Icon, ResourceHelper.AtlasPathAdventure, "adventure_" .. order, false)
+        -- 条件
+        for i = 1, #self.rankUpItems do
+            self.rankUpItems[i].gameObject:SetActive(false);
+        end
+
+        local GroupID = cfg.BreakConditionGroupID;
+
+        local metDic = GlobalFunctionManager.Instance:ConditionGroupMeteDic(GameManager.Instance.mainPlayerId, GroupID);
+        local isMete = GameManager.Instance:IsConditionMete(GroupID); -- 判断是否满足
+
+        local idx = 0;
+        for k, v in pairs(ConfigDataAccessor.CMcondition) do
+
+            if v.GroupID == GroupID then
+                if v.ConditionType ~= 12 then
+                    idx = idx + 1;
+                    self.rankUpItems[idx].gameObject:SetActive(true);
+
+                    --local str = v.Desc;
+                    local str = "";
+
+                    -- 如果是任务就要有详细的任务描述
+                    if v.ConditionType == 2 then
+                        local taskID = tonumber(v.Args1);
+
+                        local configNow = TaskHelper.GetTaskConfig(taskID);
+                        if configNow ~= nil then
+                            -- str="完成主线任务:"..configNow.Base.TaskName;
+                            str = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Tips73"), {configNow.Base.TaskName})
+                        end
+                    elseif v.ConditionType == 1 then
+                        -- 战斗等级
+                        local aimLv = tonumber(v.Args1);
+                        local playerLv = GameManager.Instance:GetPlayerLevel();
+
+                        if playerLv >= aimLv then
+                            playerLv = aimLv;
+                            -- str="玩家等级达到<color=#6B996A>"..playerLv.."/"..aimLv.."</color>级";
+                            str = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Tips74"), {playerLv, aimLv, "#6B996A"})
+                        else
+                            -- str="玩家等级达到<color=#BA5A52>"..playerLv.."/"..aimLv.."</color>级";
+                            str = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Tips74"), {playerLv, aimLv, "#BA5A52"})
+                        end
+                    elseif v.ConditionType == 11 then
+                        -- 通关以太梦境
+                        local aimFloor = tonumber(v.Args1);
+                        local playerFloor = GameManager.Instance.SeasonPassFloor;
+                        if playerFloor >= aimFloor then
+                            playerFloor = aimFloor
+                            -- str="通关拟态梦境<color=#6B996A>"..playerFloor.."/"..aimFloor.."</color>层";
+                            str = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Tips75"), {playerFloor, aimFloor, "#6B996A"})
+                        else
+                            -- str="通关拟态梦境<color=#BA5A52>"..playerFloor.."/"..aimFloor.."</color>层";
+                            str = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Tips75"), {playerFloor, aimFloor, "#BA5A52"})
+                        end
+                    elseif v.ConditionType == 10 then
+                        -- 开服天数
+                        local aimServerDay = tonumber(v.Args1);
+                        if openServerDay >= aimServerDay then
+                            openServerDay = aimServerDay
+                            -- str="开服时间经过<color=#6B996A>"..openServerDay.."/"..aimServerDay.."</color>天";
+                            str = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Tips76"), {openServerDay, aimServerDay, "#6B996A"})
+                        else
+                            -- str="开服时间经过<color=#BA5A52>"..openServerDay.."/"..aimServerDay.."</color>天";
+                            str = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Tips76"), {openServerDay, aimServerDay, "#BA5A52"})
+                        end
+
+                    elseif v.ConditionType == 27 then
+                        -- 信标分数到达1000
+                        local aimBattleScore = tonumber(v.Args2);
+                        local selfBattleScore = FightPowerManager.Instance:GetSeverPowerByModuleType(tonumber(v.Args1),
+                            (tonumber(v.Args3) == 0));
+
+                        if selfBattleScore >= aimBattleScore then
+                            selfBattleScore = aimBattleScore;
+                            str = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Tips_Condition27"), {selfBattleScore, aimBattleScore, "#6B996A"})
+                        else
+                            str = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Tips_Condition27"), {selfBattleScore, aimBattleScore, "#BA5A52"})
+                        end
+                    
+                    elseif v.ConditionType == 24 then
+                        -- 完成副本：蚀梦之影-{0}
+
+                        local taskID = tonumber(v.Args1);
+
+                        local configNow = ConfigDataAccessor.TeamDailyCopy[taskID];
+                        if configNow ~= nil then
+                            -- str="完成副本：蚀梦之影-{0}"..configNow.Base.TaskName;
+                            str = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_AdventureLevelRankUp_Fb1"), {configNow.AreaName})
+                        end
+                    end
+
+                    self.rankUpItems[idx]:SetItem(k, str, metDic[v.ConditionType], v.ConditionType);
+                end
+            end
+
+        end
+
+        self.CanRankUp = isMete;
+        if not (isMete) then
+            ResourceHelper:LoadIconByAtlasAsync(self.btnColor, ResourceHelper.AtlasPathCommonctrl,
+                "Common_Btn_NormalS1", false)
+            self.btnColor.color = Color(0.85, 0.85, 0.85);
+            self.go_redPoint:SetActive(false);
+        else
+            ResourceHelper:LoadIconByAtlasAsync(self.btnColor, ResourceHelper.AtlasPathCommonctrl,
+                "Common_Btn_NormalS2", false)
+            self.btnColor.color = Color(1, 1, 1);
+            self.go_redPoint:SetActive(true);
+        end
+
+    end
+end
+
+return AdventureLevelRankUp;

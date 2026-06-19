@@ -1,0 +1,93 @@
+--[[
+*文件名   :   SellRecord
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/10/20 14:22:32"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+SellRecord=class("SellRecord",UIPanel)
+local SellRecordItem=require("View/UIWindow/Exchange/SellRecordItem")
+SellRecord.m_ItemName=nil;
+SellRecord.m_OrderCount=nil;
+SellRecord.m_Price=nil;
+SellRecord.m_ScrollView=nil;
+SellRecord.m_ItemGrid=nil;
+SellRecord.ItemList={}
+SellRecord.ItemDatas={}
+local OnBankLogByItemIDRetFunc=nil;
+function SellRecord:ctor(go, atlas)
+	self.prefab = go;
+	self.AtlasPath = atlas;
+	self.m_ItemName=self:Find("ItemName"):GetComponent(typeof(Text));
+	self.m_OrderCount=self:Find("bgg/OrderCount"):GetComponent(typeof(Text));
+	self.m_Price=self:Find("bgg/Price"):GetComponent(typeof(Text));
+	self.m_ScrollView=self:Find("Scroll View"):GetComponent(typeof(SuperScrollViewController));
+	self.m_ItemGrid=self:Find("ItemGrid").gameObject;
+	self.m_ScrollView:NewScroll(self.m_ItemGrid, 0, function (tr,idx)
+			self:OnItemRefesh(tr,idx);
+		end);
+	OnBankLogByItemIDRetFunc=function(data)
+		self:OnBankLogByItemIDRet(data);
+	end
+	local BankLogByItemIDRetEvent=LuaModuleDispatcher:Event(ModuleDef.ExchangeModule,"BankLogByItemIDRetEvent");
+	BankLogByItemIDRetEvent:AddListener(OnBankLogByItemIDRetFunc)
+
+
+	self.ItemList={}
+	self.ItemDatas={}
+end
+
+function SellRecord:OnBankLogByItemIDRet(data)
+	--BankLogBase
+	self.ItemDatas={}
+
+	local price=0;
+
+	if data.Datas~=nil and data.Datas.Count>0 then
+		for i = 1, data.Datas.Count do
+			price=price+data.Datas[i-1].TotalPrice
+			table.insert(self.ItemDatas,data.Datas[i-1])
+		end
+	end
+	--self.m_OrderCount.text=data.Datas.Count.."单";
+	self.m_OrderCount.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_SellRecord_OrderCount"), {data.Datas.Count});
+
+	if data.Datas.Count>0 then
+		self.m_Price.text=price/data.Datas.Count;
+	else
+		self.m_Price.text=LanguageHelp:GetLanguageByKey("Local_Str_Tips20");
+	end
+	self.m_ScrollView:ContinueScroll(#self.ItemDatas);
+end
+
+function  SellRecord:OnItemRefesh(tr,idx)
+	if self.ItemList==nil then
+		return;
+	end
+	for i=1,#self.ItemList do
+		if self.ItemList[i].transform == tr then
+			self.ItemList[i]:UpdateContent(self.ItemDatas[idx+1]);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+			return
+		end
+	end
+
+	local bi = SellRecordItem.new(tr.gameObject,self.AtlasPath);
+	bi.prefab:SetActive(true);
+	bi:UpdateContent(self.ItemDatas[idx+1]);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+	table.insert(self.ItemList, bi);
+end
+
+function SellRecord:OnOpen(arg)
+	local item=ConfigDataAccessor.Item[arg]
+	if item~=nil then
+		self.m_ItemName.text=item.Name
+	end
+	LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule,"OnBankLogByItemIDReq",{arg})
+end
+
+function SellRecord:OnDestroy()
+	local BankLogByItemIDRetEvent=LuaModuleDispatcher:Event(ModuleDef.ExchangeModule,"BankLogByItemIDRetEvent");
+	BankLogByItemIDRetEvent:RemoveListener(OnBankLogByItemIDRetFunc)
+end
+return  SellRecord

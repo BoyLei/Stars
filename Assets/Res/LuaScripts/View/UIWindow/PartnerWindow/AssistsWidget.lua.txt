@@ -1,0 +1,563 @@
+--[[
+*文件名   :   AssistsWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/02/14 17:38:29"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+AssistsWidget=class("AssistsWidget",UIPanel)
+local PartnerAssistItem= require("View/UIWindow/PartnerWindow/PartnerAssistItem")
+
+---表现层
+AssistsWidget.m_PartnerName=nil;
+AssistsWidget.m_PartnerQuality=nil;
+AssistsWidget.m_DetailsBtn=nil;
+AssistsWidget.m_ScrollView=nil;
+AssistsWidget.m_ItemGrid=nil;
+AssistsWidget.m_StatBtn=nil;
+AssistsWidget.m_battleNum=nil;
+AssistsWidget.SelectPartner=nil;
+AssistsWidget.m_ItemRoot=nil;
+AssistsWidget.m_grid=nil;
+AssistsWidget.m_StatBtnText=nil;
+AssistsWidget.m_SlotInfo=nil; --- 槽位信息
+AssistsWidget.m_RoleImage=nil;
+AssistsWidget.m_HeadImage=nil;
+AssistsWidget.m_CurDesc=nil;
+AssistsWidget.m_NextDesc=nil;
+---数据层
+AssistsWidget.Partners=nil;
+AssistsWidget.SelectIndex=-1;
+AssistsWidget.PartnerItems=nil;
+AssistsWidget.Index=nil;			---槽位索引
+AssistsWidget.IsEmpty=true;	    ---有没选中
+AssistsWidget.m_ModelDataCell=nil;
+AssistsWidget.SlotPartner=nil;		---选中的伙伴
+AssistsWidget.Slot_Qualifications={};	---槽位上需要比较的资质
+AssistsWidget.Slot_Nature={};			---槽位上转换的属性
+AssistsWidget.CurrentAttrs=nil;
+AssistsWidget.ReplacetAttrs=nil;
+
+
+local SetPartnerInfoFunc=nil;
+local BackBattleAssitFunc=nil;
+
+function AssistsWidget:Awake()
+	self.PartnerItems={}
+	self.m_PartnerName=self:Find("LeftTop/Image/Text"):GetComponent(typeof(Text));
+	self.m_PartnerQuality=self:Find("LeftTop/QualityBG/Quality"):GetComponent(typeof(Image));
+	self.m_DetailsBtn=self:Find("LeftTop/DetailsBtn"):GetComponent(typeof(Button));
+	self.m_ScrollView=self:Find("Right/Scroll View"):GetComponent(typeof(SuperScrollViewController));
+	self.m_ItemGrid=self:Find("Right/ItemGrid").gameObject;
+	self.m_ItemGrid:SetActive(false);
+	self.m_SlotInfo=self:Find("Right/SlotInfo/Text"):GetComponent(typeof(Text));
+	self.m_StatBtn=self:Find("Right/StatBtn"):GetComponent(typeof(Button));
+	self.m_StatBtnText=self:Find("Right/StatBtn/Text"):GetComponent(typeof(Text));
+	self.m_battleNum=self:Find("LeftBottom/battle/battleNum"):GetComponent(typeof(Text));
+	self.m_grid=self:Find("Right/Scroll View/Mask/List"):GetComponent(typeof(RectTransform));
+	self.m_ItemRoot=self:Find("Right/Scroll View/Mask/List");
+	self.m_RoleImage=self:Find("Center/RoleImage"):GetComponent(typeof(Image));
+	self.m_HeadImage=self:Find("Center/RoleImage/BG/HeadImage"):GetComponent(typeof(Image));
+	self.m_CurDesc=self:Find("LeftBottom/AtrributePart/notice/Text1"):GetComponent(typeof(Text));
+	self.m_NextDesc=self:Find("LeftBottom/AtrributePart/notice/Text2"):GetComponent(typeof(Text));
+
+	self.m_ScrollView:NewScroll(self.m_ItemGrid, 0, function (tr,idx)
+			self:OnItemRefesh(tr,idx);
+		end);
+
+	self.CurrentAttrs={}
+	self.ReplacetAttrs={}
+	table.insert(self.CurrentAttrs,self:Find("LeftBottom/AtrributePart/Current/Atr1"))
+	table.insert(self.CurrentAttrs,self:Find("LeftBottom/AtrributePart/Current/Atr2"))
+	table.insert(self.ReplacetAttrs,self:Find("LeftBottom/AtrributePart/Replace/Atr1"))
+	table.insert(self.ReplacetAttrs,self:Find("LeftBottom/AtrributePart/Replace/Atr2"))
+	--AtrributePart
+	SetPartnerInfoFunc=function()
+		self:SetPartnerInfo()
+	end
+	BackBattleAssitFunc=function(result)
+		self:BackBattleAssit()
+	end
+end
+
+function AssistsWidget:Start()
+	self.m_DetailsBtn.onClick:AddListener(function() self:OnClickDetailsBtn() end);
+	self.m_StatBtn.onClick:AddListener(function() self:OnClickStatBtn() end);
+
+
+end
+
+function AssistsWidget:CleanAllSelected()
+	--无限列表
+	for i=1,#self.PartnerItems do
+		self.PartnerItems[i]:OnSelect(false);
+	end
+end
+
+function AssistsWidget:OnSelect(selectIndex)
+	self.SelectIndex=selectIndex;
+	self:CleanAllSelected();
+	self:SetPartnerInfo();
+end
+
+function AssistsWidget:OnItemRefesh(tr,idx)
+	if self.PartnerItems==nil then
+		return;
+	end
+	for i=1,#self.PartnerItems do
+		if self.PartnerItems[i].transform == tr then
+			self.PartnerItems[i]:UpdateContent(self.Partners[idx+1],self.SelectIndex);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+			return
+		end
+	end
+	local bi = PartnerAssistItem.new(tr.gameObject,self.m_ItemRoot,self.AtlasPath,function(index)
+			self:OnSelect(index)
+		end,function (data)
+			return  self:CompareAttr(data)
+		end);
+	bi.prefab:SetActive(true);
+	bi:UpdateContent(self.Partners[idx+1],self.SelectIndex);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+	table.insert(self.PartnerItems, bi);
+end
+
+function AssistsWidget:OnEnable()
+	LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OnCloseWindowMenu");
+	CS.StarProject.GlobalEvent.OnPartnerFresh:AddListener(SetPartnerInfoFunc);
+
+
+	CS.StarProject.GlobalEvent.OnPartnerAssistRet:AddListener(BackBattleAssitFunc);
+
+	CS.StarProject.GlobalEvent.OnPartnerFallRet:AddListener(BackBattleAssitFunc);
+end
+
+function AssistsWidget:BackBattleAssit()
+	LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OnOpenAssistWidget");
+end
+
+function AssistsWidget:OnDisable()
+	LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OnForceTab",1);
+	LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OnOpenWindowMenu");
+	CS.StarProject.GlobalEvent.OnPartnerFresh:RemoveListener(SetPartnerInfoFunc);
+	CS.StarProject.GlobalEvent.OnPartnerAssistRet:RemoveListener(BackBattleAssitFunc);
+
+	CS.StarProject.GlobalEvent.OnPartnerFallRet:RemoveListener(BackBattleAssitFunc);
+end
+
+function AssistsWidget:OnDestroy()
+	
+end
+
+function AssistsWidget:Sort()
+	-- 状态权重映射表
+	local stateWeights = {
+		[CS.ProtoMsg.PartnerState.InBattle] = 1,
+		[CS.ProtoMsg.PartnerState.Concretization] = 1,
+		[CS.ProtoMsg.PartnerState.Assist] = 2
+	}
+
+	-- 辅助函数，获取伙伴的质量，如果伙伴信息不存在则返回0
+	local function getQuality(partnerIndex)
+		local config = ConfigDataAccessor.Partner[partnerIndex]
+		return config and config.Quality or 0
+	end
+
+	-- 排序函数
+	table.sort(self.Partners, function(p1, p2)
+			-- 获取状态权重，如果状态未知则默认为0
+			local t1 = stateWeights[p1.data.State] or 0
+			local t2 = stateWeights[p2.data.State] or 0
+
+			-- 如果状态权重不同，根据权重排序
+			if t1 > t2 then return true end
+			if t1 < t2 then return false end
+
+			-- 状态权重相同，比较等级
+			local lv1 = p1.Level or 0
+			local lv2 = p2.Level or 0
+
+			if lv1 > lv2 then return true end
+			if lv1 < lv2 then return false end
+
+			-- 等级相同，比较质量
+			local quality1 = getQuality(p1.data.Index)
+			local quality2 = getQuality(p2.data.Index)
+
+			return quality1 > quality2
+		end)
+end
+
+function AssistsWidget:OnOpen(arg)
+
+	--{dts=datas,seat=seat,sid=id}
+	self.Partners=arg.datas;
+	self.SelectIndex=arg.sid;
+	self.IsEmpty=arg.IsEmpty;	    		---有没选中
+	self.Index=arg.seat;					---槽位索引
+	self.SlotPartner=arg.Slotpartner;		---选中的伙伴
+	self:Sort();
+	local playerJob=GameManager.Instance:GetPlayJobBaseID();
+	local slotInfo= ConfigDataAccessor.PartnerAssistSlot[playerJob][self.Index]
+	if slotInfo~=nil then
+		self.Slot_Qualifications=slotInfo.Qualifications
+		self.Slot_Nature=slotInfo.Nature
+		local info=(self.Index+1)..LanguageHelp:GetLanguageByKey("Local_Str_trench")
+		for i = 1, #slotInfo.Qualifications do
+			
+			local AoiAttr= ConfigDataAccessor.ParConversion[slotInfo.Qualifications[i]]
+			if AoiAttr~=nil then
+				info=info..AoiAttr.Name
+				if i ~= #slotInfo.Qualifications then
+					info=info..","
+				end
+			end
+			
+
+		end
+		
+		self.m_SlotInfo.text=info
+	end
+
+	---暂时不显示玩家立绘，显示伙伴立绘
+	--local jobCfg=ConfigDataAccessor.Job[playerJob]
+	--if jobCfg~=nil then
+	--local model=ConfigDataAccessor.Model[jobCfg.Model]
+	--if model~=nil then
+	--ResourceManager.Instance:LoadSpriteAsync(model.HalfDrawing,function (sp)
+	--if self.m_RoleImage ~= nil and sp ~= nil then
+	--self.m_RoleImage.sprite = sp;
+	--self.m_RoleImage:SetNativeSize()
+	--end
+	--end)
+	--end
+	--end
+
+	self.m_ScrollView:ContinueScroll(GetTableLen(self.Partners));
+	self:SetPartnerInfo();
+	UIManager.Instance:SetRawCamrea(true);
+end
+
+---比较属性
+function AssistsWidget:CompareAttr(data)
+	local list={}
+	if self.Slot_Qualifications~=nil and #self.Slot_Qualifications>0 then
+		for i = 1, #self.Slot_Qualifications do
+			if self.SlotPartner ==nil then
+				local t= data.PartnerData.AMD.Aptitudes[self.Slot_Qualifications[i]].BaseValue
+				if t>0 then
+					table.insert(list,{id=self.Slot_Qualifications[i],isup=1})
+				else
+					table.insert(list,{id=self.Slot_Qualifications[i],isup=0})
+				end
+
+			else
+				if data.Index== self.SlotPartner.Index then
+					table.insert(list,{id=self.Slot_Qualifications[i],isup=0})
+				else
+					local isup=	data.PartnerData.AMD.Aptitudes[self.Slot_Qualifications[i]].BaseValue>self.SlotPartner.AMD.Aptitudes[self.Slot_Qualifications[i]].BaseValue;
+					if isup then
+						table.insert(list,{id=self.Slot_Qualifications[i],isup=1})
+					else
+						if data.PartnerData.AMD.Aptitudes[self.Slot_Qualifications[i]].BaseValue==self.SlotPartner.AMD.Aptitudes[self.Slot_Qualifications[i]].BaseValue then
+							table.insert(list,{id=self.Slot_Qualifications[i],isup=0})
+						else
+							table.insert(list,{id=self.Slot_Qualifications[i],isup=-1})
+						end
+					end
+				end
+			end
+		end
+	end
+	return list;
+end
+
+
+function AssistsWidget:GetSelectPartner()
+	if self.Partners==nil then
+		return nil
+	end
+
+	for _k,_v in pairs(self.Partners) do
+		if _v.data.Index== self.SelectIndex then
+			return _v.data
+		end
+	end
+end
+
+function AssistsWidget:SetPartnerInfo()
+	local data= self:GetSelectPartner();
+	if data==nil then
+		return
+	end
+
+	local config=ConfigDataAccessor.Partner[data.Index];
+	if config~=nil then
+		self.m_PartnerName.text=config.Name
+		self:GetSprite(self:GetQualityName(config.Quality),function (sp)
+				self.m_PartnerQuality.sprite=sp
+		end)
+		self.m_PartnerQuality:SetNativeSize();
+		self.m_StatBtnText.text=self:GetStateName(data.State,data.Index);
+		
+		local avatarDataCell= ConfigDataAccessor.Avatar[config.AvatarID];
+		if avatarDataCell ~= nil then
+			local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID];
+			if headCfg ~= nil then
+				self:GetSpriteByAtlas(headCfg.HeadAtlasName,headCfg.MinHead,function (sp)
+						self.m_HeadImage.sprite=sp
+						self.m_HeadImage:SetNativeSize();
+				end);
+
+
+				---伙伴立绘
+				--ResourceHelper:LoadRawIconAsync(self.m_RoleImage, headCfg.HalfDrawing, true,nil)
+				ResourceHelper:LoadSpriteAtlasAsync(self.m_RoleImage,  ResourceHelper.HeadAtlasPath .. headCfg.HalfDrawing , headCfg.HalfDrawing , false,function() 
+					
+				end)
+
+				-- ResourceManager.Instance:LoadSpriteAsync(headCfg.HalfDrawing,function (sp)
+				-- 		if self.m_RoleImage ~= nil and sp ~= nil then
+				-- 			self.m_RoleImage.sprite = sp;
+				-- 			self.m_RoleImage:SetNativeSize()
+				-- 		end
+				-- 	end)
+			end
+		end
+
+		local  PartnerNature=ConfigDataAccessor.PartnerNature[config.Nature][data.Level]
+		if PartnerNature~=nil then
+			self.m_battleNum.text=tostring(PartnerNature.Power);
+		end
+
+	end
+	self:SetAtrribuite();
+end
+function AssistsWidget:SetAtrribuite()
+	local playerJob=GameManager.Instance:GetPlayJobBaseID();
+
+	self.m_CurDesc.text=""
+	self.m_NextDesc.text=""
+	for i = 1, #self.CurrentAttrs do
+		self.CurrentAttrs[i].gameObject:SetActive(false)
+	end
+
+	if self.SlotPartner==nil then
+		for i = 1, #self.Slot_Qualifications do
+			if i<3 then
+				local objz=self.CurrentAttrs[i].transform:Find("Text1"):GetComponent(typeof(Text));
+				local obja=self.CurrentAttrs[i].transform:Find("Text2"):GetComponent(typeof(Text));
+				local AoiAttr= ConfigDataAccessor.ParConversion[self.Slot_Qualifications[i]]
+				if AoiAttr~=nil then
+					objz.text=AoiAttr.Name..":0"
+				end
+
+				local config1=  ConfigDataAccessor.GetAttrByID(self.Slot_Nature[i]);
+				local attrName1 = "";
+				if config1 ~= nil then
+					attrName1 = config1.Name;
+				end
+				obja.text=attrName1..":0"
+
+
+				self.CurrentAttrs[i].gameObject:SetActive(true)
+
+			end
+		end
+	else
+		local SlotPartnerAptitudes={}
+		for i = 1, #self.Slot_Qualifications do
+			table.insert(SlotPartnerAptitudes,self.SlotPartner.AMD.Aptitudes[self.Slot_Qualifications[i]].BaseValue)
+		end
+
+
+		local info= ConfigDataAccessor.GetPartnerAssitConfig(playerJob,self.Index,SlotPartnerAptitudes);
+		if info==nil then
+			return
+		end
+
+		for i = 1, #self.Slot_Qualifications do
+			if i<3 then
+				local objz=self.CurrentAttrs[i].transform:Find("Text1"):GetComponent(typeof(Text));
+				local obja=self.CurrentAttrs[i].transform:Find("Text2"):GetComponent(typeof(Text));
+
+				local AoiAttr= ConfigDataAccessor.ParConversion[self.Slot_Qualifications[i]]
+				if AoiAttr~=nil then
+					objz.text=AoiAttr.Name..":"..self.SlotPartner.AMD.Aptitudes[self.Slot_Qualifications[i]].BaseValue.."<color=#00ff00>".."(+"..(info.Ratio[i]/100).."%)".."</color>"
+				end
+
+				local config1=  ConfigDataAccessor.GetAttrByID(self.Slot_Nature[i]);
+				local attrName1 = "";
+				if config1 ~= nil then
+					attrName1 = config1.Name;
+				end
+				local va=self.SlotPartner.AMD.Aptitudes[self.Slot_Qualifications[i]].BaseValue*info.Ratio[i]*0.0001
+				obja.text=attrName1..":"..math.floor(va).."<color=#00ff00>".. "(+"..(info.Ratio[i]/100).."%)".."</color>"
+
+
+
+				self.CurrentAttrs[i].gameObject:SetActive(true)
+
+			end
+		end
+	end
+
+	---替换后
+	for i = 1, #self.ReplacetAttrs do
+		self.ReplacetAttrs[i].gameObject:SetActive(false)
+	end
+	local data= self:GetSelectPartner();
+	if data==nil then
+		return
+	end
+	local DataPartnerAptitudes={}
+	for i = 1, #self.Slot_Qualifications do
+		table.insert(DataPartnerAptitudes,data.AMD.Aptitudes[self.Slot_Qualifications[i]].BaseValue)
+	end
+
+	local info= ConfigDataAccessor.GetPartnerAssitConfig(playerJob,self.Index,DataPartnerAptitudes);
+	if info==nil then
+		return
+	end
+
+
+	self.m_CurDesc.text=info.Desc
+
+	for i = 1, #self.Slot_Qualifications do
+		if i<3 then
+			local objz=self.ReplacetAttrs[i].transform:Find("Text1"):GetComponent(typeof(Text));
+			local obja=self.ReplacetAttrs[i].transform:Find("Text2"):GetComponent(typeof(Text));
+			local AoiAttr= ConfigDataAccessor.ParConversion[self.Slot_Qualifications[i]]
+
+			if AoiAttr~=nil then
+				objz.text=AoiAttr.Name..":"..data.AMD.Aptitudes[self.Slot_Qualifications[i]].BaseValue.."<color=#00ff00>".."(+"..(info.Ratio[i]/100).."%)".."</color>"
+			end
+
+			local config1=  ConfigDataAccessor.GetAttrByID(self.Slot_Nature[i]);
+			local attrName1 = "";
+			if config1 ~= nil then
+				attrName1 = config1.Name;
+			end
+			local showAtr=data.AMD.Aptitudes[self.Slot_Qualifications[i]].BaseValue*info.Ratio[i]*0.0001;
+			obja.text=attrName1..":"..math.floor(showAtr).."<color=#00ff00>".."(+"..(info.Ratio[i]/100).."%)".."</color>"
+
+
+			self.ReplacetAttrs[i].gameObject:SetActive(true)
+		end
+	end
+	local next= ConfigDataAccessor.GetPartnerAssitConfigByID(playerJob,self.Index,info.Id+1);
+	if next~=nil then
+		self.m_NextDesc.text=next.Desc
+	end
+end
+
+function AssistsWidget:GetQualityName(quality)
+	if quality== 1 then
+		return "Partner_quality_n"
+	elseif quality== 2 then
+		return "Partner_quality_r"
+	elseif quality== 3 then
+		return "Partner_quality_sr"
+	elseif quality== 4 then
+		return "Partner_quality_ssr"
+	end
+end
+
+function AssistsWidget:GetStateName(state,id)
+	local result=""
+
+	if self.SlotPartner==nil then
+		if state== CS.ProtoMsg.PartnerState.Assist  then
+			result= LanguageHelp:GetLanguageByKey("Local_Str_alreadyGoIntoBattle")
+		else
+			---点击空各自进入
+			result= LanguageHelp:GetLanguageByKey("Local_Str_assist_in_fighting")
+		end
+
+
+	else
+		--闲置 ，助战
+		if state~= CS.ProtoMsg.PartnerState.Assist  then
+			result= LanguageHelp:GetLanguageByKey("Local_Str_Replace")
+		else
+			result= LanguageHelp:GetLanguageByKey("Local_Str_alreadyGoIntoBattle")
+			if self.SlotPartner.Index==id then
+				result= LanguageHelp:GetLanguageByKey("Local_Str_Downarray")
+			end
+
+		end
+
+	end
+	return result;
+
+end
+
+
+function AssistsWidget:OnClose(arg)
+	UIManager.Instance:SetRawCamrea(false);
+	self.Partners=nil;
+	self.SelectIndex=-1;
+	self.Index=nil;			---槽位索引
+	self.IsEmpty=true;	    ---有没选中
+	self.m_ModelDataCell=nil;
+	self.m_ModelViewDisplay=nil;
+end
+
+
+
+function AssistsWidget:OnClickDetailsBtn()
+	LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OpenDetailWidget",{self.SelectIndex,1});
+end
+
+
+
+function AssistsWidget:OnClickStatBtn()
+
+	local data= self:GetSelectPartner();
+	if data==nil then
+		return
+	end
+	local Index=0;
+	if data.State==CS.ProtoMsg.PartnerState.InBattle or data.State==CS.ProtoMsg.PartnerState.Concretization then
+		Index=11
+	end
+
+	if Index==0 then
+		self:DoAction(data);
+	else
+		UIAPI.ShowMsgBox(Index,function (EventName)
+				if EventName=="SURE" then
+					self:DoAction(data);
+				end
+			end)
+	end
+
+end
+
+function AssistsWidget:DoAction(data)
+
+	if self.SlotPartner==nil then
+		---上阵
+		LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OnPartnerAssistReq", {data.Index,self.Index,data.CurSeat});
+
+	else
+		if self.SlotPartner.Index==data.Index then
+			-- LanguageHelp:GetLanguageByKey("Local_Str_Downarray")
+			local config=ConfigDataAccessor.Partner[data.Index];
+			if config~=nil then
+				--local text=	config.Name.."取消助战"
+				local text=	StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_271"), {config.Name})
+
+				Util.ShowMessage(text);
+
+			end
+
+			LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "PartnerFallReq", data.Index);
+		else
+			if data.state ~= CS.ProtoMsg.PartnerState.Assist  then
+				LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OnPartnerAssistReq", {data.Index,self.Index,data.CurSeat});
+			end
+		end
+	end
+end
+
+return  AssistsWidget

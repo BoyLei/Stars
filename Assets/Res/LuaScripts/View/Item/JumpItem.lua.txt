@@ -1,0 +1,53 @@
+--[[
+*文件名   :   JumpItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2024/04/18 14:50:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local JumpItem = {}
+
+JumpItem.__index = JumpItem
+
+function JumpItem:New(_go) 
+    local self = {};    
+    setmetatable(self, JumpItem); 
+    
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+    self.Tex=self.transform:Find("tex"):GetComponent(typeof(Text));
+
+
+    --点击事件
+	self.JBtn=self.transform:GetComponent(typeof(JButton));
+	self.JBtnFun = function()
+        self.OnItemClick(self.Cfg); 
+	end
+    self.JBtn.OnClick = self.JBtnFun
+
+    self.gameObject:SetActive(false);
+    self.IsUsed=false;
+
+    return self;    --返回自身
+end
+
+function JumpItem:SetUse(b)
+    self.IsUsed=b;
+    self.gameObject:SetActive(b);
+end
+
+function JumpItem:InitItem(onItemClick)
+    self.OnItemClick=onItemClick;
+    self:SetUse(false);
+end
+
+function JumpItem:SetItem(cfg)
+    self:SetUse(true);
+    self.Cfg=cfg;
+    self.Tex.text=cfg.ButtonText;
+end
+
+return JumpItem;

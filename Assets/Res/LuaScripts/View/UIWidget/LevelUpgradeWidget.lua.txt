@@ -1,0 +1,56 @@
+--[[
+*文件名   :   LevelUpgradeWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/12/06 10:33:06"
+*创建人   :   "quzhenxin"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+LevelUpgradeWidget = class("LevelUpgradeWidget", UIPanel)
+LevelUpgradeWidget.m_Level = nil
+LevelUpgradeWidget.m_transform = nil
+
+LevelUpgradeWidget.m_CurLevel = 1
+function LevelUpgradeWidget:Awake()
+    self.m_transform = self.prefab.transform
+    self.m_Level = self:Find("Item/Level"):GetComponent(typeof(Text))
+end
+
+function LevelUpgradeWidget:Start()
+end
+
+function LevelUpgradeWidget:OnEnable()
+end
+
+function LevelUpgradeWidget:OnDisable()
+end
+
+function LevelUpgradeWidget:OnDestroy()
+end
+
+function LevelUpgradeWidget:OnOpen(arg)
+    local LastLevel = arg.LastLevel
+    self.m_CurLevel = arg.CurLevel
+
+    -- local LastLevel = arg[0]
+    -- self.m_CurLevel = arg[1]
+    --self.m_Level.text = tostring(LastLevel);
+    self.PlayAnimation(
+        "LevelUpgradeWidget_Anim",
+        function()
+            self.Close()
+        end
+    )
+    --DOVirtual.DelayedCall(0.8, function()
+    --	self.m_Level.text = tostring(self.m_CurLevel);
+    --end);
+    self.m_Level.text = tostring(self.m_CurLevel)
+
+    SoundManager.Instance:PlayEventName("UI_Player_LevelUP_01", self.gameObject, self.gameObject)
+    LuaModuleDispatcher:SendMessage(ModuleDef.QuickEquipModule, "OnRecheckQuickEquip", {})
+end
+
+function LevelUpgradeWidget:OnClose(arg)
+end
+
+return LevelUpgradeWidget

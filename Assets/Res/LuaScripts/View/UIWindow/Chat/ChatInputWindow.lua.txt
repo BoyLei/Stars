@@ -1,0 +1,240 @@
+ChatInputWindow = class("ChatInputWindow", UIPanel)
+ChatInputWindow.IsOpen = false
+
+local EmojiSelect = require("View/UIWindow/Chat/ChatInput/EmojiSelect")
+local BigEmojiSelect = require("View/UIWindow/Chat/ChatInput/BigEmojiSelect")
+local EquipSelect = require("View/UIWindow/Chat/ChatInput/EquipSelect")
+local HistorySelect = require("View/UIWindow/Chat/ChatInput/HistorySelect")
+
+ChatInputWindow.sources = -1
+
+function ChatInputWindow:Awake()
+end
+
+function ChatInputWindow:Start()
+end
+
+function ChatInputWindow:OnEnable()
+end
+
+function ChatInputWindow:OnDisable()
+end
+
+function ChatInputWindow:OnDestroy()
+end
+
+function ChatInputWindow:BindModule(m)
+    self.module = m
+end
+
+function ChatInputWindow:HideAll()
+    self.emojiSelect:Show(false)
+    self.bigEmojiSelect:Show(false)
+    self.equipSelect:Show(false)
+    self.historySelect:Show(false)
+
+    self.emojiSel:SetActive(false)
+    self.bigEmojiSel:SetActive(false)
+    self.recordSel:SetActive(false)
+    self.itemSel:SetActive(false)
+    self.locSel:SetActive(false)
+end
+
+function ChatInputWindow:Init(e)
+    self.transform = self.prefab.transform
+    self.gameObject = self.transform.gameObject
+
+    self.inputField = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/InputField"):GetComponent(typeof(MyInput))
+    -- self.inputField.onValueChanged:AddListener(function(inputStr)
+    -- Log("聊天输入 inputStr=》" .. inputStr);
+    -- Log("聊天输入 text=》" .. self.inputField.text);
+    -- end);
+
+    -- self.TextMeshPro = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/InputField/TextMeshPro"):GetComponent(typeof(TextMeshProUGUI));
+
+    self.numTxt = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Num"):GetComponent(typeof(Text))
+
+    self.sendBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/SendBtn"):GetComponent(typeof(Button)) -- 发送
+    self.sendBtnFun = function()
+        if self.inputField.text == "" then
+            return
+        end
+
+        self:SendChatInputData()
+    end
+    self.sendBtn.onClick:AddListener(self.sendBtnFun)
+
+    self.changeBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Change"):GetComponent(typeof(Button)) -- 转换
+    self.changeBtnFun = function()
+        -- 转换文本，手机端需要打包测试
+    end
+    self.changeBtn.onClick:AddListener(self.changeBtnFun)
+
+    self.emojiBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/ChatType/EmojiBtn"):GetComponent(typeof(Button)) -- 表情
+    self.bigEmojiBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/ChatType/BigEmojiBtn"):GetComponent(typeof(Button)) -- 大表情
+    self.recordsBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/ChatType/RecordBtn"):GetComponent(typeof(Button)) -- 历史记录
+    self.itemBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/ChatType/ItemBtn"):GetComponent(typeof(Button)) -- 装备
+    self.locBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/ChatType/LocationBtn"):GetComponent(typeof(Button)) -- 位置
+
+    ---
+    self.TaskBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/ChatType/TaskBtn"):GetComponent(typeof(Button)) -- 任务
+    self.StallBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/ChatType/StallBtn"):GetComponent(typeof(Button)) -- 摆摊
+    self.PetBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/ChatType/PetBtn"):GetComponent(typeof(Button)) -- 宠物
+    self.DiscolorBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/ChatType/DiscolorBtn"):GetComponent(typeof(Button)) -- 变色
+    ---
+
+    self.emojiSel = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/ChatType/EmojiBtn/Sel").gameObject
+    self.bigEmojiSel = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/ChatType/BigEmojiBtn/Sel").gameObject
+    self.recordSel = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/ChatType/RecordBtn/Sel").gameObject
+    self.itemSel = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/ChatType/ItemBtn/Sel").gameObject
+    self.locSel = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/ChatType/LocationBtn/Sel").gameObject
+
+    self.emojiGo = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/ChatContent/Expression").gameObject -- 表情
+    self.bigEmojiGo = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/ChatContent/BigExpression").gameObject -- 大表情
+    self.recordsGo = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/ChatContent/History").gameObject -- 历史记录
+    self.itemGo = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/ChatContent/Props").gameObject -- 装备
+
+    self.emojiSelect = EmojiSelect:New(self.emojiGo, self)
+    self.bigEmojiSelect = BigEmojiSelect:New(self.bigEmojiGo, self)
+    self.equipSelect = EquipSelect:New(self.itemGo, self)
+    self.historySelect = HistorySelect:New(self.recordsGo, self)
+
+    self.emojiBtnFun = function()
+        -- 表情选择界面
+        self:HideAll()
+        self.emojiSel:SetActive(true)
+        self.emojiSelect:Show(true)
+    end
+    self.emojiBtn.onClick:AddListener(self.emojiBtnFun)
+
+    self.bigEmojiBtnFun = function()
+        -- 大表情选择界面
+        self:HideAll()
+        self.bigEmojiSel:SetActive(true)
+        self.bigEmojiSelect:Show(true)
+    end
+    self.bigEmojiBtn.onClick:AddListener(self.bigEmojiBtnFun)
+
+    self.recordsBtnFun = function()
+        -- 历史记录选择界面
+        self:HideAll()
+        self.recordSel:SetActive(true)
+        self.historySelect:Show(true)
+    end
+    self.recordsBtn.onClick:AddListener(self.recordsBtnFun)
+
+    self.itemBtnFun = function()
+        -- 装备选择界面
+        self:HideAll()
+        self.itemSel:SetActive(true)
+        self.equipSelect:Show(true)
+    end
+    self.itemBtn.onClick:AddListener(self.itemBtnFun)
+
+    self.locBtn.onClick:AddListener(
+        function()
+            -- 输入位置
+            self:AddLocation()
+        end
+    )
+
+    -----------
+    self.TaskBtnFun = function()
+        CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_284"))
+    end
+    self.TaskBtn.onClick:AddListener(self.TaskBtnFun)
+
+    self.StallBtnFun = function()
+        CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_284"))
+    end
+    self.StallBtn.onClick:AddListener(self.StallBtnFun)
+
+    self.PetBtnFun = function()
+        CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_284"))
+    end
+    self.PetBtn.onClick:AddListener(self.PetBtnFun)
+
+    self.DiscolorBtnFun = function()
+        CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_284"))
+    end
+    self.DiscolorBtn.onClick:AddListener(self.DiscolorBtnFun)
+
+    -------------
+
+    self:HideAll()
+    self.emojiSel:SetActive(true)
+    self.emojiSelect:Show(true)
+end
+
+function ChatInputWindow:OnOpen(arg)
+    self.IsOpen = true
+end
+
+function ChatInputWindow:OnClose(arg)
+    self:CloseWindow()
+    self.sources = -1
+    self.module.chatInputWindow = nil
+end
+
+-- 添加表情
+function ChatInputWindow:AddEmoji(id)
+    self.inputField:AddEmoji(id)
+end
+
+-- 添加大表情
+function ChatInputWindow:AddBigEmoji(id)
+    self.inputField:AddBigEmoji(id)
+end
+
+-- 添加地理位置
+function ChatInputWindow:AddLocation()
+    self.inputField:AddLocation()
+end
+
+-- 添加道具
+function ChatInputWindow:AddItem(id)
+    self.inputField:AddItem(id)
+end
+
+-- 历史记录item点击后，【应该是添加到input字符后面】但是我看代码是【直接赋值给input的字符串了】
+function ChatInputWindow:SetInputText(str, extra)
+    self.inputField:SetText(str, extra)
+end
+
+-- 发送消息
+function ChatInputWindow:SendChatInputData()
+    if self.sources == 1 then
+        LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "SendDataByChatInput", self.inputField)
+    else
+        self.module:SendDataByChatInput(self.inputField)
+    end
+end
+
+-- 清空当前输入框信息
+function ChatInputWindow:ClearInput()
+    self.inputField:Clear()
+end
+
+function ChatInputWindow:SyncInput(ip, sources, textFromChannelWindow)
+    self.sources = sources
+    self.inputField:Sync(ip)
+    --[[
+        if textFromChannelWindow ~= nil and textFromChannelWindow ~= "" then
+        self.inputField.text = textFromChannelWindow
+        self.inputField.text = textFromChannelWindow
+    end
+    ]]
+end
+
+function ChatInputWindow:CloseWindow()
+    self.IsOpen = false
+    if self.sources == 1 then
+        LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnInput2Channel", self.inputField)
+    else
+        LuaModuleDispatcher:SendMessage(ModuleDef.ChatModule, "OnInput2Channel", self.inputField)
+    end
+
+    self.module.chatInputWindow = nil
+end
+
+return ChatInputWindow

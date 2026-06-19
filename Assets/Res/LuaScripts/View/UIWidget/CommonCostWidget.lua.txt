@@ -1,0 +1,116 @@
+--[[
+*文件名   :   CommonCostWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/28 14:23:06"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]] CommonCostWidget = class("CommonCostWidget", UIPanel)
+CommonCostWidget.m_Sure = nil;
+CommonCostWidget.m_Cancle = nil;
+CommonCostWidget.m_Toggle = nil;
+CommonCostWidget.m_ScrollViewEx = nil;
+CommonCostWidget.sure_callback = nil;
+CommonCostWidget.cancel_callback = nil;
+CommonCostWidget.Items = nil;
+
+function CommonCostWidget:Awake()
+    self.Items = {}
+    self.m_Sure = self:Find("Sure"):GetComponent(typeof(Button));
+    self.m_Cancle = self:Find("Cancle"):GetComponent(typeof(Button));
+    self.m_Toggle = self:Find("Toggle"):GetComponent(typeof(Toggle));
+    self.m_ScrollViewEx = self:Find("ScrollViewEx"):GetComponent(typeof(ScrollViewEx));
+
+end
+
+function CommonCostWidget:Start()
+    self.m_Sure.onClick:AddListener(function()
+        self:OnClickSure()
+    end);
+    self.m_Cancle.onClick:AddListener(function()
+        self:OnClickCancle()
+    end);
+    self.m_Toggle.onValueChanged:AddListener(function(toggle)
+        if toggle then
+            BusinessManager.Instance:SaveCostNotice()
+        end
+    end);
+end
+
+function CommonCostWidget:OnEnable()
+
+end
+
+function CommonCostWidget:OnDisable()
+
+end
+
+function CommonCostWidget:OnDestroy()
+
+end
+
+function CommonCostWidget:updateFunc(index, rt)
+    local data = self.Items[index + 1];
+    local uiCell = rt:GetComponent(typeof(UICell));
+    uiCell:UpdateContent(data);
+end
+
+function CommonCostWidget:itemCountFunc()
+    if self.Items == nil then
+        return 0
+    end
+
+    return #self.Items;
+end
+
+function CommonCostWidget:OnOpen(arg)
+    local costID = arg[0]
+    self.sure_callback = arg[1]
+    self.cancel_callback = arg[2]
+    local active = BusinessManager.Instance:HasCostNotice();
+    self.m_Toggle.gameObject:SetActive(active)
+    self.m_Toggle.isOn = not active;
+
+    self.Items = {}
+    local config = ConfigDataAccessor.Cost[costID];
+    if config ~= nil then
+        local count = #config.ItemCost
+        for i = 1, count do
+            local info = AwardInfo.new(config.ItemCost[i], config.ItemNum[i], false)
+            table.insert(self.Items, info)
+        end
+    end
+
+    self.m_ScrollViewEx:SetUpdateFunc(function(index, rt)
+        self:updateFunc(index, rt);
+    end);
+
+    self.m_ScrollViewEx:SetItemCountFunc(function()
+        return self:itemCountFunc();
+    end);
+    self.m_ScrollViewEx:UpdateData(true)
+
+end
+
+function CommonCostWidget:OnClose(arg)
+    self.sure_callback = nil
+    self.cancel_callback = nil
+end
+
+function CommonCostWidget:OnClickSure()
+
+    if self.sure_callback ~= nil then
+        self.sure_callback();
+    end
+    self:Close()
+end
+
+function CommonCostWidget:OnClickCancle()
+    if self.cancel_callback ~= nil then
+        self.cancel_callback();
+    end
+    self:Close()
+
+end
+
+return CommonCostWidget

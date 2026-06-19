@@ -1,0 +1,338 @@
+--[[
+*文件名   :   WorldLineItem
+*内  容   :   世界线中的item
+*说  明   :
+*创建日期 :   "2024/04/28 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local WorldLineItem = {}
+
+WorldLineItem.__index = WorldLineItem
+
+function WorldLineItem:New(_go)
+    local self = {}
+    setmetatable(self, WorldLineItem)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.Rect = self.transform:GetComponent(typeof(RectTransform))
+
+    self.Title = self.transform:Find("title"):GetComponent(typeof(Text))
+    self.Img = self.transform:Find("img"):GetComponent(typeof(Image))
+
+    self.go_canGetEff1 = self.transform:Find("canGetEff1").gameObject
+    self.go_canGetEff2 = self.transform:Find("canGetEff2").gameObject
+
+    self.TitleBg = self.transform:Find("barbg"):GetComponent(typeof(Image))
+    self.TitleDot = self.transform:Find("titleBg"):GetComponent(typeof(Image))
+
+    self.go_get = self.transform:Find("get").gameObject
+    self.go_fog = self.transform:Find("img/fog").gameObject
+
+    self.go_getEff = self.transform:Find("img/FX_UI_WorldLineMainItem_Get").gameObject
+    self.Ps_getEff = self.transform:Find("img/FX_UI_WorldLineMainItem_Get/ImgGlow"):GetComponent(typeof(ParticleSystemRenderer))
+    self.go_getEff:SetActive(false)
+
+    self.go_selected = self.transform:Find("selected").gameObject
+    self.go_selected2 = self.transform:Find("selected2").gameObject
+
+    --点击事件
+    self.btnClick = self.transform:GetComponent(typeof(JButton))
+    self.btnClick.OnClick = (function()
+        if self.OnItemClick ~= nil then
+            self.OnItemClick(self)
+        end
+    end)
+
+    self.ImageName = nil
+
+    self.GetItem = {}
+    self:MakeSelected(false)
+
+    return self --返回自身
+end
+
+function WorldLineItem:ShowGetPs()
+    self.go_getEff:SetActive(false)
+    self.go_getEff:SetActive(true)
+    if self.tw ~= nil then
+        self.tw:Kill()
+        self.tw = nil
+    end
+
+    DOVirtual.DelayedCall(
+        0.1,
+        function()
+            local mat = GameObject.Instantiate(self.matFather)
+            self.Img.material = mat
+            self.Img.material:SetFloat("_Grey", 0)
+        end
+    )
+
+    self.tw =
+        DOVirtual.DelayedCall(
+        3.0,
+        function()
+            self.go_getEff:SetActive(false)
+        end
+    )
+end
+
+function WorldLineItem:InitItem(imgMat, onItemClick)
+    self.matFather = imgMat
+    local mat = GameObject.Instantiate(imgMat)
+    self.Img.material = mat
+
+    self.OnItemClick = onItemClick
+    self.IsUsed = false
+    self.gameObject:SetActive(false)
+end
+
+function WorldLineItem:RefeshReward()
+    if not (self.IsUsed) then
+        return
+    end
+
+    if self.tw ~= nil then
+        self.tw:Kill()
+        self.tw = nil
+    end
+
+    --没有奖励
+    if #self.Cfg.Reward <= 0 then
+        self.go_get:SetActive(true)
+        self.go_canGetEff2:SetActive(false)
+        self.go_canGetEff1:SetActive(false)
+
+        if self.IsHaveImage then
+            self.Img.material:SetFloat("_Grey", self.IsGray)
+        end
+
+        return
+    end
+
+    local isFind = false
+
+    -- 世界线奖励领取情况
+    local WorldLineRewards = GameManager.Instance.M_MainPlayerCtrlBase.Data.Attrs:GetProtoValue(CS.StarProjectDef.AOIAttrDefine.WorldLineRewardData)
+    if WorldLineRewards ~= nil then
+        for k, v in pairs(WorldLineRewards.Data) do
+            if k == self.ID then
+                --设置为已领取
+                isFind = true
+                break
+            end
+        end
+    end
+
+    self.CanGetItem = false
+
+    if isFind then
+        --已领取
+        self.go_canGetEff1:SetActive(false)
+        self.go_canGetEff2:SetActive(false)
+        self.go_get:SetActive(true)
+        self.IsGet = true
+        self.IsGray = 0
+    else
+        self.go_get:SetActive(false)
+        --未领取
+        if self.IsFinish then
+            --已完成未领取
+            self.CanGetItem = true
+
+            if self.IsHaveImage then
+                self.go_canGetEff1:SetActive(true)
+                self.go_canGetEff2:SetActive(false)
+
+                --已完成未领取变灰
+                self.IsGray = 1
+            else
+                self.go_canGetEff1:SetActive(false)
+                self.go_canGetEff2:SetActive(true)
+            end
+        else
+            self.go_canGetEff1:SetActive(false)
+            self.go_canGetEff2:SetActive(false)
+        end
+    end
+
+    if self.IsHaveImage then
+        self.Img.material:SetFloat("_Grey", self.IsGray)
+    end
+end
+
+function WorldLineItem:SetItem(id, pos)
+    self.ID = id
+
+    local cfg = ConfigDataAccessor.WorldLine[id]
+
+    self.Cfg = cfg
+
+    if self.Cfg.NodeType == 1 then
+        --给新手引导做的偏移
+        self.Rect.anchoredPosition = pos + Vector2(215, -99)
+    else
+        self.Rect.anchoredPosition = pos
+    end
+
+    --是否领取
+    self.IsGet = false
+
+    --判断是否完成
+    self.IsFinish = true
+    if cfg.FinishTask > 0 then
+        self.IsFinish = (GetTaskState(cfg.FinishTask) == 2)
+    end
+
+    self.GetItem.ItemID = cfg.Reward
+    self.GetItem.ItemNum = cfg.RewardNum
+
+    --接取任务ID，章节类节点，接取则节点亮起
+    self.IsGray = 0
+    self.IsAccessTask = false
+    if cfg.AccessTask > 0 then
+        if GetTaskState(cfg.AccessTask) ~= 0 then
+            self.IsGray = 0
+            self.IsAccessTask = true
+        else
+            self.IsGray = 1
+        end
+    else
+        self.IsGray = 0
+    end
+
+    --没有完成且不是章节节点就变灰
+    if not (self.IsFinish) and cfg.NodeType ~= 1 then
+        self.IsGray = 1
+    end
+
+    self.IsNeedShowTitle = true
+    if not (self.IsAccessTask) and not (cfg.UnaccessTitleShow) then
+        self.IsNeedShowTitle = false
+    end
+    --未接取时是否显示标题
+    if not (self.IsNeedShowTitle) then
+        self.Title.text = "????"
+    else
+        self.Title.text = cfg.NodeTitle
+    end
+
+    --非章节类节点，完成则节点亮起
+    if self.IsFinish and cfg.NodeType ~= 1 then
+        self.IsGray = 0
+    end
+
+    self.IsUsed = true
+    self.gameObject:SetActive(true)
+
+    self.IsHaveImage = true
+
+    --if cfg.NodeType~=1 and cfg.NodeType~=2 then
+    self.IsHaveImage = cfg.Image ~= ""
+    --end
+
+    self.isMissImage = false
+
+    if self.IsHaveImage then
+        if self.ImageName == cfg.Image then
+            self.Img.gameObject:SetActive(true)
+        else
+            self.ImageName = cfg.Image
+            self.Img.gameObject:SetActive(false)
+            self.isMissImage = true
+            ResourceHelper:LoadIconAsync(
+                self.Img,
+                "",
+                cfg.Image,
+                true,
+                function()
+                    self.Img.gameObject:SetActive(true)
+                    self.isMissImage = false
+                    self.Ps_getEff.material:SetTexture("_MainTex", self.Img.mainTexture)
+                end
+            )
+        end
+    else
+        self.Img.gameObject:SetActive(false)
+    end
+
+    --未完成时是否显示迷雾
+    if not (self.IsFinish) and not (cfg.UnfinishImageShow) then
+        self.go_fog:SetActive(true)
+    else
+        self.go_fog:SetActive(false)
+    end
+
+    if cfg.NodeType == 3 then
+        --加载前面的感叹号
+        ResourceHelper:LoadIconByAtlasAsync(self.TitleDot, ResourceHelper.AtlasPathWorldLine, "J_branch line", false)
+
+        --加载地板
+        ResourceHelper:LoadIconByAtlasAsync(self.TitleBg, ResourceHelper.AtlasPathWorldLine, "J_branch line_BG", false)
+    elseif cfg.NodeType == 4 then
+        --加载前面的感叹号
+        ResourceHelper:LoadIconByAtlasAsync(self.TitleDot, ResourceHelper.AtlasPathWorldLine, "J_Sub branch line", false)
+
+        --加载地板
+        ResourceHelper:LoadIconByAtlasAsync(self.TitleBg, ResourceHelper.AtlasPathWorldLine, "J_Sub branch line_BG", false)
+    end
+
+    --self.transform.eulerAngles=Vector3(0,0, Random.Range(-8.0, 8.0));
+
+    local isFind = false
+    -- 世界线奖励领取情况
+    local WorldLineRewards = GameManager.Instance.M_MainPlayerCtrlBase.Data.Attrs:GetProtoValue(CS.StarProjectDef.AOIAttrDefine.WorldLineRewardData)
+    if WorldLineRewards ~= nil then
+        for k, v in pairs(WorldLineRewards.Data) do
+            if k == self.ID then
+                --设置为已领取
+                isFind = true
+                break
+            end
+        end
+    end
+
+    self.CanGetItem = false
+
+    if isFind then
+        --已领取
+    else
+        --未领取
+        if self.IsFinish then
+            --已完成未领取
+            self.CanGetItem = true
+        end
+    end
+
+    return self.IsHaveImage
+end
+
+function WorldLineItem:SetUse(b)
+    self.IsUsed = b
+    self.gameObject:SetActive(b)
+end
+
+function WorldLineItem:MakeSelected(b)
+    if b then
+        if self.IsHaveImage then
+            if self.isMissImage then
+                self.go_selected:SetActive(false)
+                self.go_selected2:SetActive(true)
+            else
+                self.go_selected:SetActive(true)
+                self.go_selected2:SetActive(false)
+            end
+        else
+            self.go_selected:SetActive(false)
+            self.go_selected2:SetActive(true)
+        end
+    else
+        self.go_selected:SetActive(false)
+        self.go_selected2:SetActive(false)
+    end
+end
+
+return WorldLineItem

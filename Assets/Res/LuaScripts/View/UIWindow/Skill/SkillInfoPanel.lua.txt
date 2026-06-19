@@ -1,0 +1,601 @@
+local SkillInfoPanel = {}
+SkillInfoPanel.__index = SkillInfoPanel
+
+function SkillInfoPanel:New(obj, module)
+    local self = {};
+    setmetatable(self, SkillInfoPanel);
+
+    self.gameObject = obj;
+    self.transform = obj.transform;
+
+    self.module = module;
+    self:Init()
+
+    return self;
+end
+
+function SkillInfoPanel:Show()
+    self.gameObject:SetActive(true);
+end
+
+function SkillInfoPanel:Close()
+    self.gameObject:SetActive(false);
+end
+
+-- 对外暴露的 数据刷新的接口
+function SkillInfoPanel:Refresh()
+    -- self:UpdateData(module.skillList, module.skillPosList);
+end
+
+function SkillInfoPanel:Init()
+
+    local skillRoot = self.transform:Find("Content");
+    self.m_SkillIcon = skillRoot:Find("SkillIcon"):GetComponent(typeof(Image));
+
+    self.m_SkillIconLevelUpAnimator = skillRoot:Find("AnimatorBg"):GetComponent(typeof(Animator));
+
+    self.m_Zhu = skillRoot:Find("Skill/Zhu").gameObject;
+    self.m_Fu = skillRoot:Find("Skill/Fu").gameObject;
+    self.m_Neng = skillRoot:Find("Skill/Neng").gameObject;
+    self.m_Normal = skillRoot:Find("Skill/Normal").gameObject;
+
+    self.m_SkillName = skillRoot:Find("Skill/SkillName"):GetComponent(typeof(Text));
+    self.m_SkillLevel = skillRoot:Find("Skill/SkillLevel"):GetComponent(typeof(Text));
+    self.m_SkillDesc = skillRoot:Find("Skill/SV/Viewport/Content/SkillDesc"):GetComponent(typeof(Text));
+
+    self.m_NextSkill = skillRoot:Find("Skill/NextSkill").gameObject;
+    self.m_SkillDesc2 = skillRoot:Find("Skill/NextSkill/SV2/Viewport/Content/SkillDesc2"):GetComponent(typeof(Text));
+    self.m_tiaojianText = skillRoot:Find("Skill/NextSkill/tiaojian"):GetComponent(typeof(Text));
+
+    self.m_CD = skillRoot:Find("Skill/CD"):GetComponent(typeof(Text));
+    self.m_CDIconGo = skillRoot:Find("Skill/CDIcon").gameObject;
+
+    self.m_PriceLayout = skillRoot:Find("PriceLayout").gameObject;
+
+    self.m_LevelUpIcon = skillRoot:Find("PriceLayout/PriceIcon/LevelUpIcon"):GetComponent(typeof(Image));
+    self.m_PointText = skillRoot:Find("PriceLayout/PointText"):GetComponent(typeof(Text));
+    self.m_LevelUpBtn = skillRoot:Find("LevelUpBtn"):GetComponent(typeof(JButton));
+    self.m_LevelUpBtnImage = skillRoot:Find("LevelUpBtn"):GetComponent(typeof(Image));
+    self.m_LevelUpBtnText = skillRoot:Find("LevelUpBtn/Text"):GetComponent(typeof(Text));
+    self.m_LevelUpBtnTextOutLine = skillRoot:Find("LevelUpBtn/Text"):GetComponent(typeof(Outline));
+
+    self.m_LevelUpBtn.OnClick = function(...)
+        self:OnLevelUpBtnClick();
+    end
+
+    self.m_TalentLevel = skillRoot:Find("Talent/TalentLevel"):GetComponent(typeof(Text));
+    self.m_TalentJbt = skillRoot:Find("Talent"):GetComponent(typeof(JButton));
+    self.m_TalentJbt.OnClick = function()
+        self.m_OnTalentClickCb();
+    end
+
+    self.m_TalentNew = skillRoot:Find("Talent/New").gameObject;
+
+    self.m_talent = skillRoot:Find("TalentLevel");
+
+    -- 天赋节点
+    self.talentLevel = {};
+    -- 选中了天赋 的 节点
+    self.talentSelLevel = {};
+    -- 未选中天赋的 节点
+    self.talentNoSelectLevel = {};
+
+    -- self.talentSelectNumLevel = {};
+    -- self.talentNoSelectNumLevel = {};
+
+    -- 锁的节点
+    self.talentLockLevel = {};
+
+    for i = 1, 3, 1 do
+        local levelItem = self.m_talent:Find("Level" .. i).gameObject;
+        self.talentLevel[i] = levelItem;
+
+        levelItem.transform:GetComponent(typeof(JButton)).OnClick = function(go)
+            print("[Click ] i: " .. tostring(i));
+            self.m_OnTalentClickCb();
+        end
+
+        self.talentSelLevel[i] = levelItem.transform:Find("Sel").gameObject;
+        self.talentNoSelectLevel[i] = levelItem.transform:Find("Nom").gameObject;
+
+        -- self.talentSelectNumLevel[i] = levelItem.transform:Find("Sel/1").gameObject;
+        -- self.talentNoSelectNumLevel[i] = levelItem.transform:Find("Nom/1").gameObject;
+
+        self.talentLockLevel[i] = levelItem.transform:Find("Lock").gameObject;
+
+    end
+
+    self.m_MaxLevel = skillRoot:Find("MaxLevel").gameObject;
+    self.m_PointLimit = skillRoot:Find("PointLimit").gameObject;
+    self.m_LevelLimit = skillRoot:Find("LevelLimit"):GetComponent(typeof(Text));
+
+    -- 标签
+    -- 主动技能
+    self.m_Zhu = skillRoot:Find("Skill/Zhu").gameObject;
+
+    -- 被动技能
+    self.m_Fu = skillRoot:Find("Skill/Fu").gameObject;
+
+    -- 大招
+    self.m_Neng = skillRoot:Find("Skill/Neng").gameObject;
+
+    -- 普攻
+    self.m_Normal = skillRoot:Find("Skill/Normal").gameObject;
+
+end
+
+function SkillInfoPanel:Refresh(skillID, skillInfo, isPassive)
+    self.curSelSkillId = skillID;
+    self.skillInfo = skillInfo;
+    self.isPassive = isPassive;
+
+    if isPassive then
+
+        self:RefreshPassiveInfo();
+
+        return;
+    end
+
+    self:RefreshSkillInfo();
+end
+
+-- 刷新被动信息
+function SkillInfoPanel:RefreshPassiveInfo()
+
+    local pdCfg = ConfigDataAccessor.GetPassiveDesc(self.curSelSkillId, 1);
+
+    self.m_SkillDesc.text = "";
+    if pdCfg ~= nil then
+        -- 先关闭天赋等级显示
+        self:RefreshTalent(1, self.isPassive);
+
+        self.m_SkillName.text = pdCfg.SkillName;
+        self.m_SkillLevel.text = "";
+
+        self.m_CD.text = "";
+        self.m_SkillDesc.text = pdCfg.Decs;
+
+        self.m_CDIconGo:SetActive(false);
+        self.m_NextSkill:SetActive(false);
+
+        self.m_LevelUpBtn.gameObject:SetActive(false);
+        self.m_PriceLayout.gameObject:SetActive(false);
+
+        self.m_LevelLimit.gameObject:SetActive(false);
+
+    else
+        -- 如果没有被动, 那就不开
+        self.m_Skill:SetActive(false);
+    end
+
+    self:RefreshPassiveIcon();
+
+end
+
+function SkillInfoPanel:RefreshSkillInfo()
+
+    local curTalentCfg = ConfigDataAccessor.TalentList[self.skillInfo.TalentID];
+
+    local talentType = curTalentCfg.TalentType;
+
+    -- 刷新天赋
+    self:RefreshTalent(talentType, self.isPassive);
+
+    -- 需要显示技能cd , 战斗技能 在 天赋的 BattleActive中
+    local battleSkillID = curTalentCfg.BattleActive[1];
+
+    self:RefreshCD(battleSkillID)
+
+    local talentID = self.skillInfo.TalentID;
+    local level = self.skillInfo.SkillLevel;
+    local maxLevel = GetJobSkillMaxLevel(self.curSelSkillId);
+
+    local skillDescCfg = GetJobSkillLevelDescCfg(talentID, level);
+
+    self:RefreshIcon(skillDescCfg);
+
+    self:RefreshDesc(skillDescCfg, level, maxLevel);
+
+    self:RefreshNextLevel(talentID, level, maxLevel);
+
+    self:RefreshLevelUpBtn(level, maxLevel);
+
+    self:RefreshPrice(level, maxLevel)
+
+end
+
+-- 刷新天赋 被动技能没有天赋
+function SkillInfoPanel:RefreshTalent(talentType, isPassive)
+
+    self.m_TalentJbt.gameObject:SetActive(not isPassive);
+
+    self.m_talent.gameObject:SetActive(not isPassive);
+
+    -- 普通的技能 才需要刷新对应的天赋
+    if not isPassive then
+
+        self:RefreshTalentShow();
+
+        self:RefreshTalentLevel(talentType);
+    end
+
+end
+
+-- 刷新对应的天赋等级 1 2 3
+function SkillInfoPanel:RefreshTalentLevel(talentType)
+    local allClose = false;
+    if talentType == -1 then
+        allClose = true;
+    end
+    local isLevel = false;
+    for k, v in pairs(self.talentSelLevel) do
+        if not allClose then
+            isLevel = k == talentType + 1;
+        end
+
+        self.talentSelLevel[k]:SetActive(isLevel and not self.talentLockLevel[k].activeSelf);
+        self.talentNoSelectLevel[k]:SetActive(not isLevel and not self.talentLockLevel[k].activeSelf);
+    end
+end
+
+-- 刷新这个职业 拥有的天赋
+function SkillInfoPanel:RefreshTalentShow()
+
+    local talentCfgs = GetJobSkillTalents(self.curSelSkillId);
+    local count = #talentCfgs;
+    local playerLevel = GameManager.Instance:GetPlayerLevel();
+
+    -- 技能的解锁等级
+    self.unLockLevel = 1;
+
+    -- 没有天赋开启的时候, 就是锁定状态. 锁定的时候, 需要能够点击 显示 技能详情
+    self.isLock = true;
+
+    self.hasNew = false;
+
+    local hasTalentCount = 0;
+    for i = 1, 3, 1 do
+        if i <= count then
+            if i == 1 then
+                self.unLockLevel = talentCfgs[i].LimitLv;
+            end
+
+            self.talentLevel[i]:SetActive(true);
+
+            if playerLevel >= talentCfgs[i].LimitLv then
+                self.talentLockLevel[i]:SetActive(false);
+
+                -- 只要有一个天赋 解锁了, 那这个技能就 解锁了
+                self.isLock = false;
+
+                local talentID = talentCfgs[i].ID;
+                local talentKey = "New_Talent_" .. talentID;
+                --
+                local notHave = not LocalCacheManager.Instance:Has(talentKey);
+                if notHave then
+                    hasTalentCount = hasTalentCount + 1;
+                    self.hasNew = true;
+                    LocalCacheManager.Instance:SetValueType(talentKey, true, CacheType.Normal);
+                end
+
+            else
+                self.talentLockLevel[i]:SetActive(true);
+
+            end
+
+        else
+            self.talentLevel[i]:SetActive(false);
+        end
+    end
+
+    if self.hasNew and hasTalentCount <= 1 then
+        self.hasNew = false;
+    end
+
+    self:RefreshTalentIsNew();
+end
+
+function SkillInfoPanel:RefreshCD(battleSkillID)
+
+    self.m_CDIconGo:SetActive(not self.isPassive);
+
+    self.m_CD.text = "";
+
+    if self.isPassive or battleSkillID == nil or battleSkillID == 0 then
+        return;
+    end
+
+    LocalDataManager.Instance:GetSkillJson(battleSkillID, function(skillJson)
+
+        if skillJson == nil then
+            return;
+        end
+
+        -- 刷新 cd
+        -- self.m_CD.text = math.ceil(skillJson.config.CD / 1000) .. "秒";
+        self.m_CD.text = math.ceil(skillJson.config.CD / 1000) .. LanguageHelp:GetLanguageByKey("Local_Str_Time_second");
+    end, false);
+end
+
+function SkillInfoPanel:RefreshIcon(skillDescCfg)
+
+    if skillDescCfg == nil then
+        return;
+    end
+
+    ResourceHelper:LoadIconByAtlasAsync(self.m_SkillIcon, ResourceHelper.AtlasPathSkill, skillDescCfg.IconPath, false)
+
+end
+
+function SkillInfoPanel:RefreshPassiveIcon()
+
+    local playerJob = GameManager.Instance:GetPlayerJob();
+    local jobCfg = GetJobCfg(playerJob);
+
+    -- 刷新 职业显示
+    local translateJobs = GetJobTransferDatas(playerJob);
+
+    if translateJobs == nil then
+        return;
+    end
+
+    local baseJobCfg = GetJobCfg(translateJobs[1]);
+
+    if baseJobCfg == nil then
+        return;
+    end
+
+    ResourceHelper:LoadIconAsync(self.m_SkillIcon, ResourceHelper.AtlasPathSkillPanel, baseJobCfg.JobIcon3, false)
+
+end
+
+-- 刷新当前技能的描述, 参数包含 当前等级和最大等级
+function SkillInfoPanel:RefreshDesc(skillDescCfg, level, maxLevel)
+
+    self.m_SkillDesc.text = "";
+
+    if skillDescCfg == nil then
+
+        CS.UnityEngine.Debug.LogError("[报错!!!] 技能_" .. self.curSelSkillId .. " lv: " .. level .. " 天赋: " ..
+                                          talentID .. " 缺少配置");
+        return;
+    end
+
+    self.m_SkillName.text = skillDescCfg.SkillName;
+
+    -- 普攻这种 技能 可能没有 最大等级
+    if maxLevel ~= nil then
+        -- self.m_SkillLevel.text = "等级：" .. level .. "/" .. maxLevel;
+        self.m_SkillLevel.text = LanguageHelp:GetLanguageByKey("Local_Str_Level") .. "：" .. level .. "/" .. maxLevel;
+    else
+        -- self.m_SkillLevel.text = "等级：" .. level;
+        self.m_SkillLevel.text = LanguageHelp:GetLanguageByKey("Local_Str_Level") .. "：" .. level;
+    end
+
+    self.m_SkillDesc.text = skillDescCfg.Decs;
+
+end
+
+function SkillInfoPanel:RefreshNextLevel(talentID, level, maxLevel)
+
+    local isMaxLevel = maxLevel == nil or level >= maxLevel;
+
+    self.m_NextSkill:SetActive(not isMaxLevel);
+
+    self.m_tiaojianText.text = "";
+    self.m_SkillDesc2.text = "";
+
+    -- 如果没有达到最大级,就显示 下一级技能的描述
+    if isMaxLevel then
+        return;
+    end
+
+    local nextLevelDescCfg = GetJobSkillLevelDescCfg(talentID, level + 1);
+
+    -- 如果没有下一级的配置
+    if nextLevelDescCfg == nil then
+        return;
+    end
+
+    self.m_SkillDesc2.text = nextLevelDescCfg.Decs;
+
+    -- 下一级存在的时候, 显示 升级条件
+    local conditionID = GetJobSkillLevelUpCondition(self.curSelSkillId, level);
+
+    if conditionID == nil or conditionID == 0 then
+        return;
+    end
+
+    local cc = LocalDataManager.Instance:GetGroupConditions(conditionID);
+    -- 先强制约定 升级为冒险等级
+    if cc ~= nil and cc.Count > 0 then
+        for i = 0, cc.Count - 1, 1 do
+            -- 技能升级改为 等级,类型 1
+            if cc[i].ConditionType == 1 then
+                -- self.m_tiaojianText.text = "等级" .. cc[i].Args1 .. "可升级";
+                self.m_tiaojianText.text =
+                    StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Level9"), {cc[i].Args1});
+                break
+            end
+            if cc[i].ConditionType == 12 then
+                -- self.m_tiaojianText.text = "冒险等级" .. cc[i].Args1 .. "可升级";
+                self.m_tiaojianText.text = StringFormat(
+                    LanguageHelp:GetLanguageByKey("Local_Str_SkillNew_tiaojianText"), {cc[i].Args1});
+                break
+            end
+        end
+
+    end
+
+end
+
+function SkillInfoPanel:RefreshLevelUpBtn(level, maxLevel)
+
+    local isMaxLevel = maxLevel == nil or level >= maxLevel;
+
+    -- 检测点数
+    local skillPoint = GameManager.Instance:GetSkillPoint();
+    -- local skillUsedPoint = GameManager.Instance:GetSkillPointUsed();
+    local requirePoints = GetJobSkillLevelUpPoint(self.curSelSkillId, level);
+
+    local enoughPoints = skillPoint >= requirePoints;
+
+    -- 升级按钮的显示
+    self.m_LevelUpBtn.gameObject:SetActive(not isMaxLevel);
+
+    local isUnLock = self:CheckSkillLevelCondition(GetJobSkillLevelUpCondition(self.curSelSkillId, level));
+
+    self.m_tiaojianText.gameObject:SetActive(not isMaxLevel and not isUnLock);
+
+    -- 技能点不足或者 技能升级达到最大等级, 都将按钮置灰
+    local enabled = enoughPoints and not isMaxLevel and isUnLock;
+
+    self:RefreshLevelUpBtnEnabled(enabled);
+
+    -- 颜色自己控制, 字体上有描边, 置灰要 关闭描边
+    -- self.m_LevelUpBtn.UnClick = not isEnoughPoints;
+
+    -- 最大等级的提示
+    self.m_MaxLevel:SetActive(isMaxLevel);
+
+    -- 技能升级消耗的 技能点 提示,需要 在点击 按钮的时候 判定是否显示
+    -- self.m_PointLimit:SetActive(false);
+
+    -- 技能按等级 解锁的逻辑
+    self.m_LevelLimit.gameObject:SetActive(false);
+
+    -- 技能未解锁情况下
+    if self.isLock then
+
+        self:RefreshLevelUpBtnEnabled(false);
+        self.m_MaxLevel:SetActive(false);
+
+        -- 升级限制
+        self.m_LevelLimit.gameObject:SetActive(true);
+        local lockTips = StringFormat(LanguageHelp:GetLanguageByKey("SkillNew_35"), {self.unLockLevel});
+
+        self.m_LevelLimit.text = lockTips;
+
+    end
+
+end
+
+function SkillInfoPanel:RefreshSkillLevelLimit()
+
+end
+
+function SkillInfoPanel:RefreshLevelUpBtnEnabled(enabled)
+
+    self.m_LevelUpBtn.gameObject:SetActive(true);
+    self.m_LevelUpBtn.ForbidClick = not enabled;
+
+    -- 如果按钮不可用
+    if not enabled then
+        self.m_PointText.color = Color(242 / 255, 99 / 255, 99 / 255);
+
+        self.m_LevelUpBtnImage.color = Color(255 / 255, 255 / 255, 255 / 255, 50 / 255);
+        self.m_LevelUpBtnText.color = Color(105 / 255, 96 / 255, 90 / 255);
+        self.m_LevelUpBtnTextOutLine.enabled = false;
+
+        return;
+    end
+
+    -- 可用的话
+    self.m_PointText.color = Color(1, 1, 1);
+
+    self.m_LevelUpBtnImage.color = Color(1, 1, 1);
+    self.m_LevelUpBtnText.color = Color(105 / 255, 96 / 255, 90 / 255);
+    self.m_LevelUpBtnTextOutLine.enabled = true;
+
+end
+
+function SkillInfoPanel:RefreshPrice(level, maxLevel)
+    local isMaxLevel = maxLevel == nil or level >= maxLevel;
+
+    self.m_PriceLayout.gameObject:SetActive(not isMaxLevel and not self.isLock);
+
+    local requirePoints = GetJobSkillLevelUpPoint(self.curSelSkillId, level);
+
+    if requirePoints ~= nil then
+        -- 升级需要的消耗点
+        self.m_PointText.text = tostring(requirePoints);
+    end
+end
+
+function SkillInfoPanel:CheckSkillLevelCondition(conditionID)
+    local isUnLock = GlobalFunctionManager.Instance:ConditionGroupMete(GameManager.Instance.mainPlayerId, conditionID,
+        nil);
+    return isUnLock;
+end
+
+function SkillInfoPanel:OnLevelUpBtnClick()
+    local s = self.skillInfo;
+    local skillPoint = GameManager.Instance:GetSkillPoint();
+    local skillUsedPoint = GameManager.Instance:GetSkillPointUsed();
+
+    local requirePoints = GetJobSkillLevelUpPoint(self.curSelSkillId, s.SkillLevel);
+
+    if skillPoint < requirePoints then
+        -- Util.ShowMessage("当前条件不足，需要" .. requirePoints .. "点数");
+        Util.ShowMessage(StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_277"), {requirePoints}))
+        return;
+    end
+
+    local isUnLock = self:CheckSkillLevelCondition(GetJobSkillLevelUpCondition(self.curSelSkillId, s.SkillLevel))
+    if not isUnLock then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_224"));
+        return;
+    end
+
+    local message = CS.ProtoMsg.UpdateJobSkillReq();
+    message.JobSkillID = self.curSelSkillId;
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message,
+        false);
+end
+
+function SkillInfoPanel:OnTalentClick(clickCb)
+
+    self.m_OnTalentClickCb = clickCb;
+end
+
+-- 设置 技能类型, 不同的技能类型 显示不同的技能 图标
+function SkillInfoPanel:SetSkillType(skillType)
+
+    self:RefreshSkillType(skillType);
+end
+
+-- 1 被动
+-- 2 普攻
+-- 3 大招
+-- 4 普通职业技能
+-- 5 觉醒职业技能
+function SkillInfoPanel:RefreshSkillType(skillType)
+
+    self.m_Zhu:SetActive(false);
+    self.m_Fu:SetActive(false);
+    self.m_Neng:SetActive(false);
+    self.m_Normal:SetActive(false);
+
+    if skillType == 1 then
+        self.m_Fu:SetActive(true);
+    elseif skillType == 2 then
+        self.m_Normal:SetActive(true);
+    elseif skillType == 3 then
+        self.m_Neng:SetActive(true);
+    else
+        self.m_Zhu:SetActive(true);
+    end
+end
+
+-- 刷新是否有新的天赋
+function SkillInfoPanel:RefreshTalentIsNew()
+
+    if self.m_TalentNew == nil then
+        return;
+    end
+
+    self.m_TalentNew:SetActive(self.hasNew);
+
+end
+
+return SkillInfoPanel;

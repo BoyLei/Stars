@@ -1,0 +1,228 @@
+-- 一些 全局可以 公用的 配置表数据接口, 现在每次都是各种CV/for遍历代码太难受了
+--- 职业技能的配置
+local InitSkillCfg = false;
+-- battleSkillID 对应 levelDescCfg 数组
+local BattleSkillLevelDescCfgs = nil;
+
+local BattleSkillLvelDescCfg = nil;
+
+local JobSkillTalentCfgs = nil;
+
+local TalentCfg = nil;
+
+-- 天赋ID 对应的 levelCfgs 数组
+local TalentSkillLevelDescCfgs = nil;
+
+-- 职业技能 最大等级的 map
+local JobSkillMaxLevelMap = nil;
+
+-- 职业技能 升级 所需要消耗的 点数
+local JobSkillLevelUpPoint = nil;
+
+-- 职业技能 升级 所需要的条件组
+local JobSkillLevelUpCondition = nil;
+
+-- 初始化 skill 配置相关的 数据
+function InitSkillCfgData()
+
+    if InitSkillCfg then
+        return;
+    end
+
+    InitSkillCfg = true;
+
+    BattleSkillLevelDescCfgs = {};
+    BattleSkillLvelDescCfg = {};
+
+    for _, item in pairs(ConfigDataAccessor.SkillDescList) do
+
+        local battleSkillID = item.SkillID;
+        local levelCfgs = BattleSkillLevelDescCfgs[battleSkillID];
+
+        if levelCfgs == nil then
+            levelCfgs = {};
+        end
+
+        table.insert(levelCfgs, item);
+
+        -- 初始化 skillID 对应的 levelCfg 数组
+        BattleSkillLevelDescCfgs[battleSkillID] = levelCfgs;
+
+        -- 初始化 skillID_level 对应 skillDesc 的配置
+        BattleSkillLvelDescCfg[battleSkillID .. "_" .. item.Level] = item;
+    end
+
+    -- 初始化 JobSkillTalentCfgs 数据
+    JobSkillTalentCfgs = {};
+    TalentSkillLevelDescCfgs = {};
+
+    TalentCfg = {};
+
+    for _, v in pairs(ConfigDataAccessor.TalentList) do
+
+        TalentCfg[v.ID] = v;
+
+        -- jobSkillID 对应的天赋 数组
+        local jobSkillID = v.BelongSkill;
+        local talents = JobSkillTalentCfgs[jobSkillID];
+
+        if talents == nil then
+            talents = {};
+        end
+
+        table.insert(talents, v);
+
+        JobSkillTalentCfgs[jobSkillID] = talents;
+
+        local battleSkillID = v.BattleActive[1];
+        if battleSkillID ~= nil then
+            local levelCfgs = BattleSkillLevelDescCfgs[battleSkillID];
+
+            if levelCfgs ~= nil then
+                for __, item in pairs(levelCfgs) do
+                    local level = item.Level;
+
+                    TalentSkillLevelDescCfgs[v.ID .. "_" .. level] = item;
+                end
+
+            end
+
+        end
+
+    end
+
+    for i, v in pairs(JobSkillTalentCfgs) do
+        table.sort(v, function(a, b)
+            if a ~= b then
+                return (a.ID < b.ID);
+            end
+            return false;
+        end);
+    end
+
+    ---------------------------------------------------
+    -- 初始化 职业技能 最大等级 数据
+    JobSkillMaxLevelMap = {};
+
+    JobSkillLevelUpPoint = {};
+
+    JobSkillLevelUpCondition = {};
+
+    for k, v in pairs(ConfigDataAccessor.SkillLevelList) do
+
+        local skillID = v.SkillID;
+        local level = v.Skill_Level;
+
+        local maxLevel = 0;
+
+        -- 如果 map 中不存在这个 skillID, 那就 先直接 采用这个 skillID 的 level
+        if JobSkillMaxLevelMap[skillID] == nil then
+            maxLevel = level;
+        else
+            -- 取 map 记录中 的 maxLevel
+            maxLevel = JobSkillMaxLevelMap[skillID];
+
+            if level > maxLevel then
+                maxLevel = level;
+            end
+        end
+
+        -- 更新 职业技能 的 最大等级
+        JobSkillMaxLevelMap[skillID] = maxLevel;
+
+        -- 更新 职业技能 升级所需要的 点数
+        JobSkillLevelUpPoint[skillID .. "_" .. level] = v.Need_Points;
+
+        -- 职业技能 升级所需要的 条件组 id
+        JobSkillLevelUpCondition[skillID .. "_" .. level] = v.Condition_id;
+
+    end
+    ---------------------------------------------------
+end
+
+-- 获取 jobID 对应的 职业配置
+function GetJobCfg(jobID)
+
+    -- job 配置直接通过 id 就可以确定 数据, 所以没必要 再单独存
+    return ConfigDataAccessor.Job[jobID];
+end
+
+-- 获取 jobID 对应的 所有 职业job数组 [10, 11, 12]
+function GetJobTransferDatas(jobID)
+    -- 遍历 所有的 job数组 数据
+    return ConfigDataAccessor.JobTransferLists[jobID];
+end
+
+-- 获得 battleSkillID 对应的 levelDescCfg 数组
+function GetBattleSkillLevelDescCfgs(battleSkillID)
+
+    -- 初始化 数据
+    InitSkillCfgData();
+
+    return BattleSkillLevelDescCfgs[battleSkillID];
+end
+
+--
+
+-- battleSkill 对应的 level 的levelDescCfg 配置
+function GetBattleSkillLevelDescCfg(battleSkillID, level)
+
+    -- 初始化 数据
+    InitSkillCfgData();
+
+    return BattleSkillLvelDescCfg[battleSkillID .. "_" .. level];
+end
+
+-- 
+function GetTalentCfg(talentID)
+
+    -- 初始化 数据
+    InitSkillCfgData();
+
+    return TalentCfg[talentID];
+end
+
+-- jobSkill 对应的 天赋配置 数组 数据配置 
+function GetJobSkillTalents(jobSkillID)
+
+    -- 初始化 数据
+    InitSkillCfgData();
+
+    return JobSkillTalentCfgs[jobSkillID];
+end
+
+-- talentID  和 level 对应的 描述配置
+function GetJobSkillLevelDescCfg(talentID, level)
+
+    -- 初始化 数据
+    InitSkillCfgData();
+
+    return TalentSkillLevelDescCfgs[talentID .. "_" .. level];
+end
+
+-- 获取 职业技能 对应的 最大等级
+function GetJobSkillMaxLevel(jobSkillID)
+
+    -- 初始化 数据
+    InitSkillCfgData();
+
+    -- if 
+    return JobSkillMaxLevelMap[jobSkillID];
+end
+
+-- 获取 职业技能 升级所需要的 点数
+function GetJobSkillLevelUpPoint(jobSkillID, level)
+
+    -- 初始化 数据
+    InitSkillCfgData();
+
+    return JobSkillLevelUpPoint[jobSkillID .. "_" .. level];
+end
+
+function GetJobSkillLevelUpCondition(jobSkillID, level)
+
+    -- 初始化 数据
+    InitSkillCfgData();
+
+    return JobSkillLevelUpCondition[jobSkillID .. "_" .. level];
+end

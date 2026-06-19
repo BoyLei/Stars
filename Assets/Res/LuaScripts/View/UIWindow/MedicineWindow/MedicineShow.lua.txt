@@ -1,0 +1,148 @@
+-- 药品展示
+local MedicineShow = {}
+MedicineShow.__index = MedicineShow
+
+local ObjectPool = require("Common/Helper/ObjectPool")
+
+function MedicineShow:New(obj, w)
+	local self = {}
+	setmetatable(self, MedicineShow)
+
+	self:InitControls(obj)
+
+	self.mwindow = w
+
+	return self
+end
+
+function MedicineShow:InitControls(obj)
+	self.gameObject = obj
+	self.transform = obj.transform
+
+	self.titleText = self.transform:Find("Text"):GetComponent(typeof(Text))
+	local itemObj = self.transform:Find("Scroll View/Viewport/Content/Item").gameObject
+	self.itemPool =
+	ObjectPool:New(
+		6,
+		"View/UIWindow/MedicineWindow/MedicineItem",
+		itemObj,
+		itemObj.transform.parent,
+		function(item) -- 创建
+			item:Show(false)
+		end,
+		function(item) -- 回收
+			item:Show(false)
+		end
+	)
+
+	self.onkeyAddBtn = self.transform:Find("Button"):GetComponent(typeof(Button))
+	self.onkeyAddBtn.onClick:AddListener(
+		function()
+			if self.curT == 4 then
+				local totalHP = ConfigDataAccessor.SystemList[49].Value
+				if totalHP <= self.mwindow.storageHP then
+					Util.ShowMessageByCode(CRetMsgEnum.Tips_drug_hp)
+					return
+				end
+			elseif self.curT == 5 then
+				local totalMP = ConfigDataAccessor.SystemList[50].Value
+				if totalMP <= self.mwindow.storageMP then
+					--Util.ShowMessage("法力药品吃已达上限，无法使用");
+					Util.ShowMessageByCode(CRetMsgEnum.Tips_drug_mp)
+					return
+				end
+			end
+
+			-- 一键添加
+			local oneUseDrugReq = CS.ProtoMsg.OneUseDrugReq()
+			if self.curT == 4 then
+				oneUseDrugReq.Usetype = CS.ProtoMsg.DrugType.ReplyHp
+			elseif self.curT == 5 then
+				oneUseDrugReq.Usetype = CS.ProtoMsg.DrugType.ReplyMp
+			end
+			CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, oneUseDrugReq, false)
+
+			-- self.itemPool:RecycleAll();
+		end
+	)
+
+	self.medicineItems = {}
+end
+
+function MedicineShow:Refesh(items, t, storageDrugs)
+	self.curT = t
+	self.medicineItems = {} -- 记录当前药品所有条目
+	self.itemPool:RecycleAll() -- 回收下缓存池
+
+	if t == 3 then
+		self.titleText.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips4")
+	elseif t == 4 then
+		self.titleText.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips5")
+	elseif t == 5 then
+		self.titleText.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips6")
+	end
+
+	if t == 3 then
+		self.drugs = {}
+		local ids = storageDrugs.Eitemid
+		for i = 0, ids.Count - 1 do
+			table.insert(self.drugs, ids[i])
+		end
+	end
+
+	for i = 0, items.Count - 1 do
+		if items[i].Num > 0 then
+			local item = self.itemPool:Spawn()
+
+			local exist = false
+			if t == 3 then
+				local ids = storageDrugs.Eitemid
+				for j = 0, ids.Count - 1 do
+					local id = ids[j]
+					if id == items[i].EntityID then
+						exist = true
+						break
+					end
+				end
+			end
+
+			item:Refresh(
+				items[i],
+				t,
+				function()
+					-- local newItems = BusinessManager.Instance:GetItemsByItemType(3, t);
+					-- self:Refesh(newItems, t);
+					self.itemPool:Recycle(item)
+				end,
+				exist,
+				self.drugs
+			)
+			item:Show(true)
+			table.insert(self.medicineItems, item)
+		end
+	end
+
+	self.onkeyAddBtn.gameObject:SetActive(t ~= 3)
+end
+
+function MedicineShow:OnBagChanged(storageDrugs)
+	if self.curT == nil then
+		return
+	end
+	local items = BusinessManager.Instance:GetItemsByItemType(3, self.curT)
+	if self.curT == 3 then
+		self:Refesh(items, self.curT, storageDrugs)
+	else 
+		self:Refesh(items, self.curT)
+	end
+end
+
+function MedicineShow:Show(t, b)
+	if self.curT == t and self.gameObject.activeSelf then
+		self.gameObject:SetActive(false)
+	else
+		self.gameObject:SetActive(b)
+	end
+end
+
+return MedicineShow

@@ -1,0 +1,472 @@
+--[[
+*文件名   :   ShopWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/09 17:09:51"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] ShopWindow = class("ShopWindow", UIPanel)
+ShopWindow.IsOpen = false
+
+local ShopItem = require("View/Item/ShopItem")
+
+local ObjectPool = require("Common/Helper/ObjectPool")
+local CurrencyBar = require("View/Item/CurrencyBar")
+
+function ShopWindow:Awake()
+end
+
+function ShopWindow:BindModule(m)
+    self.module = m
+end
+
+function ShopWindow:InitItems()
+    self.transform = self.prefab.transform
+    self.gameObject = self.transform.gameObject
+
+    self.ShopItemList = {}
+    -- 无限列表
+    self.go_ShopItem = self.transform:Find("Cut4Cam90/AssemblyRatio2/ShopItem").gameObject
+
+    self.tr_ItemRoot = self.transform:Find("Cut4Cam90/AssemblyRatio2/Scroll View/Mask/List")
+    self.go_ShopItem:SetActive(false)
+    self.ShopScorllView = self.transform:Find("Cut4Cam90/AssemblyRatio2/Scroll View"):GetComponent(typeof(SuperScrollViewController))
+    self.ShopScorllView:NewScroll(
+        self.go_ShopItem,
+        0,
+        function(tr, idx)
+            self:OnShopItemRefesh(tr, idx)
+        end
+    )
+
+    -- 商店Tag
+    local _go = self.transform:Find("Cut4Cam90/AssemblyRatio2/LeftMenu/Scroll View/Mask/List/BtnShopType").gameObject
+    self.shopTagsPool =
+        ObjectPool:New(
+        4,
+        "View/Item/SelectBtn",
+        _go,
+        _go.transform.parent,
+        function(ritem)
+            ritem:PoolInit(
+                function(idx)
+                    -- 点击事件
+                    self:OnShopTagClick(idx)
+                end
+            )
+        end,
+        function(ritem)
+            ritem:SetUse(false)
+        end
+    )
+
+    self.go_subShopTagRoot = self.transform:Find("Cut4Cam90/AssemblyRatio2/SubShopTitleMenu").gameObject
+    -- 子商店Tag
+    local _go1 = self.transform:Find("Cut4Cam90/AssemblyRatio2/SubShopTitleMenu/Scroll View/Mask/List/SubShopItem").gameObject
+    self.subTagsPool =
+        ObjectPool:New(
+        4,
+        "View/Item/SelectBtn",
+        _go1,
+        _go1.transform.parent,
+        function(ritem)
+            ritem:PoolInit(
+                function(idx)
+                    -- 点击事件
+                    self:OnSubShopTagClick(idx)
+                end
+            )
+        end,
+        function(ritem)
+            ritem:SetUse(false)
+        end
+    )
+
+    --[[
+	local btnRefesh=self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnRefesh"):GetComponent(typeof(Button));
+	btnRefesh.onClick:AddListener(function()
+		--全刷测试
+		self.module:SendAllLimInfoReq();
+	end);
+
+
+	local btnBuy=self.transform:Find("Cut4Cam90/AssemblyRatio2/BtnBuy"):GetComponent(typeof(Button));
+	btnBuy.onClick:AddListener(function()
+		--购买测试
+		self.module:SendShopBuyReq(4,8,1);
+	end);
+
+
+	]]
+    self.transform:Find("Cut4Cam90/AssemblyRatio2/LeftMenu/Btns/BtnExchage"):GetComponent(typeof(JButton)).OnClick = (function()
+        --self:OnPlayBack();
+        LuaModuleDispatcher:SendMessage(ModuleDef.BankModule, "OnOpenBankWindow", {})
+    end)
+
+    self.go_btnCash = self.transform:Find("Cut4Cam90/AssemblyRatio2/LeftMenu/Btns/BtnCash").gameObject
+    self.transform:Find("Cut4Cam90/AssemblyRatio2/LeftMenu/Btns/BtnCash"):GetComponent(typeof(JButton)).OnClick = (function()
+        UIManager.Instance:OpenWidget("Shop/BuyCashWidget", false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, false)
+    end)
+    --判断是否开启支付
+    if not (GameManager.Instance:IsUnLockPayFunction()) then
+        self.go_btnCash:SetActive(false)
+    end
+
+    self.currencyBar = CurrencyBar:New(nil, self.transform:Find("Cut4Cam90/AssemblyRatio2/CurrencyAhchor"))
+end
+
+function ShopWindow:OpenShop(shopid)
+    --self.module:SendAllLimInfoReq();
+
+    if self.ShopIDs == nil then
+        self.ShopIDs = {}
+    else
+        for k, _ in pairs(self.ShopIDs) do
+            self.ShopIDs[k] = nil
+        end
+    end
+
+    local shopCfg = ConfigDataAccessor.Shop
+    self.shopTagsPool:RecycleAll()
+    local idx = 1
+    for k, v in pairs(shopCfg) do
+        if v.Shoptype == 1 then
+            --冒险团商店，没有冒险团就不显示
+            if not (v.Id == 4 and BusinessManager.Instance:GetGuildID() == 0) then
+                local shopTag = self.shopTagsPool:Spawn()
+                shopTag:InitItem(idx, nil)
+                shopTag:SetText(v.Shop_name)
+                -- shopTag:SetIcon(v.Shop_icon);
+
+                local iconComponent = shopTag.transform:Find("selected/icon"):GetComponent(typeof(Image))
+                local iconComponent2 = shopTag.transform:Find("noselected/icon"):GetComponent(typeof(Image))
+                if iconComponent ~= nil then
+                    ResourceHelper:LoadIconByAtlasAsync(
+                        iconComponent,
+                        ResourceHelper.AtlasPathShop,
+                        v.Shop_icon,
+                        false,
+                        function()
+                            iconComponent2.sprite = iconComponent.sprite
+                        end
+                    )
+                end
+
+                idx = idx + 1
+                table.insert(self.ShopIDs, v.Id)
+            end
+        end
+    end
+
+	local idx = 1
+	for i = 1, #self.ShopIDs do
+		if self.ShopIDs[i] == shopid then
+			idx = i
+		end
+	end
+	
+    self:OnShopTagClick(idx)
+
+    self:RefeshBar()
+end
+
+function ShopWindow:RefeshShop()
+    self:RefeshItems()
+end
+
+function ShopWindow:OnShopItemRefesh(tr, idx)
+    for i = 1, #self.ShopItemList do
+        if self.ShopItemList[i].transform == tr then
+            self.ShopItemList[i]:SetItem(self.ItemDataList[idx + 1]) -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+        end
+    end
+
+    local bi = ShopItem:New(tr.gameObject)
+    bi:InitItem(
+        function(ritem)
+            self:OnItemClick(ritem)
+        end
+    )
+    bi.gameObject:SetActive(true)
+    bi:SetItem(self.ItemDataList[idx + 1]) -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+    table.insert(self.ShopItemList, bi)
+end
+
+function ShopWindow:OnItemClick(ritem)
+    self.module:OpenBuyMenu(ritem)
+
+    -- self.module:SendShopBuyReq(self.ShopSubID,ritem.GoodsId,1);
+end
+
+--搜索到对应的道具并且点击
+function ShopWindow:SearchItem(baseID)
+    local aimId = baseID
+    if baseID > 0 then
+        local Dealid = ConfigDataAccessor.Item[baseID].Dealid
+        if Dealid > 0 then
+            aimId = Dealid
+        end
+    end
+
+    local aimId2 = baseID
+    for k, v in pairs(ConfigDataAccessor.Item) do
+        if v.Dealid == baseID then
+            aimId2 = k
+            break
+        end
+    end
+
+    local selectedSubTag = 0
+    local shopCfg = ConfigDataAccessor.Shop[self.ShopID]
+    for i = 1, #shopCfg.Sub_shopid do
+        local ShopSubID = shopCfg.Sub_shopid[i]
+
+        for k, v in pairs(ConfigDataAccessor.Goods) do
+            local good = v
+            if good.Sub_shopid == ShopSubID then
+                if (good.Item_id == baseID or good.Item_id == aimId or good.Item_id == aimId2) then
+                    selectedSubTag = i
+
+                    local canBuy = true
+                    for ii = 1, #good.DeleteCondition do
+                        if good.DeleteCondition[ii] > 0 then
+                            local isMet = GameManager.Instance:IsConditionMete(good.DeleteCondition[ii]) -- 判断是否满足
+                            if isMet then
+                                canBuy = false
+                            end
+                        end
+                    end
+
+                    if canBuy then
+                        local shopData = {}
+                        shopData.cfg = good
+                        self.module:CheckBuyLimit(shopData)
+
+                        if shopData.SoldOutFlag == 0 and shopData.MeteFlag == 1 then
+                            self:OnSubShopTagClick(selectedSubTag)
+
+                            local info = {}
+                            info.BuyCount = shopData.buyCount --已购数量
+                            info.GoodsId = shopData.cfg.Id --商品ID
+                            LuaModuleDispatcher:SendMessage(ModuleDef.ItemBuyModule, "OnOpenItemBuy", {info})
+
+                            return
+                        end
+                    end
+
+                    self:OnSubShopTagClick(selectedSubTag)
+                    return
+                end
+            end
+        end
+    end
+
+    --[[
+
+    for i = 1, #self.ItemDataList do
+        if (self.ItemDataList[i].cfg.Item_id == baseID or self.ItemDataList[i].cfg.Item_id == aimId or self.ItemDataList[i].cfg.Item_id == aimId2) and self.ItemDataList[i].SoldOutFlag==0 and self.ItemDataList[i].MeteFlag==1 then
+
+            local info={};
+            info.BuyCount=self.ItemDataList[i].buyCount;--已购数量
+            info.GoodsId=self.ItemDataList[i].cfg.Id;--商品ID
+            LuaModuleDispatcher:SendMessage(ModuleDef.ItemBuyModule, "OnOpenItemBuy", { info }); 
+
+            return
+        end
+
+    end
+]]
+end
+
+function ShopWindow:ClearItemData()
+    if self.ItemDataList == nil then
+        self.ItemDataList = {}
+    else
+        for k, _ in pairs(self.ItemDataList) do
+            self.ItemDataList[k] = nil
+        end
+    end
+end
+
+function ShopWindow:OnShopSelectClick(Shop_id)
+    local idx = 1
+    for i = 1, #self.ShopIDs do
+        if self.ShopIDs[i] == Shop_id then
+            idx = i
+        end
+    end
+
+    self:OnShopTagClick(idx)
+end
+
+function ShopWindow:OnShopTagClick(idx)
+    for i = 1, #self.shopTagsPool.m_ObjPool do
+        self.shopTagsPool.m_ObjPool[i]:MakeSelected(false)
+    end
+    self.shopTagsPool.m_ObjPool[idx]:MakeSelected(true)
+
+    self.ShopID = self.ShopIDs[idx]
+
+    local shopCfg = ConfigDataAccessor.Shop[self.ShopID]
+    self.subTagsPool:RecycleAll()
+
+    local subShopNames = string.split(shopCfg.Sub_shopname, ",")
+    for i = 1, #shopCfg.Sub_shopid do
+        local subTag = self.subTagsPool:Spawn()
+        subTag:InitItem(i, nil)
+        subTag:SetText(subShopNames[i])
+    end
+
+    self.go_subShopTagRoot:SetActive(#shopCfg.Sub_shopid > 1)
+
+    self:OnSubShopTagClick(1)
+end
+
+function ShopWindow:OnSubShopTagClick(idx)
+    for i = 1, #self.subTagsPool.m_ObjPool do
+        self.subTagsPool.m_ObjPool[i]:MakeSelected(false)
+    end
+    self.subTagsPool.m_ObjPool[idx]:MakeSelected(true)
+
+    local shopCfg = ConfigDataAccessor.Shop[self.ShopID]
+    self.ShopSubID = shopCfg.Sub_shopid[idx]
+
+    self:RefeshItems()
+end
+
+function ShopWindow:RefeshBar()
+    -- 刷新货币
+    self.currencyBar:RefeshBar(ConfigDataAccessor.Shop[self.ShopID].Currency)
+end
+
+function ShopWindow:RefeshItems()
+    -- 获取List
+    self:ClearItemData()
+
+    for k, v in pairs(ConfigDataAccessor.Goods) do
+        local good = v
+        if good.Sub_shopid == self.ShopSubID then
+            local canBuy = true
+            for i = 1, #good.DeleteCondition do
+                if good.DeleteCondition[i] > 0 then
+                    local isMet = GameManager.Instance:IsConditionMete(good.DeleteCondition[i]) -- 判断是否满足
+                    if isMet then
+                        canBuy = false
+                    end
+                end
+            end
+
+            if canBuy then
+                local shopData = {}
+                shopData.cfg = good
+                self.module:CheckBuyLimit(shopData)
+
+                local config = ConfigDataAccessor.Item[good.Item_id]
+                shopData.Quality = config.Quality
+
+                --是否免费
+                if good.CurrentPrice == 0 then
+                    shopData.Free = 1
+                else
+                    shopData.Free = 0
+                end
+
+                --如果是永久限购并且被买光了就不显示
+                if not (good.Buy_type == 3 and shopData.SoldOutFlag == 1) then
+                    table.insert(self.ItemDataList, shopData)
+                end
+            end
+        end
+    end
+
+    -- 排序
+    self:SortItem(self.ItemDataList)
+
+    self.ShopScorllView:ContinueScroll(#self.ItemDataList, false)
+
+    self:RefeshBar()
+
+    self.ShopScorllView.gameObject:SetActive(false)
+    self.ShopScorllView.gameObject:SetActive(true)
+end
+
+function ShopWindow:SortItem(tbl)
+    if #tbl > 1 then
+        table.sort(
+            tbl,
+            function(a, b)
+                -- 按照是否已售罄升序
+                if a.SoldOutFlag ~= b.SoldOutFlag then
+                    return a.SoldOutFlag < b.SoldOutFlag
+                end
+
+                --是否是免费
+                if a.Free ~= b.Free then
+                    return a.Free > b.Free
+                end
+
+                -- 如果已售罄相等，按购买条件升序
+                if a.MeteFlag ~= b.MeteFlag then
+                    return a.MeteFlag > b.MeteFlag
+                end
+
+                -- 限购类型
+                if a.cfg.Buy_type ~= b.cfg.Buy_type then
+                    return a.cfg.Buy_type > b.cfg.Buy_type
+                end
+
+                -- 如果Type相等，按稀有度降序
+                if a.Quality ~= b.Quality then
+                    return a.Quality > b.Quality
+                end
+
+                return false
+            end
+        )
+    end
+end
+
+function ShopWindow:Start()
+    print("ShopWindow:Start")
+end
+
+function ShopWindow:OnEnable()
+end
+
+function ShopWindow:OnDisable()
+end
+
+function ShopWindow:OnDestroy()
+end
+
+function ShopWindow:OnOpen(arg)
+    self.IsOpen = true
+end
+
+function ShopWindow:OnClose(arg)
+    self:CloseWindow()
+end
+
+function ShopWindow:OnCloseInfoClick()
+    -- 关闭道具Tips
+    if self.module.IsOpenTips then
+        self.module.IsOpenTips = false
+        self.module:CloseItemTips()
+    else
+        UIManager.Instance:CloseWindow("Item/ShopWindow")
+    end
+end
+
+function ShopWindow:CloseWindow()
+    if self.module.IsOpenTips then
+        self.module.IsOpenTips = false
+        self.module:CloseItemTips()
+    end
+
+    self.IsOpen = false
+    self.module:OnCloseShop()
+    ModuleManager.Instance:HideModule(ModuleDef.ShopModule)
+end
+
+return ShopWindow

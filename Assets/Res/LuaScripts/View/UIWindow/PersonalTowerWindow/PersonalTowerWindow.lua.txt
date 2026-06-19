@@ -1,0 +1,497 @@
+---------------------------------------------------------------------
+-- Stars (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-06-05 18:08:52
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class PersonalTowerWindow
+
+PersonalTowerWindow = class("PersonalTowerWindow", UIPanel)
+
+local PersonTowerFloorItem = require("View/UIWindow/PersonalTowerWindow/PersonTowerFloorItem")
+local PersonTowerStageItem = require("View/UIWindow/PersonalTowerWindow/PersonTowerStageItem")
+
+PersonalTowerWindow.IsOpen = false
+PersonalTowerWindow.PassFloor = 1               -- 已通关层数
+PersonalTowerWindow.UnlockFloor = 1             -- 已经解锁的最高层数
+PersonalTowerWindow.Rank = 1                    -- 赛季排名
+PersonalTowerWindow.m_TicketsCount = -1         -- 钥匙数量
+PersonalTowerWindow.m_NeedTicketCount = 1       -- 需求钥匙数量
+PersonalTowerWindow.m_CurrentFloorCfg = nil     -- 当前秘境层数配置
+PersonalTowerWindow.m_ShowFloorLength = 11      -- 显示层数的最大长度
+PersonalTowerWindow.m_VisibleFloorLength = 5    -- 可见层数的长度
+PersonalTowerWindow.m_VisibleMiddleFloor = 3    -- 可见的中间层数
+PersonalTowerWindow.m_RewardItemList = {}       -- 常规奖励
+PersonalTowerWindow.m_FirstRewardItemList = {}  -- 首通奖励
+PersonalTowerWindow.m_TicketsItemList = {}      -- 秘境门票信息
+
+PersonalTowerWindow.m_IsTicketPanelShow = false -- 门票列表开关
+
+function PersonalTowerWindow:Awake()
+    self:Init()
+end
+
+function PersonalTowerWindow:Init()
+    self.transform = self.prefab.transform
+    self.gameObject = self.transform.gameObjec
+    local FrameTransForm = self.transform:Find("Cut4Cam90/AssemblyRatio2").transform
+    self.ObjStage = FrameTransForm:Find("L/StageAwardList").transform
+    self.AnimBg = self.transform:Find("BG/PaTaBG"):GetComponent(TAnimator)
+    self.ObjNextAwards = FrameTransForm:Find("L/ObjNextAwards").transform
+    -- 关闭按钮
+    local CloseBtn = FrameTransForm:Find("L/LeftTop/CloseBtn"):GetComponent(typeof(JButton))
+    self.CloseBtnFun = function()
+        self.Close()
+    end
+    CloseBtn.OnClick = self.CloseBtnFun
+    local JBtnIntroduce = FrameTransForm:Find("L/LeftTop/JBtnIntroduce"):GetComponent(typeof(JButton))
+    self.InfoBtnFun = function()
+        UIManager.Instance:OpenWindow("Common/GamePlayInfoWindow", 117, CS.StarProjectDef.MainPageCommond.HideBoth);
+    end
+    JBtnIntroduce.OnClick = self.InfoBtnFun
+
+
+    local CloseBtnStage = FrameTransForm:Find("L/StageAwardList/CloseBtn"):GetComponent(typeof(JButton))
+    self.CloseBtnStageFun = function()
+        self.ObjStage.gameObject:SetActive(false)
+        self.ObjNextAwards.gameObject:SetActive(true)
+        self:RefreshNextStage()
+    end
+    CloseBtnStage.OnClick = self.CloseBtnStageFun
+    local BtnStage = FrameTransForm:Find("L/BtnStage"):GetComponent(typeof(Button))
+    self.BtnStageFun = function()
+        self.ObjStage.gameObject:SetActive(true)
+        self.ObjNextAwards.gameObject:SetActive(false)
+    end
+    BtnStage.onClick:AddListener(function() self.BtnStageFun() end)
+    self.SuperScrollViewControllerItems = {}
+    self.SuperScrollViewController = FrameTransForm:Find("L/ScrollView"):GetComponent(typeof(SuperScrollViewController))
+    self.SuperScrollViewControllerRoot = FrameTransForm:Find("L/ScrollView/Mask/List")
+    self.SuperScrollViewController:NewScroll(
+        FrameTransForm:Find("L/ScrollView/ItemGrid").gameObject,
+        0,
+        function(tr, idx)
+            self:OnItemRefesh(tr, idx)
+        end
+    )
+    -- 常规奖励
+    local ConventionRewardItemPreviewGo = FrameTransForm:Find("R/ConventionReward/ItemPreview").gameObject
+    self.ConventionRewardItemPreview = StructAccessor.ItemPreview.new(ConventionRewardItemPreviewGo)
+
+    self.CurrentFloor = FrameTransForm:Find("R/biaotou/Text"):GetComponent(typeof(Text))
+    self.TxtNextStage = FrameTransForm:Find("L/ObjNextAwards/Text"):GetComponent(typeof(Text))
+    self.EnterLevel = FrameTransForm:Find("R/xuqiu/EnterLevel"):GetComponent(typeof(Text))
+    self.CurLevel = FrameTransForm:Find("R/xuqiu/CurLevel"):GetComponent(typeof(Text))
+    self.JBtnEnter = FrameTransForm:Find("R/EnterBtn"):GetComponent(typeof(JButton))
+    self.JBtnEnterFinish = FrameTransForm:Find("R/EnterFinshi"):GetComponent(typeof(JButton))
+    self.TextEnterTips = FrameTransForm:Find("R/EnterBtn/tips"):GetComponent(typeof(Text))
+    self.BtnEnterFun = function()
+        self:OnClickEnterJBtn()
+    end
+    self.JBtnEnter.OnClick = self.BtnEnterFun
+
+    self.SuperScrollViewControllerItemsStage = {}
+    self.SuperScrollViewControllerStage = FrameTransForm:Find("L/StageAwardList/ScrollView"):GetComponent(typeof(SuperScrollViewController))
+    self.SuperScrollViewControllerRootStage = FrameTransForm:Find("L/StageAwardList/ScrollView/Mask/List")
+    self.SuperScrollViewControllerStage:NewScroll(
+            FrameTransForm:Find("L/StageAwardList/ScrollView/StageItem").gameObject,
+            0,
+            function(tr, idx)
+                self:OnStageItemRefesh(tr, idx)
+            end
+    )
+end
+
+function PersonalTowerWindow:InitStageAwardList(stageAwardList)
+    local startFloor = 0 -- 跳转的index
+    self.StageAwardList = {}
+    self.NextStageFloor = math.ceil(self.UnlockFloor / 5) * 5
+    local  stageConfig = ConfigDataAccessor.TowerStage
+    if stageConfig then
+        for m, n in pairs(stageConfig) do
+            local find = false
+            local stageItem = {}
+            if stageAwardList then
+                for i, v in ipairs(stageAwardList) do
+                    if v.stageId == n.ID then
+                        stageItem.Floor = v.stageId
+                        stageItem.IsReceived = v.isReceived
+                        table.insert(self.StageAwardList,stageItem)
+                        find = true
+                        break
+                    end
+                end
+            end
+            if not find then
+                stageItem.Floor = n.ID
+                stageItem.IsReceived = false
+                table.insert(self.StageAwardList,stageItem)
+            end
+        end
+    end
+    table.sort(self.StageAwardList,function (a,b)
+        return a.Floor<b.Floor
+    end)
+    local haveReward = false
+    for i, v in ipairs(self.StageAwardList) do
+        if v.IsReceived == false and self.UnlockFloor >= v.Floor then
+            startFloor = i
+            haveReward = true
+            break
+        end
+    end
+    if not haveReward then
+        for i, v in ipairs(self.StageAwardList) do
+            if v.IsReceived == false then
+                startFloor = i
+                break
+            end
+        end
+    end
+    local nextStageData  = ConfigDataAccessor.TowerStage[self.NextStageFloor]
+    if nextStageData then
+        for i = 1, 3 do
+            local config = ConfigDataAccessor.Item[nextStageData.StageAward[i]]
+            local btnRewardItem = self.ObjNextAwards:Find("Item"..i):GetComponent(typeof(JButton))
+            if config then
+                local imgQuality = btnRewardItem.gameObject.transform:Find("BgRare"):GetComponent(typeof(Image))
+                local imgIcon = btnRewardItem.gameObject.transform:Find("Icon"):GetComponent(typeof(Image))
+                local txtNum = btnRewardItem.gameObject.transform:Find("Text"):GetComponent(typeof(Text))
+                local quality = config.Quality;
+                ResourceHelper:LoadIconByAtlasAsync(
+                        imgQuality,
+                        ResourceHelper.AtlasPathCommonItem,
+                        "Bag_Grid_sq" .. quality,
+                        false
+                )
+
+                ResourceHelper:LoadIconAsync(imgIcon, "", config.Icon, false)
+                txtNum.text = nextStageData.StageAwardNum[i]
+                btnRewardItem.gameObject:SetActive(true)
+                btnRewardItem.OnClick=(function()
+                    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",
+                            { nextStageData.StageAward[i], false, nil, imgIcon.transform, 0 });
+                end);
+
+            else
+                btnRewardItem.gameObject:SetActive(false)
+            end
+        end
+        local offsetFloor = 5 - (self.UnlockFloor-1)%5
+        --self.TxtNextStage.text =  string.format("再挑战 <color=#FFF191>%d</color> 层可领取",offsetFloor)
+        self.TxtNextStage.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_PersonalTowerWindow_TxtNextStage"), {offsetFloor});
+
+        self.ObjNextAwards.gameObject:SetActive(true)
+    else
+        self.ObjNextAwards.gameObject:SetActive(false)
+    end
+
+    if startFloor <= self.m_VisibleMiddleFloor then
+        startFloor = 1
+    end
+    self.SuperScrollViewControllerStage:ContinueScroll(#self.StageAwardList, false, startFloor - 1)
+end
+function PersonalTowerWindow:BindModule(module)
+    self.module = module;
+end
+
+function PersonalTowerWindow:Start()
+end
+
+function PersonalTowerWindow:OnEnable()
+end
+
+function PersonalTowerWindow:OnDisable()
+end
+
+function PersonalTowerWindow:OnDestroy()
+end
+
+function PersonalTowerWindow:OnOpen(arg)
+    self.IsOpen = true
+    self:InitData(arg)
+end
+
+function PersonalTowerWindow:RefreshView(arg)
+    self:InitData(arg)
+end
+
+-- 初始化界面信息
+function PersonalTowerWindow:InitData(arg)
+    self:UpdataAllData(arg.PassFloor)
+    -- 当前层数（首次打开是已解锁最高层数）
+    for i, v in ipairs(self.m_Floors) do
+        if self.UnlockFloor == v then
+            self.SelectIndex = i
+            break
+        end
+    end
+    if self.SelectIndex <= 0 then
+        self.SelectIndex = 1
+    end
+    self:SetMiddleFloorPos(self.SelectIndex)
+    self:InitStageAwardList(arg.StageAwardList)
+end
+
+-- 更新秘境全量数据
+function PersonalTowerWindow:UpdataAllData(passFloor)
+    local minFloor,maxFloor
+    local length = #ConfigDataAccessor.TowerCopy
+    if passFloor + 10 >= length then
+        maxFloor = length
+    else
+        maxFloor = passFloor + 11
+    end
+    if passFloor - 2 <= 0 then
+        minFloor = 1
+    else
+        minFloor = passFloor - 1
+    end
+    self.m_Floors = {}
+    self.StageAwardList = {}
+
+
+    for i = minFloor, maxFloor do
+        table.insert( self.m_Floors,i)
+    end
+
+    -- 设置已解锁的最高层数
+    self.UnlockFloor = passFloor + 1
+    if self.UnlockFloor > maxFloor then
+        self.UnlockFloor = maxFloor
+    end
+end
+function PersonalTowerWindow:OnItemRefesh(tr, idx)
+    if self.SuperScrollViewControllerItems == nil then
+        return
+    end
+    local floor = self.m_Floors[idx + 1] --idx是从0开始，如果ItemDataList是lua的table需要idx+1
+    local maxFloor = 1
+    if self.UnlockFloor > 0 then
+        maxFloor = self.UnlockFloor
+    end
+    local isLock = floor > maxFloor
+    for i = 1, #self.SuperScrollViewControllerItems do
+        if self.SuperScrollViewControllerItems[i].prefab.transform == tr then
+            self.SuperScrollViewControllerItems[i]:UpdateContent(floor, self.SelectIndex, self.UnlockFloor, isLock) --idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+        end
+    end
+    local sp =
+    PersonTowerFloorItem.new(
+            tr.gameObject,
+            self.SuperScrollViewControllerRoot,
+            self.AtlasPath,
+            function(index)
+                self:OnSelect(index)
+            end
+    )
+    sp.prefab:SetActive(true)
+    sp:UpdateContent(floor, self.m_Floors[self.SelectIndex], self.UnlockFloor, isLock)
+    table.insert(self.SuperScrollViewControllerItems, sp)
+end
+function PersonalTowerWindow:OnStageItemRefesh(tr, idx)
+    if self.SuperScrollViewControllerItemsStage == nil then
+        return
+    end
+    local stageItem = self.StageAwardList[idx+1] --idx是从0开始，如果ItemDataList是lua的table需要idx+1
+    for i = 1, #self.SuperScrollViewControllerItemsStage do
+        if self.SuperScrollViewControllerItemsStage[i].prefab.transform == tr then
+            self.SuperScrollViewControllerItemsStage[i]:UpdateContent(stageItem.Floor, stageItem.IsReceived,self.UnlockFloor) --idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+        end
+    end
+    local sp =
+    PersonTowerStageItem.new(
+            tr.gameObject,
+            self.SuperScrollViewControllerRootStage,
+            self.AtlasPath
+    )
+    sp.prefab:SetActive(true)
+    sp:UpdateContent(stageItem.Floor, stageItem.IsReceived,self.UnlockFloor)
+    table.insert(self.SuperScrollViewControllerItemsStage, sp)
+end
+-- 设置中间的层数
+function PersonalTowerWindow:SetMiddleFloorPos(middleFloor)
+    local startFloor = 0 -- 这个要计算一下开始层数的偏移量
+    if middleFloor > self.m_VisibleMiddleFloor then
+        startFloor = middleFloor - self.m_VisibleMiddleFloor
+    end
+    self.SuperScrollViewController:ContinueScroll(#self.m_Floors, false, startFloor)
+end
+function PersonalTowerWindow:OnSelect(selectIndex)
+    for i, v in ipairs(self.m_Floors) do
+        if selectIndex == v then
+            self.SelectIndex = i
+            if self.AnimBg then
+                self.AnimBg:CrossFade("Open", 0, 0, 0)
+                self.AnimBg:SetTrigger("Select")
+            end
+            break
+        end
+    end
+    self:SetAllItemSelectState()
+    -- 修改当前层数信息
+    self:SetCurrentFloorData()
+end
+
+-- 设置当前层数信息
+function PersonalTowerWindow:SetCurrentFloorData()
+    -- 当前层数
+    local floor = self.m_Floors[self.SelectIndex]
+    -- 当前层数配置
+    self.m_CurrentFloorCfg = ConfigDataAccessor.TowerCopy[floor]
+    self.CurrentFloor.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_limitFloor"), {floor});
+    local playerLevel = GameManager.Instance:GetPlayerLevel();
+
+    if self.m_CurrentFloorCfg.ConditionID == 0 then
+        self.CurLevel.text = playerLevel;
+        self.EnterLevel.text = "--"
+    else
+        local conditionCfg
+        ---- 推荐战力
+        for i, v in pairs(ConfigDataAccessor.CMcondition) do
+            if v.GroupID == self.m_CurrentFloorCfg.ConditionID then
+                conditionCfg = v
+            end
+        end
+
+        if conditionCfg then
+            if tonumber(conditionCfg.Args1) > playerLevel then
+                self.CurLevel.text = string.format("<color=#c06666>%d</color>" ,playerLevel)
+            else
+                self.CurLevel.text = playerLevel
+            end
+
+            self.EnterLevel.text = conditionCfg.Args1
+        end
+    end
+
+
+    ---- 常规奖励
+    self:SetConventionReward()
+    -- 按钮设置
+    local show = false
+    local isMete=GameManager.Instance:IsConditionMete(self.m_CurrentFloorCfg.ConditionID);--判断是否满足
+    if isMete then
+        show = true
+    end
+    self.TextEnterTips.gameObject:SetActive(not show)
+    self.JBtnEnter.gameObject:SetActive(self.UnlockFloor == floor)
+    self.JBtnEnterFinish.gameObject:SetActive(self.UnlockFloor> floor)
+    if floor ~=  self.UnlockFloor then
+        local notHave = not LocalCacheManager.Instance:Has("PersonTowerLevel_"..self.UnlockFloor);
+        if notHave then
+            LocalCacheManager.Instance:SetValueType("PersonTowerLevel_"..self.UnlockFloor, true, CacheType.Normal);
+            RedPointManager.Instance:TriggerConditionTypeBoolValue(RedPointConditionType.PersonTowerLevel, false);
+        end
+    end
+end
+function PersonalTowerWindow:SetAllItemSelectState()
+    for i = 1, #self.SuperScrollViewControllerItems do
+        local isSelect = false
+        if self.SuperScrollViewControllerItems[i].Index == self.SelectIndex then
+            isSelect = true
+        end
+        self.SuperScrollViewControllerItems[i]:OnSelect(isSelect)
+    end
+end
+-- 设置常规奖励显示
+function PersonalTowerWindow:SetConventionReward()
+    if self.m_CurrentFloorCfg == nil then
+        return
+    end
+    -- 获取道具信息
+    --local sortTempList = self:GetRewardList(self.m_CurrentFloorCfg.RewardID, self.m_CurrentFloorCfg.RewardNum)
+    local sortTempList = self:GetRewardList(self.m_CurrentFloorCfg.CommonAward, self.m_CurrentFloorCfg.CommonAwardNum)
+    -- 设置奖励信息
+    self:SetRewardItemPreview(self.ConventionRewardItemPreview, sortTempList);
+end
+function PersonalTowerWindow:SetRewardItemPreview(ItemPreview, CostItems)
+    ItemPreview:SetItems(CostItems)
+end
+-- 获取奖励信息
+function PersonalTowerWindow:GetRewardList(rewards, rewardNums)
+    local tempList = {}
+    for i = 1, #rewards do
+        local itemId = rewards[i]
+        local itemNum = 1
+        if i <= #rewardNums then
+            itemNum = rewardNums[i]
+        end
+        local itemCfg = ConfigDataAccessor.Item[itemId]
+        if itemCfg then
+            if tempList[itemId] == nil then
+                local quality = 1
+                if itemCfg ~= nil then
+                    quality = itemCfg.Quality
+                end
+                local item = { ItemID = itemId, ItemNum = itemNum, Quality = quality }
+                tempList[itemId] = item
+            else
+                tempList[itemId] = tempList[itemId].ItemNum + itemNum
+            end
+        end
+    end
+    -- 奖励排序，高-》低
+    local sortTempList = self:SortReward(tempList)
+    return sortTempList
+end
+-- 奖励排序，高-》低
+function PersonalTowerWindow:SortReward(rewardList)
+    -- 生成一个用于排序的临时数组
+    local tempArray = {}
+    for key, value in pairs(rewardList) do
+        table.insert(tempArray, value)
+    end
+    -- 定义比较函数，按照Quality从大到小排序
+    local function compare(a, b)
+        if a.Quality ~= b.Quality then
+            return a.Quality > b.Quality
+        end
+        return false
+    end
+    -- 对临时数组进行排序
+    table.sort(tempArray, compare)
+    return tempArray
+end
+
+-- 点击进入按钮
+function PersonalTowerWindow:OnClickEnterJBtn()
+    if GameManager.Instance:IsConditionMete(self.m_CurrentFloorCfg.ConditionID) then
+        local notHave = not LocalCacheManager.Instance:Has("PersonTowerLevel_"..self.UnlockFloor);
+        if notHave then
+            LocalCacheManager.Instance:SetValueType("PersonTowerLevel_"..self.UnlockFloor, true, CacheType.Normal);
+            RedPointManager.Instance:TriggerConditionTypeBoolValue(RedPointConditionType.PersonTowerLevel, false);
+        end
+        LuaModuleDispatcher:SendMessage(ModuleDef.PersonalTowerModule, "SendEnterPersonTowerLevelReq", self.UnlockFloor)
+    else
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_221"));
+    end
+end
+
+function PersonalTowerWindow:RefreshNextStage()
+
+end
+----------------------------------------------------- 按钮点击事件 【END】 ------------------------------------------
+function PersonalTowerWindow:OnClose(arg)
+    self:CloseWindow()
+    self.module.PersonalTowerWindow = nil;
+    LuaModuleDispatcher:SendMessage(ModuleDef.PersonalTowerModule, "ClosePersonalTowerWindow", { });
+end
+-- 关闭界面
+function PersonalTowerWindow:CloseWindow()
+    self.SelectIndex = -1
+    self.PassFloor = -1
+    self.UnlockFloor = 1
+    self.IsOpen = false
+
+    self.m_TicketsCount = -1
+    self.m_NeedTicketCount = 1
+    self.m_CurrentFloorCfg = nil
+end
+
+return PersonalTowerWindow

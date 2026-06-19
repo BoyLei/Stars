@@ -1,0 +1,75 @@
+--[[
+*文件名   :   PartyTimeQuestionItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/7 16:32:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local PartyTimeQuestionItem = {}
+
+PartyTimeQuestionItem.__index = PartyTimeQuestionItem
+
+function PartyTimeQuestionItem:New(_go) 
+    local self = {};    
+    setmetatable(self, PartyTimeQuestionItem); 
+    
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+	self.info=self.transform:Find("info"):GetComponent(typeof(Text));
+
+	self.bg=self.transform:Find("bg"):GetComponent(typeof(Image));
+
+	self.people=self.transform:Find("people"):GetComponent(typeof(Text));--选择的人数
+
+
+	self.go_get=self.transform:Find("get").gameObject;--正确答案打勾
+	self.go_wrong=self.transform:Find("wrong").gameObject;
+
+	self.go_selected=self.transform:Find("selected").gameObject;--我自己的选择
+
+
+    return self;    --返回自身
+end
+
+--刷新题目
+function PartyTimeQuestionItem:RefeshQuestion(str)
+
+	self.info.text=str;
+
+	self:TrueChoice(false);
+	self:RefeshSelect(false);
+	self:RefeshPeople(0);
+	self:IsSelfWrong(false);
+
+end
+
+--刷新选的数量
+function PartyTimeQuestionItem:RefeshPeople(num)
+	--self.people.text=StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_PartyTimeQuestionItem"),num);
+	self.people.text=num;
+end
+
+--自己的选择
+function PartyTimeQuestionItem:RefeshSelect(b)
+	self.go_selected:SetActive(b);
+	if b then
+		self.info.color=Color(1,1,1,1);
+	else
+		self.info.color=Color(178/255,172/255,156/255);
+	end
+end
+
+--公布正确选项
+function PartyTimeQuestionItem:TrueChoice(b)
+	self.go_get:SetActive(b);
+end
+
+--自己是否选错了
+function PartyTimeQuestionItem:IsSelfWrong(b)
+	self.go_wrong:SetActive(b);
+end
+
+return PartyTimeQuestionItem;

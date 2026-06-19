@@ -1,0 +1,80 @@
+local RankingItem = {}
+RankingItem.__index = RankingItem
+
+function RankingItem:New(obj)
+    local self = {};
+    setmetatable(self, RankingItem);
+
+    self:InitControls(obj)
+
+    return self;
+end
+
+function RankingItem:InitControls(obj)
+    self.gameObject = obj;
+    self.transform = obj.transform;
+
+    self.allBgs = {};
+    for i=1, 3 do
+        local bgGo = self.transform:Find("Bg"..i).gameObject;
+        self.allBgs[i] = bgGo;
+    end
+
+    self.rankNumText = self.transform:Find("Num"):GetComponent(typeof(Text));
+    self.rankIcon1 = self.transform:Find("Icon1"):GetComponent(typeof(Image));
+    self.rankIcon2 = self.transform:Find("Icon2"):GetComponent(typeof(Image));
+    self.rankIcon3 = self.transform:Find("Icon3"):GetComponent(typeof(Image));
+
+    self.nameText = self.transform:Find("Name"):GetComponent(typeof(Text));
+
+    self.pointText = self.transform:Find("Point"):GetComponent(typeof(Text));
+
+    self.selImg = self.transform:Find("Sel"):GetComponent(typeof(Image));
+
+    local btn = self.transform:GetComponent(typeof(Button));
+    btn.onClick:AddListener(function()
+        if self.clickCb ~= nil then
+            self.clickCb(self.curData.RankNum);
+        end
+    end);
+end
+
+function RankingItem:Refresh(data, selIndex, rankType)
+    local rankNum = data.RankNum;
+    local nameStr = data.OfflineData.UserName;
+    local pn = data.RankScore;
+	
+	self.curData = data;
+    self.rankIcon1.gameObject:SetActive(rankNum == 1);
+    self.rankIcon2.gameObject:SetActive(rankNum == 2);
+    self.rankIcon3.gameObject:SetActive(rankNum == 3);
+
+    for i=1, 3 do
+        self.allBgs[i]:SetActive(i == rankNum);
+    end
+    self.rankNumText.gameObject:SetActive(rankNum >= 4);
+
+    self.rankNumText.text = tostring(rankNum);
+
+    self.nameText.text = nameStr;
+
+    --如果是战力，获取战力段位名称
+    if rankType == 6 then
+        self.pointText.text = tostring(pn);
+    else
+        local rName = GetTotalPowerRankLevel(pn);
+        self.pointText.text = rName;
+    end
+	
+	self:SetSelect(rankNum == selIndex);
+end
+
+function RankingItem:SetSelect(isSel)
+    self.selImg.gameObject:SetActive(isSel);
+end
+
+function RankingItem:SetClickCb(cb)
+    self.clickCb = cb;
+end
+
+return RankingItem

@@ -1,0 +1,27 @@
+--- Proto工具类  
+
+local typeMap = 
+{
+	["int8"] = "Int8Value",
+	["int16"] = "Int16Value",
+	["int32"] = "Int32Value",
+	["int64"] = "Int64Value",
+	["uint8"] = "Uint8Value",
+	["uint16"] = "Uint16Value",
+	["uint32"] = "Uint32Value",
+	["uint64"] = "Uint64Value",
+	["float32"] = "FloatValue",
+	["float64"] = "DoubleValue",
+	["bool"] = "BoolValue",
+	["string"] = "StringValue",
+	["protoMsg"] = "MsgValue",
+	["*linmath.Vector3"] = "MsgValue"
+}
+
+function GetValueByPropType(syncBaseInfo,type)
+	local typeStr = typeMap[type];
+	if typeStr ~= nil then
+		return syncBaseInfo[typeStr];
+	end
+	return nil;
+end

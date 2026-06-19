@@ -1,0 +1,54 @@
+-- 战力推荐 Item
+local RecommendItem = {}
+RecommendItem.__index = RecommendItem
+
+function RecommendItem:New(obj)
+    local self = {};
+    setmetatable(self, RecommendItem);
+
+    self:Init(obj)
+
+    return self;
+end
+
+function RecommendItem:Init(obj)
+    self.gameObject = obj;
+    self.transform = obj.transform;
+    self.titleText = self.transform:Find("TitleText"):GetComponent(typeof(Text));
+
+    local jButton = self.transform:GetComponent(typeof(JButton));
+    jButton.OnClick = function()
+        self.clickCB(self.moduleData);
+    end
+
+    self.moduleData = nil;
+    self.clickCB = nil;
+
+end
+
+function RecommendItem:SetClickCB(clickCB)
+    self.clickCB = clickCB;
+end
+
+function RecommendItem:UpdateData(moduleData)
+
+    -- 赋值 模块数据
+    self.moduleData = moduleData;
+
+    if self.moduleData == nil then
+        self:Show(false);
+        return;
+    end
+
+    self:Show(true);
+
+    -- 名字
+    self.titleText.text = moduleData.PowerModuleDataCellCfg.PartName;
+
+end
+
+function RecommendItem:Show(b)
+    self.gameObject:SetActive(b);
+end
+
+return RecommendItem

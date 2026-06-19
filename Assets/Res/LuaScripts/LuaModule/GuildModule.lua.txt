@@ -1,0 +1,528 @@
+--[[
+*文件名   :   GuildModule
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/10/27 14:35:39"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] GuildModule = class("GuildModule", BaseLuaModule)
+
+local GuildJoinWindowPath = "Guild/GuildJoinWindow"
+local GuildInfoWindowPath = "Guild/GuildInfoWindow"
+
+GuildModule.m_CfgInterval = 10; -- 定时器时间秒
+GuildModule.m_Countdown = 10; -- 定时加载
+
+-- LuaModule 消息模块
+GuildModule.ModuleMessages = {
+    -- 打开冒险团
+    ["OnOpenGuild"] = function(...)
+        GuildModule:OnOpenGuild(...);
+    end,
+
+    -- 打开冒险团创建
+    ["OnOpenGuildJoin"] = function(...)
+        GuildModule:OnOpenGuildJoin(...);
+    end,
+
+    -- 打开冒险团信息
+    ["OnOpenGuildInfo"] = function(...)
+        GuildModule:OnOpenGuildInfo(...);
+    end,
+
+    -- 点击到冒险团创建Tag页面
+    ["OnOpenGuildJoinTag"] = function(...)
+        GuildModule:OnOpenGuildJoinTagMsg(...);
+    end,
+
+    -- 点击到冒险团信息Tag页面
+    ["OnOpenGuildInfoTag"] = function(...)
+        GuildModule:OnOpenGuildInfoTagMsg(...);
+    end,
+
+    ["OnGuildModuleShow"] = function(...)
+        GuildModule:OnGuildModuleShow(...);
+    end,
+
+    ["OnGuildModuleHide"] = function(...)
+        GuildModule:OnGuildModuleHide(...);
+    end,
+
+    ["OnInviteToGuild"] = function(...)
+        GuildModule:OnInviteToGuild(...);
+    end
+
+}
+
+function GuildModule:OnInviteToGuild(...)
+
+    local tb = ...;
+
+    local PID = 0;
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        PID = tb[1];
+    else
+        -- C#调用
+        PID = tb[0];
+    end
+
+    local msg = CS.ProtoMsg.GuildInviteReq();
+    msg.BeInvitePID = PID;
+    SendClient2CenterReq(msg);
+
+end
+
+-- 定时器拉取申请
+function GuildModule:OnGuildModuleShow(...)
+    MonoHelper.RemoveUpdateListener(self.UpdateFun);
+    MonoHelper.AddUpdateListener(self.UpdateFun);
+end
+
+function GuildModule:OnGuildModuleHide(...)
+    MonoHelper.RemoveUpdateListener(self.UpdateFun);
+end
+
+-- 监听打开冒险团创建事件
+function GuildModule:OnOpenGuild(...)
+
+    local tb = ...
+
+    -- 判断是否已经加入冒险团
+    if BusinessManager.Instance:GetGuildID() > 0 then
+        self:OnOpenGuildInfo(tb);
+    else
+        self:OnOpenGuildJoin(tb);
+    end
+
+end
+
+function GuildModule:OnOpenGuildJoinTagMsg(...)
+
+    local tb = ...;
+
+    local tag = 1;
+    local subTag = 0;
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        tag = tb[1];
+        subTag = tb[2];
+    else
+        -- C#调用
+        tag = tb[0];
+        subTag = tb[1];
+    end
+
+    if self.guildJoinWindowView ~= nil and self.guildJoinWindowView.IsOpen then
+        self.guildJoinWindowView.EquipMenuIdx = subTag;
+        self.guildJoinWindowView:OnMenuBtnClick(tag);
+    end
+
+end
+
+function GuildModule:OnOpenGuildInfoTagMsg(...)
+
+    local tb = ...;
+
+    local tag = 1;
+    local subTag = 0;
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        tag = tb[1];
+        subTag = tb[2];
+    else
+        -- C#调用
+        tag = tb[0];
+        subTag = tb[1];
+    end
+
+    if self.guildInfoWindowView ~= nil and self.guildInfoWindowView.IsOpen then
+        self.guildInfoWindowView.EquipMenuIdx = subTag;
+        self.guildInfoWindowView:OnMenuBtnClick(tag);
+    end
+
+end
+
+-- 监听打开冒险团创建事件
+function GuildModule:OnOpenGuildJoin(...)
+    -- local tb=...
+
+    -- local guildJoinWindowCs =UIManager.Instance:OpenWindow(GuildJoinWindowPath,nil,CS.StarProjectDef.MainPageCommond.HideBoth,false,true);
+    -- if self.guildJoinWindowView == nil then
+    -- 	self.guildJoinWindowView=guildJoinWindowCs:GetLuaPanel().ScriptTable;	
+    -- 	self.guildJoinWindowView:BindModule(self);
+    -- 	self.guildJoinWindowView:InitItems();
+    -- 	self.evtOnCloseBox = LuaModuleDispatcher:Event(ModuleDef.GuildModule, "OnCloseBoxEvt")
+    -- end
+    -- --刷新冒险团
+    -- if self.guildJoinWindowView~=nil and self.guildJoinWindowView.IsOpen then
+    -- 	self.guildJoinWindowView:Refesh();
+    -- end
+    -- --self.guildJoinWindowView.currencyBar:OnListener();
+
+    self.AsyncLoadGuildJoinWindowCb = function(ui)
+        if ui ~= nil then
+            if self.guildJoinWindowView == nil then
+                self.guildJoinWindowView = ui:GetLuaPanel().ScriptTable;
+                self.guildJoinWindowView:BindModule(self);
+                self.guildJoinWindowView:InitItems();
+                self.evtOnCloseBox = LuaModuleDispatcher:Event(ModuleDef.GuildModule, "OnCloseBoxEvt")
+            end
+            -- 刷新冒险团
+            if self.guildJoinWindowView ~= nil and self.guildJoinWindowView.IsOpen then
+                self.guildJoinWindowView:Refesh();
+            end
+            -- self.guildJoinWindowView.currencyBar:OnListener();
+        end
+        self.AsyncLoadGuildJoinWindowCb = nil;
+    end
+    UIManager.Instance:OpenWindowAsync(GuildJoinWindowPath, self.AsyncLoadGuildJoinWindowCb, nil,
+        CS.StarProjectDef.MainPageCommond.HideBoth, false, true);
+end
+
+-- 监听打开冒险团创建事件
+function GuildModule:OnOpenGuildInfo(...)
+    -- local tb=...
+    --[[
+	local parentWind = nil
+	if tb~=nil then
+		if type(tb)=="table" then
+			--Lua调用
+			parentWind=tb[1];
+		else
+			--C#调用
+			--parentWind=tb[0];
+		end
+	end
+	if parentWind ~= nil then
+		guildInfoWindowCs.parentWin = parentWind;
+	end
+
+	]]
+
+    -- local guildInfoWindowCs =UIManager.Instance:OpenWindow(GuildInfoWindowPath,nil,CS.StarProjectDef.MainPageCommond.HideBoth,false,true);
+    -- if self.guildInfoWindowView == nil then
+    -- 	self.guildInfoWindowView=guildInfoWindowCs:GetLuaPanel().ScriptTable;	
+    -- 	self.guildInfoWindowView:BindModule(self);
+    -- 	self.guildInfoWindowView:InitItems();
+    -- 	self.evtOnCloseBox = LuaModuleDispatcher:Event(ModuleDef.GuildModule, "OnCloseBoxEvt")
+    -- end
+    -- --刷新冒险团
+    -- if self.guildInfoWindowView~=nil and self.guildInfoWindowView.IsOpen then
+    -- 	self.guildInfoWindowView:Refesh();
+    -- end
+    -- --self.guildInfoWindowView.currencyBar:OnListener();
+
+    self.IsFirstJoin = 0;
+    local tb = ...
+    if tb ~= nil then
+        if type(tb) == "table" then
+            -- Lua调用
+            if #tb > 0 then
+                self.IsFirstJoin = tb[1];
+            end
+        else
+            -- C#调用
+            if tb.Length > 0 then
+                self.IsFirstJoin = tb[0];
+            end
+        end
+    end
+
+    self.AsyncLoadGuildInfoWindowCb = function(ui)
+        if ui ~= nil then
+            if self.guildInfoWindowView == nil then
+                self.guildInfoWindowView = ui:GetLuaPanel().ScriptTable;
+                self.guildInfoWindowView:BindModule(self);
+                self.guildInfoWindowView:InitItems();
+                self.evtOnCloseBox = LuaModuleDispatcher:Event(ModuleDef.GuildModule, "OnCloseBoxEvt")
+            end
+            -- 刷新冒险团
+            if self.guildInfoWindowView ~= nil and self.guildInfoWindowView.IsOpen then
+                self.guildInfoWindowView:Refesh();
+            end
+            -- self.guildInfoWindowView.currencyBar:OnListener();
+        end
+        self.AsyncLoadGuildInfoWindowCb = nil;
+    end
+    UIManager.Instance:OpenWindowAsync(GuildInfoWindowPath, self.AsyncLoadGuildInfoWindowCb, nil,
+        CS.StarProjectDef.MainPageCommond.HideBoth, false, true);
+end
+
+-- 关闭冒险团回调
+function GuildModule:OnCloseBoxEvt(arg)
+    self.evtOnCloseBox:Invoke()
+end
+
+-- 关闭冒险团
+function GuildModule:OnCloseBox()
+
+    -- self.guildJoinWindowView.currencyBar:OffListener();
+
+    self:OnCloseBoxEvt();
+
+end
+
+-- LuaModule 创建
+function GuildModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.GuildModule, self)
+
+    -- self.itemManagerModule=GameManager.Instance:GetItemModule();
+
+    -- 监听冒险团被邀请
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.GuildInviteNtfID, function(data)
+        self:OnGuildInviteNtf(data)
+    end, nil);
+
+    -- 拉去申请记录回调
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.GuildMyApplyListRetID, function(data)
+        self:OnGuildMyApplyListRet(data)
+    end, nil);
+
+    -- 监听"成功加入"冒险团
+    --[[
+	NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.JoinGuildRetID, function(data)
+        self:OnJoinGuildRet(data)
+    end, nil);
+
+	]]
+
+    -- 监听邀请别人的回调
+    CS.SGF.Network.MsgRetManager.Instance:OnMessageEnum(function(data)
+        self:OnGuildInviteReqRet(data);
+    end, CS.MsgIDEnum.GuildInviteReqID);
+
+    -- 监听邀请别人的回调
+    CS.SGF.Network.MsgRetManager.Instance:OnMessageEnum(function(data)
+        self:OnGuildInviteApplyReqRet(data);
+    end, CS.MsgIDEnum.GuildInviteApplyReqID);
+
+    -- 监听收到了新请求
+
+    -- RedPointManager.Instance:TriggerConditionTypeBoolValue(RedPointConditionType.Union_Apply, true);
+    -- RedPointManager.Instance:TriggerConditionTypeBoolValue(RedPointConditionType.Union_Notice, true);
+    -- RedPointManager.Instance:TriggerConditionTypeBoolValue(RedPointConditionType.Union_ChangeFunc, true);
+
+    -- 监听更新了公告
+
+    -- 监听功能发生变化
+
+    -- update事件(监听红点的临时代码)
+    self.UpdateFun = function()
+        self:UpdateData();
+    end
+
+end
+
+-- 拉去申请记录回调
+function GuildModule:OnGuildMyApplyListRet(data)
+
+    if data.data ~= nil then
+        -- 成功
+        local UserMd = data.data.PlayerList;
+
+        if UserMd ~= nil then
+
+            RedPointManager.Instance:TriggerConditionTypeBoolValue(RedPointConditionType.Union_Apply, UserMd.Count > 0);
+
+        end
+
+    else
+        -- 失败
+        -- Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_14"));
+    end
+end
+
+function GuildModule:OnGuildInviteReqRet(args)
+
+    local RetMsgID = args.MsgRet.RetMsgID; -- 对应的消息号(这个可以判断是哪个协议)
+    local RetCode = args.MsgRet.RetCode; -- 错误码，对应弹窗配置表ID，0为成功
+    if RetCode == 0 then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_15"));
+    else
+        -- 不需要处理，交给上层去处理
+        -- Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_16"));
+        -- args.IsDialog=true--如果这里写true那么上层就不会出现系统报错提示文字
+        -- 失败后做出的处理，常常是解锁UI
+    end
+
+end
+
+function GuildModule:OnGuildInviteApplyReqRet(args)
+
+    local RetMsgID = args.MsgRet.RetMsgID; -- 对应的消息号(这个可以判断是哪个协议)
+    local RetCode = args.MsgRet.RetCode; -- 错误码，对应弹窗配置表ID，0为成功
+    if RetCode == 0 then
+
+        -- 打开冒险团
+        DOVirtual.DelayedCall(0.3, function()
+            if BusinessManager.Instance:GetGuildID() > 0 then
+                UIManager.Instance:CloseAllLoadedWindowNWidget();
+                LuaModuleDispatcher:SendMessage(ModuleDef.GuildModule, "OnOpenGuildInfo", {})
+            end
+        end)
+
+    else
+        -- 不需要处理，交给上层去处理
+        -- Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_16"));
+        -- args.IsDialog=true--如果这里写true那么上层就不会出现系统报错提示文字
+        -- 失败后做出的处理，常常是解锁UI
+    end
+
+end
+
+function GuildModule:OnJoinGuildRet(data)
+    if data.data ~= nil then
+        -- 成功
+        local ret = data.data.Ret;
+
+        if ret == CS.ProtoMsg.JoinGuildRet.Types.Result.Ok then
+
+            local Info = data.data.LGinfo;
+            local GuildName = Info.GuildName;
+            -- 弹窗
+            -- Util.ShowMessage("成功加入"..GuildName.."冒险团");
+            Util.ShowMessage(StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_236"), {GuildName}))
+
+            -- 看看要不要延迟
+
+            UIManager.Instance:CloseAllLoadedWindowNWidget();
+            -- 进入冒险团信息面板
+            LuaModuleDispatcher:SendMessage(ModuleDef.GuildModule, "OnOpenGuildInfo", {1});
+
+        else
+
+            -- 失败
+            -- Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_19"));
+
+        end
+
+    end
+end
+
+function GuildModule:OnGuildInviteNtf(data)
+    if data.data ~= nil then
+        -- 成功
+        local GuildId = data.data.GuildID;
+
+        if GuildId ~= nil then
+
+            local GuildName = data.data.GuildName;
+            local InviteName = data.data.PlayerName;
+
+            -- 冒险团被邀请
+
+            CS.StarProjectDef.UIAPI.ShowMsgBox(19, function(str)
+                if str == "SURE" then
+
+                    -- 发送加入冒险团申请
+                    local guildInviteApplyReq = CS.ProtoMsg.GuildInviteApplyReq();
+
+                    local MsgInfo = CS.ProtoMsg.GuildInviteNtf();
+                    MsgInfo.GuildID = GuildId;
+
+                    guildInviteApplyReq.MsgInfo = MsgInfo;
+                    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType
+                                                                                     .ServerTypeLobby,
+                        guildInviteApplyReq, false);
+
+                end
+            end, InviteName, GuildName);
+
+        end
+
+    end
+end
+
+-- 定时器
+function GuildModule:UpdateData()
+    if self.m_Countdown > 0 then
+        local deltaTime = Time.deltaTime;
+        self.m_Countdown = self.m_Countdown - deltaTime;
+        if self.m_Countdown <= 0 then
+
+            -- 判断是否有权限
+            local canAccepNewMember = self:IsHaveGuildPower(1);
+
+            if canAccepNewMember then
+                -- 拉申请列表
+                local msg = CS.ProtoMsg.GuildMyApplyListReq();
+                SendClient2CenterReq(msg);
+
+            end
+
+            self.m_Countdown = self.m_CfgInterval;
+        end
+    end
+end
+
+-- 判断是是否拥有某项权力
+function GuildModule:IsHaveGuildPower(powerID)
+
+    --[[
+	1=审批入会
+	2=踢人
+	3=禁言
+	4=任职
+	5=冒险团改名、修改公告、修改宣言、修改标签
+	8=修改招人等级
+	10=邀请入会
+	]]
+
+    -- 没有冒险团
+    if BusinessManager.Instance:GetGuildID() == 0 then
+        return false;
+    end
+
+    local posLevelID = BusinessManager.Instance:GetGuildPosLevel();
+
+    local powerList = ConfigDataAccessor.GuildTitle[posLevelID].Power;
+
+    for k, v in pairs(powerList) do
+        if v == powerID then
+            return true;
+        end
+    end
+
+    return false;
+
+end
+
+function GuildModule:OnItemSpaceListRefesh(data)
+
+    print("OnItemSpaceListRefesh");
+
+end
+
+function GuildModule:OpenItemTips(baseID, entityID)
+    -- print("GuildModule:OpenItemTips:"..baseID);
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",
+        {baseID, true, entityID, self.guildJoinWindowView.tips_anchor, 0});
+end
+
+function GuildModule:CloseItemTips()
+    print("GuildModule:CloseItemTips");
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips", {});
+end
+
+-- LuaModule 消息处理
+function GuildModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...);
+end
+
+-- LuaModule显示
+function GuildModule:OnModuleShow(arg)
+
+end
+
+-- LuaModule 释放
+function GuildModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.GuildModule)
+    MonoHelper.RemoveUpdateListener(self.UpdateFun);
+end
+
+return GuildModule
+

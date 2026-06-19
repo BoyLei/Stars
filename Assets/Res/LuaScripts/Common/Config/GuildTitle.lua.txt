@@ -1,0 +1,62 @@
+
+local KeyMap = {
+	TitleID = 1,
+	Comments = 2,
+	Power = 3,
+	DailyMutedLimit = 4,
+	DailyLickLimit = 5,
+	NumLimit = 6,
+
+}
+
+local R = {
+	_1 = 'GuildTitleComments',
+	_2 = {1,2,3,4,5,8,10},
+}
+
+local GuildTitleList = 
+{
+	[1001]=
+	{
+		1001,
+		L("GuildTitleComments1001"),
+		R._2,
+		10,
+		10,
+		1,
+	},
+	[1002]=
+	{
+		1002,
+		L("GuildTitleComments1002"),
+		R._2,
+		5,
+		5,
+		2,
+	},
+	[1003]=
+	{
+		1003,
+		L("GuildTitleComments1003"),
+		{1,2,3},
+		2,
+		2,
+		5,
+	},
+	[1004]=
+	{
+		1004,
+		L("GuildTitleComments1004"),
+		{},
+		0,
+		0,
+		10,
+	},
+
+}
+
+do
+    MT(KeyMap, GuildTitleList)
+end
+
+return GuildTitleList

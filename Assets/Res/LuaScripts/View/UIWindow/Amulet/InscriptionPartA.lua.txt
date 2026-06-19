@@ -1,0 +1,519 @@
+--[[
+*文件名   :   InscriptionPartA
+*内  容   :	  轮器UI
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local InscriptionPartA = {}
+
+InscriptionPartA.__index = InscriptionPartA
+
+local InscriptionPartAItem = require("View/Uiwindow/Amulet/InscriptionPartAItem")
+local InscriptionPartACenterItem = require("View/Uiwindow/Amulet/InscriptionPartACenterItem")
+local ObjectPool = require("Common/Helper/ObjectPool")
+
+function InscriptionPartA:New(_go, InscriptionWindow)
+    local self = {}
+    setmetatable(self, InscriptionPartA)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.InscriptionWindow = InscriptionWindow
+
+    self.go_null1 = self.transform:Find("L/Null1").gameObject
+    self.go_null2 = self.transform:Find("C/Null2").gameObject
+
+    --中间
+    self.centerItems = {}
+    for i = 1, 2 do
+        local ci =
+            InscriptionPartACenterItem:New(
+            self.transform:Find("C/Item" .. i).gameObject,
+            i,
+            function(idx)
+            end
+        )
+        table.insert(self.centerItems, ci)
+    end
+
+    --跳转到鸣器
+    self.centerItems[1].gameObject:GetComponent(typeof(JButton)).OnClick = (function()
+        self.InscriptionWindow:OnMenuBtnClick(2)
+    end)
+
+    --跳转到纹章
+    self.centerItems[2].gameObject:GetComponent(typeof(JButton)).OnClick = (function()
+        --self.InscriptionWindow:OnClickCloseBtn();
+        LuaModuleDispatcher:SendMessage(ModuleDef.AmuletModule, "OnOpenAmulet", {0, 0})
+    end)
+
+    self.power = self.transform:Find("C/power"):GetComponent(typeof(Text))
+
+    self.skillIcon = self.transform:Find("C/Icon"):GetComponent(typeof(Image))
+    self.skillLv = self.transform:Find("C/Lv"):GetComponent(typeof(Text))
+    self.skillNum = self.transform:Find("C/Num"):GetComponent(typeof(Text))
+
+    self.stars = {}
+    for i = 1, 5 do
+        local _go = self.transform:Find("C/Stars/Star" .. i .. "/img").gameObject
+        table.insert(self.stars, _go)
+    end
+
+    --道具列表
+    self.InscriptionPartAItemList = {}
+    --无限列表
+    self.go_InscriptionPartAItem = self.transform:Find("L/List/Item").gameObject
+    self.go_InscriptionPartAItem:SetActive(false)
+    self.go_InscriptionPartAItem.transform:SetParent(self.transform:Find("L/List"))
+
+    self.tr_ItemRoot = self.transform:Find("L/List/Scroll View/Mask/List")
+    self.InscriptionPartAScorllView = self.transform:Find("L/List/Scroll View"):GetComponent(typeof(SuperScrollViewController))
+    self.InscriptionPartAScorllView:NewScroll(
+        self.go_InscriptionPartAItem,
+        0,
+        function(tr, idx)
+            self:OnInscriptionPartAItemRefesh(tr, idx)
+        end
+    )
+
+    --右下角的
+
+    self.rect = self.transform:Find("C/Scroll View/Viewport/Content"):GetComponent(typeof(RectTransform))
+
+    --池
+    local _go = self.transform:Find("C/Scroll View/Viewport/Content/SkillItem").gameObject
+    self.inscriptionItemPool =
+        ObjectPool:New(
+        4,
+        "View.Uiwindow.Amulet.InscriptionPartASkillItem",
+        _go,
+        _go.transform.parent,
+        function(it)
+            it:InitItem()
+        end,
+        --回收回调
+        function(ritem)
+            ritem:SetUse(false)
+        end,
+        nil
+    )
+
+    self:Show(false)
+
+    return self --返回自身
+end
+
+function InscriptionPartA:Show(b)
+    self.gameObject:SetActive(b)
+    if b then
+        self:Refesh()
+
+        --选中第一个
+        if #self.ItemDataList > 0 then
+            self:OnItemClick(self.InscriptionPartAItemList[1])
+        else
+            self:SetToNull()
+        end
+    else
+        self.SelectedData = nil
+    end
+end
+
+function InscriptionPartA:Refesh()
+    self.power.text = ""
+    self:ClearItemData()
+
+    local InfoDic = {}
+
+    --纹章
+    local pointNow = 0
+    for i = 1, 2 do
+        --获取身上的纹章
+        local itemData = BusinessManager.Instance:GetHeroEquipedAmulet(i)
+        if itemData ~= nil then
+            local combatSkills = itemData.CombatSkills
+            for j = 0, combatSkills.List.Count - 1 do
+                local cs = combatSkills.List[j]
+
+                local etchID = GetEtchIdBySkillId(cs.ID)
+                if InfoDic[etchID] == nil then
+                    local info = {}
+                    info.EtchId = etchID
+                    info.WarSkillId = cs.ID
+                    info.Lv = 1
+                    info.Points = 0
+                    info.IsSelected = false
+                    info.EquipAmuletID = 0 --是否装备了拥有该点数的纹章
+                    info.IsEquip = false --是否鸣器拥有该点数
+                    info.EquipedSort = 0 --是否鸣器拥有该点数(排序用)
+
+                    info.PointsAmulet = 0
+                    info.PointsEtch = 0
+
+                    InfoDic[etchID] = info
+                end
+
+                --装备了此纹章
+                InfoDic[etchID].EquipAmuletID = itemData.BaseID
+
+                local num = Byte2binToNum(cs.Points)
+                InfoDic[etchID].Points = InfoDic[etchID].Points + num
+
+                InfoDic[etchID].PointsAmulet = num
+            end
+        end
+    end
+
+    --判断是否已经此鸣器
+    local M_EntityBase = GameManager.Instance.M_MainPlayerCtrlBase
+    local tweeter1 = M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Int, CS.StarProjectDef.AOIAttrDefine.Tweeter1)
+    local tweeter2 = M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Int, CS.StarProjectDef.AOIAttrDefine.Tweeter2)
+    if tweeter1 > 0 then
+        if InfoDic[tweeter1] == nil then
+            local info = {}
+            info.EtchId = tweeter1
+            info.WarSkillId = GetSkillIdByEtchId(tweeter1)
+            info.Lv = 1
+            info.Points = 0
+            info.IsSelected = false
+            info.EquipAmuletID = 0 --是否装备了拥有该点数的纹章
+            info.IsEquip = false --是否鸣器拥有该点数
+            info.EquipedSort = 0 --是否鸣器拥有该点数(排序用)
+
+            info.PointsAmulet = 0
+            info.PointsEtch = 0
+
+            InfoDic[tweeter1] = info
+        end
+
+        --装备了此鸣器
+        InfoDic[tweeter1].IsEquip = true
+        InfoDic[tweeter1].EquipedSort = 1
+
+        --鸣器的点数
+        local data = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.Tweeter):GetTweeterByBaseId(tweeter1)
+        if data == nil then
+            --默认是1级别
+            local lv = 1
+            local cfg = ConfigDataAccessor.EtchUP[lv]
+            InfoDic[tweeter1].Points = InfoDic[tweeter1].Points + cfg.BattleSkillIPoint
+            InfoDic[tweeter1].PointsEtch = InfoDic[tweeter1].BattleSkillIPoint
+        else
+            --拿到当前等级
+            local lv = data.Level
+            local cfg = ConfigDataAccessor.EtchUP[lv]
+            InfoDic[tweeter1].Points = InfoDic[tweeter1].Points + cfg.BattleSkillIPoint
+            InfoDic[tweeter1].PointsEtch = InfoDic[tweeter1].BattleSkillIPoint
+        end
+    end
+    if tweeter2 > 0 then
+        if InfoDic[tweeter2] == nil then
+            local info = {}
+            info.EtchId = tweeter2
+            info.WarSkillId = GetSkillIdByEtchId(tweeter2)
+            info.Lv = 1
+            info.Points = 0
+            info.IsSelected = false
+            info.EquipAmuletID = 0 --是否装备了拥有该点数的纹章
+            info.IsEquip = false --是否鸣器拥有该点数
+            info.EquipedSort = 0 --是否鸣器拥有该点数(排序用)
+
+            info.PointsAmulet = 0
+            info.PointsEtch = 0
+
+            InfoDic[tweeter2] = info
+        end
+
+        --装备了此鸣器
+        InfoDic[tweeter2].IsEquip = true
+        InfoDic[tweeter2].EquipedSort = 1
+
+        --鸣器的点数
+        local data = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.Tweeter):GetTweeterByBaseId(tweeter2)
+        if data == nil then
+            --默认是1级别
+            local lv = 1
+            local cfg = ConfigDataAccessor.EtchUP[lv]
+            InfoDic[tweeter2].Points = InfoDic[tweeter2].Points + cfg.BattleSkillIPoint
+            InfoDic[tweeter2].PointsEtch = InfoDic[tweeter2].BattleSkillIPoint
+        else
+            --拿到当前等级
+            local lv = data.Level
+            local cfg = ConfigDataAccessor.EtchUP[lv]
+            InfoDic[tweeter2].Points = InfoDic[tweeter2].Points + cfg.BattleSkillIPoint
+            InfoDic[tweeter2].PointsEtch = InfoDic[tweeter2].BattleSkillIPoint
+        end
+    end
+
+    for k, v in pairs(InfoDic) do
+        local info = v
+        local skillID = k
+
+        --计算技能等级
+
+        local maxLv = ConfigDataAccessor.GetPassiveDescMaxLv(skillID)
+
+        --点的数量
+        local num = info.Points
+
+        --每一级的点数
+        local perLevelPoint = 5
+
+        local isMaxLv = false
+        if num >= maxLv * perLevelPoint then
+            isMaxLv = true
+        end
+
+        --计算到下一个等级需要的点数
+        local leftNum = 1
+
+        --计算技能等级
+
+        local lvNext = 1
+        for i = 1, (maxLv - 1) do
+            if lvNext * perLevelPoint > num then
+                leftNum = lvNext * perLevelPoint - num
+                info.LeftNum = perLevelPoint - leftNum
+                break
+            else
+                lvNext = lvNext + 1
+            end
+        end
+
+        local lvNow = lvNext - 1 --当前等级
+
+        info.Lv = lvNow
+        info.MaxNum = maxLv * perLevelPoint
+        info.MaxLv = maxLv
+
+        if info.Points > 0 then
+            table.insert(self.ItemDataList, info)
+        end
+    end
+
+    self:RefeshItems()
+end
+
+function InscriptionPartA:SetToNull()
+    self.skillIcon.gameObject:SetActive(false)
+    self.skillLv.text = ""
+    self.skillNum.text = "0"
+    for i = 1, 5 do
+        self.stars[i]:SetActive(false)
+    end
+    self.centerItems[1]:SetItem(nil)
+    self.centerItems[2]:SetItem(nil)
+
+    self.go_null1:SetActive(true)
+    self.go_null2:SetActive(true)
+    self.inscriptionItemPool:RecycleAll()
+end
+
+function InscriptionPartA:RefeshCenter()
+    local data = self.SelectedData
+
+    if data ~= nil then
+        self.go_null1:SetActive(false)
+        self.go_null2:SetActive(false)
+
+        --显示图标
+        local WarSkillId = data.WarSkillId --技能id
+
+        if WarSkillId > 0 then
+            local lv = data.Lv
+
+            if lv == 0 then
+                lv = 1
+                self.skillLv.text = LanguageHelp:GetLanguageByKey("Local_Str_nonactivated")
+            else
+                --self.skillLv.text=data.Lv.."级"
+                self.skillLv.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {data.Lv})
+            end
+
+            --中间的图标
+            self.skillIcon.gameObject:SetActive(true)
+            local pd = ConfigDataAccessor.GetPassiveDesc(WarSkillId, lv)
+            ResourceHelper:LoadIconByAtlasAsync(self.skillIcon, ResourceHelper.AtlasPathEtchSkill, pd.IconPath, false)
+
+            self.skillNum.text = "" .. data.Points .. "/" .. data.MaxNum
+
+            for i = 1, 5 do
+                self.stars[i]:SetActive(false)
+            end
+            for i = 1, data.LeftNum do
+                self.stars[i]:SetActive(true)
+            end
+
+            --两个图标
+            if data.IsEquip then
+                local dd = {}
+                local cfg = ConfigDataAccessor.Etch[data.EtchId]
+                if cfg ~= nil then
+                    dd.Icon = cfg.EtchIcon
+                    dd.Points = data.PointsEtch
+                    dd.IsItem = false
+                    self.centerItems[1]:SetItem(dd)
+                end
+            else
+                self.centerItems[1]:SetItem(nil)
+            end
+
+            if data.EquipAmuletID > 0 then
+                local dd = {}
+                local cfg = ConfigDataAccessor.Item[data.EquipAmuletID]
+                if cfg ~= nil then
+                    dd.Icon = cfg.Icon
+                    dd.Points = data.PointsAmulet
+                    dd.IsItem = true
+                    self.centerItems[2]:SetItem(dd)
+                end
+            else
+                self.centerItems[2]:SetItem(nil)
+            end
+
+            --刷新下面
+            self.inscriptionItemPool:RecycleAll()
+
+            --先放个空的
+            local eventItem1 = self.inscriptionItemPool:Spawn()
+            eventItem1:RefeshItem()
+
+            for i = 1, data.MaxLv do
+                local pd2 = ConfigDataAccessor.GetPassiveDesc(WarSkillId, i)
+
+                if pd2 == nil then
+                    break
+                end
+
+                --获得当前
+                local eventItem = self.inscriptionItemPool:Spawn()
+
+                eventItem:RefeshItem(i, pd2.Decs, data.Lv, i ~= data.MaxLv)
+            end
+
+            --再放个空的
+            local eventItem2 = self.inscriptionItemPool:Spawn()
+            eventItem2:RefeshItem()
+
+            local openIdx = data.Lv
+            if openIdx == 0 then
+                openIdx = 1
+            end
+            --更新坐标
+            self.rect.anchoredPosition = Vector2(-278 - 613 * (openIdx - 1), 90.5)
+
+            --刷新战技战力
+            self.power.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips_Condition27_Power") .. FightPowerManager.Instance:GetPassivePowerBySkillId(WarSkillId, data.Lv)
+        end
+    else
+        self.power.text = ""
+        self:SetToNull()
+    end
+end
+
+function InscriptionPartA:OnItemClick(bitem)
+    self:CleanAllSelected()
+    bitem:MakeSelected(true)
+
+    --刷新右边
+    local data = bitem.Data
+
+    --显示图标
+    self.SkillNowID = data.WarSkillId --技能id
+    self.EtchNowID = data.EtchId --鸣器id
+    self.SelectedData = data
+
+    --刷新右边
+    self:RefeshCenter()
+end
+
+function InscriptionPartA:SortItem(tbl)
+    if #tbl > 1 then
+        table.sort(
+            tbl,
+            function(a, b)
+                if a.EquipedSort > b.EquipedSort then
+                    -- 按是否装备降序
+                    return true
+                elseif a.EquipedSort == b.EquipedSort then
+                    -- -- 如果是否装备相等，按点数
+                    -- if  a.Points > b.Points then
+                    --   return true
+                    -- elseif a.EquipedSort == b.EquipedSort then
+                    --   -- 如果点数相等，按id
+                    --   return a.EtchId < b.EtchId
+                    -- end
+
+                    if a.Points > b.Points then
+                        return true
+                    elseif a.Points == b.Points then
+                        if a.EtchId < b.EtchId then
+                            return true
+                        elseif a.EtchId == b.EtchId then
+                            return false
+                        end
+                    end
+                -- return false
+                end
+                -- return false
+            end
+        )
+    end
+end
+
+------------------------------
+------------------------------无限列表相关
+
+--刷新装备列表
+function InscriptionPartA:RefeshItems()
+    self:SortItem(self.ItemDataList)
+
+    self.InscriptionPartAScorllView:ContinueScroll(#self.ItemDataList, false)
+end
+
+function InscriptionPartA:CleanAllSelected()
+    --无限列表
+    for i = 1, #self.InscriptionPartAItemList do
+        self.InscriptionPartAItemList[i]:MakeSelected(false)
+    end
+end
+
+function InscriptionPartA:OnInscriptionPartAItemRefesh(tr, idx)
+    for i = 1, #self.InscriptionPartAItemList do
+        if self.InscriptionPartAItemList[i].transform == tr then
+            self.InscriptionPartAItemList[i]:SetItem(self.ItemDataList[idx + 1]) --idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+        end
+    end
+
+    --tr.gameObject:SetActive(true);
+    local bi = InscriptionPartAItem:New(tr.gameObject)
+    bi:InitItem(
+        function(ritem)
+            self:OnItemClick(ritem)
+        end
+    )
+    bi.gameObject:SetActive(true)
+    bi:SetItem(self.ItemDataList[idx + 1]) --idx是从0开始，如果ItemDataList是lua的table需要idx+1
+
+    table.insert(self.InscriptionPartAItemList, bi)
+end
+
+function InscriptionPartA:ClearItemData()
+    if self.ItemDataList == nil then
+        self.ItemDataList = {}
+    else
+        --self.ItemDataList ={}
+        for k, _ in pairs(self.ItemDataList) do
+            self.ItemDataList[k] = nil
+        end
+    end
+end
+
+------------------------------无限列表相关
+------------------------------
+
+return InscriptionPartA

@@ -1,0 +1,153 @@
+--[[
+*文件名   :   ItemResolveModule
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/08 17:40:39"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+ItemResolveModule = class("ItemResolveModule", BaseLuaModule)
+
+local ItemResolveWidgetPath = "ItemResolve/ItemResolveWidget"
+local ItemResolveConfirmWidgetPath = "ItemResolve/ItemResolveConfirmWidget"
+ItemResolveModule.IsOpenTips = false
+
+--LuaModule 消息模块
+ItemResolveModule.ModuleMessages = {
+    --打开
+    --ModuleManager.Instance.SendMessage(ModuleDef.ItemResolveModule, "OnOpenItemResolve", new object[] { xxxx });
+    ["OnOpenItemResolve"] = function(...)
+        ItemResolveModule:OnOpenItemResolve(...)
+    end,
+    --打开
+    --ModuleManager.Instance.SendMessage(ModuleDef.ItemResolveModule, "OnOpenItemResolve", new object[] { xxxx });
+    ["OnOpenItemResolveConfirmWidget"] = function(...)
+        ItemResolveModule:OnOpenItemResolveConfirmWidget(...)
+    end,
+    --打开
+    --ModuleManager.Instance.SendMessage(ModuleDef.ItemResolveModule, "OnOpenItemResolve", new object[] { xxxx });
+    ["OnItemResolveConfirm"] = function(...)
+        ItemResolveModule:OnItemResolveConfirm(...)
+    end
+}
+
+function ItemResolveModule:OnItemResolveConfirm(...)
+    if self.itemResolveWidgetView ~= nil then
+        self.itemResolveWidgetView:ItemResolveReq()
+    end
+end
+
+function ItemResolveModule:OnOpenItemResolve(...)
+    -- local tb=...
+    -- local itemResolveWidgetCs =UIManager.Instance:OpenWidget(ItemResolveWidgetPath,false,nil,nil,CS.StarProjectDef.MainPageCommond.HideBoth,false,true);
+    -- if self.itemResolveWidgetView == nil then
+    -- 	self.itemResolveWidgetView=itemResolveWidgetCs:GetLuaPanel().ScriptTable;
+    -- 	self.itemResolveWidgetView:BindModule(self);
+    -- 	self.itemResolveWidgetView:InitItems();
+    -- 	self.evtOnCloseItemResolve = LuaModuleDispatcher:Event(ModuleDef.ItemResolveModule, "OnCloseItemResolveEvt")
+    -- end
+
+    -- self.IsOpenTips=false
+    -- --显示
+    -- self.itemResolveWidgetView:RefeshItemResolve();
+
+    self.AsyncLoadItemResolveWidgetCb = function(ui)
+        if ui ~= nil then
+            if self.itemResolveWidgetView == nil then
+                self.itemResolveWidgetView = ui:GetLuaPanel().ScriptTable
+                self.itemResolveWidgetView:BindModule(self)
+                self.itemResolveWidgetView:InitItems()
+                self.evtOnCloseItemResolve = LuaModuleDispatcher:Event(ModuleDef.ItemResolveModule, "OnCloseItemResolveEvt")
+            end
+
+            self.IsOpenTips = false
+            --显示
+            self.itemResolveWidgetView:RefeshItemResolve()
+        end
+        self.AsyncLoadItemResolveWidgetCb = nil
+    end
+    UIManager.Instance:OpenWidgetAsync(ItemResolveWidgetPath, self.AsyncLoadItemResolveWidgetCb, false, nil, nil, CS.StarProjectDef.MainPageCommond.HideBoth, false, false)
+end
+
+function ItemResolveModule:OnOpenItemResolveConfirmWidget(...)
+    local tb = ...
+
+    local data = nil
+    --列表
+    local parentWind = nil
+    if type(tb) == "table" then
+        --Lua调用
+        data = tb[1]
+    else
+        --C#调用
+        data = tb[0]
+    end
+
+    self.AsyncLoadItemResolveConfirmWidgetCb = function(ui)
+        if ui ~= nil then
+            if self.ItemResolveConfirmWidgetView == nil then
+                self.ItemResolveConfirmWidgetView = ui:GetLuaPanel().ScriptTable
+                self.ItemResolveConfirmWidgetView:BindModule(self)
+                self.ItemResolveConfirmWidgetView:InitItems()
+            end
+
+            self.IsOpenTips = false
+            --显示
+            self.ItemResolveConfirmWidgetView:RefeshRewards(data)
+        end
+        self.AsyncLoadItemResolveConfirmWidgetCb = nil
+    end
+    UIManager.Instance:OpenWidgetAsync(ItemResolveConfirmWidgetPath, self.AsyncLoadItemResolveConfirmWidgetCb, false, nil, nil, CS.StarProjectDef.MainPageCommond.HideBoth, false, true)
+end
+
+function ItemResolveModule:OpenItemTips(baseID, entityID, tr)
+    --print("ItemResolveModule:OpenItemTips:"..baseID);
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", {baseID, false, entityID, tr, 0})
+end
+
+function ItemResolveModule:CloseItemTips()
+    print("ItemResolveModule:CloseItemTips")
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips", {})
+end
+
+function ItemResolveModule:GetItemsByItemSpaceId()
+    return BusinessManager.Instance:GetItemsByItemSpaceId(self.SpaceID)
+end
+
+--关闭回调
+function ItemResolveModule:OnCloseItemResolveEvt(arg)
+    self.evtOnCloseItemResolve:Invoke()
+end
+
+--关闭
+function ItemResolveModule:OnCloseItemResolve()
+    self:OnCloseItemResolveEvt()
+
+    --所有的New置空
+    --BusinessManager.Instance:UnNewAllItems();
+end
+
+--LuaModule 创建
+function ItemResolveModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.ItemResolveModule, self)
+end
+
+function ItemResolveModule:OnItemSpaceListRefesh(data)
+    print("OnItemSpaceListRefesh")
+end
+
+--LuaModule 消息处理
+function ItemResolveModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...)
+end
+
+--LuaModule显示
+function ItemResolveModule:OnModuleShow(arg)
+end
+
+--LuaModule 释放
+function ItemResolveModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.ItemResolveModule)
+end
+
+return ItemResolveModule

@@ -1,0 +1,565 @@
+--[[
+*文件名   :   EquipWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/18 16:36:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+PlayerPreviewWindow=class("PlayerPreviewWindow",UIPanel)
+PlayerPreviewWindow.IsOpen=false
+local MenuType = {
+	None = 0,
+	Role = 1,
+	Partner = 2,
+}
+local EquipItem = require("View.Item.EquipItem");
+
+function PlayerPreviewWindow:Awake()
+
+end
+function PlayerPreviewWindow:Start()
+
+end
+
+function PlayerPreviewWindow:InitItems()
+	UIManager.Instance:SetRawCamrea(true);
+	self.transform =self.prefab.transform;
+	self.gameObject =self.prefab;
+	self.IsOpen=false;
+
+	--动画相关
+	self.anim=self.transform:GetComponent(typeof(Animator));
+	self.tips_anchor=self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/LeftMenu/TipsAnchor").transform;
+
+	self.rect_tips_anchor=self.tips_anchor:GetComponent(typeof(RectTransform));
+	self.BtnClose = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/BG/BGTitle/JBtnClose"):GetComponent(TJButton);
+	self.ObjRoleInfoContent = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/RoleInfoContent").gameObject
+	self.ObjPartnerInfoContent = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/PartnerInfoContent").gameObject
+	self.TxtName = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/RoleInfoContent/Top/NameBG/Name"):GetComponent(TText)
+	self.TxtID = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/RoleInfoContent/Top/TextID"):GetComponent(TText)
+	self.TetRiskLevel = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/RoleInfoContent/Top/Risk/TextRiskLevel"):GetComponent(TText)
+	self.TxtGuild = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/RoleInfoContent/Top/Guild/TextGuild"):GetComponent(TText)
+	self.TxtLevel = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/RoleInfoContent/Top/TextLevel"):GetComponent(TText)
+	self.ImgJobBg = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/RoleInfoContent/Top/PortraitBg/ImgJobBg"):GetComponent(TImage)
+	self.ImgJob = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/RoleInfoContent/Top/PortraitBg/ImgJob"):GetComponent(TImage)
+	self.ImgHead = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/RoleInfoContent/Top/PortraitBg/ImgHead"):GetComponent(TImage)
+	self.m_RoleRawImage = self:Find("Cut4Cam90/AssemblyRatio2/Root/LeftMenu/RoleRawImage"):GetComponent(TRawImage);
+	self.TglRole=self:Find("Cut4Cam90/AssemblyRatio2/Root/BG/BGTitle/ToggleGroup/TglRole"):GetComponent(TToggle)
+	self.TglPartner=self:Find("Cut4Cam90/AssemblyRatio2/Root/BG/BGTitle/ToggleGroup/TglPartner"):GetComponent(TToggle)
+
+	self.TxtFight = self:Find("Cut4Cam90/AssemblyRatio2/Root/RoleInfoContent/Down/Bg/icon/TxtFight"):GetComponent(TText)
+	self.TransFightRoot = self:Find("Cut4Cam90/AssemblyRatio2/Root/RoleInfoContent/Down/Bg/Content")
+	self.TransFightPartnerRoot = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/PartnerInfoContent/Top/FightContent")
+	self.TransHelpPartnerRoot = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/PartnerInfoContent/Down/HelpContent")
+	self.TglRole.onValueChanged:AddListener(function (toggle)
+		if toggle then
+			self:SwitchToggle(MenuType.Role)
+		end
+	end);
+	self.TglPartner.onValueChanged:AddListener(function (toggle)
+		if toggle then
+			self:SwitchToggle(MenuType.Partner)
+		end
+	end);
+	self.JBtnFun = function()
+		LuaModuleDispatcher:SendMessage(ModuleDef.PlayerPreviewModule, "ClosePlayerPreviewWindow", nil)
+	end
+	self.BtnClose.OnClick = self.JBtnFun
+
+	local btnCopy=self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/RoleInfoContent/Top/TextID/Image/JBtnCopy"):GetComponent(typeof(JButton));
+	btnCopy.OnClick=(function()
+		Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Tips28"));
+		GUIUtility.systemCopyBuffer = self.TxtID.text;
+	end);
+
+	self.equips={};
+	--for i=1,10 do
+	for i=1,8 do
+		local _go=self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/LeftMenu/EquipGrid"..i);
+		local equip=EquipItem:New(_go);
+
+		equip:InitItem(true,function(it,idx,mdData)
+			self:OnItemClick(it,idx,mdData);
+		end)
+
+		table.insert( self.equips, equip );
+	end
+
+	self.amulets={};
+	for i=1,2 do
+		local _go=self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/LeftMenu/Amulet"..i);
+		local amulet=EquipItem:New(_go);
+
+		amulet:InitItem(true,function(it,idx,mdData,gemTable)
+			self:OnAmuletItemClick(it,idx,mdData,gemTable);
+		end)
+
+		table.insert( self.amulets, amulet );
+	end
+
+
+	self.IsShowPerfect=0;
+	self.menuType = MenuType.None
+	self:SwitchToggle(MenuType.Role)
+end
+
+
+--创建一个背包格子
+function PlayerPreviewWindow:CreateEquipSlot(baseID,entityID,num,state,maxStack)
+	local equipSlot=EquipSlot();--新建一个格子
+	equipSlot:Init(1,state,maxStack);--初始化格子(正在使用)
+	equipSlot:PutIn(baseID,entityID,num);
+	return equipSlot;
+end
+
+function PlayerPreviewWindow:RefreshData(serverData)
+	--角色信息
+	if serverData == nil or serverData.BaseInfo == nil or serverData.Nameplate == nil then return end
+	self.TxtName.text = serverData.BaseInfo.UserName
+	self.TxtID.text = serverData.BaseInfo.PID
+	local curCfg = ConfigDataAccessor.AdvGradeExp[serverData.BaseInfo.RiskLevel]
+	if curCfg then
+		self.TetRiskLevel.text = curCfg.AdvClass.. GetRomaNum(curCfg.AdvOrder);
+	end
+	if serverData.BaseInfo.GuildName == nil or serverData.BaseInfo.GuildName == "" then
+		self.TxtGuild.text = LanguageHelp:GetLanguageByKey("Local_Str_Empty")
+	else
+		self.TxtGuild.text = serverData.BaseInfo.GuildName
+	end
+
+	self.TxtLevel.text =  StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LevelOnly"),{serverData.BaseInfo.Level})
+	self.TxtFight.text = serverData.BaseInfo.Power
+	local jobCfg = ConfigDataAccessor.Job[serverData.BaseInfo.JobID]
+	if jobCfg ~= nil then
+		local avatarDataCell = ConfigDataAccessor.Avatar[jobCfg.AvatarID]
+		if avatarDataCell ~= nil then
+			local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID]
+			if headCfg ~= nil then
+				ResourceHelper:LoadIconByAtlasAsync(self.ImgJob, headCfg.HeadAtlasName, headCfg.JobIcon, false)
+				ResourceHelper:LoadIconByAtlasAsync(self.ImgJobBg, ResourceHelper.AtlasPathRole, "Icon_ArmBg" .. math.floor(serverData.BaseInfo.JobID / 10), false)
+				ResourceHelper:LoadIconByAtlasAsync(self.ImgHead, headCfg.HeadAtlasName, headCfg.MinHead, false)
+			end
+			self.m_avatarDataCell = avatarDataCell
+			self:SetModel(avatarDataCell, Vector3.one, Vector3.zero, Vector3.zero, "idle_01");
+		end
+	end
+	local equipTable = {}
+	local amuletTable = {}
+
+
+	local equipDataList = serverData.Nameplate.BagEquip1
+	local gemTable = {}
+	if equipDataList.Data~=nil and equipDataList.Data.Count>0 then
+		for i = 1, equipDataList.Data.Count do
+			local equipData = equipDataList.Data[i-1]
+			local cfg = ConfigDataAccessor.Item[equipData.BaseID]
+			if cfg.ItemType == 6 then--删选出所有宝石
+				gemTable[equipData.EntityID]=equipData;
+			end
+		end
+	end
+
+
+	if equipDataList.Data~=nil and equipDataList.Data.Count>0 then
+		for i = 1, equipDataList.Data.Count do
+			local serverEquipData = equipDataList.Data[i-1]
+			if serverEquipData.SpaceID == 1 then
+				local equipData = {}
+				local cfg = ConfigDataAccessor.Item[serverEquipData.BaseID]
+				equipData.subType = cfg.SubType
+				equipData.BaseID = serverEquipData.BaseID
+				equipData.EntityID = serverEquipData.EntityID
+				equipData.mdData = serverEquipData
+				table.insert(equipTable,equipData)
+			elseif serverEquipData.SpaceID == 13 then
+				local equipData = {}
+				local cfg = ConfigDataAccessor.Item[serverEquipData.BaseID]
+				equipData.subType = cfg.SubType
+				equipData.BaseID = serverEquipData.BaseID
+				equipData.EntityID = serverEquipData.EntityID
+				equipData.mdData = serverEquipData
+				equipData.gemTable = gemTable
+				table.insert(amuletTable,equipData)
+			end
+		end
+	end
+
+	table.sort(equipTable,function (a,b)
+		return a.subType < b.subType
+	end)
+	table.sort(amuletTable,function (a,b)
+		return a.subType < b.subType
+	end)
+	--另外两个饰品暂时没有用
+	for i=1,#self.equips do
+		local data
+		for m, n in ipairs(equipTable) do
+			if n.subType == i then
+				data = n
+			end
+		end
+		if data== nil then
+			local equipSlot= self:CreateEquipSlot(0,0,0,0,0);--空格子
+			self.equips[i]:SetItem(equipSlot,i,self.IsShowPerfect,true,false,nil);
+		else
+			local equipSlot= self:CreateEquipSlot(data.BaseID,data.EntityID,0,1,0);--装备格子
+			self.equips[i]:SetItem(equipSlot,i,self.IsShowPerfect,true,false,data.mdData);
+		end
+	end
+
+	--两个护符
+	for i=1,#self.amulets do
+		local data
+		for m, n in pairs(amuletTable) do
+			if m == i then
+				data = n
+			end
+		end
+		if data== nil then
+			local equipSlot= self:CreateEquipSlot(0,0,0,0,0);--空格子
+			self.amulets[i]:SetItem(equipSlot,i,false,true,true,nil);
+		else
+			local equipSlot= self:CreateEquipSlot(data.BaseID,data.EntityID,0,1,0);--装备格子
+			self.amulets[i]:SetItem(equipSlot,i,false,true,true,data.mdData,data.gemTable);
+		end
+	end
+	--战力相关
+	local FightList = serverData.Nameplate.FightPower
+	if FightList then
+		local allFightData =  FightPowerManager.Instance:GetOtherServerPowerAllData(FightList);
+		if allFightData then
+			if allFightData.PowerModuleDatas.Count > 0 then
+				local index = 0
+				for i, v in pairs(allFightData.PowerModuleDatas) do
+					local Evalue = v.CurProgressModuleEvalueCfg.Evalue
+					local showQuality = v.CurProgressModuleEvalueCfg.ShowQuality
+					local name = v.PowerModuleDataCellCfg.PartName
+					local iconPath = v.PowerModuleDataCellCfg.PartIcon
+					local fightObj = self.TransFightRoot:GetChild(index)
+					if fightObj then
+						local ImgIcon = fightObj:Find("ImgIcon"):GetComponent(TImage)
+						local TxtName = fightObj:Find("TxtName"):GetComponent(TText)
+						local TxtDes = fightObj:Find("TxtDes"):GetComponent(TText)
+						--ResourceHelper:LoadAtlasPathIconAsync(ImgIcon, iconPath, false)--缺少配置
+						TxtName.text = name
+						TxtDes.text = Evalue
+						TxtDes.color = GetQualityColorRGB_Fight(showQuality)
+						fightObj.gameObject:SetActive(true)
+					end
+					index = index + 1
+				end
+				if index < self.TransFightRoot.childCount then
+					for i = index, self.TransFightRoot.childCount do
+						local fightObj = self.TransFightRoot:GetChild(index-1)
+						if fightObj then
+							fightObj.gameObject:SetActive(false)
+						end
+					end
+				end
+			end
+		end
+	end
+	--伙伴装备相关
+	local PartnerEquipList = serverData.Nameplate.BagEquip20
+	local PartnerEquipTable = {}
+	if PartnerEquipList.Data~=nil and PartnerEquipList.Data.Count>0 then
+		for i = 1, PartnerEquipList.Data.Count do
+			local serverEquipData = PartnerEquipList.Data[i-1]
+			if serverEquipData.SpaceID == 1 then
+				local partnerEquipData = {}
+				local cfg = ConfigDataAccessor.Item[serverEquipData.BaseID]
+				partnerEquipData.subType = cfg.SubType
+				partnerEquipData.BaseID = serverEquipData.BaseID
+				partnerEquipData.EntityID = serverEquipData.EntityID
+				partnerEquipData.PID = serverEquipData.PID
+				table.insert(PartnerEquipTable,partnerEquipData)
+			end
+		end
+	end
+	--伙伴相关
+	local PartnerList = serverData.Nameplate.Partners
+	local fightPartnerTable = {}
+	local helpPartnerTable = {}
+	if PartnerList.Data~=nil and PartnerList.Data.Count>0 then
+		for i = 0, PartnerList.Data.Count - 1 do
+			local serverPartnerData = PartnerList.Data[i]
+			if serverPartnerData then
+				local partnerData = {}
+				partnerData.ID = serverPartnerData.ID
+				partnerData.PID = serverPartnerData.PID
+				partnerData.Index = serverPartnerData.Index
+				partnerData.CurStar = serverPartnerData.CurStar
+				partnerData.Level = serverPartnerData.Level
+				partnerData.AptitudeBreakStep = serverPartnerData.AptitudeBreakStep
+				partnerData.Score = FightPowerManager.Instance:GetShowPartnerStaticPower(serverPartnerData);
+				local attriTable = {}
+				if serverPartnerData.AMD.Aptitudes~=nil and serverPartnerData.AMD.Aptitudes.Count>0 then
+					for m, n in pairs(serverPartnerData.AMD.Aptitudes) do
+  						local curValue = n.BaseValue
+						attriTable[n.AptiudeID] = curValue
+					end
+				end
+				partnerData.AttriTable = attriTable
+				local partnerEquipList = {}
+				for m, n in pairs(PartnerEquipTable) do
+					if n.PID == partnerData.PID then
+						table.insert(partnerEquipList,n)
+					end
+				end
+				partnerData.PartnerEquipList = partnerEquipList
+
+				if serverPartnerData.State == CS.ProtoMsg.PartnerState.InBattle or serverPartnerData.State == CS.ProtoMsg.PartnerState.Concretization then
+					table.insert(fightPartnerTable,partnerData)
+				elseif serverPartnerData.State == CS.ProtoMsg.PartnerState.Assist then
+					table.insert(helpPartnerTable,partnerData)
+				end
+			end
+		end
+	end
+	--上阵伙伴刷新
+	if fightPartnerTable then
+		for i, v in ipairs(fightPartnerTable) do
+			local partnerObj = self.TransFightPartnerRoot:GetChild(i-1)
+			if partnerObj then
+				local ImgQuality = partnerObj:Find("ImgQuality"):GetComponent(TImage)
+				local ImgHead = partnerObj:Find("ImgQuality/ImgHead"):GetComponent(TImage)
+				local BtnHead = partnerObj:Find("ImgQuality/ImgHead"):GetComponent(TButton)
+				local ImgIcon = partnerObj:Find("ImgQuality/ImgIcon"):GetComponent(TImage)
+				local TxtLevel = partnerObj:Find("ImgQuality/TxtLevel"):GetComponent(TText)
+				local StarContent = partnerObj:Find("ImgQuality/StarContent")
+				TxtLevel.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LevelOnly"),{v.Level})
+				local cfg = ConfigDataAccessor.Partner[v.Index]
+				if cfg then
+					ResourceHelper:LoadIconByAtlasAsync(ImgQuality, "ui/common/atlas/commonitem",self:GetPartnerBg(cfg.Quality), false)
+					local avatarDataCell = ConfigDataAccessor.Avatar[cfg.AvatarID]
+					local partnerTypeConfig = ConfigDataAccessor.PartnerType[cfg.PartnerType]
+					if partnerTypeConfig then
+						ResourceHelper:LoadIconByAtlasAsync(ImgIcon, "ui/icons/atlas/iconrole", partnerTypeConfig.ShowIcon_s, false)
+					end
+					if avatarDataCell ~= nil then
+						local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID]
+						if headCfg ~= nil then
+							ResourceHelper:LoadIconByAtlasAsync(ImgHead, headCfg.HeadAtlasName, headCfg.MaxHead, false)
+						end
+					end
+				end
+				for j = 1, v.CurStar do
+					local starObj = StarContent:GetChild(j-1)
+					starObj.gameObject:SetActive(true)
+				end
+				BtnHead.onClick:AddListener(function()
+					LuaModuleDispatcher:SendMessage(ModuleDef.PlayerPreviewModule, "OpenPartnerPreviewWindow",{v});
+				end);
+				ImgQuality.gameObject:SetActive(true)
+			end
+		end
+	end
+
+	--助战伙伴刷新
+
+	if helpPartnerTable then
+		for i, v in ipairs(helpPartnerTable) do
+			local partnerObj = self.TransHelpPartnerRoot:GetChild(i-1)
+			if partnerObj then
+				local ImgQuality = partnerObj:Find("ImgQuality"):GetComponent(TImage)
+				local ImgHead = partnerObj:Find("ImgQuality/ImgHead"):GetComponent(TImage)
+				local BtnHead = partnerObj:Find("ImgQuality/ImgHead"):GetComponent(TButton)
+				local ImgIcon = partnerObj:Find("ImgQuality/ImgIcon"):GetComponent(TImage)
+				local TxtLevel = partnerObj:Find("ImgQuality/TxtLevel"):GetComponent(TText)
+				local StarContent = partnerObj:Find("ImgQuality/StarContent")
+				TxtLevel.text = v.Level
+				local cfg = ConfigDataAccessor.Partner[v.Index]
+				if cfg then
+					ResourceHelper:LoadIconByAtlasAsync(ImgQuality, "ui/common/atlas/commonitem",self:GetPartnerBg(cfg.Quality), false)
+					local avatarDataCell = ConfigDataAccessor.Avatar[cfg.AvatarID]
+					if avatarDataCell ~= nil then
+						local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID]
+						if headCfg ~= nil then
+							ResourceHelper:LoadIconByAtlasAsync(ImgHead, headCfg.HeadAtlasName, headCfg.MaxHead, false)
+						end
+					end
+				end
+				for j = 1, v.CurStar do
+					local starObj = StarContent:GetChild(j-1)
+					starObj.gameObject:SetActive(true)
+				end
+				ImgQuality.gameObject:SetActive(true)
+				BtnHead.onClick:AddListener(function()
+					LuaModuleDispatcher:SendMessage(ModuleDef.PlayerPreviewModule, "OpenPartnerPreviewWindow",{v});
+				end);
+				ImgQuality.gameObject:SetActive(true)
+			end
+		end
+	end
+
+
+end
+function PlayerPreviewWindow:GetPartnerBg(quality)
+	if quality == 1 then
+		return "Card_S2"
+	elseif quality == 2 then
+		return "Card_S3"
+	elseif quality == 3 then
+		return "Card_S4"
+	else
+		return "Card_S5"
+	end
+end
+function PlayerPreviewWindow:SetModel()
+	if self.m_avatarDataCell ~= nil then
+		ResourceManager.Instance:PopGameObject("Roles/Template/Display_Model", function(go)
+			if go == nil then
+				return;
+			end
+			if self.m_avatarDataCell == nil then
+				ResourceManager.Instance:PushGameObject("Roles/Template/Display_Model", go);
+				return;
+			end
+			UIManager.Instance:SetModel2UI2(go, self.m_avatarDataCell.AvatarID, CS.StarProjectDef.ThreeDModelPos.Raw, Vector3.one,
+					Vector3.zero, Vector3.zero, Vector3.zero, "idle_01");
+			self.modelRender = go
+			go:SetActive(true);
+			------- 设置模型
+			self.m_RoleRawImage.texture = ResourceManager.Instance.RenderTexture;
+		end);
+
+	end
+end
+function PlayerPreviewWindow:SetIsShowPerfect(num)
+	self.IsShowPerfect=num;
+end
+
+function PlayerPreviewWindow:OnItemClick(ritem,idx,mdData)
+
+	print("EquipItem:OnItemClick")
+
+
+	if ritem==nil then
+		LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips",{  });
+	else
+		for i=1,#self.amulets do
+			self.amulets[i]:MakeSelected(false);
+		end
+		for j=1,#self.equips do
+			self.equips[j]:MakeSelected(false);
+		end
+
+
+		ritem:MakeSelected(true);
+		--设置道具Tips
+		self.module.IsOpenTips=true;
+		if mdData then
+			LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTipsWithItemMD",{ mdData,self.equips[idx].transform});
+		else
+			LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",{ ritem.BaseID,false ,ritem.EntityID,self.equips[idx].transform,1});
+		end
+	end
+	if idx<=8 then
+		LuaModuleDispatcher:SendMessage(ModuleDef.BagModule, "OnOpenBagTag",{ 3,idx });
+	end
+end
+function PlayerPreviewWindow:PushDisplayGob()
+	if self.modelRender then
+		ResourceManager.Instance:PushGameObject("Roles/Template/Display_Model", self.modelRender.gameObject);
+	end
+end
+function PlayerPreviewWindow:SetModelActive(isShow)
+	if self.modelRender then
+		self.modelRender.gameObject:SetActive(isShow)
+	end
+end
+
+function PlayerPreviewWindow:OnAmuletItemClick(ritem,idx,mdData,gemTable)
+
+	print("EquipItem:OnAmuletItemClick")
+
+
+	if ritem==nil then
+		LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips",{  });
+		--self.module:OpenAmuletBagTag();
+	else
+		--self.module:OpenAmuletBagTag();
+
+		ritem:MakeSelected(true);
+
+
+		--设置道具Tips
+		self.module.IsOpenTips=true;
+
+		if mdData then
+			LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTipsWithItemMD",{ mdData,self.amulets[idx].transform,gemTable});
+		else
+			self.module:OpenItemTips(ritem.BaseID,ritem.EntityID);
+		end
+	end
+
+end
+
+
+function PlayerPreviewWindow:BindModule(m)
+	self.module=m;
+end
+
+
+
+function PlayerPreviewWindow:Start()
+	
+end
+
+function PlayerPreviewWindow:OnEnable()
+	LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OnForceTab",4);
+end
+
+function PlayerPreviewWindow:OnDisable()
+	
+end
+
+function PlayerPreviewWindow:OnDestroy()
+
+end
+
+function PlayerPreviewWindow:OnOpen(arg)
+	self.IsOpen=true;
+
+end
+
+function PlayerPreviewWindow:OnClose(arg)
+	self.IsOpen=false;
+	UIManager.Instance:SetRawCamrea(false);
+	self:PushDisplayGob()
+end
+
+function PlayerPreviewWindow:CloseWindow()
+	self.anim:Play("EquipWidgetAnim_Exit");
+	DOVirtual.DelayedCall(0.1,function ()
+		--关闭道具Tips
+		if self.module.IsOpenTips then
+			self.module.IsOpenTips=false;
+			self.module:CloseItemTips();
+		end
+
+		--关闭所有选择框
+		for i=1,#self.equips do
+			self.equips[i]:MakeSelected(false);
+		end
+		self.IsShowPerfect=0;
+		
+		self.Close();
+		--UIManager.Instance:CloseWindow("Equip/EquipWindow",nil,true);
+		self.module:OnCloseEquip();
+	end)
+end
+
+function PlayerPreviewWindow:SwitchToggle(menuType)
+	if menuType == self.menuType then return end
+	self.menuType = menuType
+	if menuType == MenuType.Role then
+		self.ObjRoleInfoContent:SetActive(true)
+		self.ObjPartnerInfoContent:SetActive(false)
+	else
+		self.ObjRoleInfoContent:SetActive(false)
+		self.ObjPartnerInfoContent:SetActive(true)
+	end
+end
+return  PlayerPreviewWindow

@@ -1,0 +1,191 @@
+------------------printtable start----------------
+local StringBuilder = {}
+function StringBuilder:new(sep)
+    local object = {}
+    setmetatable(object, self)
+    self.__index = self
+    object.sep = sep
+    object.buffer = {}
+    return object
+end
+
+function StringBuilder:Append(str)
+    self.buffer[#self.buffer + 1] = str
+end
+
+function StringBuilder:AppendFormat(format, ...)
+    self:Append(string.format(format, ...))
+end
+
+function StringBuilder:AppendLine(str)
+    self:Append(str)
+    self:Append("\r\n")
+end
+
+function StringBuilder:Tostring()
+    return table.concat(self.buffer, self.sep)
+end
+
+function StringBuilder:Clear()
+    local count = #self.buffer
+    for i = 1, count do
+        self.buffer[i] = nil
+    end
+end
+
+local function _printTable(tb, sb, name, aPreText, bLast)
+    if nil == tb then
+        return
+    end
+
+    if nil == bLast then
+        bLast = false
+    end
+
+    name = name or ""
+    local preText = aPreText or ""
+    local subPreText = ""
+    if nil == aPreText then
+        sb:AppendLine("[ROOT]")
+    else
+        if bLast then
+            subPreText = preText .. "    "
+        else
+            subPreText = preText .. "|   "
+        end
+
+        if type(tb) == "table" then
+            if bLast then
+                sb:AppendLine(string.format("%s└─[%s]", preText, name))
+            else
+                sb:AppendLine(string.format("%s├─[%s]", preText, name))
+            end
+        else
+            local kn = nil
+            if type(name) == "number" then
+                kn = "[" .. tb .. "]"
+            else
+                kn = name
+            end
+            if bLast then
+                sb:AppendLine(string.format("%s└─%s=%s", preText, kn, tostring(tb)))
+            else
+                sb:AppendLine(string.format("%s├─%s=%s", preText, kn, tostring(tb)))
+            end
+        end
+    end
+
+    if type(tb) == "table" then
+        local count = 0
+        local counter = 0
+        for _, _ in pairs(tb) do
+            count = count + 1
+        end
+        local kn = nil
+        for k, v in pairs(tb) do
+            counter = counter + 1
+            if (v ~= tb) then
+                _printTable(v, sb, k, subPreText, count == counter)
+            end
+        end
+    end
+
+    if bLast then
+        sb:AppendLine(preText)
+    end
+end
+------------------printtable end----------------
+-- 打印整个luaTable
+function table.print(tbl, printFunc)
+    printFunc = (printFunc or printError)
+    local sb = StringBuilder:new()
+    _printTable(tbl, sb)
+    printFunc(sb:Tostring())
+end
+
+-- 查找并返回第一个符合条件的元素
+function table.find1st(tbl, func)
+    for k, v in pairs(tbl) do
+        if func(k, v) then
+            return k, v
+        end
+    end
+    return nil, nil
+end
+
+-- 遍历整个luaTable执行回调函数
+function table.apply(tbl, func)
+    for k, v in pairs(tbl) do
+        func(k, v)
+    end
+end
+
+-- lua table真拷贝
+function table.copy(object)
+    local lookup_table = {}
+    local function copyObj(object)
+        if type(object) ~= "table" then
+            return object
+        elseif lookup_table[object] then
+            return lookup_table[object]
+        end
+
+        local new_table = {}
+        lookup_table[object] = new_table
+        for key, value in pairs(object) do
+            new_table[copyObj(key)] = copyObj(value)
+        end
+        return setmetatable(new_table, getmetatable(object))
+    end
+    return copyObj(object)
+end
+
+-- lua table 是否存在指定值
+function table.ContainsValue(tbl, value)
+    for _, v in pairs(tbl) do
+        if v == value then
+            return true
+        end
+    end
+    return false
+end
+
+-- lua table 删除存在的第一个指定值
+function table.RemoveValue(tbl, value)
+    for i, v in pairs(tbl) do
+        if v == value then
+            tbl[i] = nil
+            return true
+        end
+    end
+    return false
+end
+
+--    table中删除指定元素(非根据索引)
+--    @param    array 要操作的容器
+--    @param     value 删除value值
+--     @param    removeadll 是否删除所有相同的值
+--    @return 返回删除值的个数
+function table.Removebyvalue(array, value, removeadll)
+    --    deleteNum用于接收/返回删除个数; i/max 构成控制while循环
+    local deleteNum, i, max = 0, 1, #array
+    while i <= max do
+        if array[i] == value then
+            --    通过索引操作表的删除元素
+            table.remove(array, i)
+            --    标记删除次数
+            deleteNum = deleteNum + 1
+            i = i - 1
+            --    控制while循环操作
+            max = max - 1
+            --    判断是否删除所有相同的value值
+            if not removeadll then
+                break
+            end
+        end
+        i = i + 1
+    end
+    --    返回删除次数
+    return deleteNum
+end
+

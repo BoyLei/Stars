@@ -1,0 +1,111 @@
+GamePlayChoiceModule = class("GamePlayChoiceModule", BaseLuaModule)
+
+local GamePlayChoiceWindowPath = "Ectype/Prefab/GamePlayChoiceWindow"
+
+-- LuaModule 消息模块
+GamePlayChoiceModule.ModuleMessages = {
+    ["OnOpenGamePlayChoice"] = function(...)
+        GamePlayChoiceModule:OnOpenWnd(...)
+    end,
+    ["OnUpdateDailyActivity"] = function(...)
+        GamePlayChoiceModule:OnUpdateDailyActivity(...)
+    end
+}
+
+GamePlayChoiceModule.CountInfo = nil
+
+-- 监听打开出战界面事件
+function GamePlayChoiceModule:OnOpenWnd(...)
+    local tb = ...
+
+    local openGamePlayChoiceID = 0
+    -- 跳转进来打开的ui
+    if type(tb) == "table" then
+        -- Lua调用
+        if #tb > 0 then
+            openGamePlayChoiceID = tb[1]
+        end
+    else
+        -- C#调用
+        if tb.Length > 0 then
+            openGamePlayChoiceID = tb[0]
+        end
+    end
+
+    -- local gamePlayChoiceWindowCS = UIManager.Instance:OpenWindow(GamePlayChoiceWindowPath, nil,
+    --     CS.StarProjectDef.MainPageCommond.HideBoth);
+    -- if self.gamePlayChoiceWindow == nil then
+    --     self.gamePlayChoiceWindow = gamePlayChoiceWindowCS:GetLuaPanel().ScriptTable;
+    --     self.gamePlayChoiceWindow:BindModule(self);
+    --     self.gamePlayChoiceWindow:InitControls();
+    -- end
+    -- self.gamePlayChoiceWindow:FreshView();
+
+    self.AsyncLoadGamePlayChoiceWindowCb = function(ui)
+        if ui ~= nil then
+            if self.gamePlayChoiceWindow == nil then
+                self.gamePlayChoiceWindow = ui:GetLuaPanel().ScriptTable
+                self.gamePlayChoiceWindow:BindModule(self)
+                self.gamePlayChoiceWindow:InitControls()
+            end
+            self.gamePlayChoiceWindow:FreshView(openGamePlayChoiceID)
+        end
+        self.AsyncLoadGamePlayChoiceWindowCb = nil
+    end
+    UIManager.Instance:OpenWindowAsync(GamePlayChoiceWindowPath, self.AsyncLoadGamePlayChoiceWindowCb, nil, CS.StarProjectDef.MainPageCommond.HideBoth)
+end
+
+function GamePlayChoiceModule:OnUpdateDailyActivity(...)
+    if self.gamePlayChoiceWindow ~= nil then
+        self.gamePlayChoiceWindow:InitData()
+    end
+end
+
+function GamePlayChoiceModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.GamePlayChoiceModule, self)
+
+    --监听差量更新变化
+    FixMessageManager.Instance:OnMessage(
+        FixUpdateDef.ComCount,
+        function(data)
+            self:OnAllComCountInfos(data)
+        end,
+        nil
+    )
+end
+
+function GamePlayChoiceModule:OnAllComCountInfos(data)
+    for i = 0, data.Changes.Count - 1 do
+        if data.Changes[i].BaseId == 8 then
+            --刷新数据
+            if self.gamePlayChoiceWindow ~= nil then
+                self.gamePlayChoiceWindow:FreshDailyCopyleftTime()
+            end
+        end
+    end
+end
+
+---获取通用次数 id 通用次数配置_CommonCount.xlsx 次数
+function GamePlayChoiceModule:GetComCountInfo(id)
+    return FixMessageManager.Instance:GetMDMgr(FixUpdateDef.ComCount):GetData(id)
+end
+
+-- LuaModule 消息处理
+function GamePlayChoiceModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...)
+end
+
+-- LuaModule显示
+function GamePlayChoiceModule:OnModuleShow(arg)
+    self:OnOpenWnd(arg)
+end
+
+function GamePlayChoiceModule:OnModuleHide(arg)
+end
+
+-- LuaModule 释放
+function GamePlayChoiceModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.GamePlayChoiceModule)
+end
+
+return GamePlayChoiceModule

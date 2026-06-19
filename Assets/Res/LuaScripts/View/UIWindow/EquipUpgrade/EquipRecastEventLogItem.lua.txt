@@ -1,0 +1,59 @@
+--[[
+*文件名   :   EquipRecastEventLogItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local EquipRecastEventLogItem = {}
+
+EquipRecastEventLogItem.__index = EquipRecastEventLogItem
+
+function EquipRecastEventLogItem:New(_go, onApplyClick, onCancelClick)
+    local self = {}
+    setmetatable(self, EquipRecastEventLogItem)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.Time = self.transform:Find("time"):GetComponent(typeof(Text))
+    self.Desc = self.transform:Find("desc"):GetComponent(typeof(TextMeshProUGUI))
+    --超连接
+    self.LinkOpener = self.transform:Find("desc"):GetComponent(typeof(LinkOpener))
+
+    return self --返回自身
+end
+
+function EquipRecastEventLogItem:SetItem(info)
+    self.Info = info
+
+    self.Time.text = GetTimeStamp(info.EventTime)
+
+    local cfg = ConfigDataAccessor.EquipResetEvent[info.EventID]
+
+    local tempStr = "" .. cfg.EventDec
+
+    self.LinkOpener:ClearItemMDLink()
+
+    local allNum = info.ItemInfos.Count
+    for i = 0, allNum - 1 do
+        local itemData = info.ItemInfos[i]
+        local cfg2 = ConfigDataAccessor.Item[itemData.BaseID]
+        local quality = ConfigDataAccessor.Equip[cfg2.Id].Quality
+        local itName = "<link>" .. GetQualityColor(quality) .. cfg2.Name .. "</color></link>"
+
+        tempStr = string.gsub(tempStr, "{" .. (i) .. "}", itName)
+
+        --之后要补上超链接
+        self.LinkOpener:AddItemMDLink(itemData)
+    end
+
+    self.Desc.text = tempStr
+
+    self.Desc.gameObject:SetActive(false)
+    self.Desc.gameObject:SetActive(true)
+    --CS.UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate();
+end
+
+return EquipRecastEventLogItem

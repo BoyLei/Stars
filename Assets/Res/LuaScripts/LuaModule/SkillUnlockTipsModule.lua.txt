@@ -1,0 +1,346 @@
+--[[
+*文件名   :   SkillUnlockTipsModule
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/11/28 14:35:39"
+*创建人   :   "caojie"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+SkillUnlockTipsModule = class("SkillUnlockTipsModule",BaseLuaModule)
+--LuaModule 消息模块
+SkillUnlockTipsModule.ModuleMessages =
+{
+	["OnDisable"] = function(...)
+        SkillUnlockTipsModule:OnDisable(...);
+    end,
+    ["OnStarWorldPageOpened"] = function(...)
+    	SkillUnlockTipsModule:OnStarWorldPageOpened()
+    end,
+    ["OnJBtnMenuFind"] = function(...)
+    	SkillUnlockTipsModule:OnJBtnMenuFind(...)
+    end,
+}
+
+SkillUnlockTipsModule.PlayerLevel = nil
+SkillUnlockTipsModule.SkillOpenWidgetView = nil
+SkillUnlockTipsModule.AllSkillData = {}
+
+-- 人物等级初始化以后注册
+function SkillUnlockTipsModule:RegisterLevelChange()
+	self.PlayerLevel = GameManager.Instance:GetPlayerLevel()
+	GameManager.Instance.M_MainPlayerCtrlBase.Data:RegisterAttribute(CS.StarProjectDef.AOIAttrDefine.PlayerLevel, self.AoiPlayerLevelFun);
+end
+
+function SkillUnlockTipsModule:UnRegisterLevelChange()
+	GameManager.Instance.M_MainPlayerCtrlBase.Data:UnRegisterAttribute(CS.StarProjectDef.AOIAttrDefine.PlayerLevel, self.AoiPlayerLevelFun);
+end
+
+function SkillUnlockTipsModule:OnStarWorldPageOpened()
+	SkillUnlockTipsModule:RegisterLevelChange()
+	CS.StarProject.GlobalEvent.OnNewSystemOpen:AddListener(self.OnSystemOpenCallback)
+end
+
+function SkillUnlockTipsModule:OnJBtnMenuFind(...)
+	local tb = ...
+    self.JBtnTransform = nil
+    if type(tb) == "table" then
+        -- Lua调用
+        if #tb > 0 then
+            self.JBtnTransform = tb[1]:Find("Image");
+        end
+    else
+        -- C#调用
+        if tb.Length > 0 then
+            self.JBtnTransform = tb[0]:Find("Image")
+        end
+    end
+end
+
+function SkillUnlockTipsModule:GetJBtnTransform()
+	return self.JBtnTransform
+end
+
+function SkillUnlockTipsModule:GetFlyTargetTransform(skillData)
+	if skillData.IsMainPageSkill then
+		local btn = CS.StarProject.Game.GameInput.GetSkillBtn(skillData.SlotKey)
+		if btn == nil then
+			return nil
+		end
+		return btn.transform
+	else
+		return self:GetJBtnTransform()
+	end
+end
+
+function SkillUnlockTipsModule:OnPlayerLevelChange(value)
+	-- 等级未初始化前不处理
+	if self.PlayerLevel == nil then
+		return
+	end
+
+	local levelNum = tonumber(value)
+	-- 等级变化了，做检查
+	if levelNum > self.PlayerLevel then
+		self:CheckUnlockSkill(self.PlayerLevel, levelNum)
+		self.PlayerLevel = levelNum
+	end
+end
+
+function SkillUnlockTipsModule:CheckUnlockSkill(lastLevelNum, curLevelNum)
+	-- 找到第一个在当前等级符合解锁的技能
+	if self.AllSkillData == nil then return end
+	local jobId = GameManager.Instance:GetPlayerJob()
+
+	local curJobAllSkillDatas = self.AllSkillData[jobId]
+	if curJobAllSkillDatas == nil then return end
+
+	for k, v in pairs(curJobAllSkillDatas) do
+		if v.UnlockLevel > lastLevelNum and v.UnlockLevel <= curLevelNum then
+			-- 主界面五个槽位有槽位解锁概念，其余技能靠等级解锁
+			local IsUnlockSlot = false
+		    if v.SlotIndex <= 5 then
+			    if v.SlotIndex == 1 then
+			    	IsUnlockSlot = BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.SkillOne)
+			    	-- IsUnlockSlot = CheckPlayerGuidanceOpen(10002, "", false, false)
+			    elseif v.SlotIndex == 2 then
+			    	IsUnlockSlot = BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.SkillTwo)
+			    	-- IsUnlockSlot = CheckPlayerGuidanceOpen(10003, "", false, false)
+				elseif v.SlotIndex == 3 then
+			    	IsUnlockSlot = BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.SkillThree)
+			    	-- IsUnlockSlot = CheckPlayerGuidanceOpen(10006, "", false, false)
+				elseif v.SlotIndex == 4 then
+					IsUnlockSlot = BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.SkillFour)
+					-- IsUnlockSlot = CheckPlayerGuidanceOpen(10007, "", false, false)
+				elseif v.SlotIndex == 5 then	
+					IsUnlockSlot = BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.Ult)
+					-- IsUnlockSlot = CheckPlayerGuidanceOpen(10033, "", false, false)
+			    end
+			else
+				IsUnlockSlot = true
+		    end
+
+		    -- 播放技能解锁表现
+		    if IsUnlockSlot then
+		    	self:OpenSkillOpenWidget(v)
+		    	return
+		    end
+	    end
+	end
+
+	--天赋解锁检测 从大到小 只显示最后一个
+	local talentvalue;
+	for i = #self.AllTalentData ,1,-1 do 
+		local v = self.AllTalentData[i]
+		if v.LimitLv > lastLevelNum and v.LimitLv <= curLevelNum and self:CheckIsCurJob(v) then
+			talentvalue = v
+			break
+		end
+	end
+	if talentvalue then 
+		self:OpenSkillOpenWidget(talentvalue)
+	end
+end
+
+function SkillUnlockTipsModule:CheckIsCurJob(talentcfg)
+	local jobId = GameManager.Instance:GetPlayerJob()
+	local curJobAllSkillDatas = self.AllSkillData[jobId]
+	for k, v in pairs(curJobAllSkillDatas) do
+		if v.ID == talentcfg.BelongSkill then 
+			return true
+		end
+	end
+	return false
+end
+
+-- {
+-- 	[jobId] = 
+-- 	{
+-- 		[SkillId] = 
+-- 		{
+-- 			SkillDesc
+-- 			SkillName
+-- 			SkillIcon
+-- 			UnlockLevel
+-- 			SlotIndex
+-- 		}
+-- 	}
+-- }
+-- 构建技能数据
+function SkillUnlockTipsModule:BuildAllSkillData()
+	self.AllSkillData = {}
+
+	for k, v in pairs(ConfigDataAccessor.Job) do
+		if self.AllSkillData[k] == nil then
+			self.AllSkillData[k] = {}
+		end
+
+		-- 初始技能按数组顺序占槽位的1,2,3,4号
+		if v.BornJobSkills ~= nil and next(v.BornJobSkills) ~= nil then
+			for bornIndex, bornSkillId in pairs(v.BornJobSkills) do
+				self:BuildSingleSkillData(bornSkillId, k, bornIndex)
+			end
+		end
+
+		-- 大招占槽位的5号
+		self:BuildSingleSkillData(v.UltimateJobSkills, k, 5)
+
+		-- 进阶职业技能按数组顺序占槽位的6,7,8,9号
+		if v.TransferJobSkills ~= nil and next(v.TransferJobSkills) ~= nil then
+			for transferIndex, transferSkillId in pairs(v.TransferJobSkills) do
+				self:BuildSingleSkillData(transferSkillId, k, transferIndex + 5)
+			end
+		end
+    end
+end
+
+function SkillUnlockTipsModule:BuildTalentData()
+	self.AllTalentData = {}
+
+	for k,v in pairs(ConfigDataAccessor.TalentList) do 
+		if v.TalentType ~= 0 then 
+			table.insert(self.AllTalentData,v)
+		end
+	end
+
+	local sortfunc = function(a,b)
+		return a.LimitLv < b.LimitLv
+	end
+
+	table.sort(self.AllTalentData,sortfunc)
+end
+
+function SkillUnlockTipsModule:BuildSingleSkillData(skillId, jobId, slotIndex)
+	local talent = ConfigDataAccessor.TalentList[skillId*10]
+	if talent == nil then
+		return
+	end
+
+	local skillConfig = ConfigDataAccessor.SkillDescList[talent.BelongSkill*10000 + 101]
+	if skillConfig == nil then
+		return
+	end
+
+	local singleSkillData = {}
+	singleSkillData.ID = skillId
+	singleSkillData.SkillName = skillConfig.SkillName
+	singleSkillData.SkillIcon = skillConfig.IconPath
+	if talent.TalentLabel ~= nil and talent.TalentLabel ~= ""  then
+		singleSkillData.TalentLabel = string.split(talent.TalentLabel, ",")
+	end
+	singleSkillData.SkillDesc = talent.TalentDesc
+	singleSkillData.UnlockLevel = talent.LimitLv
+	singleSkillData.SlotIndex = slotIndex
+	singleSkillData.SlotKey = slotIndex + 2
+	-- 飞入效果在主界面技能区
+	singleSkillData.IsMainPageSkill = slotIndex <= 5
+
+	self.AllSkillData[jobId][skillId] = singleSkillData
+end
+
+function SkillUnlockTipsModule:OpenSkillOpenWidget(data)
+	self.data = data
+	if self.SkillOpenWidgetView ~= nil then
+		self.SkillOpenWidgetView:RenderAllView(self.data)
+	else
+		if self.IsOpening == nil or self.IsOpening == false then
+			local Cb = function(ui)
+				if ui ~= nil then
+					self.IsOpening = false
+					self.SkillOpenWidgetView = ui:GetLuaPanel().ScriptTable;	
+					if self.SkillOpenWidgetView ~= nil then
+						self.SkillOpenWidgetView.InstPanel = ui
+						self.SkillOpenWidgetView:BindModule(self)
+						self.SkillOpenWidgetView:RenderAllView(self.data)
+					end
+				end
+			end
+			self.IsOpening = true
+			UIManager.Instance:OpenWidgetAsync("Skill/Prefab/SkillOpenWidget", Cb, false, self.data)
+		end
+	end
+end
+
+--LuaModule 创建
+function SkillUnlockTipsModule:OnModuleCreate(arg)
+	LuaModuleDispatcher:Register(ModuleDef.SkillUnlockTipsModule,self)
+
+	self:BuildAllSkillData()
+
+	self:BuildTalentData()
+
+	self.AoiPlayerLevelFun = function(key, value)
+        self:OnPlayerLevelChange(value);
+    end
+
+    self.OnSystemOpenCallback = function(type)
+        self:OnSystemOpen(type)
+    end
+end
+
+function SkillUnlockTipsModule:OnSystemOpen(type)
+	local checkSlotIndex = nil
+    if type == CS.StarProjectDef.SystemOpenType.SkillOne then
+    	checkSlotIndex = 1
+    elseif type == CS.StarProjectDef.SystemOpenType.SkillTwo then
+    	checkSlotIndex = 2
+	elseif type == CS.StarProjectDef.SystemOpenType.SkillThree then
+    	checkSlotIndex = 3
+	elseif type == CS.StarProjectDef.SystemOpenType.SkillFour then
+		checkSlotIndex = 4
+	elseif type == CS.StarProjectDef.SystemOpenType.Ult then	
+		checkSlotIndex = 5
+    end
+
+    if checkSlotIndex ~= nil then
+    	self:CheckSkillUnlockBySlot(checkSlotIndex)
+    end
+end
+
+function SkillUnlockTipsModule:CheckSkillUnlockBySlot(slotIndex)
+	if self.AllSkillData == nil then return end
+	local jobId = GameManager.Instance:GetPlayerJob()
+
+	local curJobAllSkillDatas = self.AllSkillData[jobId]
+	if curJobAllSkillDatas == nil then return end
+
+	local playerLevel = GameManager.Instance:GetPlayerLevel()
+	for k, v in pairs(curJobAllSkillDatas) do
+		if v.SlotIndex == slotIndex and playerLevel >= v.UnlockLevel then
+			-- 播放技能解锁表现
+			self:OpenSkillOpenWidget(v)
+			return
+		end
+	end
+end
+
+--LuaModule 消息处理
+function SkillUnlockTipsModule:OnModuleMessage(msg,...)
+	self.ModuleMessages[msg](...);
+end
+
+--LuaModule显示
+function SkillUnlockTipsModule:OnModuleShow(arg)
+
+end
+
+function SkillUnlockTipsModule:OnSkillOpenWidgetDestroy(arg)
+	self.SkillOpenWidgetView = nil
+end
+
+--LuaModule 释放
+function SkillUnlockTipsModule:OnModuleRelease()
+	self.PlayerLevel = nil
+	CS.StarProject.GlobalEvent.OnNewSystemOpen:RemoveListener(self.OnSystemOpen);
+	LuaModuleDispatcher:UnRegister(ModuleDef.SkillUnlockTipsModule)
+	self.SkillOpenWidgetView = nil
+end
+
+function SkillUnlockTipsModule:OnDisable(...)
+	self.PlayerLevel = nil
+	LuaModuleDispatcher:UnRegister(ModuleDef.SkillUnlockTipsModule)
+	CS.StarProject.GlobalEvent.OnNewSystemOpen:RemoveListener(self.OnSystemOpen);
+	self.SkillOpenWidgetView = nil
+end
+
+return SkillUnlockTipsModule
+

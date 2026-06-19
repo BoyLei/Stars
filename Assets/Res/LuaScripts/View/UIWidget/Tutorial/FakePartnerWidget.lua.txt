@@ -1,0 +1,58 @@
+---@class FakePartnerWidget
+FakePartnerWidget = class("FakePartnerWidget", UIPanel)
+function FakePartnerWidget:Awake()
+    self.transform = self.prefab.transform;
+    self.gameObject = self.transform.gameObject;
+    self.ImgFrame = self:Find("Cut4Cam90/AssemblyRatio2/Center/Frame"):GetComponent(TImage);
+    self.ImgHead = self:Find("Cut4Cam90/AssemblyRatio2/Center/Frame/Icon"):GetComponent(TImage);
+
+    self.gameObject:SetActive(true);
+end
+
+function FakePartnerWidget:OnOpen(args)
+    local partnerID = tonumber(args)
+    if partnerID then
+        local config=ConfigDataAccessor.Partner[partnerID];
+        if config then
+            local avatarConfig = ConfigDataAccessor.Avatar[config.AvatarID];
+            if avatarConfig then
+                local modelHead = ConfigDataAccessor.ModelHead[avatarConfig.HeadID]
+                if modelHead then
+                    ResourceHelper:LoadIconByAtlasAsync(self.ImgHead,  modelHead.HeadAtlasName , modelHead.MinHead , false)
+                end
+            end
+            ResourceHelper:LoadIconByAtlasAsync(self.ImgFrame,  ResourceHelper.AtlasPathHud ,"Hud_Partner_Bg_"..config.Quality , false)
+        end
+    else
+        self.Close()
+    end
+end
+
+function FakePartnerWidget:OnShow()
+end
+
+function FakePartnerWidget:Start()
+
+end
+
+function FakePartnerWidget:OnEnable()
+
+end
+
+function FakePartnerWidget:OnDisable()
+
+end
+
+function FakePartnerWidget:OnDestroy()
+
+end
+
+function FakePartnerWidget:OnClose(arg)
+    self:CloseWindow();
+end
+
+function FakePartnerWidget:CloseWindow()
+    self.IsOpen = false;
+end
+
+return FakePartnerWidget

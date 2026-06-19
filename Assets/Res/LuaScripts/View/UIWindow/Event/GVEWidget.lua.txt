@@ -1,0 +1,253 @@
+--[[
+*文件名   :   GVEWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/09/25 11:09:17"
+*创建人   :   "胡勤文"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local GVEWidget = {}
+
+GVEWidget.__index = GVEWidget
+
+function GVEWidget:New(go, hudTaskWidget)
+    local self = {}
+    setmetatable(self, GVEWidget)
+
+    self.prefab = go
+
+    self.HudTaskWidget = hudTaskWidget
+
+    self.transform = self.prefab.transform
+
+    self.title = self.transform:Find("AnimRoot/Title"):GetComponent(typeof(Text))
+    self.time = self.transform:Find("AnimRoot/time"):GetComponent(typeof(Text))
+
+    self.curPoints = self.transform:Find("AnimRoot/Info/CurrPoints/num"):GetComponent(typeof(Text))
+    self.subTimes = self.transform:Find("AnimRoot/Info/SubPoints/num"):GetComponent(typeof(Text))
+
+    self.nextBossRefeshTime = self.transform:Find("AnimRoot/Info/NextBoss/num"):GetComponent(typeof(Text))
+
+    self.go_nextBoss = self.transform:Find("AnimRoot/Info/NextBoss").gameObject
+    self.go_fightBoss = self.transform:Find("AnimRoot/Info/FightBoss").gameObject
+
+    --提交积分按钮
+    self.go_SubmitBtn = self.transform:Find("AnimRoot/SubmitBtn").gameObject
+    self.transform:Find("AnimRoot/SubmitBtn"):GetComponent(typeof(JButton)).OnClick = (function()
+        self:OnSubmitBtnClick()
+    end)
+
+    --奖励按钮
+    self.transform:Find("AnimRoot/SubmitBtn/ic2"):GetComponent(typeof(JButton)).OnClick = (function()
+        --UIManager.Instance:OpenWindow("Event/GVEBossGuildRankWindow",nil,CS.StarProjectDef.MainPageCommond.HideBoth);
+
+        local data = {}
+        data.PlayMode = self.PlayMode
+        data.OpenIdx = 1
+
+        UIManager.Instance:OpenWidget("Event/EventRewardWidget", false, data, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, false)
+    end)
+
+    --活动倒计时
+    --刷新时间
+    self.NeedRefesh = false
+    -- update事件
+    self.UpdateFun = function()
+        self:RefeshLeftTime()
+    end
+
+    self.curPoints.text = 0
+    self.curPoints.color = Color(0.98, 0.35, 0.35)
+    --动画相关
+    --self.anim=self.transform:GetComponent(typeof(Animator));
+
+    return self --返回自身
+end
+
+function GVEWidget:OnListener()
+    --属性同步回调
+    if self.M_EntityBase == nil then
+        self.M_EntityBase = GameManager.Instance.M_MainPlayerCtrlBase
+        self.attrLuaKey = "GVEBonus_" .. GameManager.Instance.mainPlayerId
+        self.M_EntityBase.Data:AddAttributeChangeLuaAction(
+            CS.StarProjectDef.AOIAttrDefine.GVEBonus,
+            self.attrLuaKey,
+            function(key, value)
+                print("GVE属性同步开始")
+                --刷新
+                self:Fresh()
+            end
+        )
+    end
+
+    self:Fresh()
+    MonoHelper.AddUpdateListener(self.UpdateFun)
+end
+
+function GVEWidget:OffListener()
+    --解绑属性同步回调
+    if self.M_EntityBase ~= nil and self.M_EntityBase.Data ~= nil then
+        self.M_EntityBase.Data:DelAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.GVEBonus, self.attrLuaKey)
+        self.M_EntityBase = nil
+    end
+
+    MonoHelper.RemoveUpdateListener(self.UpdateFun)
+end
+
+--------------------------------------- 【↓↓↓↓↓ 定时器 ↓↓↓↓↓】 -------------------------------
+
+function GVEWidget:OnSubmitBtnClick()
+    if self.canSubmit then
+        local gveDonateReq = CS.ProtoMsg.GVEDonateReq()
+        gveDonateReq.PlayerID = GameManager.Instance.mainPlayerId
+        CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace, gveDonateReq, false)
+    else
+        if self.IsFull then
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_256"))
+        else
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_257"))
+        end
+    end
+end
+
+function GVEWidget:Fresh()
+    --self.anim:Play("EventTipsWidgetAnim_Open");
+
+    --活动数据
+    local GVEStartI2S = GameManager.Instance.GVEStartI2S
+    self.NeedRefesh = false
+    if GVEStartI2S ~= nil then
+        self.PlayMode = GVEStartI2S.PlayID --玩法ID
+
+        --local playID = GVEStartI2S.PlayID--玩法ID
+        self.duration = GVEStartI2S.Duration --持续时间
+        local mapList = GVEStartI2S.MapList --地图
+        self.tartTime = GVEStartI2S.StartTime --开始时间
+        local bossList = GVEStartI2S.BossList --boss列表
+        local bossDelay = GVEStartI2S.BossDelay --boss首波延迟
+
+        self.nextBossTime = GVEStartI2S.StartTime / 1000 + GVEStartI2S.BossDelay + GVEStartI2S.CurWave * GVEStartI2S.BossInterval --下次boss刷新时间
+
+        self.NeedRefesh = true
+
+        self:RefeshLeftTime()
+    end
+
+    --玩家属性
+    local M_MainPlayerCtrlBase = GameManager.Instance.M_MainPlayerCtrlBase
+    if M_MainPlayerCtrlBase ~= nil and M_MainPlayerCtrlBase.Data ~= nil and M_MainPlayerCtrlBase.Data.Attrs ~= nil then
+        local GVEBonus = M_MainPlayerCtrlBase.Data.Attrs:GetProtoValue(CS.StarProjectDef.AOIAttrDefine.GVEBonus)
+        if GVEBonus ~= nil and GVEBonus.PlayID == GVEStartI2S.PlayID then
+            local remainBonus = GVEBonus.RemainBonus --剩余积分
+            local donateBonus = GVEBonus.DonateBonus --已上交积分
+            local donateTimes = GVEBonus.DonateTimes --已上交次数
+            local actUpTime = GVEBonus.ActUpTime --活动更新时间
+            local playID = GVEBonus.PlayID --玩法ID
+            local notFirst = GVEBonus.NotFirst --是否是第一次
+
+            if not (notFirst) then
+                GVEBonus.NotFirst = true
+
+                DOVirtual.DelayedCall(
+                    0.5,
+                    function()
+                        UIManager.Instance:OpenWidgetAsync("Event/BossEventOpenWidget", nil, false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, false)
+                        local gVEClientGetNtf = CS.ProtoMsg.GVEClientGetNtf()
+                        CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace, gVEClientGetNtf, false)
+                    end
+                )
+            end
+
+            local nextTimes = donateTimes + 1
+
+            local scores = {}
+            for k, v in pairs(ConfigDataAccessor.GVEPersonReward) do
+                if v.PlayMode == playID then
+                    table.insert(scores, v.ScoOneP)
+                end
+            end
+
+            local nextscore = scores[nextTimes]
+            if donateTimes < #scores then
+                if remainBonus >= nextscore then
+                    --self.go_SubmitBtn:SetActive(true);
+                    --可以提交
+                    self.canSubmit = true
+                    self.IsFull = false
+                else
+                    --self.go_SubmitBtn:SetActive(false);
+                    --积分不够
+                    self.canSubmit = false
+                    self.IsFull = false
+                end
+            else
+                --self.go_SubmitBtn:SetActive(false);
+                --提交完了
+                self.canSubmit = false
+                self.IsFull = true
+            end
+
+            if remainBonus >= nextscore then
+                self.curPoints.color = Color(0.69, 0.95, 0.45)
+            else
+                self.curPoints.color = Color(0.98, 0.35, 0.35)
+            end
+
+            self.curPoints.text = remainBonus
+            --self.subTimes.text = "" .. donateTimes .. "次";
+            self.subTimes.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_subTimes"), {donateTimes})
+        end
+    end
+end
+
+function GVEWidget:RefeshLeftTime()
+    if self.NeedRefesh then
+        local serverNowTime = math.floor(GameManager.Instance:GetServerTimeStamp() / 1000)
+        local serverCloseTime = self.tartTime / 1000 + self.duration
+        local leftTime = serverCloseTime - serverNowTime
+
+        if leftTime > 0 then
+            self.time.text = SecToStringColon2(leftTime)
+
+            local nextLeftBossTime = self.nextBossTime - serverNowTime
+
+            if self.nextBossTime < serverCloseTime and nextLeftBossTime < 30 then
+                self.go_nextBoss:SetActive(true)
+                self.go_fightBoss:SetActive(false)
+                self.nextBossRefeshTime.text = SecToStringColon2(nextLeftBossTime)
+            else
+                self.go_nextBoss:SetActive(false)
+                self.go_fightBoss:SetActive(true)
+                self.nextBossRefeshTime.text = ""
+            end
+        else
+            --活动结束
+            LuaModuleDispatcher:SendMessage(ModuleDef.EventBossRankModule, "OnCloseBossRank", {})
+            self.NeedRefesh = false
+            self.HudTaskWidget:EndGve()
+            self.curPoints.text = 0
+            self.curPoints.color = Color(0.98, 0.35, 0.35)
+        end
+    end
+end
+
+function GVEWidget:OnEnable()
+end
+
+function GVEWidget:OnDisable()
+end
+
+function GVEWidget:OnDestroy()
+    MonoHelper.RemoveUpdateListener(self.UpdateFun)
+end
+
+function GVEWidget:ClearAll()
+end
+
+function GVEWidget:OnOpen(arg)
+end
+
+function GVEWidget:OnClose(arg)
+end
+
+return GVEWidget

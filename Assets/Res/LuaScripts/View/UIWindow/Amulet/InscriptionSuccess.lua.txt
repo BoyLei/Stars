@@ -1,0 +1,61 @@
+--[[
+*文件名   :   InscriptionSuccess
+*内  容   :	  鸣器成功
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local InscriptionSuccess = {}
+
+InscriptionSuccess.__index = InscriptionSuccess
+
+function InscriptionSuccess:New(_go)
+    local self = {}
+    setmetatable(self, InscriptionSuccess)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.Name = self.transform:Find("Grid/Name"):GetComponent(typeof(Text))
+    self.Num1 = self.transform:Find("Grid/Num"):GetComponent(typeof(Text))
+    self.Icon = self.transform:Find("Grid/icon"):GetComponent(typeof(Image))
+
+    self.Num2 = self.transform:Find("Grid/Num2"):GetComponent(typeof(Text))
+
+    self.canClickClose = false
+
+    self.go_Cover = self.transform:Find("Background").gameObject
+    self.go_Cover:GetComponent(typeof(JButton)).OnClick = (function()
+        if self.canClickClose then
+            self:Show(false)
+        end
+    end)
+
+    self:Show(false)
+
+    return self --返回自身
+end
+
+function InscriptionSuccess:Show(b, data)
+    self.gameObject:SetActive(b)
+    if b then
+        self.canClickClose = false
+
+        self.Name.text = data.EtchName
+        self.Num1.text = data.EtchNum
+        self.Num2.text = data.EtchNum + 1
+
+        local cfg = ConfigDataAccessor.Etch[data.EtchId]
+        ResourceHelper:LoadIconAsync(self.Icon, ResourceHelper.AtlasPathEtchSkill, cfg.EtchIcon, false)
+
+        DOVirtual.DelayedCall(
+            1.0,
+            function()
+                self.canClickClose = true
+            end
+        )
+    end
+end
+
+return InscriptionSuccess

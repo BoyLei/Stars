@@ -1,0 +1,85 @@
+--[[
+*文件名   :   EquipUpgradeFail
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local EquipUpgradeFail = {}
+
+EquipUpgradeFail.__index = EquipUpgradeFail
+
+function EquipUpgradeFail:New(_go, onClose, equipUpgradeSlotUpgrade)
+    local self = {}
+    setmetatable(self, EquipUpgradeFail)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.EquipUpgradeSlotUpgrade = equipUpgradeSlotUpgrade
+    self.canClose = false
+    --关闭信息
+    local btnClose = self.transform:Find("BtnClose"):GetComponent(typeof(JButton))
+    btnClose.OnClick = (function()
+        if self.canClose then
+            self.EquipUpgradeSlotUpgrade:PlayFailCloseAnim(
+                function()
+                    self:Show(false)
+                    if onClose ~= nil then
+                        onClose()
+                    end
+                end
+            )
+        end
+    end)
+
+    self.equipImage = self.transform:Find("EquipItem/Have/Icon"):GetComponent(typeof(Image))
+    self.equipBg = self.transform:Find("EquipItem/Have/BgRare"):GetComponent(typeof(Image))
+    self.equipAdd = self.transform:Find("EquipItem/Have/Num"):GetComponent(typeof(Text))
+
+    self.success_rate = self.transform:Find("rate"):GetComponent(typeof(Text))
+
+    self:Show(false)
+
+    return self --返回自身
+end
+
+function EquipUpgradeFail:Show(b, slot_id, base_id)
+    self.gameObject:SetActive(b)
+    if b then
+        self.canClose = false
+        local equipSlotData = GameManager.Instance:GetEquipSlotData(slot_id)
+
+        if equipSlotData ~= nil then
+            local lv = equipSlotData.UpLv
+
+            local cfg = ConfigDataAccessor.Item[base_id]
+            if cfg ~= nil then
+                self.equipAdd.text = "+" .. lv
+                local quality = cfg.Quality
+                --self.equipBg.sprite= AtlasManager.Instance:GetSprite("ui/common/atlas/commonitem","Bag_Grid_sq"..quality);
+                ResourceHelper:LoadIconByAtlasAsync(
+                    self.equipBg,
+                    ResourceHelper.AtlasPathCommonItem,
+                    "Bag_Grid_sq" .. quality,
+                    false
+                )
+                --LoadIcon(self.equipImage,cfg.Icon);
+                ResourceHelper:LoadIconAsync(self.equipImage, "", cfg.Icon, false)
+
+                --self.success_rate.text = "下次强化成功率 <color=#6BEB74>+" .. (equipSlotData.UpFailVal / 100) .. "%</color>"
+                self.success_rate.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_success_rate"), {equipSlotData.UpFailVal / 100});
+
+            else
+                self.gameObject:SetActive(false)
+            end
+        else
+            self.gameObject:SetActive(false)
+        end
+    else
+        self.canClose = true
+    end
+end
+
+return EquipUpgradeFail

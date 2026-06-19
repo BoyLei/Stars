@@ -1,0 +1,66 @@
+EctypeWarningWidget = class("EctypeWarningWidget", UIPanel)
+EctypeWarningWidget.IsOpen = false
+
+function EctypeWarningWidget:Awake()
+    self:Init()
+end
+
+function EctypeWarningWidget:Init()
+    self.transform = self.prefab.transform
+    self.gameObject = self.transform.gameObject
+
+    local FrameTransForm = self.transform:Find("Cut4Cam90/AssemblyRatio2").transform
+
+    -- warning提示
+    self.WarningPanel = FrameTransForm:Find("WarningPanel").gameObject
+    self.WarningTitle = FrameTransForm:Find("WarningPanel/Title"):GetComponent(typeof(Text))
+    -- 倒计时
+    self.CuntdownPanel = FrameTransForm:Find("CountDownPanel").gameObject
+end
+
+function EctypeWarningWidget:Start()
+end
+
+function EctypeWarningWidget:OnEnable()
+end
+
+function EctypeWarningWidget:OnDisable()
+end
+
+function EctypeWarningWidget:OnDestroy()
+end
+
+function EctypeWarningWidget:OnOpen(arg)
+    local Type = 0
+    local Title = ""
+    -- 列表
+    if type(arg) == "table" then
+        -- Lua调用
+        Type = arg[1]
+        Title = arg[2]
+    else
+        -- C#调用
+        Type = arg[0]
+        Title = arg[1]
+    end
+
+    self.IsOpen = true
+
+    self.WarningTitle.text = Title;
+    self.WarningPanel:SetActive(Type == 2);
+    self.CuntdownPanel:SetActive(Type == 3);
+    self:AutoCloseAfterDelay();
+end
+
+-- 自动关闭界面
+function EctypeWarningWidget:AutoCloseAfterDelay()
+    DOVirtual.DelayedCall(4.1, function()
+        self.Close()
+    end)
+end
+
+function EctypeWarningWidget:OnClose(arg)
+    self.IsOpen = false
+end
+
+return EctypeWarningWidget

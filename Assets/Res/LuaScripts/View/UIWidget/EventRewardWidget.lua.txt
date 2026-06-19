@@ -1,0 +1,137 @@
+--[[
+*文件名   :   EventRewardWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/12/06 10:33:06"
+*创建人   :   "quzhenxin"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+EventRewardWidget=class("EventRewardWidget",UIPanel)
+
+local SelectBtn= require("View/Item/SelectBtn")
+local EventRewardPersonal = require("View.UIWindow.Event.EventRewardPersonal");
+local EventRewardGuild = require("View.UIWindow.Event.EventRewardGuild");
+local EventRewardBoss = require("View.UIWindow.Event.EventRewardBoss");
+
+
+function EventRewardWidget:Awake()
+	self.transform=self.prefab.transform;
+	self.gameObject=self.transform.gameObject;
+
+	self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/BtnClose"):GetComponent(typeof(JButton)).OnClick=(function()
+		self:OnPlayBack();
+	end);
+
+
+	self.EventRewardPersonal=EventRewardPersonal:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/Personal").gameObject);
+	self.EventRewardGuild=EventRewardGuild:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/Guild").gameObject);
+	self.EventRewardBoss=EventRewardBoss:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/Boss").gameObject);
+
+	
+	--菜单按钮
+	self.MenuBtns={};
+
+	local btn1=SelectBtn:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/tag1").gameObject);
+	btn1:InitItem(1,function (idx)
+		self:OnMenuBtnClick(idx);
+	end);
+	table.insert(self.MenuBtns,btn1);
+
+	local btn2=SelectBtn:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/tag2").gameObject);
+	btn2:InitItem(2,function (idx)
+		self:OnMenuBtnClick(idx);
+	end);
+	table.insert( self.MenuBtns,btn2);
+
+	local btn3=SelectBtn:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/tag3").gameObject);
+	btn3:InitItem(3,function (idx)
+		self:OnMenuBtnClick(idx);
+	end);
+	table.insert( self.MenuBtns,btn3);
+
+
+
+
+end
+
+
+
+function EventRewardWidget:OnMenuBtnClick(idx)
+
+	if self.idxNow==idx then
+		return;
+	end
+
+	if idx==1 then
+		self.EventRewardPersonal:Show(true,self.PlayMode);
+		self.EventRewardGuild:Show(false);
+		self.EventRewardBoss:Show(false);
+	elseif idx==2 then
+		self.EventRewardPersonal:Show(false);
+		self.EventRewardGuild:Show(true,self.PlayMode);
+		self.EventRewardBoss:Show(false);
+	elseif idx==3 then
+		self.EventRewardPersonal:Show(false);
+		self.EventRewardGuild:Show(false);
+		self.EventRewardBoss:Show(true,self.PlayMode);
+	end
+
+
+	self.idxNow=idx;
+
+	for i=1,#self.MenuBtns do
+		self.MenuBtns[i]:MakeSelected(false);
+	end
+	self.MenuBtns[idx]:MakeSelected(true);
+
+
+end
+
+
+
+function EventRewardWidget:Start()
+
+end
+
+function EventRewardWidget:OnEnable()
+	
+end
+
+function EventRewardWidget:OnDisable()
+	
+end
+
+function EventRewardWidget:OnDestroy()
+
+end
+
+
+
+function EventRewardWidget:OnOpen(arg)
+
+	self.PlayMode=arg.PlayMode;
+	self.idxNow=-1;
+	self:OnMenuBtnClick(arg.OpenIdx);
+
+end
+
+function EventRewardWidget:OnItemClick(ritem)
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", {ritem.BaseID, false, 0, ritem.transform, 0})
+end
+
+function EventRewardWidget:OnClose(arg)
+	self.EventRewardPersonal:Show(false);
+	self.EventRewardGuild:Show(false);
+	self.EventRewardBoss:Show(false);
+end
+
+function EventRewardWidget:OnPlayBack()
+
+	self.gameObject:SetActive(false);
+	UIManager.Instance:CloseWidget("Event/EventRewardWidget",nil,false);
+
+end
+
+
+
+return  EventRewardWidget

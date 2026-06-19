@@ -1,0 +1,357 @@
+--[[
+*文件名   :   SellDetailUI
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/10/20 14:14:24"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+SellDetailUI=class("SellDetailUI",UIPanel)
+
+local SellDetailItem=require("View/UIWindow/Exchange/SellDetailItem");
+local ItemTipsItem = require("View/Item/ItemTipsItem");
+local ItemTipsEquip = require("View/Item/ItemTipsEquip");
+local SellCount=require("View/UIWindow/Exchange/SellCount");
+local SellPrice=require("View/UIWindow/Exchange/SellPrice")
+local SellRecord=require("View/UIWindow/Exchange/SellRecord")
+
+SellDetailUI.m_ItemGrid=nil;
+SellDetailUI.m_ScrollView=nil;
+SellDetailUI.m_ItemInfo=nil;
+SellDetailUI.m_Record=nil;
+SellDetailUI.m_Detail=nil;
+SellDetailUI.m_Back=nil;
+SellDetailUI.m_IntroduceBtn=nil;
+SellDetailUI.m_Gain=nil;
+SellDetailUI.m_SellBtn=nil;
+SellDetailUI.m_SellCount=nil;
+SellDetailUI.m_SellPrice=nil;
+SellDetailUI.m_Price=nil;
+SellDetailUI.m_RatePrice=nil;
+SellDetailUI.m_Has=nil;
+SellDetailUI.m_None=nil;
+SellDetailUI.CallBack=nil;
+SellDetailUI.ItemID=0;
+SellDetailUI.ItemList={};
+SellDetailUI.ItemDatas={};
+SellDetailUI.BagDatas={};
+SellDetailUI.SelectID=0;
+SellDetailUI.SellCount=nil;
+SellDetailUI.SellPrice=nil;
+SellDetailUI.SellRecord=nil;
+SellDetailUI.SellTansBtn1=nil;
+SellDetailUI.SellTansBtn2=nil;
+SellDetailUI.Price=1;
+SellDetailUI.Count=1;
+SellDetailUI.IsActive=false;
+SellDetailUI.SelectData=nil;
+local BackFunc=nil;
+local IntroduceBtnFunc=nil;
+local SellBtnFunc=nil;
+local SellTansBtn1Func=nil;
+local SellTansBtn2Func=nil;
+local OnBankAddGoodsRetFunc=nil;
+--当前页显示的个数
+local pageCount=18;
+local ItemID=0;
+
+function SellDetailUI:ctor(go, atlas)
+	self.prefab = go;
+	self.AtlasPath = atlas;
+	self.m_ItemGrid=self:Find("Has/ItemGrid").gameObject;
+	self.m_ScrollView=self:Find("Has/Scroll View"):GetComponent(typeof(SuperScrollViewController));
+	self.m_ItemInfo=self:Find("Has/ItemInfo").gameObject;
+	self.m_Item=self:Find("Has/ItemInfo/Item").gameObject;
+	self.m_Equip=self:Find("Has/ItemInfo/Equip").gameObject;
+	self.itemTipsItem = ItemTipsItem:New(self.m_Item,false)
+	self.itemTipsEquip = ItemTipsEquip:New(self.m_Equip)
+	self.m_Record=self:Find("Has/SellRecord").gameObject;
+	self.m_Detail=self:Find("Has/Detail").gameObject;
+	self.m_Back=self:Find("Has/Back"):GetComponent(typeof(JButton));
+	self.m_IntroduceBtn=self:Find("Has/IntroduceBtn"):GetComponent(typeof(JButton));
+	self.m_Gain=self:Find("Has/Detail/Gain"):GetComponent(typeof(Text));
+	self.m_SellBtn=self:Find("Has/Detail/SellBtn"):GetComponent(typeof(JButton));
+	self.m_SellCount=self:Find("Has/Detail/SellCount").gameObject;
+	self.m_SellPrice=self:Find("Has/Detail/SellPrice").gameObject;
+	self.m_Price=self:Find("Has/Detail/SellRate/Price"):GetComponent(typeof(Text));
+	self.m_RatePrice=self:Find("Has/Detail/SellRate/RatePrice"):GetComponent(typeof(Text));
+
+	self.m_SellTansBtn1=self:Find("Has/ItemInfo/TransBtn"):GetComponent(typeof(JButton));
+	self.m_SellTansBtn2=self:Find("Has/SellRecord/TransBtn"):GetComponent(typeof(JButton));
+
+	self.m_Has=self:Find("Has").gameObject;
+	self.m_None=self:Find("None").gameObject;
+	
+	self.SellCount=SellCount.new(self.m_SellCount,self.AtlasPath)
+	self.SellPrice=SellPrice.new(self.m_SellPrice,self.AtlasPath)
+	self.SellRecord=SellRecord.new(self.m_Record,self.AtlasPath)
+
+	BackFunc=function() self:OnClickBack(); end;
+	IntroduceBtnFunc=function() self:OnClickIntroduceBtn(); end;
+	SellBtnFunc=function() self:OnSellBtn(); end
+	SellTansBtn1Func=function() self:SellTansBtn1(); end
+	SellTansBtn2Func=function() self:SellTansBtn2(); end
+	OnBankAddGoodsRetFunc=function(data)
+		self:OnBankAddGoodsRet(data)
+	end
+	self.SelectID=0;
+	self.ItemList={}
+	self.ItemDatas={}
+	self.m_ScrollView:NewScroll(self.m_ItemGrid, 0, function (tr,idx)
+			self:OnItemRefesh(tr,idx);
+		end);
+
+
+	self.IsActive=false;
+	self:Start();
+end
+
+function SellDetailUI:Start()
+	self.m_Back.OnClick= BackFunc;
+	self.m_IntroduceBtn.OnClick= IntroduceBtnFunc;
+	self.m_SellBtn.OnClick= SellBtnFunc;
+	self.m_SellTansBtn1.OnClick= SellTansBtn1Func;
+	self.m_SellTansBtn2.OnClick= SellTansBtn2Func;
+
+	local BankAddGoodsRetEvent=LuaModuleDispatcher:Event(ModuleDef.ExchangeModule,"BankAddGoodsRetEvent");
+
+	BankAddGoodsRetEvent:AddListener(OnBankAddGoodsRetFunc)
+	
+	--local BankGetItemPriceRetEvent=LuaModuleDispatcher:Event(ModuleDef.ExchangeModule,"BankGetItemPriceRetEvent");
+
+end
+
+
+
+--上架返回
+function  SellDetailUI:OnBankAddGoodsRet(data)
+	if self.IsActive then
+		Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_173"));
+		--local list={}
+
+		--local rw = {}
+		--rw.BaseID = data.Goods.ItemID;
+		--rw.Num = data.Goods.ItemNum;
+		--table.insert(list, rw)
+		--LuaModuleDispatcher:SendMessage(ModuleDef.RewardsPopModule, "OnOpenRewardsPop", list);
+		
+		self:OnClickBack();
+	end
+end
+
+function SellDetailUI:OnHide()
+	self.IsActive=false;
+end
+
+function SellDetailUI:SellTansBtn1()
+	self.m_Record:SetActive(true)
+	self.m_ItemInfo:SetActive(false)
+	self.SellRecord:OnOpen(ItemID)
+end
+
+
+function SellDetailUI:SellTansBtn2()
+	self.m_Record:SetActive(false)
+	self.m_ItemInfo:SetActive(true)
+end
+
+function SellDetailUI:OnSellBtn()
+	if self.SelectID==0 then
+		return
+	end
+	local total=self.Count*self.Price
+	local cost=math.floor(total*SystemConstConfigs.TradePutawayTax/100)
+	--查看背包银币数量
+	
+	local money= BusinessManager.Instance:GetCurrencyNum(1);
+	if cost>money then
+		Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_81"));
+		return 
+	end
+	
+	LuaModuleDispatcher:SendMessage(ModuleDef.ExchangeModule,"OnBankAddGoodsReq",{self.SelectData.ID,self.Count,self.Price})
+end
+
+function  SellDetailUI:OnItemRefesh(tr,idx)
+	if self.ItemList==nil then
+		return;
+	end
+	for i=1,#self.ItemList do
+		if self.ItemList[i].transform == tr then
+			self.ItemList[i]:UpdateContent(self.ItemDatas[idx+1],self.SelectID,function (data)
+					self:OnShowItem(data);
+				end);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+			return
+		end
+	end
+
+	local bi = SellDetailItem.new(tr.gameObject,self.AtlasPath);
+	bi.prefab:SetActive(true);
+	bi:UpdateContent(self.ItemDatas[idx+1],self.SelectID,function (data)
+
+			self:OnShowItem(data);
+		end);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+	table.insert(self.ItemList, bi);
+end
+
+function SellDetailUI:OnShowItem(data)
+	
+	self.SelectID=data.CIndex
+	self.SelectData=data.data
+	for k, v in pairs(self.ItemList) do
+		v:Select(v.Data.CIndex==self.SelectID)
+	end
+	ItemID=data.data.BaseID;
+	local config=ConfigDataAccessor.Item[data.data.BaseID]
+	if config~=nil then
+		if not IsEquip(config.ItemType) then
+			self.itemTipsItem:Refesh(config,data.data.ID)
+			self.m_Item:SetActive(true)
+			self.m_Equip:SetActive(false)
+		else
+			--self.itemTipsEquip:Refesh(config,data.data.ID)
+			self.itemTipsEquip:RefeshEquipByData(data.data);
+			self.m_Item:SetActive(false)
+			self.m_Equip:SetActive(true)
+		end
+	else
+		self.m_Item:SetActive(false)
+		self.m_Equip:SetActive(false)
+	end
+
+	self.SellRecord:OnOpen(data.data.BaseID)
+
+	self.SellCount:OnOpen(data.data,function (count)
+			self:OnCountChange(count)
+		end);
+	
+	self.SellPrice:OnOpen(data.data,function (price)
+			self:OnPriceChange(price)
+		end);
+end
+
+function SellDetailUI:OnCountChange(count)
+	self.Count=count;
+	self:OnFreshPirce();
+end
+
+function SellDetailUI:OnPriceChange(price)
+	self.Price=price;
+	self:OnFreshPirce();
+end
+
+
+function SellDetailUI:OnFreshPirce()
+	local total=self.Count*self.Price
+
+	-- 税费 买方交易金币税率（/100）
+	local rate=math.floor(total*SystemConstConfigs.TradeSuccessTax/100)
+	self.m_RatePrice.text=rate
+
+	
+	---上架费 买方上架银币税率（/100）
+	local cost=math.floor(total*SystemConstConfigs.TradePutawayTax/100)
+	self.m_Price.text=cost
+	
+	self.m_Gain.text=math.floor(total-rate)
+end
+
+function SellDetailUI:OnDisable()
+
+end
+
+function SellDetailUI:OnDestroy()
+	self.m_Back.OnClick= nil;
+	self.m_IntroduceBtn.OnClick= nil;
+	self.m_SellBtn.OnClick= nil;
+	self.m_SellTansBtn1.OnClick= nil;
+	self.m_SellTansBtn2.OnClick= nil;
+
+	local BankAddGoodsRetEvent=LuaModuleDispatcher:Event(ModuleDef.ExchangeModule,"BankAddGoodsRetEvent");
+	BankAddGoodsRetEvent:RemoveListener(OnBankAddGoodsRetFunc)
+	
+	self.SellCount:OnDestroy()
+	self.SellCount=nil
+	
+	self.SellPrice:OnDestroy()
+	self.SellPrice=nil
+	
+	self.SellRecord:OnDestroy()
+	self.SellRecord=nil
+end
+
+function SellDetailUI:OnOpen(arg)
+	self.IsActive=true;
+	self.CallBack=arg;
+	self.SelectData=nil;
+	self:InitGoods();
+end
+
+
+
+function SellDetailUI:InitGoods()
+	self.BagDatas={}
+
+	local items=BusinessManager.Instance:GetItemsByItemSpaceId(0);
+	local CIndex=1;
+	for k, v in pairs(items) do
+		local id= v.BaseID
+		local config=ConfigDataAccessor.Item[id]
+		if config~=nil then
+			if config.IsTradable and not(v.IsBind) then
+				table.insert(self.BagDatas,{data=v,CIndex=CIndex})
+				CIndex=CIndex+1;
+			end
+			--local key=GetSubItemID(tonumber(config.ItemType),tonumber(config.SubType))
+			--local itemSubtype= ConfigDataAccessor.ItemType[key]
+			--if itemSubtype~=nil then
+		
+			--end
+		end
+	end
+
+	local empytCnt=pageCount;
+	local cnt=#self.BagDatas;
+	if cnt> 0 then
+		empytCnt=empytCnt+cnt%pageCount;
+		self.m_Has:SetActive(true);
+		self.m_None:SetActive(false);
+	else
+		self.m_Has:SetActive(false);
+		self.m_None:SetActive(true);
+	end
+
+	self.ItemDatas={}
+	for k, v in pairs(self.BagDatas) do
+		if self.SelectID==0 then
+			self.SelectID=v.CIndex
+		end
+
+		table.insert(self.ItemDatas,v);
+	end
+
+	for i = 1, empytCnt do
+		table.insert(self.ItemDatas,nil);
+	end
+
+	self.m_ScrollView:ContinueScroll(#self.ItemDatas);
+end
+
+function SellDetailUI:OnClose(arg)
+
+end
+
+function SellDetailUI:OnClickBack()
+	if self.CallBack~=nil then
+		self.CallBack();
+		self.SelectID=0;
+	end
+end
+
+function SellDetailUI:OnClickIntroduceBtn()
+	CS.StarProjectDef.UIAPI.ShowGameplayInfo(113)
+end
+
+
+
+return  SellDetailUI

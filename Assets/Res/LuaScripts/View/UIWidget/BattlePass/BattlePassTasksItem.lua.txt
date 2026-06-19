@@ -1,0 +1,156 @@
+--[[
+*文件名   :   BattlePassTasksItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/25 18:01:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local BattlePassTasksItem = {}
+
+BattlePassTasksItem.__index = BattlePassTasksItem
+
+local ItemGrid = require("View/Item/ItemGrid")
+
+function BattlePassTasksItem:New(_go) 
+    local self = {};    
+    setmetatable(self, BattlePassTasksItem); 
+    
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+
+    self.Desc = self.transform:Find("title"):GetComponent(typeof(Text))
+
+
+    --道具
+    self.items = {}
+    for i = 1, 2 do
+        local it = ItemGrid:New(self.transform:Find("Items/ItemGrid" .. i).gameObject)
+        it:InitItem(
+            false,
+            function(ritem)
+                self:OnItemClick(ritem)
+            end
+        )
+        table.insert(self.items, it)
+    end
+
+
+    self.go_BtnJump = self.transform:Find("BtnGo").gameObject
+    self.go_Finish = self.transform:Find("Get").gameObject
+    self.go_BtnGet = self.transform:Find("BtnGet").gameObject
+
+    --点击前往
+    self.go_BtnJump:GetComponent(typeof(JButton)).OnClick = (function()
+
+        local cfg=ConfigDataAccessor.SystemJump[self.JumpID];
+        if cfg~=nil then
+            local fromModule=ModuleDef.CommercializationModule;
+            local formArgs={3,2,self.TaskCycle}
+            JumpBySystemJumpEnum(cfg.WayString,fromModule,formArgs);
+        end
+
+    end)
+
+    --点击领取
+    self.go_BtnGet:GetComponent(typeof(JButton)).OnClick = (function()
+        local message = CS.ProtoMsg.SubmitTaskReq();
+        local battleSocket = NetworkManager.Instance.gameSocket;
+        message.ID =  self.taskID;
+        battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message, false);
+    end)
+
+    return self;    --返回自身
+end
+
+
+
+function BattlePassTasksItem:OnItemClick(ritem)
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", {ritem.BaseID, false, 0, ritem.transform, 0})
+end
+
+
+
+function BattlePassTasksItem:SetItem(data)
+
+
+    self.JumpID=data.JumpID;
+    local id=data.TaskID;
+    if id ~= nil and id > 0 then
+        local idNow = id
+        local configNow = TaskHelper.GetTaskConfig(idNow)
+        local baseNow = nil
+        if configNow ~= nil then
+            baseNow = configNow.Base
+        end
+
+        self.taskID=idNow;
+
+        self.TaskCycle=data.TaskCycle;
+
+        --任务状态
+        self.go_BtnJump:SetActive(false)
+        self.go_Finish:SetActive(false)
+        self.go_BtnGet:SetActive(false)
+        if data.State==0 then
+            --已经完成
+            self.go_Finish:SetActive(true)
+        elseif data.State==1 then
+            --任务进行中
+            if self.JumpID>0 then
+                --临时隐藏
+                self.go_BtnJump:SetActive(true)
+            end
+        elseif data.State==2 then
+            --任务已完成未提交
+            self.go_BtnGet:SetActive(true)
+        end
+
+
+        if baseNow ~= nil then
+            self.Desc.text = baseNow.Desc
+            local taskTarget = TaskHelper.GetTaskTarget(self.taskID)
+            if taskTarget ~= nil then
+
+                local str= self.Desc.text;
+
+                if self.go_Finish.activeSelf then
+                    
+                    str=str.. "(" .. taskTarget.MaxCount .. "/" .. taskTarget.MaxCount .. ")"
+
+                else
+
+                    str=str.. "(" .. taskTarget.CurProgress .. "/" .. taskTarget.MaxCount .. ")"
+
+                end
+                self.Desc.text = str
+            end
+        end
+
+        --奖励
+        for i = 1, #self.items do
+            self.items[i].gameObject:SetActive(false)
+        end
+
+        local Awards=ConfigDataAccessor.GetTaskReward(idNow);
+        local idx=0;
+        for k,v in pairs(Awards) do
+            idx = idx + 1
+            if idx <= #self.items then
+                self.items[idx].gameObject:SetActive(true)
+                self.items[idx]:SetItemNum(k, v);
+            end
+        end
+
+
+
+    end
+
+
+
+end
+
+
+return BattlePassTasksItem;

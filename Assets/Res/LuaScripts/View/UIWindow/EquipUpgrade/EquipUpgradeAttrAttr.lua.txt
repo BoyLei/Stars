@@ -1,0 +1,81 @@
+--[[
+*文件名   :   EquipUpgradeAttrAttr
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local EquipUpgradeAttrAttr = {}
+
+EquipUpgradeAttrAttr.__index = EquipUpgradeAttrAttr
+
+function EquipUpgradeAttrAttr:New(_go)
+    local self = {}
+    setmetatable(self, EquipUpgradeAttrAttr)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    if self.transform:Find("icon") ~= nil then
+        self.icon = self.transform:Find("icon"):GetComponent(typeof(Image))
+    end
+    self.Name = self.transform:Find("name"):GetComponent(typeof(Text))
+    self.Num = self.transform:Find("num"):GetComponent(typeof(Text))
+    if self.transform:Find("Fx_UI_TransJobFinishWindow02") ~= nil then
+        self.go_ps = self.transform:Find("Fx_UI_TransJobFinishWindow02").gameObject
+    end
+
+    self.slider = self.transform:Find("Slider"):GetComponent(typeof(Slider))
+
+    return self --返回自身
+end
+
+function EquipUpgradeAttrAttr:ShowPs()
+    self.go_ps:SetActive(false)
+    self.go_ps:SetActive(true)
+end
+
+--设置Item
+function EquipUpgradeAttrAttr:RefeshAttrProb(data, max)
+    if self.go_ps ~= nil then
+        self.go_ps:SetActive(false)
+    end
+    local config1 = ConfigDataAccessor.GetAttrByID(data.ID)
+    local attrName1 = ""
+    if config1 ~= nil then
+        attrName1 = config1.Name
+    end
+
+    if self.icon ~= nil then
+        self:GetSpriteByAtlas(
+            "UI/Icons/Atlas/IconAttribute",
+            "Attribute_" .. data.ID,
+            function(sp)
+                self.icon.sprite = sp
+            end
+        )
+    end
+
+    local name = attrName1
+    local now = data.Value
+
+    self.Name.text = name
+    self.Num.text = "" .. math.floor(now) .. "<color=#BDC6B6>/" .. math.floor(max) .. "</color>"
+
+    self.slider.value = now / max
+end
+
+function EquipUpgradeAttrAttr:GetSpriteByAtlas(AtlasPath, name, cb)
+    AtlasManager.Instance:GetSpriteAsync(
+        AtlasPath,
+        name,
+        function(sprite)
+            if cb ~= nil then
+                cb(sprite)
+            end
+        end
+    )
+end
+
+return EquipUpgradeAttrAttr

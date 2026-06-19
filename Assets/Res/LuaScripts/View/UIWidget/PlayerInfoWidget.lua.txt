@@ -1,0 +1,1657 @@
+--[[
+*文件名   :   PlayerInfoWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/02 11:43:21"
+*创建人   :   "quzhenxin"
+*版权所有 :   游卡网络科技技术有限公司
+]] PlayerInfoWidget = class("PlayerInfoWidget", UIPanel)
+PlayerInfoWidget.M_LevelPanel = nil;
+PlayerInfoWidget.M_ExpBar = nil;
+PlayerInfoWidget.M_ExpAdventureBar = nil;
+PlayerInfoWidget.M_ExpText = nil;
+PlayerInfoWidget.M_LevelBtn = nil;
+PlayerInfoWidget.M_LevelNoBg = nil;
+PlayerInfoWidget.M_LevelNo = nil;
+PlayerInfoWidget.M_LevelSelectedBg = nil;
+PlayerInfoWidget.M_LevelSelected = nil;
+PlayerInfoWidget.M_AdventureLevelBtn = nil;
+PlayerInfoWidget.M_AdventureNoBg = nil;
+PlayerInfoWidget.M_AdventureLevelNo = nil;
+PlayerInfoWidget.M_AdventureSelectedBg = nil;
+PlayerInfoWidget.M_AdventureLevelSelected = nil;
+PlayerInfoWidget.M_Uid = nil;
+
+PlayerInfoWidget.M_PlayerPanel = nil;
+PlayerInfoWidget.M_PlayerPanelCanvasGroup = nil;
+
+-- 血蓝
+PlayerInfoWidget.M_HPBar = nil;
+PlayerInfoWidget.M_HPText = nil;
+PlayerInfoWidget.M_MPBar = nil;
+PlayerInfoWidget.M_MPText = nil;
+
+-- 技能进度
+PlayerInfoWidget.M_ProgressSkill = nil;
+PlayerInfoWidget.M_BarSkill = nil;
+PlayerInfoWidget.M_SkillTime = nil;
+PlayerInfoWidget.M_SkillName = nil;
+
+-- BUFF容器
+PlayerInfoWidget.M_BuffContainer = nil;
+PlayerInfoWidget.M_DeBuffContainer = nil;
+
+-- BUFFList
+PlayerInfoWidget.M_BuffListContainer = nil;
+PlayerInfoWidget.m_BuffPrefab = nil;
+PlayerInfoWidget.m_DeBuffPrefab = nil;
+-- 量谱
+PlayerInfoWidget.M_JobSpectralRoot = nil;
+
+---------- 主角数据
+PlayerInfoWidget.M_EntityBase = nil;
+PlayerInfoWidget.m_HPSum = 100;
+PlayerInfoWidget.m_HPCur = 100;
+PlayerInfoWidget.m_MPSum = 100;
+PlayerInfoWidget.m_MPCur = 100;
+PlayerInfoWidget.m_EXPSum = 100;
+PlayerInfoWidget.m_EXPCur = 50;
+
+-- PlayerInfoWidget.m_LevelCur = 1;
+-- PlayerInfoWidget.LevelUpgradeWidgetPath = "StarWorld/LevelUpgradeWidget";	-- 升级提示界面
+-- PlayerInfoWidget.m_isShowLevel = true;	-- （经验和冒险等级经验）切换标识
+
+---------- 蓄力技能
+PlayerInfoWidget.m_skillEntity = nil;
+PlayerInfoWidget.energyTime = 0; -- 单层蓄力的时间
+PlayerInfoWidget.energyedCount = 0; -- 已经蓄力的层数,可能蓄力0层
+PlayerInfoWidget.curEnergyTime = 0; -- 当前蓄力的时间
+PlayerInfoWidget.energyMaxNum = 0; -- 最大蓄力层数
+PlayerInfoWidget.m_isShowEnergy = false; -- 是否显示蓄力
+
+local BuffListSp = require("View/UIWidget/BuffList");
+PlayerInfoWidget.BuffItems = {}; -- 增益BUFFitem列表
+PlayerInfoWidget.DeBuffItems = {}; -- 减益BUFFlist列表
+PlayerInfoWidget.SkillBuffList = {}; -- 增益BUFF列表
+PlayerInfoWidget.SkillDeBuffList = {}; -- 减益BUFF列表
+PlayerInfoWidget.buffSpTimeShowDic = {}; -- 【BUFF】标识
+
+local ItemBuff = require("View/Item/ItemBuff");
+PlayerInfoWidget.m_BuffList = nil;
+
+PlayerInfoWidget.JobSpectralWidgetPath = ""; -- 量谱界面
+PlayerInfoWidget.JobSpectralWidget = nil; -- 量谱界面
+
+function PlayerInfoWidget:Awake()
+    self.transform = self.prefab.transform;
+    self.gameObject = self.transform.gameObject;
+    -- 主角等级面板
+    self.Level = self:Find("PlayerPanel/LevelBg/Level"):GetComponent(typeof(Text))
+
+    -- self.M_LevelPanel=self:Find("LevelPanel");
+    -- self.M_ExpBar=self.M_LevelPanel:Find("ProgressExp/BarExp"):GetComponent(typeof(Image));
+    -- self.M_ExpAdventureBar=self.M_LevelPanel:Find("ProgressExp/BarAdventureExp"):GetComponent(typeof(Image));
+    -- self.M_ExpText=self.M_LevelPanel:Find("ProgressExp/TextExp"):GetComponent(typeof(Text));
+
+    -- self.M_LevelBtn=self.M_LevelPanel:Find("LevelBg"):GetComponent(typeof(Button));
+    -- self.M_LevelNoBg=self.M_LevelPanel:Find("LevelBg/No");
+    -- self.M_LevelNo=self.M_LevelNoBg:Find("Level"):GetComponent(typeof(Text));
+    -- self.M_LevelSelectedBg=self.M_LevelPanel:Find("LevelBg/Selected");
+    -- self.M_LevelSelected=self.M_LevelSelectedBg:Find("Level"):GetComponent(typeof(Text));
+
+    -- self.M_AdventureLevelBtn=self.M_LevelPanel:Find("AdventureLevelBg"):GetComponent(typeof(Button));
+    -- self.M_AdventureNoBg=self.M_LevelPanel:Find("AdventureLevelBg/No");
+    -- self.M_AdventureLevelNo=self.M_AdventureNoBg:Find("Level"):GetComponent(typeof(Text));
+    -- self.M_AdventureSelectedBg=self.M_LevelPanel:Find("AdventureLevelBg/Selected");
+    -- self.M_AdventureLevelSelected=self.M_AdventureSelectedBg:Find("Level"):GetComponent(typeof(Text));
+
+    -- self.M_Uid=self.M_LevelPanel:Find("UID"):GetComponent(typeof(Text));
+    -- 主角血蓝BUFF面板
+    self.M_PlayerPanel = self.transform:Find("PlayerPanel");
+    self.M_PlayerPanelCanvasGroup = self.transform:Find("PlayerPanel"):GetComponent(typeof(CanvasGroup));
+    self.M_HPBar = self.M_PlayerPanel:Find("ProgressHp/BarHp"):GetComponent(typeof(Image));
+    self.M_ShieldValBarLeft = self.M_PlayerPanel:Find("ProgressHp/ShieldValBarLeft"):GetComponent(typeof(Image));
+    self.M_ShieldValBarRight = self.M_PlayerPanel:Find("ProgressHp/ShieldValBarRight"):GetComponent(typeof(Image));
+    self.M_HPText = self.M_PlayerPanel:Find("ProgressHp/HpText"):GetComponent(typeof(Text));
+    self.M_MPBar = self.M_PlayerPanel:Find("ProgressMp/BarMp"):GetComponent(typeof(Image));
+    self.M_MPText = self.M_PlayerPanel:Find("ProgressMp/MpText"):GetComponent(typeof(Text));
+    --- 技能进度
+    self.M_ProgressSkill = self.transform:Find("ProgressSkill");
+    self.M_BarSkill = self.M_ProgressSkill:Find("BarSkill"):GetComponent(typeof(Image));
+    --self.M_BarSkillWidth = self.M_BarSkill.rect.width;
+    self.M_SkillTime = self.M_ProgressSkill:Find("SkillTime"):GetComponent(typeof(Text));
+    self.M_SkillName = self.M_ProgressSkill:Find("SkillName"):GetComponent(typeof(Text));
+    self.M_LimitRoot = self.M_ProgressSkill:Find("LimitRoot");
+    self.M_SkillErnergyLimit = self.M_ProgressSkill:Find("Limit").gameObject;
+    ---BUFF容器
+    self.M_BuffContainer = self.M_PlayerPanel:Find("BuffContainer");
+    -- self.M_DeBuffContainer=self.M_PlayerPanel:Find("DeBuffContainer");
+    self.M_BuffListContainer = self.M_PlayerPanel:Find("BuffListContainer");
+    self.m_BuffPrefab = self.M_PlayerPanel:Find("ItemBuff").gameObject;
+    -- self.m_DeBuffPrefab=self.M_DeBuffContainer:Find("ItemDeBuff").gameObject;
+    self.BuffItems = {};
+    -- self.DeBuffItems={};
+    ---量谱
+    self.M_JobSpectralRoot = self.M_PlayerPanel:Find("JobSpectralRoot");
+
+    -- 点击头像打开角色档案 【J按钮】
+    self.JBtnJobHeadImgBg = self.M_PlayerPanel:Find("JobHeadImgBg"):GetComponent(typeof(JButton));
+    self.JBtnJobHeadImgBgFun = function()
+        local mapSubType = GameManager.Instance:GetMapSubType()
+        if mapSubType ~= nil and mapSubType ~= "" then
+            if mapSubType == "PlotSecond" then
+                return; 
+            end
+        end
+        local propPanelReq = CS.ProtoMsg.PropPanelReq()
+        propPanelReq.EntityID = GameManager.Instance.mainPlayerId
+        propPanelReq.Panel = CS.ProtoMsg.PropPanel.PanelRoleBattle
+        NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace, propPanelReq, false)
+    end
+    self.JBtnJobHeadImgBg.OnClick = self.JBtnJobHeadImgBgFun;
+
+    self.JobHeadImgBg = self.M_PlayerPanel:Find("JobHeadImgBg"):GetComponent(typeof(Image))
+    self.JobHeadImg = self.M_PlayerPanel:Find("JobHeadImgBg/JobHeadImg"):GetComponent(typeof(Image))
+    self.JobTypeBg = self.M_PlayerPanel:Find("JobHeadImgBg/JobTypeBg"):GetComponent(typeof(Image))
+    self.JobTypeIcon = self.M_PlayerPanel:Find("JobHeadImgBg/JobTypeBg/JobTypeIcon"):GetComponent(typeof(Image))
+
+    --------------------------------------------- 事件
+    -- update事件
+    self.UpdateFun = function()
+        self:UpdateData();
+    end
+    -- 点击等级事件
+    -- self.LevelClickFun = function()
+    -- self:OnLevelClick(true);
+    -- end
+    -- 点击冒险等级事件
+    -- self.AdventureLevelClickFun = function()
+    -- self:OnLevelClick(false);
+    -- end
+
+    -- 蓄力开始
+    self.AddEnergyStartLuaAction = function(action)
+        self:OnActionOnEnergyStart(action);
+    end;
+    -- 蓄力结束
+    self.AddEnergyEndLuaAction = function(action)
+        self:OnActionOnEnergyEnd(action);
+    end
+    -- 技能结束（蓄力直接打断）
+    self.AddEndSkillStageLuaAction = function(skillEntity, e_SkillExitType)
+        self:OnActionOnEndSkillStage(skillEntity, e_SkillExitType);
+    end
+
+    -- buff创建
+    self.AddBuffCreateLuaAction = function(skillBuff, buffCreateRet)
+        self:OnActionOnBuffCreate(skillBuff, buffCreateRet);
+    end
+    -- Buff结束
+    self.AddBuffEndLuaAction = function(skillBuff, buffEndRet)
+        self:OnActionOnBuffEnd(skillBuff, buffEndRet);
+    end
+    -- Buff更新数据
+    self.AddBuffUpdateLuaAction = function(skillBuff)
+        self:OnActionOnBuffUpdate(skillBuff);
+    end
+    ----------------- AOI修改回调
+    self.AoicurHpFun = function(key, value)
+        self:SetHp(value);
+    end
+
+    self.AoiTruthHpFun = function(key, value)
+        self:UpdateTruthHp(value);
+    end
+
+    self.AoicurMpFun = function(key, value)
+        self:SetMp(value);
+    end
+
+    self.AoiTruthMPFun = function(key, value)
+        self:UpdateTruthMp(value);
+    end
+
+    -- self.AoiPlayerExpFun = function(key,value)
+    -- self:UpdatePlayerExp(value);
+    -- end
+
+    self.AoiPlayerLevelFun = function(key, value)
+        self:SetLevel(value);
+    end
+
+    --------------------------- 点击事件
+    -- buff 销毁回调
+    self.BuffItemDelFun = function(skillBuffItem)
+        -- self:ItemBuffDelCallBack(skillBuffItem);
+        self:BuffItemReleaseCb(skillBuffItem);
+    end
+    -- 点击buff出现buff详情列表界面
+    self.OnItemBuffClickFun = function(item)
+        self:OnItemBuffClick(item);
+    end
+
+    self.OnPlayerInfoWidgetShowFun = function(isShow)
+        self:OnPlayerInfoWidgetShow(isShow);
+    end
+    CS.StarProject.GlobalEvent.onPlayerInfoWidgetShow:AddListener(self.OnPlayerInfoWidgetShowFun);
+
+    -- 冒险者档案回调
+    self.PropPanelRetCmd = function(data)
+        self:OnPropPanelRet(data)
+    end
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.PropPanelRetID, self.PropPanelRetCmd, nil)
+end
+
+function PlayerInfoWidget:Start()
+
+end
+
+function PlayerInfoWidget:OnEnable()
+
+end
+
+function PlayerInfoWidget:OnDisable()
+
+end
+
+function PlayerInfoWidget:OnDestroy()
+	MonoHelper.RemoveUpdateListener(self.UpdateFun);
+	CS.StarProject.GlobalEvent.onPlayerInfoWidgetShow:RemoveListener(self.OnPlayerInfoWidgetShowFun);
+end
+
+function PlayerInfoWidget:OnOpen(arg)
+    self.M_EntityBase = arg;
+    if self.M_EntityBase == nil or self.M_EntityBase.Data == nil then
+        LogError("PlayerInfoWidget:OnOpen() arg is nil error!!!");
+        return;
+    end
+    MonoHelper.RemoveUpdateListener(self.UpdateFun);
+
+    local jobId = self.M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Uint,
+        CS.StarProjectDef.AOIAttrDefine.Job);
+    if jobId ~= 0 then
+        -- 获取职业量谱
+        local jobshi1 = math.floor(jobId / 10)
+        local jobSpectralPrefabName = "JobSpectralWidget" .. jobshi1 .. "0";
+        -- local jobSpectralPrefabName = "JobSpectralWidget30";
+        self.JobSpectralWidgetPath = "StarWorld/Prefab/" .. jobSpectralPrefabName;
+        local JobSpectralWidget = UIManager.Instance:OpenWidget(self.JobSpectralWidgetPath, false, self.M_EntityBase,
+            self.M_JobSpectralRoot, CS.StarProjectDef.MainPageCommond.HideNone, true, true);
+        if JobSpectralWidget ~= nil then
+            self.JobSpectralWidget = JobSpectralWidget:GetLuaPanel().ScriptTable;
+        end
+    end
+
+    -- 职业头像
+    local jobCfg = ConfigDataAccessor.Job[jobId]
+    if jobCfg ~= nil then
+        local avatarDataCell = ConfigDataAccessor.Avatar[jobCfg.AvatarID]
+        if avatarDataCell ~= nil then
+            local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID]
+            if headCfg ~= nil then
+                ResourceHelper:LoadIconByAtlasAsync(self.JobHeadImg, headCfg.HeadAtlasName, headCfg.MinHead, false)
+            end
+        end
+    end
+    -- 职业标签图标
+    local jobshi = math.floor(jobId / 10)
+    local jobHeadImgBgPath = "Hud_RoleFrame" .. jobshi
+    ResourceHelper:LoadIconByAtlasAsync(self.JobHeadImgBg, ResourceHelper.AtlasPathHud, jobHeadImgBgPath, false)
+    -- 职业类型icon设置
+    local jobTypeBgName = "Icon_ArmBg" .. jobshi
+    ResourceHelper:LoadIconByAtlasAsync(self.JobTypeBg, ResourceHelper.AtlasPathRole, jobTypeBgName, false)
+    local jobTypeName = "Icon_Arm" .. jobshi
+    ResourceHelper:LoadIconByAtlasAsync(self.JobTypeIcon, ResourceHelper.AtlasPathRole, jobTypeName, false)
+
+    ---- 实例化VitalSignAttrData类
+    -- local vitalSignAttrData=CS.StarProject.Game.Data.VitalSignAttrData()
+    ---- 取得泛型方法    CS....的命名空间
+    -- local genericFunc=xlua.get_generic_method(CS.StarProject.Game.Data.VitalSignAttrData,"GetAoiValue");
+    ---- 为泛型方法指定类型
+    -- local realFunc=genericFunc(typeof(CS.System.Int64));
+    ----调用 若泛型方法为静态，则无需传第一个实例参数
+    -- PlayerInfoWidget.m_HPSum=realFunc(vitalSignAttrData,CS.StarProjectDef.EnumAOIType.Long,CS.StarProjectDef.AOIAttrDefine.TruthHp);
+
+    self.m_HPSum = self.M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Long,
+        CS.StarProjectDef.AOIAttrDefine.TruthHp);
+    self.m_HPCur = self.M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Long,
+        CS.StarProjectDef.AOIAttrDefine.curHp);
+    self:SetHp(self.m_HPCur);
+    self.m_MPSum = self.M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Long,
+        CS.StarProjectDef.AOIAttrDefine.TruthMP);
+    self.m_MPCur = self.M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Long,
+        CS.StarProjectDef.AOIAttrDefine.curMp);
+    self:SetMp(self.m_MPCur);
+    self.m_LevelCur = self.M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Int,
+        CS.StarProjectDef.AOIAttrDefine.PlayerLevel);
+    self:SetLevel(self.m_LevelCur);
+    -- self:SetAdventureLevel(self.m_LevelCur);
+    -- self.m_EXPSum = self:GetCurLevelExp();
+    -- self.m_EXPCur = self.M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Int,CS.StarProjectDef.AOIAttrDefine.PlayerExp);
+    -- self:UpdatePlayerExp(self.m_EXPCur);
+    -- local uid = self.M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Ulong,CS.StarProjectDef.AOIAttrDefine.UserID);
+    -- self.M_Uid.text = "UID:"..tostring(uid);
+
+    ------------------------------------- 添加按钮事件
+    -- self.M_LevelBtn.onClick:AddListener(self.LevelClickFun);
+    -- self.M_AdventureLevelBtn.onClick:AddListener(self.AdventureLevelClickFun);
+    ------------------------------------- 添加按钮事件
+
+    -- 绑定属性同步回调  START
+    self:InitAttribute();
+    -- 绑定属性同步回调----- END
+    -- 绑定技能回调
+    -- 蓄力开始
+    self.M_EntityBase:AddEnergyStartLuaAction(self.AddEnergyStartLuaAction);
+    -- 蓄力结束
+    self.M_EntityBase:AddEnergyEndLuaAction(self.AddEnergyEndLuaAction);
+    -- 技能结束（蓄力直接打断）
+    self.M_EntityBase:AddEndSkillStageLuaAction(self.AddEndSkillStageLuaAction);
+
+    -- 绑定属性同步回调------ END
+
+    -- 获取BUFF信息
+    self:ResetBuffItem();
+    self:InitGetBuffs();
+
+    -- 绑定BUFF回调------  START
+    -- buff创建
+    self.M_EntityBase:AddBuffCreateLuaAction(self.AddBuffCreateLuaAction);
+    -- Buff结束
+    self.M_EntityBase:AddBuffEndLuaAction(self.AddBuffEndLuaAction);
+    -- Buff更新数据
+    self.M_EntityBase:AddBuffUpdateLuaAction(self.AddBuffUpdateLuaAction);
+    -- 绑定BUFF回调------  END
+    self:OnPlayerInfoWidgetShow(GameManager.Instance.IsShowPlayerWidget);
+
+    MonoHelper.AddUpdateListener(self.UpdateFun);
+end
+
+function PlayerInfoWidget:OnClose(arg)
+    if self.M_EntityBase ~= nil then
+        self:ReleaseInfo();
+    end
+end
+
+function PlayerInfoWidget:InitAttribute()
+    self.M_EntityBase.Data:RegisterAttribute(CS.StarProjectDef.AOIAttrDefine.curHp, self.AoicurHpFun);
+    self.M_EntityBase.Data:RegisterAttribute(CS.StarProjectDef.AOIAttrDefine.TruthHp, self.AoiTruthHpFun);
+    self.M_EntityBase.Data:RegisterAttribute(CS.StarProjectDef.AOIAttrDefine.curMp, self.AoicurMpFun);
+    self.M_EntityBase.Data:RegisterAttribute(CS.StarProjectDef.AOIAttrDefine.TruthMP, self.AoiTruthMPFun);
+    -- self.M_EntityBase.Data:AddAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.PlayerExp, self.attrLuaKey, self.AoiPlayerExpFun);
+    self.M_EntityBase.Data:RegisterAttribute(CS.StarProjectDef.AOIAttrDefine.PlayerLevel, self.AoiPlayerLevelFun);
+end
+
+function PlayerInfoWidget:DelAttribute()
+    self.M_EntityBase.Data:UnRegisterAttribute(CS.StarProjectDef.AOIAttrDefine.curHp, self.AoicurHpFun);
+    self.M_EntityBase.Data:UnRegisterAttribute(CS.StarProjectDef.AOIAttrDefine.TruthHp, self.AoiTruthHpFun);
+    self.M_EntityBase.Data:UnRegisterAttribute(CS.StarProjectDef.AOIAttrDefine.curMp, self.AoicurMpFun);
+    self.M_EntityBase.Data:UnRegisterAttribute(CS.StarProjectDef.AOIAttrDefine.TruthMP, self.AoiTruthMPFun);
+    -- self.M_EntityBase.Data:DelAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.PlayerExp, self.attrLuaKey);
+    self.M_EntityBase.Data:UnRegisterAttribute(CS.StarProjectDef.AOIAttrDefine.PlayerLevel, self.AoiPlayerLevelFun);
+end
+
+-- 打开角色面板回调
+function PlayerInfoWidget:OnPropPanelRet(data)
+    local propPanelRet = data.data
+    if propPanelRet.Prop ~= nil and propPanelRet.Prop.Count > 0 then
+        local m_MainPlayerCtrl = GameManager.Instance:GetEntityCtr(GameManager.Instance.mainPlayerId)
+        local entityBase = m_MainPlayerCtrl.M_Curr
+        if entityBase ~= nil then
+            -- UIManager.Instance:OpenWindow(CS.StarProjectDef.UIDef.PlayerAttrWindow, { entityBase, propPanelRet.Prop },
+            --     CS.StarProjectDef.MainPageCommond.HideBoth)
+            UIManager.Instance:CloseAllLoadedWindowNWidget();
+            UIManager.Instance:OpenWindowAsync(CS.StarProjectDef.UIDef.PlayerAttrWindow, nil,
+                {entityBase, propPanelRet.Prop}, CS.StarProjectDef.MainPageCommond.HideBoth)
+        end
+    end
+end
+
+---------- 不要了
+function PlayerInfoWidget:OnLevelClick(isShowLevel)
+    -- if isShowLevel == self.m_isShowLevel then
+    -- return;
+    -- end
+    ----if isShowLevel then
+    ----self.M_LevelNoBg:SetActive(false);
+    ----self.M_LevelSelectedBg:SetActive(true);
+    ----self.M_AdventureNoBg:SetActive(true);
+    ----self.M_AdventureSelectedBg:SetActive(false);
+
+    ----self.M_ExpBar.transform:SetActive(true);
+    ----self.M_ExpAdventureBar.transform:SetActive(false);
+    ----else
+    ----self.M_LevelNoBg:SetActive(true);
+    ----self.M_LevelSelectedBg:SetActive(false);
+    ----self.M_AdventureNoBg:SetActive(false);
+    ----self.M_AdventureSelectedBg:SetActive(true);
+
+    ----self.M_ExpBar.transform:SetActive(false);
+    ----self.M_ExpAdventureBar.transform:SetActive(true);
+    ----end
+    -- self.m_isShowLevel = isShowLevel;
+
+    -- self.M_LevelNoBg.gameObject:SetActive(not self.m_isShowLevel);
+    -- self.M_LevelSelectedBg.gameObject:SetActive(self.m_isShowLevel);
+    -- self.M_AdventureNoBg.gameObject:SetActive(self.m_isShowLevel);
+    -- self.M_AdventureSelectedBg.gameObject:SetActive(not self.m_isShowLevel);
+
+    -- self.M_ExpBar.gameObject:SetActive(self.m_isShowLevel);
+    -- self.M_ExpAdventureBar.gameObject:SetActive(not self.m_isShowLevel);
+end
+
+---------------- [更新/设置] [属性变化] [START]------------
+
+function PlayerInfoWidget:SetHp(value)
+    -- Log("主角血条 当前的=" .. value);
+    if self.M_EntityBase == nil or self.M_EntityBase.Data == nil then
+        return
+    end
+    self.m_HPCur = value;
+    -- if self.m_HPCur > self.m_HPSum then
+    -- self.m_HPSum = self.m_HPCur;
+    -- end
+    self:SetMixHpShield();
+    self.M_HPText.text = tostring(self.m_HPCur) .. "/" .. tostring(self.m_HPSum);
+end
+
+function PlayerInfoWidget:UpdateTruthHp(value)
+    -- Log("主角血条 最大值的=" .. value);
+    if self.M_EntityBase == nil or self.M_EntityBase.Data == nil then
+        return
+    end
+    self.m_HPSum = value;
+    -- if self.m_HPCur > self.m_HPSum then
+    -- self.m_HPSum = self.m_HPCur;
+    -- end
+    self:SetMixHpShield();
+    self.M_HPText.text = tostring(self.m_HPCur) .. "/" .. tostring(self.m_HPSum);
+end
+
+function PlayerInfoWidget:SetMixHpShield()
+    local isHaveShield = self.ShieldValSum > 0;
+    if isHaveShield then
+        local mixHp = self.ShieldValSum + self.m_HPCur;
+        local isExceedMaxHp = mixHp > self.m_HPSum;
+        if isExceedMaxHp then
+            -- 超过实体的最大血量
+            local ratio = 0;
+            if self.m_HPSum > 0 then
+                ratio = self.m_HPCur / mixHp;
+                if ratio > 1 then
+                    ratio = 1;
+                end
+            end
+            self.M_HPBar.fillAmount = ratio;
+
+            local ratio2 = 0;
+            if self.ShieldValSum > 0 then
+                ratio2 = self.ShieldValSum / mixHp;
+                if ratio2 > 1 then
+                    ratio2 = 1;
+                end
+            end
+            self.M_ShieldValBarRight.fillAmount = ratio2;
+            self.M_ShieldValBarLeft.fillAmount = 0;
+        else
+            local ratio = 0;
+            if self.m_HPSum > 0 then
+                ratio = self.m_HPCur / self.m_HPSum;
+                if ratio > 1 then
+                    ratio = 1;
+                end
+            end
+            self.M_HPBar.fillAmount = ratio;
+
+            local ratio2 = 0;
+            if self.m_HPSum > 0 then
+                ratio2 = self.ShieldValSum / self.m_HPSum;
+                if ratio2 > 1 then
+                    ratio2 = 1;
+                end
+            end
+            self.M_ShieldValBarLeft.fillAmount = ratio + ratio2;
+            self.M_ShieldValBarRight.fillAmount = 0;
+        end
+    else
+        local ratio = 0;
+        if self.m_HPSum > 0 then
+            ratio = self.m_HPCur / self.m_HPSum;
+            if ratio > 1 then
+                ratio = 1;
+            end
+        end
+        self.M_HPBar.fillAmount = ratio;
+        self.M_ShieldValBarLeft.fillAmount = 0;
+        self.M_ShieldValBarRight.fillAmount = 0;
+    end
+end
+
+function PlayerInfoWidget:SetMp(value)
+    if self.M_EntityBase == nil or self.M_EntityBase.Data == nil then
+        return
+    end
+    self.m_MPCur = value;
+    -- if self.m_MPCur > self.m_MPSum then
+    -- self.m_MPSum = self.m_MPCur;
+    -- end
+    local ratio = 0;
+    if self.m_MPSum > 0 then
+        ratio = self.m_MPCur / self.m_MPSum;
+        if ratio > 1 then
+            ratio = 1;
+        end
+    end
+    self.M_MPBar.fillAmount = ratio;
+    self.M_MPText.text = tostring(self.m_MPCur) .. "/" .. tostring(self.m_MPSum);
+end
+
+function PlayerInfoWidget:UpdateTruthMp(value)
+    if self.M_EntityBase == nil or self.M_EntityBase.Data == nil then
+        return
+    end
+    self.m_MPSum = value;
+    -- if self.m_MPCur > self.m_MPSum then
+    -- self.m_MPSum = self.m_MPCur;
+    -- end
+    local ratio = 0;
+    if self.m_MPSum > 0 then
+        ratio = self.m_MPCur / self.m_MPSum;
+        if ratio > 1 then
+            ratio = 1;
+        end
+    end
+    self.M_MPBar.fillAmount = ratio;
+    self.M_MPText.text = tostring(self.m_MPCur) .. "/" .. tostring(self.m_MPSum);
+end
+
+---------- 不要了
+function PlayerInfoWidget:UpdatePlayerExp(value)
+    -- if self.M_EntityBase == nil or self.M_EntityBase.Data == nil then
+    -- return
+    -- end
+    -- self.m_EXPCur = value;
+    ----if PlayerInfoWidget.m_EXPCur > PlayerInfoWidget.m_EXPSum then
+    ----PlayerInfoWidget.m_EXPSum = PlayerInfoWidget.m_MPCur;
+    ----end
+    -- self:SetExpUI();
+end
+
+---------- 不要了
+function PlayerInfoWidget:UpdatePlayerExpSum(value)
+    -- if self.M_EntityBase == nil or self.M_EntityBase.Data == nil then
+    -- return
+    -- end
+    -- self.m_EXPSum = value;
+    ----if PlayerInfoWidget.m_EXPCur > PlayerInfoWidget.m_EXPSum then
+    ----PlayerInfoWidget.m_EXPSum = PlayerInfoWidget.m_MPCur;
+    ----end
+    -- self:SetExpUI();
+end
+
+---------- 不要了
+function PlayerInfoWidget:SetExpUI()
+    -- local ratio = 0;
+    -- if self.m_EXPSum > 0 then
+    -- ratio = self.m_EXPCur / self.m_EXPSum;
+    -- if ratio > 1 then
+    -- ratio = 1;
+    -- end
+    -- end
+    -- self.M_ExpBar.fillAmount = ratio;
+    -- self.M_ExpText.text = tostring(self.m_EXPCur).."/"..tostring(self.m_EXPSum);
+end
+
+---------- 不要了
+function PlayerInfoWidget:GetCurLevelExp()
+    -- return ConfigDataAccessor.LevelExp[self.m_LevelCur].Exp;
+end
+
+---------- 不要了
+function PlayerInfoWidget:SetLevel(value)
+    if self.M_EntityBase == nil or self.M_EntityBase.Data == nil then
+        return;
+    end
+    self.m_LevelCur = tonumber(value);
+    self.Level.text = tostring(self.m_LevelCur);
+end
+
+---------- 不要了
+function PlayerInfoWidget:UpgradeLevel()
+    -- UIManager.Instance:OpenWidget(self.LevelUpgradeWidgetPath, false, self.m_LevelCur, nil, CS.StarProjectDef.MainPageCommond.HideNone,true,false);
+    -- local expSum = self:GetCurLevelExp();
+    -- self:UpdatePlayerExpSum(expSum);
+end
+
+---------- 不要了
+function PlayerInfoWidget:SetAdventureLevel(value)
+    -- if self.M_EntityBase == nil or self.M_EntityBase.Data == nil then
+    -- return
+    -- end
+    -- self.M_AdventureLevelNo.text = "冒险:"..tostring(value);
+    -- self.M_AdventureLevelSelected.text = "冒险:"..tostring(value);
+end
+
+---------------- [更新/设置] [属性变化] [END]------------
+
+---------------- [绑定技能回调] [START]------------
+
+-- 蓄力进度条
+function PlayerInfoWidget:UpdateData()
+    if self.m_isShowEnergy and self.m_skillEntity ~= nil then
+        self.curEnergyTime = self.M_EntityBase:GetCurEnergyTime(true);
+        self.energyedCount = self.M_EntityBase:GetCurEnergyCount(true);
+
+        local time = math.ceil(self.curEnergyTime) / 1000;
+        local times = string.format("%.1f", time);
+        self.M_SkillTime.text = times .. "s";
+        self:UpdatErnergy();
+    end
+end
+
+function PlayerInfoWidget:OnActionOnEnergyStart(skillEntity)
+    self:SetEenergy(skillEntity);
+end
+
+function PlayerInfoWidget:SetEenergy(skillEntity)
+    self.m_skillEntity = skillEntity;
+    self.energyTime = self.m_skillEntity.EnergyItemTime;
+    self.energyMaxNum = self.m_skillEntity.EnergyMaxCount;
+    self.energyedCount = self.M_EntityBase:GetCurEnergyCount(true);
+    self.curEnergyTime = self.M_EntityBase:GetCurEnergyTime(true);
+
+    local skillName = "";
+    if self.m_skillEntity.skillContainer.CurSkillInfo ~= nil then
+        skillName = self.m_skillEntity.skillContainer.CurSkillInfo:GetSkillName();
+    end
+
+    self.M_SkillName.text = skillName;
+
+    ClearAllChild(self.M_LimitRoot);
+    if self.energyMaxNum > 1 then
+        for i = 0, self.energyMaxNum - 1, 1 do
+            local _go = newObject(self.M_SkillErnergyLimit)
+            _go.transform:SetParent(self.M_LimitRoot)
+            _go.transform.localPosition = Vector3.zero
+            _go.transform.localScale = Vector3.one
+            if i == 0 then
+                local canvasGroup = _go.transform:GetComponent(typeof(CanvasGroup));
+                canvasGroup.alpha = 0;
+            end
+        end
+    end
+
+    self:SetEnergyValShow(true)
+end
+
+function PlayerInfoWidget:SetEnergyValShow(isShow)
+    if isShow == self.m_isShowEnergy then
+        return;
+    end
+    self.m_isShowEnergy = isShow;
+    if not self.m_isShowEnergy then
+        self.m_skillEntity = nil;
+    end
+    self.M_ProgressSkill.gameObject:SetActive(self.m_isShowEnergy);
+end
+
+function PlayerInfoWidget:UpdatErnergy()
+    local ratio = 0;
+    if (self.energyMaxNum * self.energyTime) > 0 then
+        ratio = self.curEnergyTime / (self.energyMaxNum * self.energyTime);
+        if ratio > 1 then
+            ratio = 1;
+        end
+    end
+    self.M_BarSkill.fillAmount = ratio;
+    --self.M_BarSkill:SetWidth(self.M_BarSkillWidth * ratio);
+end
+
+function PlayerInfoWidget:OnActionOnEnergyEnd(skillEntity)
+    if self.m_skillEntity ~= nil and skillEntity ~= nil and skillEntity.RuntimeID == self.m_skillEntity.RuntimeID then
+        self:SetEnergyValShow(false);
+    end
+end
+
+function PlayerInfoWidget:OnActionOnEndSkillStage(skillEntity, e_SkillExitType)
+    if self.m_skillEntity ~= nil and skillEntity ~= nil and skillEntity.RuntimeID == self.m_skillEntity.RuntimeID then
+        self:SetEnergyValShow(false);
+    end
+end
+
+---------------- [绑定技能回调] [END]------------
+
+---------------- [绑定BUFF回调] [start]------------
+
+function PlayerInfoWidget:InitGetBuffs()
+    local buffsList = self.M_EntityBase:GetSkillBuffs();
+    if buffsList == nil or buffsList.Count <= 0 then
+        return
+    end
+
+    ---- 区分增益减益BUFF
+    -- for i = 0, buffsList.Count - 1 do
+    -- local buff = buffsList[i];
+    -- if buff ~= nil and buff.BuffInfo ~= nil and buff.BuffInfo.Cfg ~= nil then
+    -- local isHaveCfg = buff.BuffInfo:GetHaveBUFFUIShowState(E_BUFFUIShowPosEnum.HUDHpUp);
+    -- if isHaveCfg then
+    -- self:AddBuffList(buff);
+    -- local item = self:CreateBuff(buff.BuffInfo.Cfg.IsDebuff);
+    -- if item ~= nil then
+    -- local count = self:GetBuffListCount(buff.BuffInfo.Cfg.IsDebuff);
+    -- item:SetBuffCout(count, i);
+    -- item:SetCallBack(self.BuffItemDelFun);
+    -- item:SetItem(buff);
+    -- end
+    -- end
+    -- end
+    -- end
+
+    for i = 0, buffsList.Count - 1 do
+        local buff = buffsList[i];
+        if buff ~= nil and buff.BuffInfo ~= nil and buff.BuffInfo.Cfg ~= nil then
+            local isHaveCfg = buff.BuffInfo:GetHaveBUFFUIShowState(E_BUFFUIShowPosEnum.HUDHpUp);
+            if isHaveCfg then
+                local IsContains = self:IsContainsBuff(buff);
+                if IsContains == false then
+                    self:AddBuffItem(buff);
+                else
+                    -- LogWarning("PlayerInfoWidget:InitGetBuffs() RuntimeID已经存在了 RuntimeID=" .. buff.RuntimeID);
+                end
+                -- 查看女枪炮的标识并记录
+                self:CheckBuffTag(buff, false);
+                -- 获取BUFF护盾总数
+                self:CheckBuffShieldVal(buff, true);
+                -- self:AddBuffList(buff);
+                -- local item = self:CreateBuff(buff.BuffInfo.Cfg.IsDebuff);
+                -- if item ~= nil then
+                -- local count = self:GetBuffListCount(buff.BuffInfo.Cfg.IsDebuff);
+                -- item:SetBuffCout(count, i);
+                -- item:SetCallBack(self.BuffItemDelFun);
+                -- item:SetItem(buff);
+                -- end
+            end
+        end
+    end
+end
+
+function PlayerInfoWidget:OnActionOnBuffCreate(skillBuff, buffCreateRet)
+    -- Log("霸服 PlayerInfoWidget:OnActionOnBuffCreate 委托通知创建 runtimeid=",skillBuff.RuntimeID,"层数=",skillBuff.StackCount);
+    local item = skillBuff;
+    if item ~= nil then
+        if item.BuffInfo ~= nil and item.BuffInfo.Cfg ~= nil then
+            -- local isTag = item.BuffInfo.BuffID == 5099016;
+            -- if isTag then
+            --     Log("女枪BUFF 现在判断的是偶现显示了不应该显示的BUFF");
+            -- end
+            local isHaveCfg = item.BuffInfo:GetHaveBUFFUIShowState(E_BUFFUIShowPosEnum.HUDHpUp);
+            if isHaveCfg then
+                local IsContains = self:IsContainsBuff(item);
+                if IsContains == false then
+                    self:AddBuffItem(item);
+                else
+                    -- LogWarning("PlayerInfoWidget:OnActionOnBuffCreate() RuntimeID已经存在了 RuntimeID=" .. skillBuff.RuntimeID);
+                end
+                -- if isTag then
+                --     Log("女枪BUFF 现在判断的是偶现显示了不应该显示的BUFF  妈的怎么进来了");
+                -- end
+            else
+                -- if isTag then
+                --     Log("女枪BUFF 现在判断的是偶现显示了不应该显示的BUFF  不进去就对了");
+                -- end
+            end
+            -- 查看女枪炮的标识并记录
+            self:CheckBuffTag(item, true);
+            -- 获取BUFF护盾总数
+            local isChanage = self:CheckBuffShieldVal(skillBuff, true);
+            if isChanage then
+                self:SetShieldValSum();
+            end
+            -- if not isHaveCfg then
+            -- return;
+            -- end
+            -- self:AddBuffList(skillBuff);
+            -- local item = self:OnBuffCreate(skillBuff.BuffInfo.Cfg.IsDebuff);
+            -- if item ~= nil then
+            -- local count = self:GetBuffListCount(skillBuff.BuffInfo.Cfg.IsDebuff);
+            -- local index = #self.SkillBuffList;
+            -- if skillBuff.BuffInfo.Cfg.IsDebuff then
+            -- index = #self.SkillDeBuffList;
+            -- end
+            -- item:SetBuffCout(count, index);
+            -- item:SetCallBack(self.BuffItemDelFun);
+            ----Log("霸服 PlayerInfoWidget:OnActionOnBuffEnd 委托通知创建 runtimeid=",skillBuff.RuntimeID,"层数=",skillBuff.StackCount);
+            -- item:SetItem(skillBuff);
+            -- else
+            ----添加BUFFUI时，如果没创建出来
+            ---- 那就是超过5个了，需要通知最后一个增加BUFF总数
+            -- if #self.SkillDeBuffList >= 5 or #self.SkillBuffList >= 5 then
+            ---- 更新最后一个
+            -- local lastBuffItem = self:GetLastBuffItem(skillBuff.BuffInfo.Cfg.IsDebuff);
+            -- if lastBuffItem ~= nil then
+            -- local count = self:GetBuffListCount(skillBuff.BuffInfo.Cfg.IsDebuff);
+            -- local index = #self.SkillBuffList;
+            -- if skillBuff.BuffInfo.Cfg.IsDebuff then
+            -- index = #self.SkillDeBuffList;
+            -- end
+            -- lastBuffItem:SetBuffCout(count, index);
+            -- end
+            -- end
+            -- end
+        end
+    end
+end
+
+function PlayerInfoWidget:OnActionOnBuffEnd(skillBuff, buffEndRet)
+    if skillBuff == nil then
+        -- LogWarning("霸服 PlayerInfoWidget:OnActionOnBuffEnd 委托通知关闭 skillBuff=nil err");
+        return;
+    end
+    -- Log("霸服 PlayerInfoWidget:OnActionOnBuffEnd 委托通知关闭 runtimeid=",skillBuff.RuntimeID,"层数=",skillBuff.StackCount);
+    -- local buffItem = self:GetBuff(skillBuff);
+    -- if buffItem ~= nil then
+    -- buffItem:ExecuteCallBack();
+    ------删除BUFFUI时，如果buff总数超过了5个
+    ------ 需要通知最后一个更新BUFF总数
+    ----if #PlayerInfoWidget.SkillDeBuffList >= 5 or #PlayerInfoWidget.SkillBuffList >= 5 then
+    ------ 更新最后一个
+    ----local lastBuffItem = self:GetLastBuffItem(skillBuff.BuffInfo.Cfg.IsDebuff);
+    ----if lastBuffItem ~= nil then
+    ----local count = self:GetBuffListCount(skillBuff.BuffInfo.Cfg.IsDebuff);
+    ----lastBuffItem:SetBuffCout(count);
+    ----end
+    ----end
+    -- else
+    -- self:DelBuffList(skillBuff);
+    -- end
+    local buffItem = self:GetBuffItemBySkillBuff(skillBuff);
+    if buffItem ~= nil then
+        buffItem:ExecuteCallBack();
+    end
+    -- 查看女枪炮的标识并记录
+    self:CheckBuffTag(skillBuff, false);
+    -- 获取BUFF护盾总数
+    local isChanage = self:CheckBuffShieldVal(skillBuff, false);
+    if isChanage then
+        self:SetShieldValSum();
+    end
+end
+
+function PlayerInfoWidget:OnActionOnBuffUpdate(skillBuff)
+    -- 获取BUFF护盾总数
+    local isChanage = self:CheckBuffShieldVal(skillBuff, true);
+    if isChanage then
+        self:SetShieldValSum();
+    end
+    -- Log("霸服 PlayerInfoWidget:OnActionOnBuffUpdate 委托通知更新111111 runtimeid=",skillBuff.RuntimeID,"层数=",skillBuff.StackCount);
+    local buffItem = self:GetBuffItemBySkillBuff(skillBuff);
+    if buffItem ~= nil then
+        -- 过滤
+        if buffItem.BuffID == skillBuff.BuffID and buffItem.LiveTime == skillBuff.LiveTime and buffItem.StackCount ==
+            skillBuff.StackCount then
+            return;
+        end
+
+        -- Log("霸服 PlayerInfoWidget:OnActionOnBuffUpdate 委托通知更新 runtimeid=",skillBuff.RuntimeID,"层数=",skillBuff.StackCount);
+        self:RemoveSkillBuffListByIndex(skillBuff);
+        self:AddSkillBuffList(skillBuff);
+        buffItem:SetBuffData(skillBuff, true);
+        self:RefreshBuffItemIndex();
+
+        self:RefreshBuffList();
+    end
+end
+
+function PlayerInfoWidget:IsContainsBuff(skillBuff)
+    if self.SkillBuffList == nil or self.SkillBuffList == {} or #self.SkillBuffList <= 0 then
+        return false;
+    end
+    for i = 1, #self.SkillBuffList do
+        local item = self.SkillBuffList[i];
+        if item.RuntimeID == skillBuff.RuntimeID then
+            return true;
+        end
+    end
+    return false;
+end
+
+function PlayerInfoWidget:AddBuffItem(skillBuff)
+    self:AddSkillBuffList(skillBuff);
+    local count = #self.SkillBuffList;
+    local index = 1;
+    -- 判断是否有空闲的item
+    local buffItem = self:GetIdleBuffItem();
+    if buffItem == nil then
+        self:CreateBuffItem(skillBuff, index);
+    else
+        self:UpdateBuffItem(skillBuff, buffItem, index);
+    end
+    if count > 5 then
+        self:RefreshBuffItemIndex();
+    end
+end
+
+-- BUFFitem 删除回调
+function PlayerInfoWidget:BuffItemReleaseCb(skillBuffItem)
+    -- list中删除
+    self:RemoveSkillBuffListByIndex(skillBuffItem.BuffEntity);
+    -- 刷新在场的item index
+    self:RefreshBuffItemIndex();
+
+    self:RefreshBuffList();
+end
+
+-- 刷新在场的index
+function PlayerInfoWidget:RefreshBuffItemIndex()
+    for i = 1, #self.BuffItems do
+        local buffItem = self.BuffItems[i];
+        if buffItem ~= nil and buffItem.BuffEntity ~= nil then
+            local index = self:GetBuffIndexBySkillBuff(buffItem.BuffEntity);
+            if index ~= -1 then
+                buffItem:SetIndex(index);
+            else
+                buffItem:SetUse(false);
+            end
+        end
+    end
+end
+
+--------- 【BUFF】SkillBuffList	
+
+function PlayerInfoWidget:GetAllBuffList(isDeBuff)
+    -- local buffList;
+    -- if isDeBuff then
+    -- buffList = TableConcat(self.SkillDeBuffList,self.SkillBuffList);
+    -- else
+    -- buffList = TableConcat(self.SkillBuffList,self.SkillDeBuffList);
+    -- end
+    local buffList = {};
+    buffList = self.SkillBuffList;
+    return buffList;
+end
+
+function PlayerInfoWidget:AddSkillBuffList(skillBuff)
+    table.insert(self.SkillBuffList, 1, skillBuff);
+end
+
+function PlayerInfoWidget:RemoveSkillBuffListByIndex(skillBuff)
+    local index = self:GetBuffIndexBySkillBuff(skillBuff);
+    if index ~= -1 then
+        table.remove(self.SkillBuffList, index);
+    end
+end
+
+function PlayerInfoWidget:ReleaseBuffList()
+    self.SkillBuffList = {};
+end
+
+-- 根据buff实体获取下标
+function PlayerInfoWidget:GetBuffIndexBySkillBuff(skillBuff)
+    for i = 1, #self.SkillBuffList do
+        local child = self.SkillBuffList[i];
+        if child ~= nil and child.RuntimeID == skillBuff.RuntimeID then
+            return i;
+        end
+    end
+    return -1;
+end
+
+--------- 【BUFF】SkillBuffList
+
+--------------- 【BUFF】BuffItemList
+
+function PlayerInfoWidget:CreateBuffItem(skillBuff, index)
+    local _go = newObject(self.m_BuffPrefab);
+    _go.transform:SetParent(self.M_BuffContainer);
+    _go.transform.localPosition = Vector3.zero;
+    _go.transform.localScale = Vector3.one;
+    local buffItem = ItemBuff:New(_go, self.OnItemBuffClickFun);
+    buffItem:SetCallBack(self.BuffItemDelFun);
+    self:UpdateBuffItem(skillBuff, buffItem, index);
+end
+
+function PlayerInfoWidget:UpdateBuffItem(skillBuff, buffItem, index)
+    if skillBuff == nil or buffItem == nil then
+        return;
+    end
+    self:AddBuffItemList(buffItem);
+    buffItem:SetBuffItem(skillBuff);
+    buffItem:SetIndex(index);
+end
+
+function PlayerInfoWidget:OnItemBuffClick(item)
+    if item == nil or item.BuffEntity == nil or item.BuffEntity.BuffInfo == nil or item.BuffEntity.BuffInfo.Cfg == nil then
+        return;
+    end
+    local buffList = self:GetAllBuffList(item.BuffEntity.BuffInfo.Cfg.IsDebuff);
+    if self.m_BuffList == nil then
+        local go = ResourceManager.Instance:LoadGameObject("UI/StarWorld/BuffList");
+        go.transform:SetParent(self.M_BuffListContainer);
+        go.transform.localPosition = Vector3.zero;
+        go.transform.localScale = Vector3.one;
+        go.name = "PlayerInfoWidget_BuffList";
+        self.m_BuffList = BuffListSp:New(go.gameObject);
+        self.m_BuffList:Init(buffList, item.BuffEntity.BuffInfo.Cfg.IsDebuff);
+    else
+        self.m_BuffList:Init(buffList, item.BuffEntity.BuffInfo.Cfg.IsDebuff);
+    end
+end
+
+function PlayerInfoWidget:RefreshBuffList()
+    if self.m_BuffList ~= nil and self.m_BuffList.M_IsOpen then
+        local buffList = self:GetAllBuffList(false);
+        if buffList ~= nil then
+            self.m_BuffList:UpdateData(buffList);
+        end
+    end
+end
+
+function PlayerInfoWidget:AddBuffItemList(buffItem)
+    -- local lastIndex = self:GetBuffItemIndex(buffItem);
+    -- if lastIndex ~= -1 then
+    ---- 先在原来的里面删除了
+    -- table.remove(self.BuffItems, lastIndex);
+    -- end
+
+    table.insert(self.BuffItems, 1, buffItem);
+end
+
+function PlayerInfoWidget:GetIdleBuffItem()
+    for i = 1, #self.BuffItems do
+        local buffItem = self.BuffItems[i];
+        if not buffItem.IsUsed and buffItem.BuffEntity == nil then
+            table.remove(self.BuffItems, i);
+            return buffItem;
+        end
+    end
+    return nil;
+end
+
+function PlayerInfoWidget:GetBuffItemIndex(buffItem)
+    for i = 1, #self.BuffItems do
+        local item = self.BuffItems[i];
+        if item ~= nil and item.IsUsed and item.BuffEntity ~= nil and item.BuffEntity.RuntimeID ==
+            buffItem.BuffEntity.RuntimeID then
+            return i;
+        end
+    end
+    return -1;
+end
+
+function PlayerInfoWidget:GetBuffItemBySkillBuff(skillBuff)
+    for i = 1, #self.BuffItems do
+        local buffItem = self.BuffItems[i];
+        if buffItem.IsUsed and buffItem.BuffEntity ~= nil and buffItem.BuffEntity.RuntimeID == skillBuff.RuntimeID then
+            return buffItem;
+        end
+    end
+    return nil;
+end
+
+function PlayerInfoWidget:ReleaseBuffItem()
+
+end
+
+function PlayerInfoWidget:ResetBuffItem()
+    -- for i = 1, #self.DeBuffItems do
+    -- local item = self.DeBuffItems[i];
+    -- item:SetUse(false);
+    -- end
+
+    -- for i = 1, #self.BuffItems do
+    -- local item = self.BuffItems[i];
+    -- item:SetUse(false);
+    -- end
+
+    for i = 1, #self.BuffItems do
+        local buffItem = self.BuffItems[i];
+        if buffItem ~= nil then
+            buffItem:SetItem(nil);
+        end
+    end
+end
+
+--------------- 【BUFF】BuffItemList
+
+---------------- 【BUFF】标识 --------------------------
+
+function PlayerInfoWidget:CheckBuffTag(skillBuff, isOpend)
+    if skillBuff == nil or skillBuff.BuffInfo == nil or skillBuff.BuffInfo.Cfg == nil then
+        -- LogWarning("霸服 PlayerInfoWidget:CheckBuffTag skillBuff=nil err");
+        return;
+    end
+
+    local list = skillBuff.BuffInfo:GetBUFFUISpTimeList()
+    for i = 0, list.Count - 1, 1 do
+        local type = list[i];
+        local key = skillBuff.RuntimeID .. "_" .. type;
+        local keyValue = self:GetBuffSpTimeShowDicVal(key);
+        if keyValue == -1 and isOpend == false then
+            -- 如果要关闭了，但是没记录，那就过滤
+        else
+            -- 添加标识的字典记录
+            self:SetBuffSpTimeShowDic(key, isOpend)
+            -- 开启/关闭 对应的动画
+            if type == E_SpTimeShowTypeEnum.OverheadClock then
+                -- 头顶时钟显示
+                self:SetOverheadClock(skillBuff, isOpend)
+            elseif type == E_SpTimeShowTypeEnum.ProgressBelowHead then
+                -- 头顶血条下方读条
+            elseif type == E_SpTimeShowTypeEnum.MuYTreat then
+                -- 牧夜治疗
+                self:SetMuYTreat(skillBuff, isOpend)
+            elseif type == E_SpTimeShowTypeEnum.MuYAttack then
+                -- 牧夜强攻
+                self:SetMuYAttack(skillBuff, isOpend)
+            end
+        end
+    end
+
+    -- for k1, v1 in pairs(skillBuff.BuffInfo.Cfg.GlobalShows) do
+    -- 	if tonumber(v1.GlobalShowType) == tonumber(E_GlobalShowTypeEnum.BUFF_SpTimeShow) then
+    -- 		if v1.BUFF_SpTimeShow ~= nil and v1.BUFF_SpTimeShow.SpTimeShowType ~= nil then
+    -- 			for k2, v2 in pairs(v1.BUFF_SpTimeShow.SpTimeShowType) do
+    -- 				local key = skillBuff.RuntimeID .. "_" .. k2;
+    -- 				local keyValue = self:GetBuffSpTimeShowDicVal(key);
+    -- 				-- 如果要关闭了，但是没记录，那就过滤
+    -- 				if keyValue ~= -1 and isOpend ~= false then
+    -- 					-- 添加标识的字典记录
+    -- 					self:SetBuffSpTimeShowDic(key, isOpend)
+    -- 					-- 开启/关闭 对应的动画
+    -- 					if v2 == E_SpTimeShowTypeEnum.OverheadClock then
+    -- 						-- 头顶时钟显示
+    -- 						self:SetOverheadClock(skillBuff, isOpend)
+    -- 					elseif v2 == E_SpTimeShowTypeEnum.ProgressBelowHead then
+    -- 						-- 头顶血条下方读条
+    -- 					end
+    -- 				end
+    -- 			end
+    -- 		end
+    -- 	end
+    -- end
+end
+
+-- buffui 添加标识的字典记录
+function PlayerInfoWidget:SetBuffSpTimeShowDic(key, isOpen)
+    local add = -1;
+    if isOpen then
+        add = 1;
+    end
+    for k, v in pairs(self.buffSpTimeShowDic) do
+        if k == key then
+            v = v + add;
+            return;
+        end
+    end
+    self.buffSpTimeShowDic[key] = add;
+end
+
+-- 获取buffui特殊时间显示值
+function PlayerInfoWidget:GetBuffSpTimeShowDicVal(key)
+    for k, v in pairs(self.buffSpTimeShowDic) do
+        if k == key then
+            return v;
+        end
+    end
+    return -1;
+end
+
+function PlayerInfoWidget:SetOverheadClock(skillBuff, isOpen)
+    if isOpen then
+        if skillBuff ~= nil then
+            if self.JobSpectralWidget ~= nil then
+                self.JobSpectralWidget:SetCountdown(skillBuff.MaxTime / 1000, skillBuff:GetEndime() / 1000);
+                self.JobSpectralWidget:SetOpenCountdown(true);
+            end
+        end
+    else
+        local curTime = 0; -- 当前次数
+        if skillBuff ~= nil then
+            local key = "" .. skillBuff.RuntimeID .. "_" .. E_SpTimeShowTypeEnum.OverheadClock;
+            curTime = self:GetBuffSpTimeShowDicVal(key);
+        end
+        if curTime <= 0 then
+            if self.JobSpectralWidget ~= nil then
+                self.JobSpectralWidget:SetOpenCountdown(false);
+            end
+        end
+    end
+end
+
+function PlayerInfoWidget:SetMuYTreat(skillBuff, isOpen)
+    if isOpen then
+        if skillBuff ~= nil then
+            if self.JobSpectralWidget ~= nil then
+                self.JobSpectralWidget:SetTreatCountdown(skillBuff.MaxTime / 1000, skillBuff:GetEndime() / 1000);
+                self.JobSpectralWidget:SetTreatOpenCountdown(true);
+            end
+        end
+    else
+        local curTime = 0; -- 当前次数
+        if skillBuff ~= nil then
+            local key = "" .. skillBuff.RuntimeID .. "_" .. E_SpTimeShowTypeEnum.MuYTreat;
+            curTime = self:GetBuffSpTimeShowDicVal(key);
+        end
+        if curTime <= 0 then
+            if self.JobSpectralWidget ~= nil then
+                self.JobSpectralWidget:SetTreatOpenCountdown(false);
+            end
+        end
+    end
+end
+
+function PlayerInfoWidget:SetMuYAttack(skillBuff, isOpen)
+    if isOpen then
+        if skillBuff ~= nil then
+            if self.JobSpectralWidget ~= nil then
+                self.JobSpectralWidget:SetAttackCountdown(skillBuff.MaxTime / 1000, skillBuff:GetEndime() / 1000);
+                self.JobSpectralWidget:SetAttackOpenCountdown(true);
+            end
+        end
+    else
+        local curTime = 0; -- 当前次数
+        if skillBuff ~= nil then
+            local key = "" .. skillBuff.RuntimeID .. "_" .. E_SpTimeShowTypeEnum.MuYAttack;
+            curTime = self:GetBuffSpTimeShowDicVal(key);
+        end
+        if curTime <= 0 then
+            if self.JobSpectralWidget ~= nil then
+                self.JobSpectralWidget:SetAttackOpenCountdown(false);
+            end
+        end
+    end
+end
+
+function PlayerInfoWidget:ReleaseBuffSpTimeShowDic()
+    self.buffSpTimeShowDic = {};
+    self:SetOverheadClock(nil, false);
+    self:SetMuYTreat(nil, false);
+    self:SetMuYAttack(nil, false);
+end
+
+---------------- 【BUFF】标识 --------------------------
+
+---------------- 【BUFF】护盾 --------------------------
+
+PlayerInfoWidget.buffShieldDic = {}
+PlayerInfoWidget.ShieldValSum = 0
+
+function PlayerInfoWidget:CheckBuffShieldVal(skillBuff, isOpen)
+    local isChanage = false;
+    if skillBuff == nil or skillBuff.BuffInfo == nil or skillBuff.BuffInfo.Cfg == nil then
+        -- LogWarning("霸服 PlayerInfoWidget:CheckBuffShieldVal skillBuff=nil err");
+        return isChanage;
+    end
+    local shieldVal = 0;
+    if isOpen then
+        shieldVal = skillBuff.ShieldVal
+    end
+
+    local lastShield = 0;
+    local isHave = false;
+    for key, value in pairs(self.buffShieldDic) do
+        if key == skillBuff.RuntimeID then
+            lastShield = value;
+            isHave = true;
+            break
+        end
+    end
+    if isHave then
+        if shieldVal > 0 then
+            if shieldVal ~= lastShield then
+                self.buffShieldDic[skillBuff.RuntimeID] = shieldVal;
+                isChanage = true;
+            end
+        else
+            -- table.remove(self.buffShieldDic, skillBuff.RuntimeID);
+            self.buffShieldDic[skillBuff.RuntimeID] = 0;
+            isChanage = true;
+        end
+    elseif shieldVal > 0 then
+        self.buffShieldDic[skillBuff.RuntimeID] = shieldVal;
+        isChanage = true;
+    end
+
+    return isChanage;
+end
+
+function PlayerInfoWidget:SetShieldValSum()
+    local sum = 0;
+    for key, value in pairs(self.buffShieldDic) do
+        sum = sum + value;
+    end
+    self.ShieldValSum = sum;
+    -- 通知血条比例修改
+    self:SetMixHpShield();
+end
+
+---------------- 【BUFF】护盾 --------------------------
+
+function PlayerInfoWidget:CreateBuff(isDeBuff)
+    -- local _go;
+    -- if isDeBuff then
+    -- if #self.DeBuffItems < 5 then
+    -- _go = newObject(self.m_DeBuffPrefab);
+    -- _go.transform:SetParent(self.M_DeBuffContainer);
+    -- end
+    -- else
+    -- if #self.BuffItems < 5 then
+    -- _go = newObject(self.m_BuffPrefab);
+    -- _go.transform:SetParent(self.M_BuffContainer);
+    -- end
+    -- end
+    -- if _go ~= nil then
+    -- _go.transform.localPosition = Vector3.zero;
+    -- _go.transform.localScale = Vector3.one;
+    -- local item = ItemBuff:New(_go, self.OnItemBuffClickFun);
+    -- if isDeBuff then
+    -- table.insert(self.DeBuffItems, item);
+    -- else
+    -- table.insert(self.BuffItems, item);
+    -- end
+    -- return item;
+    -- end
+    -- return nil;
+end
+
+function PlayerInfoWidget:ItemBuffDelCallBack(skillItem)
+    -- if skillItem ~= nil then
+    -- local isDeBuff = false;
+    -- if skillItem.BuffEntity ~= nil and skillItem.BuffEntity.BuffInfo ~= nil and skillItem.BuffEntity.BuffInfo.Cfg ~= nil then
+    -- self:DelBuffList(skillItem.BuffEntity);
+    -- isDeBuff = skillItem.BuffEntity.BuffInfo.Cfg.IsDebuff;
+    ------删除BUFFUI时，如果buff总数超过了5个
+    ------ 需要通知最后一个更新BUFF总数
+    ----if #PlayerInfoWidget.SkillDeBuffList >= 5 or #PlayerInfoWidget.SkillBuffList >= 5 then
+    ------ 更新最后一个
+    ----local lastBuffItem = self:GetLastBuffItem(skillBuff.BuffInfo.Cfg.IsDebuff);
+    ----if lastBuffItem ~= nil then
+    ----local count = self:GetBuffListCount(skillBuff.BuffInfo.Cfg.IsDebuff);
+    ----lastBuffItem:SetBuffCout(count);
+    ----end
+    ----end
+    -- else
+    -- self:DelBuffItemInList(skillItem.IsDeBuff,skillItem.RunTimeId);
+    -- isDeBuff = skillItem.IsDeBuff;
+    -- end
+    ---- 重新刷新其他Item的信息
+    -- local count = self:GetBuffListCount(isDeBuff);
+    -- if isDeBuff then
+    -- for i = 1, #self.DeBuffItems  do
+    -- local buffItem = self.DeBuffItems[i];
+    -- if #self.SkillDeBuffList >= i then
+    -- local item = self.SkillDeBuffList[i];
+    -- buffItem:SetBuffCout(count, i);
+    -- buffItem:SetItem(item);
+    -- else
+    -- buffItem:SetUse(false);
+    -- end
+    -- end
+    -- else
+    -- for i = 1, #self.BuffItems  do
+    -- local buffItem = self.BuffItems[i];
+    -- if #self.SkillBuffList >= i then
+    -- local item = self.SkillBuffList[i];
+    -- buffItem:SetBuffCout(count, i);
+    -- buffItem:SetItem(item);
+    -- else
+    -- buffItem:SetUse(false);
+    -- end
+    -- end
+    -- end
+    -- end
+end
+
+function PlayerInfoWidget:GetBuff(skillBuff)
+    -- if skillBuff ~= nil then
+    -- if skillBuff.BuffInfo.Cfg == nil then
+    -- LogWarning("霸服 PlayerInfoWidget:GetBuff skillBuff.BuffInfo.Cfg=nil err");
+    -- return nil;
+    -- end
+    -- if skillBuff.BuffInfo.Cfg.IsDebuff then
+    -- return self:GetDeBuffItem(skillBuff);
+    -- else
+    -- return self:GetBuffItem(skillBuff);
+    -- end
+    -- end
+
+    -- return nil;
+end
+
+function PlayerInfoWidget:GetBuffItem(skillBuff)
+    -- for i = 1, #self.BuffItems do
+    -- local buffItem = self.BuffItems[i];
+    -- if buffItem.IsUsed and buffItem.BuffEntity ~= nil then
+    -- if buffItem.BuffEntity.RuntimeID == skillBuff.RuntimeID then
+    -- return buffItem;
+    -- end
+    -- elseif buffItem.RunTimeId == skillBuff.RuntimeID then
+    -- return buffItem;
+    -- end
+    -- end
+
+    -- return nil;
+end
+
+function PlayerInfoWidget:GetDeBuffItem(skillBuff)
+    -- for i = 1, #self.DeBuffItems do
+    -- local buffItem = self.DeBuffItems[i];
+    -- if buffItem.IsUsed and buffItem.BuffEntity ~= nil then
+    -- if buffItem.BuffEntity.RuntimeID == skillBuff.RuntimeID then
+    -- return buffItem;
+    -- end
+    -- elseif buffItem.RunTimeId == skillBuff.RuntimeID then
+    -- return buffItem;
+    -- end
+    -- end
+
+    -- return nil;
+end
+
+--- 获取空闲的DebuffItem
+function PlayerInfoWidget:GetIdleDeBuffItem()
+    -- for i = 1, #self.DeBuffItems do
+    -- local buffItem = self.DeBuffItems[i];
+    -- if not buffItem.IsUsed and buffItem.BuffEntity == nil then
+    -- return buffItem;
+    -- end
+    -- end
+    -- return nil;
+end
+
+function PlayerInfoWidget:GetLastBuffItem(isDeBuff)
+    -- local item = nil;
+    -- local max = -1;
+    -- if isDeBuff then
+    -- for i = #self.DeBuffItems, 1, -1 do
+    -- local buffItem = self.DeBuffItems[i];
+    -- if buffItem.IsUsed and buffItem.BuffEntity ~= nil then
+    -- local index = buffItem.Index;
+    -- if index > max then
+    -- max = index;
+    -- item = buffItem;
+    -- end
+    -- end
+    -- end
+    -- else
+    -- for i = #self.BuffItems, 1, -1 do
+    -- local buffItem = self.BuffItems[i];
+    -- if buffItem.IsUsed and buffItem.BuffEntity ~= nil then
+    -- local index = buffItem.Index;
+    -- if index > max then
+    -- max = index;
+    -- item = buffItem;
+    -- end
+    -- end
+    -- end
+    -- end
+    -- return item;
+end
+
+function PlayerInfoWidget:GetBuffListCount(isDeBuff)
+    -- if isDeBuff then
+    -- return #self.SkillDeBuffList;
+    -- else
+    -- return #self.SkillBuffList;
+    -- end
+end
+
+function PlayerInfoWidget:AddBuffList(skillBuff)
+    -- if skillBuff.BuffInfo.Cfg.IsDebuff then
+    -- table.insert(self.SkillDeBuffList, skillBuff);
+    -- else
+    -- table.insert(self.SkillBuffList, skillBuff);
+    -- end
+    -- if self.m_BuffList ~= nil and self.m_BuffList.M_IsOpen then
+    -- local buffList = self:GetAllBuffList(skillBuff.BuffInfo.Cfg.IsDebuff);
+    -- if buffList ~= nil then
+    -- self.m_BuffList:UpdateData(buffList);
+    -- end
+    -- end
+end
+
+-- 【防错方法】根据buff类型和运行时ID在buffList里面删除
+function PlayerInfoWidget:DelBuffItemInList(isDebuff, runtimeID)
+    -- local index = self:GetBuffIndexById(isDebuff,runtimeID);
+    -- if index == -1 then
+    -- return;
+    -- end
+    -- if isDebuff then
+    -- table.remove(self.SkillDeBuffList, index);
+    -- else
+    -- table.remove(self.SkillBuffList, index);
+    -- end
+
+    -- if self.m_BuffList ~= nil and self.m_BuffList.M_IsOpen then
+    -- local buffList = self:GetAllBuffList(isDebuff);
+    -- if buffList ~= nil then
+    -- self.m_BuffList:UpdateData(buffList);
+    -- end
+    -- end
+end
+
+-- 【防错方法】根据buff类型和运行时ID在buffList里面找到相同运行时ID的下标
+function PlayerInfoWidget:GetBuffIndexById(isDebuff, runtimeID)
+    -- if isDebuff then
+    -- for i = 1, #self.SkillDeBuffList do
+    -- local item = self.SkillDeBuffList[i];
+    -- if item.RuntimeID == runtimeID then
+    -- return i;
+    -- end
+    -- end
+    -- else
+    -- for i = 1, #self.SkillBuffList do
+    -- local item = self.SkillBuffList[i];
+    -- if item.RuntimeID == runtimeID then
+    -- return i;
+    -- end
+    -- end
+    -- end
+    -- return -1;
+end
+
+function PlayerInfoWidget:DelBuffList(skillBuff)
+    -- local index = self:GetBuffIndex(skillBuff);
+    -- if index == -1 then
+    -- return;
+    -- end
+    -- if skillBuff.BuffInfo.Cfg.IsDebuff then
+    -- table.remove(self.SkillDeBuffList, index);
+    -- else
+    -- table.remove(self.SkillBuffList, index);
+    -- end
+
+    -- if self.m_BuffList ~= nil and self.m_BuffList.M_IsOpen then
+    -- local buffList = self:GetAllBuffList(skillBuff.BuffInfo.Cfg.IsDebuff);
+    -- if buffList ~= nil then
+    -- self.m_BuffList:UpdateData(buffList);
+    -- end
+    -- end
+end
+
+function PlayerInfoWidget:GetBuffIndex(skillBuff)
+    -- if skillBuff.BuffInfo.Cfg.IsDebuff then
+    -- for i = 1, #self.SkillDeBuffList do
+    -- local item = self.SkillDeBuffList[i];
+    -- if item.RuntimeID == skillBuff.RuntimeID then
+    -- return i;
+    -- end
+    -- end
+    -- else
+    -- for i = 1, #self.SkillBuffList do
+    -- local item = self.SkillBuffList[i];
+    -- if item.RuntimeID == skillBuff.RuntimeID then
+    -- return i;
+    -- end
+    -- end
+    -- end
+    -- return -1;
+end
+
+function PlayerInfoWidget:OnBuffCreate(isDeBuff)
+    -- local item = nil;
+    -- if isDeBuff then
+    -- item = self:GetIdleDeBuffItem();
+    -- else
+    -- item = self:GetIdleBuffItem();
+    -- end
+    -- if item == nil then
+    -- item = self:CreateBuff(isDeBuff);
+    -- end
+    -- return item;
+end
+
+function PlayerInfoWidget:OnPlayerInfoWidgetShow(isShow)
+    local alpha = 0;
+    if isShow == true then
+        alpha = 1;
+    end
+    self.M_PlayerPanelCanvasGroup.alpha = alpha;
+    self.M_PlayerPanelCanvasGroup.blocksRaycasts = isShow;
+end
+
+---------------- [绑定BUFF回调] [END]------------
+
+function PlayerInfoWidget:ReleaseInfo()
+    if self.M_EntityBase ~= nil and self.M_EntityBase.Data ~= nil then
+        -- 解绑属性同步回调
+        self:DelAttribute();
+
+        -- 解绑技能回调
+        self.M_EntityBase:DelEnergyStartLuaAction(self.AddEnergyStartLuaAction);
+
+        self.M_EntityBase:DelEnergyEndLuaAction(self.AddEnergyEndLuaAction);
+
+        self.M_EntityBase:DelEndSkillStageLuaAction(self.AddEndSkillStageLuaAction);
+
+        -- 解绑BUFF回调------  START
+        self.M_EntityBase:DelBuffCreateLuaAction(self.AddBuffCreateLuaAction);
+
+        self.M_EntityBase:DelBuffEndLuaAction(self.AddBuffEndLuaAction);
+
+        self.M_EntityBase:DelBuffUpdateLuaAction(self.AddBuffUpdateLuaAction);
+    end
+
+    if self.JobSpectralWidget ~= nil then
+        UIManager.Instance:CloseWidget(self.JobSpectralWidgetPath, self.M_JobSpectralRoot, false);
+    end
+    self.JobSpectralWidget = nil;
+
+    self:ResetBuffItem();
+    self:ReleaseBuffSpTimeShowDic();
+    self.m_skillEntity = nil;
+    self.SkillBuffList = {};
+    self.SkillDeBuffList = {};
+
+    if self.m_BuffList ~= nil and self.m_BuffList.M_IsOpen then
+        local buffList = {};
+        self.m_BuffList:UpdateData(buffList);
+    end
+
+    MonoHelper.RemoveUpdateListener(self.UpdateFun);
+	
+	-- 冒险者档案回调
+	--NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.PropPanelRetID, self.PropPanelRetCmd, nil)
+end
+
+return PlayerInfoWidget

@@ -1,0 +1,315 @@
+--[[
+*文件名   :   MoonCardWidget
+*内  容   :   现金购买
+*说  明   :
+*创建日期 :   "2022/12/06 10:33:06"
+*创建人   :   "quzhenxin"
+*版权所有 :   游卡网络科技技术有限公司
+]] MoonCardWidget = class("MoonCardWidget", UIPanel)
+
+local ObjectPool = require("Common/Helper/ObjectPool")
+
+function MoonCardWidget:Awake()
+    self.transform = self.prefab.transform;
+    self.gameObject = self.transform.gameObject;
+
+    self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/BtnClose"):GetComponent(typeof(JButton)).OnClick = (function()
+        self:OnPlayBack();
+    end);
+
+    self.go_BtnGet = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/BtnGet").gameObject;
+    self.go_BtnGet:GetComponent(typeof(JButton)).OnClick = (function()
+        local smallMonthCardSignReq = CS.ProtoMsg.SmallMonthCardSignReq();
+        CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+            smallMonthCardSignReq, false);
+    end);
+    self.go_BtnGet:SetActive(false);
+
+    self.go_BtnBuy = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/BtnBuy").gameObject;
+    self.go_BtnBuy:GetComponent(typeof(JButton)).OnClick = (function()
+        local getRechargeOrderReq = CS.ProtoMsg.GetRechargeOrderReq();
+        getRechargeOrderReq.ProductID = self.GoodsId;
+        getRechargeOrderReq.OS = 1;
+        getRechargeOrderReq.ChannelId = 1;
+        getRechargeOrderReq.Extension = "";
+        CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+            getRechargeOrderReq, false);
+    end);
+    self.go_BtnBuy:SetActive(false);
+
+    self.go_first = self.transform:Find("Cut4Cam90/AssemblyRatio2/Menu/tag1").gameObject;
+    -- 左边菜单
+    self.transform:Find("Cut4Cam90/AssemblyRatio2/Menu/tag1"):GetComponent(typeof(JButton)).OnClick = (function()
+        self:OnPlayBack();
+        -- 打开首充
+        LuaModuleDispatcher:SendMessage(ModuleDef.CommercializationModule, "OnOpenCommercialization", {1})
+        -- UIManager.Instance:OpenWidget("Shop/FirstPayWidget", false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone,false,false);
+    end);
+
+    self.transform:Find("Cut4Cam90/AssemblyRatio2/Menu/tag3"):GetComponent(typeof(JButton)).OnClick = (function()
+        self:OnPlayBack();
+        -- 打开通行证
+        LuaModuleDispatcher:SendMessage(ModuleDef.CommercializationModule, "OnOpenCommercialization", {3})
+        -- UIManager.Instance:OpenWidget("Shop/BattlePassWidget", false, nil, nil, CS.StarProjectDef.MainPageCommond.HideNone,false,false);
+    end);
+
+    -- 剩余天数
+    self.LeftDay = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/LeftDay"):GetComponent(typeof(Text));
+
+    self.Price = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/Price"):GetComponent(typeof(Text));
+
+    self.BuyInfo = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/BuyInfo"):GetComponent(typeof(Text));
+
+    self.Num1 = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/Rewards/num1"):GetComponent(typeof(Text));
+    self.Num2 = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/Rewards/num2"):GetComponent(typeof(Text));
+
+    self.Icon1 = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/Rewards/icon1"):GetComponent(typeof(Image));
+    self.Icon2 = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ka/Rewards/icon2"):GetComponent(typeof(Image));
+
+    self.Icon1:GetComponent(typeof(JButton)).OnClick = (function()
+        LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",
+            {self.Id1, false, 0, self.Icon1.transform, 0});
+    end);
+    self.Icon2:GetComponent(typeof(JButton)).OnClick = (function()
+        LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",
+            {self.Id2, false, 0, self.Icon1.transform, 0});
+    end);
+
+end
+
+function MoonCardWidget:Refesh()
+    if GameManager.Instance.FirstPaySignInfo ~= nil then
+
+        local isGetAllFirstChargeItem = (GameManager.Instance.FirstPaySignInfo.GetFirstPayAwardNum >= 3);
+
+        self.go_first:SetActive(not (isGetAllFirstChargeItem));
+    end
+
+    local MoonSignInCfg = nil;
+    local SignInCfgs = ConfigDataAccessor.SignIn;
+    for k, v in pairs(SignInCfgs) do
+        if v.Group == 2 and v.SignInType == 3 then
+            MoonSignInCfg = v;
+        end
+    end
+
+    local MoonExternalPayCfg = nil;
+    local ExternalPayCfgs = ConfigDataAccessor.ExternalPay;
+    for k, v in pairs(ExternalPayCfgs) do
+        if v.PayType == 2 then
+            MoonExternalPayCfg = v;
+        end
+    end
+
+    self.SmallMonthCardInfo = GameManager.Instance.SmallMonthCardInfo;
+
+    if self.SmallMonthCardInfo == nil then
+        return;
+    end
+
+    if MoonSignInCfg == nil then
+        return;
+    end
+
+    if MoonExternalPayCfg == nil then
+        return;
+    end
+
+    self.GoodsId = MoonExternalPayCfg.ID;
+
+    local lastGetTime = self.SmallMonthCardInfo.LastSignTime;
+
+    local serverNowTime = math.floor(GameManager.Instance:GetServerTimeStamp() / 1000)
+    local latestBuyTime = self.SmallMonthCardInfo.LatestBuyTime;
+    local willFinishTime = self.SmallMonthCardInfo.WillFinishTime;
+
+    local leftDay = 0;
+    local leftSecond = willFinishTime - serverNowTime;
+    if leftSecond > 0 then
+        leftDay = math.ceil(leftSecond / 60 / 60 / 24);
+    end
+
+    local price = MoonExternalPayCfg.Price;
+
+    local itemId1 = MoonExternalPayCfg.ItemID[1];
+    local itemId2 = MoonSignInCfg.Item[1];
+
+    self.Id1 = itemId1;
+    self.Id2 = itemId2;
+
+    local itemCount1 = MoonExternalPayCfg.ItemNum[1];
+    local itemCount2 = MoonSignInCfg.Num[1];
+
+    local allDay = 30;
+
+    local perCount = itemCount1;
+    local allCount = itemCount2 * allDay;
+
+    local cfg1 = ConfigDataAccessor.Item[itemId1];
+    local cfg2 = ConfigDataAccessor.Item[itemId2];
+
+    local name1 = cfg1.Name;
+    local name2 = cfg2.Name;
+
+    self.Num1.text = itemCount1;
+    self.Num2.text = itemCount2;
+
+    ResourceHelper:LoadIconAsync(self.Icon1, "", cfg1.Icon, false)
+    ResourceHelper:LoadIconAsync(self.Icon2, "", cfg2.Icon, false)
+
+    if leftDay > 0 then
+        -- 已经买了
+        -- 判断是不是同一天
+        local day1 = GetDay(serverNowTime - 5 * 3600);
+        local day2 = 0;
+        if lastGetTime ~= 0 then
+            day2 = GetDay(lastGetTime - 5 * 3600); -- 凌晨五点刷新（扣除5小时）
+        end
+
+        -- 不是同一天
+        if day1 ~= day2 then
+            self.go_BtnGet:SetActive(true);
+            self.go_BtnBuy:SetActive(false);
+            self.Price.text = "";
+            self.BuyInfo.text = "";
+        else
+            self.go_BtnGet:SetActive(false);
+            self.go_BtnBuy:SetActive(true);
+            self.Price.text = "¥" .. price;
+            -- self.BuyInfo.text="总获得"..perCount..name1.."和"..allCount..name2.."！";
+            self.BuyInfo.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_BuyInfo"),
+                {perCount, name1, allCount, name2});
+        end
+
+        -- self.LeftDay.text="剩余<color=#E0613A>"..leftDay.."</color>天";
+        self.LeftDay.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Time3"),
+            {"<color=#E0613A>" .. leftDay .. "</color>"});
+
+    else
+        -- 还没有买
+
+        self.go_BtnGet:SetActive(false);
+        self.go_BtnBuy:SetActive(true);
+
+        self.LeftDay.text = "";
+        self.Price.text = "¥" .. price;
+
+        -- self.BuyInfo.text="总获得"..perCount..name1.."和"..allCount..name2.."！";
+        self.BuyInfo.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_BuyInfo"),
+            {perCount, name1, allCount, name2});
+    end
+
+end
+
+function MoonCardWidget:Start()
+
+end
+
+function MoonCardWidget:OnEnable()
+
+end
+
+function MoonCardWidget:OnDisable()
+
+end
+
+function MoonCardWidget:OnDestroy()
+
+end
+
+function MoonCardWidget:RefeshData()
+
+end
+
+function MoonCardWidget:OnOpen(arg)
+
+    --[[
+	if type(arg)=="table" then
+		--Lua调用
+		self.GNGPersonRewardNtf =arg[1];
+		self.GNGGuildRewardNtf =arg[2];
+	else
+		--C#调用
+		self.GNGPersonRewardNtf =arg[0];
+		self.GNGGuildRewardNtf =arg[1];
+	end
+	]]
+
+    -- 监听充值订单回调
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.GetRechargeOrderRetID, function(data)
+        self:OnGetRechargeOrderRet(data)
+    end, nil);
+
+    -- 充值成功并发货通知
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.PaySuccessNtfID, function(data)
+        self:OnPaySuccessNtf(data)
+    end, nil);
+
+    -- 监听请求签到
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.SmallMonthCardInfoNtfID, function(data)
+        self:OnSmallMonthCardInfoNtf(data)
+    end, nil);
+
+    self:Refesh();
+
+end
+
+function MoonCardWidget:OnGetRechargeOrderRet(data)
+
+    local ret = data.data
+
+    print("请求充值订单回调")
+
+    local OrderId = ret.OrderId;
+
+end
+
+function MoonCardWidget:OnPaySuccessNtf(data)
+
+    local ret = data.data
+
+    Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_31"));
+
+    print("充值成功回调")
+
+    local ProductID = ret.ProductID;
+
+    self:Refesh();
+
+end
+
+function MoonCardWidget:OnSmallMonthCardInfoNtf(data)
+
+    local ret = data.data
+
+    DOVirtual.DelayedCall(0.02, function()
+        self:Refesh();
+    end)
+
+end
+
+function MoonCardWidget:OnClose(arg)
+
+end
+
+function MoonCardWidget:OnPlayBack()
+
+    self.gameObject:SetActive(false);
+    UIManager.Instance:CloseWidget("Shop/MoonCardWidget", nil, false);
+
+    -- 请求充值订单
+    CS.SGF.Network.NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.GetRechargeOrderRetID, function(data)
+        self:OnGetRechargeOrderRet(data)
+    end, nil);
+
+    -- 充值成功并发货通知
+    CS.SGF.Network.NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.PaySuccessNtfID, function(data)
+        self:OnPaySuccessNtf(data)
+    end, nil);
+
+    CS.SGF.Network.NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.SmallMonthCardInfoNtfID, function(data)
+        self:OnSmallMonthCardInfoNtf(data)
+    end, nil);
+end
+
+return MoonCardWidget

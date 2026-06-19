@@ -1,0 +1,132 @@
+---@class EquipSelWindow
+EquipSelWindow = class("EquipSelWindow", UIPanel)
+
+local EquipSelItem = require("View/UIWindow/PartnerWindow/New/EquipSelItem")
+
+function EquipSelWindow:Awake()
+	self.onCloseDestroy(false)
+end
+
+function EquipSelWindow:BindModule(m)
+	EquipSelWindow.module = m;
+end
+
+function EquipSelWindow:InitControls()
+	self.transform = self.prefab.transform;
+	self.gameObject = self.transform.gameObject;
+
+    self.equipItem = self.transform:Find("Root/SV/Viewport/Content/Item");
+
+    self.okBtn = self.transform:Find("Root/OkBtn"):GetComponent(typeof(Button));
+    self.okBtn.onClick:AddListener(function()
+		if self.curSelID ~= nil then
+			LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "ChangeCurSel",{ self.curSelEquip, self.curSide });
+		end
+		self.Close();
+    end);
+
+    self.closeBtn = self.transform:Find("Root/BtnClose"):GetComponent(typeof(Button));
+    self.closeBtn.onClick:AddListener(function()
+        --关闭窗口
+		self.Close();
+    end);
+	
+	self.allItems = {}
+end
+
+function EquipSelWindow:Init(tp,arg1,arg2,arg3,arg4, arg5)
+	for _,v in pairs(self.allItems) do
+		GameObject.DestroyImmediate(v.gameObject);
+	end
+	self.allItems = {};
+	
+	local equips = self:GetEquips(arg1);
+	
+	--[[local tb = {};
+	for _,v in pairs(arg4) do
+		if arg2 ~= v and arg3 ~= v then
+			table.insert(tb, v);
+		end
+	end]]--
+	self.curSelIndex = nil;
+	for k,v in pairs(equips) do
+		if self.curSelIndex == nil then
+			self.curSelIndex = k;
+		end
+		local go = newObject(self.equipItem.gameObject);
+		go.transform.parent = self.equipItem.transform.parent;
+		go.transform.localScale = Vector3(1,1,1);
+		go:SetActive(true);
+		local item = EquipSelItem:ctor(go,function()
+			self.curSelEquip = v
+			self.curSide = arg5
+			self.curSelIndex = k;
+			self:SetCurSel();
+		end);
+		item:Init(v, k);
+		table.insert(self.allItems, item);
+	end
+
+	self:SetCurSel();
+end
+
+function EquipSelWindow:SetCurSel()
+	for k,v in pairs(self.allItems) do
+		v:SetEquipSel(k == self.curSelIndex);
+	end
+end
+
+function EquipSelWindow:GetEquips(id)
+	local ItemDataList = {};
+	
+	local items = BusinessManager.Instance:GetItemsByItemType(4, 0)
+	for i = 0, items.Count - 1 do
+		if items[i].BaseID == id then
+			-- local num = items[i].Num;
+			-- for j=0, num-1 do
+				table.insert(ItemDataList, items[i])
+			-- end
+		end
+	end
+
+	return ItemDataList;
+end
+
+function EquipSelWindow:OnShow()
+end
+
+function EquipSelWindow:Start()
+end
+
+function EquipSelWindow:OnEnable()
+
+end
+
+function EquipSelWindow:OnDisable()
+
+end
+
+function EquipSelWindow:OnDestroy()
+
+end
+
+function EquipSelWindow:OnOpen(arg)
+	self.IsOpen = true;
+end
+
+function EquipSelWindow:OnClose(arg)
+	self:CloseWindow();
+	self.module.equipSelWindowView = nil;
+	
+	for _,v in pairs(self.allItems) do
+		GameObject.DestroyImmediate(v.gameObject);
+	end
+	self.allItems = {};
+end
+
+function EquipSelWindow:CloseWindow()
+	self.IsOpen = false;
+	self.module.equipSelWindowView = nil;
+end
+
+return EquipSelWindow

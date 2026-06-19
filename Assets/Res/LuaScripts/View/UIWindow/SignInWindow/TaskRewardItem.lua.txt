@@ -1,0 +1,60 @@
+local TaskRewardItem = {}
+TaskRewardItem.__index = TaskRewardItem
+
+function TaskRewardItem:New(obj)
+    local self = {};
+    setmetatable(self, TaskRewardItem);
+
+    self:InitControls(obj)
+
+    return self;
+end
+
+function TaskRewardItem:InitControls(obj)
+    self.gameObject = obj;
+    self.transform = obj.transform;
+
+    self.dayText = self.transform:Find("Day/Text"):GetComponent(typeof(Text));
+    self.bgImg = self.transform:Find("ImageBg"):GetComponent(typeof(Image));
+    self.iconImg = self.transform:Find("Icon"):GetComponent(typeof(Image));
+	self.iconNum = self.transform:Find("Icon/Num"):GetComponent(typeof(Text));
+    self.tipsBtn = self.transform:Find("TipsBtn"):GetComponent(typeof(Button));
+    self.getObj = self.transform:Find("Get").gameObject;
+    self.rewardBtn = self.transform:Find("RewardBtn"):GetComponent(typeof(Button));
+
+    self.rewardBtn.onClick:AddListener(function()
+        local msg = CS.ProtoMsg.SevenDayGoalRewardReq();
+        msg.CountValue = self.curDay
+
+        local gameSocket = NetworkManager.Instance.gameSocket;
+        gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, msg, false);
+    end);
+
+    self.tipsBtn.onClick:AddListener(function()
+        LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",{ self.BaseID,false,0,self.transform,0});     
+    end);
+end
+
+function TaskRewardItem:Init(data, geted, score)
+    self.dayText.text = data.PointsNum
+	self.iconNum.text = data.RewardNum;
+    self.BaseID = data.Reward;
+    local itemData = ConfigDataAccessor.Item[data.Reward]
+    ResourceHelper:LoadIconAsync(self.iconImg, "", itemData.Icon, false)
+    local quality = itemData.Quality;
+    ResourceHelper:LoadIconByAtlasAsync(self.bgImg, ResourceHelper.AtlasPathCommonItem,"Bag_Grid_sq" .. quality, false)
+
+    self.getObj:SetActive(geted);
+    --for i=0, data.CountList.Count-1 do
+        --if data.CountList[i] == data.AccumulatedNum then
+            --self.getObj:SetActive(true);
+            --break;
+        --end
+    --end
+
+    self.rewardBtn.gameObject:SetActive(data.PointsNum <= score and not geted);
+
+    self.curDay = data.PointsNum;
+end
+
+return TaskRewardItem

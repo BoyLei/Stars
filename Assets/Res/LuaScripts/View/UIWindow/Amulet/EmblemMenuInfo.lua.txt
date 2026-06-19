@@ -1,0 +1,106 @@
+--[[
+*文件名   :   EmblemMenuInfo
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local EmblemMenuInfo = {}
+
+EmblemMenuInfo.__index = EmblemMenuInfo
+
+local EmblemMenuInfoItem=require("View/Uiwindow/Amulet/EmblemMenuInfoItem")
+
+function EmblemMenuInfo:New(_go,emblemMenu) 
+    local self = {};    
+    setmetatable(self, EmblemMenuInfo); 
+    
+    self.EmblemMenu=emblemMenu;
+
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+
+    self.name=self.transform:Find("Name"):GetComponent(typeof(Text));
+    self.lv=self.transform:Find("Lv"):GetComponent(typeof(Text));
+    self.icon=self.transform:Find("bg/Icon"):GetComponent(typeof(Image));
+
+
+    self.items={};
+    for i =1,4 do
+        local _go=self.transform:Find("EmblemMenuInfoItem"..i).gameObject;
+
+        local it=EmblemMenuInfoItem:New(_go);
+        it:InitItem(i,function (idx,slotIndex)
+            self:OnItemClick(idx,slotIndex);
+        end)
+
+        table.insert( self.items, it);
+    end
+
+    self.SelectedSlotIndex=1;
+
+    self:Show(false);
+
+    return self;    --返回自身
+end
+
+function EmblemMenuInfo:OnItemClick(slotIdx,slotIndex)
+	self.SelectedSlotIndex=slotIndex;
+    self.SelectedSlotIdx=slotIdx;
+    self.EmblemMenu:ShowEmblemMenuCombine(slotIdx,slotIndex);
+
+    for i =1,#self.items do
+        self.items[i]:MakeSelect(false)
+    end
+    self.items[slotIndex]:MakeSelect(true)
+end
+
+function EmblemMenuInfo:Show(b,idx)
+    self.gameObject:SetActive(b);
+    if b then
+        self:Refesh(idx);
+    end
+end
+
+function EmblemMenuInfo:Refesh(idx)
+
+    local data =BusinessManager.Instance:GetHeroEquipedAmulet(idx);
+
+    if data==nil then
+        self:Show(false);
+    else
+        local baseID=data.BaseID;
+        local gemSlots =data.GemSlots;
+
+        local cfg=ConfigDataAccessor.Item[baseID];
+        --LoadIcon(self.icon,cfg.Icon);
+        ResourceHelper:LoadIconAsync(self.icon, "", cfg.Icon, false)
+
+        self.name.text=cfg.Name;
+
+        local amuletEquipCfg=ConfigDataAccessor.AmuletEquip[baseID];
+        --self.lv.text=amuletEquipCfg.EquipLevel.."级";
+		self.lv.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {amuletEquipCfg.EquipLevel});
+
+        --查看宝石
+        for i=0,gemSlots.List.Count-1 do
+            --刷新宝石槽位信息
+            self.items[i+1]:SetInfo(gemSlots.List[i]);
+        end
+
+        --self.items[self.SelectedSlotIndex]:OnItemClick();
+    end
+
+end
+
+function EmblemMenuInfo:Reselect()
+    self.items[self.SelectedSlotIndex]:OnItemClick();
+end
+
+
+
+
+return EmblemMenuInfo;

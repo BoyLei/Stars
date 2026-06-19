@@ -1,0 +1,270 @@
+--[[
+*文件名   :   GVEBossRewardsWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/12/06 10:33:06"
+*创建人   :   "quzhenxin"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+GVEBossRewardsWidget=class("GVEBossRewardsWidget",UIPanel)
+
+local ObjectPool= require("Common/Helper/ObjectPool")
+
+function GVEBossRewardsWidget:Awake()
+	self.transform=self.prefab.transform;
+	self.gameObject=self.transform.gameObject;
+
+    self.Name=self.transform:Find("AnimRoot/Title/name"):GetComponent(typeof(Text));
+    self.Icon=self.transform:Find("AnimRoot/Title/bossIcon"):GetComponent(typeof(Image));
+
+	self.Rank=self.transform:Find("AnimRoot/Title/tt"):GetComponent(typeof(Text));
+
+	self.transform:Find("Cover"):GetComponent(typeof(JButton)).OnClick=(function()
+		self:OnPlayBack();
+	end);
+	
+
+	self.go_BtnLeft=self.transform:Find("AnimRoot/BtnLeft").gameObject;
+	self.go_BtnLeft:GetComponent(typeof(JButton)).OnClick=(function()
+
+		if self.Idx>0 then
+			self.Idx=self.Idx-1;
+		end
+	
+		self:RefeshData();
+	end);
+
+	self.go_BtnRight=self.transform:Find("AnimRoot/BtnRight").gameObject;
+	self.go_BtnRight:GetComponent(typeof(JButton)).OnClick=(function()
+			
+		if self.Idx<self.MaxIdx-1 then
+			self.Idx=self.Idx+1;
+		end
+
+		self:RefeshData();
+	end);
+
+
+
+	self.go_BtnConfirm=self.transform:Find("AnimRoot/BtnConfirm").gameObject;
+	self.go_BtnConfirm:GetComponent(typeof(JButton)).OnClick=(function()
+
+		--发个消息清除
+		CS.StarProject.GlobalEvent.OnClearGVEBossReward:Invoke(true);
+		self:OnPlayBack();
+	end);
+
+
+
+
+	self.go_grid1=self.transform:Find("AnimRoot/Grid").gameObject;
+	self.go_grid2=self.transform:Find("AnimRoot/Grid2").gameObject;
+
+	self.rect_grid2=self.transform:Find("AnimRoot/Grid2/Mask/List"):GetComponent(typeof(RectTransform));
+
+
+	
+	--奖励对象池
+	local _go=self.transform:Find("AnimRoot/ItemGrid").gameObject;
+	local _parent=self.transform:Find("AnimRoot/Grid");
+	self.rewardItemPool=ObjectPool:New(8,"View/Item/ItemGrid",_go,_parent,
+		--生成回调
+		function (ritem)
+			ritem:InitItem(
+				false,--不使用底板
+				--点击回调
+				function (ritem)
+					self:OnItemClick(ritem);
+				end
+			);	
+		end,
+		--回收回调
+		function (ritem)
+			ritem:SetUse(false);
+		end
+	)
+
+	local _go2=self.transform:Find("AnimRoot/ItemGrid2").gameObject;
+	local _parent2=self.transform:Find("AnimRoot/Grid2/Mask/List");
+	self.rewardItemPool2=ObjectPool:New(6,"View/Item/ItemGrid",_go2,_parent2,
+		--生成回调
+		function (ritem)
+			ritem:InitItem(
+				false,--不使用底板
+				--点击回调
+				function (ritem)
+					self:OnItemClick(ritem);
+				end
+			);	
+		end,
+		--回收回调
+		function (ritem)
+			ritem:SetUse(false);
+		end
+	)
+
+	self.go_grid1:SetActive(false);
+	self.go_grid2:SetActive(false);
+
+
+end
+
+function GVEBossRewardsWidget:Start()
+
+end
+
+function GVEBossRewardsWidget:OnEnable()
+	
+end
+
+function GVEBossRewardsWidget:OnDisable()
+	
+end
+
+function GVEBossRewardsWidget:OnDestroy()
+
+end
+
+function GVEBossRewardsWidget:LoadBossIcon(bossBaseID)
+	local bossType=1;
+	local cfgs=ConfigDataAccessor.GVEBossSelect;
+	for k,v in pairs(cfgs) do
+		if v.UseBoss==bossBaseID then
+			bossType=v.BossType
+		end
+	end
+
+	local idx=1;
+	if bossType==1 then
+		idx=2;
+	elseif bossType==2 then
+		idx=3;
+	end
+	
+
+	ResourceHelper:LoadIconByAtlasAsync(self.Icon, ResourceHelper.AtlasPathHud, "Map_icon_0"..idx, false);
+
+
+end
+
+
+function GVEBossRewardsWidget:SortItem(tbl)
+
+
+    if #tbl > 1 then
+
+        table.sort(tbl, function(a, b)
+			
+			if a.Quality ~= b.Quality then
+				return a.Quality > b.Quality;
+			end
+			
+			return false
+
+        end)
+
+    end
+
+end
+
+
+function GVEBossRewardsWidget:RefeshData()
+
+	self.go_BtnLeft:SetActive(true);
+	self.go_BtnRight:SetActive(true);
+	if self.Idx==0 then
+		self.go_BtnLeft:SetActive(false);
+	end
+	if self.Idx==self.Datas.Count-1 then
+		self.go_BtnRight:SetActive(false);
+	end
+
+	
+	local itemsTemp=self.Datas[self.Idx].Reward.Data;--奖励
+
+	local rank=self.Datas[self.Idx].Rank;--排行
+
+	local bossBaseID=self.Datas[self.Idx].Index;--怪物配置表ID
+
+
+
+	self:LoadBossIcon(bossBaseID);
+	--self.Icon --图标
+	self.Name.text= ConfigDataAccessor.Monster[bossBaseID].Name;
+	---self.Rank.text="影蜃统领抵御排名:<color=#F8F06F>第"..rank.."名</color>";
+	self.Rank.text=StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_GVEBOSS_Rank"), {rank});
+
+
+	
+	local items={};
+	for k,v in pairs(itemsTemp) do
+		local it={}
+		it.BaseID=k;
+		it.Num=v;
+		it.Quality=ConfigDataAccessor.Item[k].Quality;
+		table.insert( items, it)
+	end
+
+	self:SortItem(items);
+
+	if #items>5 then
+
+
+		self.go_grid1:SetActive(false);
+		self.go_grid2:SetActive(true);
+
+		--背包格子
+		self.rewardItemPool2:RecycleAll();
+		for i=1,#items do
+			local item=self.rewardItemPool2:Spawn();
+			item.transform.localScale=Vector3(0.7,0.7,1)
+			item:SetItemNum(items[i].BaseID,items[i].Num);
+		end
+
+
+		self.rect_grid2.anchoredPosition=Vector2(self.rect_grid2.anchoredPosition.x,0);
+		
+	else
+
+
+		self.go_grid1:SetActive(true);
+		self.go_grid2:SetActive(false);
+
+		--背包格子
+		self.rewardItemPool:RecycleAll();
+		for i=1,#items do
+			local item=self.rewardItemPool2:Spawn();
+			item.transform.localScale=Vector3(0.7,0.7,1)
+			item:SetItemNum(items[i].BaseID,items[i].Num);
+		end
+		
+	end
+end
+
+function GVEBossRewardsWidget:OnOpen(arg)
+	self.Datas=arg;
+	self.Idx=0;
+	self.MaxIdx=arg.Count;
+
+	self:RefeshData();
+
+end
+
+function GVEBossRewardsWidget:OnItemClick(ritem)
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", {ritem.BaseID, false, 0, ritem.transform, 0})
+end
+
+function GVEBossRewardsWidget:OnClose(arg)
+
+end
+
+function GVEBossRewardsWidget:OnPlayBack()
+
+	self.gameObject:SetActive(false);
+	UIManager.Instance:CloseWidget("Event/GVEBossRewardsWidget",nil,false);
+
+end
+
+
+
+return  GVEBossRewardsWidget

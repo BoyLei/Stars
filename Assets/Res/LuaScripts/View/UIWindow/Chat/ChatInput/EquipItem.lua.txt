@@ -1,0 +1,90 @@
+local EquipItem = {}
+EquipItem.__index = EquipItem
+
+function EquipItem:New(obj, win)
+    local self = {};
+    setmetatable(self, EquipItem);
+
+    self:InitControls(obj, win)
+
+    return self;
+end
+
+function EquipItem:InitControls(obj, win)
+    self.gameObject = obj;
+    self.transform = obj.transform;
+
+    self.equipBtn = self.gameObject:GetComponent(typeof(JButton));
+
+    self.Icon = self.transform:Find("Quality/Icon"):GetComponent(typeof(Image));
+    self.Rare = self.transform:Find("Quality"):GetComponent(typeof(Image));
+    self.levelTxt = self.transform:Find("Quality/Level"):GetComponent(typeof(Text));
+    self.newGo = self.transform:Find("Quality/New").gameObject;
+    self.equipedGo = self.transform:Find("Quality/Equiped").gameObject;
+	
+
+
+
+	self.equipBtn.OnClick = function()
+		-- 短按-发送聊天框内
+		win:AddItem(self.itemData);
+	end
+	
+	self.equipBtn.OnLongPressDown = function()
+		-- 长按-打开道具Tip信息界面
+        local itemDatas = {};
+        table.insert(itemDatas, self.itemData);
+        if self.itemData.GemSlots ~= nil and self.itemData.GemSlots.List.Count > 0 then
+            for i = 0, self.itemData.GemSlots.List.Count - 1, 1 do
+                local gem = BusinessManager.Instance:GetItemByItemEntityId(self.itemData.GemSlots.List[i].GemID);
+                if gem ~= nil then
+                    table.insert(itemDatas, gem);
+                end
+            end
+        end
+		LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTipsWithItemMDList", { itemDatas, self.transform});
+	end
+	
+
+	--ModuleManager.Instance.SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", new object[] { 1 }); //只要传一个对话ID
+end
+
+function EquipItem:SetItem(data)
+
+	self.itemData = data;
+    local cfg = ConfigDataAccessor.Item[data.BaseID];
+
+    local isEquiped = false;
+    local isNew = data.IsNew;
+    self.newGo:SetActive(isNew);
+
+    -- 装备
+    if cfg.ItemType == 2 then
+        isEquiped = (data.Heroid > 0);
+        -- 纹章
+    elseif cfg.ItemType == 5 then
+        isEquiped = (data.Heroid > 0);
+        -- 星次石
+    elseif cfg.ItemType == 6 then
+        isEquiped = (data.Heroid > 0);
+    end
+
+    self.equipedGo:SetActive(isEquiped);
+
+    -- 稀有度底板
+    local quality = cfg.Quality;
+    --self.Rare.sprite = AtlasManager.Instance:GetSprite("ui/common/atlas/commonitem","Bag_Grid_sq" .. quality);
+    ResourceHelper:LoadIconByAtlasAsync(
+        self.Rare,
+        ResourceHelper.AtlasPathCommonItem,
+        "Bag_Grid_sq" .. quality,
+        false
+    )
+    -- ICON
+    --LoadIcon(self.Icon, cfg.Icon);
+	ResourceHelper:LoadIconAsync(self.Icon, "", cfg.Icon, false)
+
+    self.equipID = data.BaseID;
+end
+
+return EquipItem

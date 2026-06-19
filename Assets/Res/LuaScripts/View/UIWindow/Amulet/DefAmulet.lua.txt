@@ -1,0 +1,86 @@
+--[[
+*文件名   :   DefAmulet
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local DefAmulet = {}
+
+DefAmulet.__index = DefAmulet
+
+local DefAmuletEquipInfo=require("View/Uiwindow/Amulet/DefAmuletEquipInfo")
+local DefAmuletEquip=require("View/Uiwindow/Amulet/DefAmuletEquip")
+local DefAmuletMain=require("View/Uiwindow/Amulet/DefAmuletMain")
+
+function DefAmulet:New(_go) 
+    local self = {};    
+    setmetatable(self, DefAmulet); 
+    
+
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+	--关闭信息
+    --[[
+	local btnClose=self.transform:Find("BtnClose"):GetComponent(typeof(JButton));
+	btnClose.OnClick=(function()
+		self:Show(false);
+	end);
+    ]]
+
+    self.DefAmuletEquipInfo=DefAmuletEquipInfo:New(self.transform:Find("EquipedInfo").gameObject,self);
+    self.DefAmuletEquip=DefAmuletEquip:New(self.transform:Find("Equip").gameObject,self);
+    self.DefAmuletMain=DefAmuletMain:New(self.transform:Find("Main").gameObject,self);
+
+    self:Show(false);
+
+    self.selectedData=nil;
+
+    return self;    --返回自身
+end
+
+
+
+function DefAmulet:Show(b)
+    self.gameObject:SetActive(b);
+    if b then
+        self:OpenMain();
+    else
+        self.DefAmuletEquip:Show(false);
+    end
+end
+
+function DefAmulet:Refesh()
+    self.DefAmuletMain:Refesh();
+    self.DefAmuletEquip:Refesh();
+
+    self.DefAmuletEquipInfo:Refesh(self.selectedData);
+end
+
+function DefAmulet:OpenMain()
+    self.DefAmuletMain:Show(true);
+    self.DefAmuletEquip:Show(false);
+
+    self.DefAmuletEquipInfo:Show(true,self.selectedData);
+end
+
+function DefAmulet:OpenEquip(idx)
+    self.Idx=idx;
+    --self.DefAmuletMain:Show(false);
+    self.DefAmuletEquip:Show(true,idx);
+end
+
+function DefAmulet:RefeshAmuletInfo(idx)
+    self.Idx=idx;
+	local itemData=BusinessManager.Instance:GetHeroEquipedAmulet(idx);
+    self.selectedData=itemData;
+
+    self.DefAmuletEquipInfo:Refesh(self.selectedData);
+end
+
+
+
+return DefAmulet;

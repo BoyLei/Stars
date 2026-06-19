@@ -1,0 +1,100 @@
+---@class EquipSelItem
+local EquipSelItem = {}
+EquipSelItem.__index = EquipSelItem
+
+function EquipSelItem:ctor(go, cb)
+	local self = {};
+	setmetatable(self, EquipSelItem);
+	
+	self.gameObject = go;
+    self.transform = go.transform;
+
+	self.selBtn = self.transform:GetComponent(typeof(Button));
+	self.selBtn.onClick:AddListener(function() cb(); end);
+
+    self.selGo = self.transform:Find("Sel").gameObject;
+    self.nameText = self.transform:Find("Name"):GetComponent(typeof(Text));
+    self.dealText = self.transform:Find("Deal/Text"):GetComponent(typeof(Text));
+
+    self.stars = {};
+    for i=1,3 do
+        local star = self.transform:Find("ItemGrid/Stars/Star"..i).gameObject;
+		self.stars[i] = star;
+    end
+
+	self.numText = self.transform:Find("ItemGrid/Num"):GetComponent(typeof(Text));
+	self.icon = self.transform:Find("ItemGrid/Icon"):GetComponent(typeof(Image));
+	self.bgRare = self.transform:Find("ItemGrid/BgRare"):GetComponent(typeof(Image));
+
+	return self;
+end
+
+function EquipSelItem:Init(it,id)
+	self.index = id;
+	self.curSelEquip = it;
+	--[[it.EntityID = self.allitems[i].EntityID
+	it.BaseID = self.allitems[i].BaseID
+	it.Heroid = self.allitems[i].Heroid
+	it.Num = self.allitems[i].Num
+	it.IsNew = self.allitems[i].IsNew
+	it.SortProp = cfg.SortProp
+	it.ItemType = cfg.ItemType]]--
+	
+	local itemData = nil;
+	local items = BusinessManager.Instance:GetItemsByItemType(4, 0)
+	for i = 0, items.Count - 1 do
+		if items[i].BaseID == it.BaseID then
+			itemData = items[i];
+			break;
+		end
+		--[[local cfg = ConfigDataAccessor.Item[items[i].BaseID]
+		if cfg.SubType == equipType then
+			local it = {}
+			it.EntityID = items[i].EntityID
+			it.BaseID = items[i].BaseID
+			it.Heroid = items[i].Heroid
+			it.Num = items[i].Num
+			it.IsNew = items[i].IsNew
+			it.SortProp = cfg.SortProp
+			it.ItemType = cfg.ItemType
+			table.insert(ItemDataList, it)
+		end]]--
+	end
+	
+	local config = ConfigDataAccessor.Item[it.BaseID];
+	if config ~= nil then
+		local quality = config.Quality;
+		local lv = ConfigDataAccessor.PartnerEquip[it.BaseID].AdvancedLevel;
+		ResourceHelper:LoadIconByAtlasAsync(
+			self.bgRare,
+			ResourceHelper.AtlasPathCommonItem,
+			"Bag_Grid_sq" .. quality,
+			false
+		)
+	end
+	
+	self.numText.text = "1";
+	
+	ResourceHelper:LoadIconAsync(self.icon, "", config.Icon, false)
+	
+	self.nameText.text = config.Name;
+
+	local lv = ConfigDataAccessor.PartnerEquip[it.BaseID].AdvancedLevel;
+	for i=1, 3 do
+		self.stars[i]:SetActive(lv >= i);
+	end
+
+	if it.IsBind then
+		self.dealText.text =LanguageHelp:GetLanguageByKey("Local_Str_binding")
+	else
+		--self.dealText.text = "可交易"..3 - it.TradedCount.."次";
+		self.dealText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_leftTimes"), {3 - it.TradedCount});
+
+	end
+end
+
+function EquipSelItem:SetEquipSel(sel)
+	self.selGo:SetActive(sel);
+end
+
+return EquipSelItem;

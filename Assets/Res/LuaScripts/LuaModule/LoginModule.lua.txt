@@ -1,0 +1,47 @@
+--[[
+*文件名   :   LoginModule
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/10/25 09:30:27"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+LoginModule = class("LoginModule",BaseLuaModule)
+
+--LuaModule 消息模块
+LoginModule.ModuleMessages=
+{
+
+}
+
+--
+function LoginModule:OnTestModuleMessage(...)
+
+end
+
+
+--LuaModule 创建
+function LoginModule:OnModuleCreate(arg)
+	LuaModuleDispatcher:Register(ModuleDef.LoginModule,self)
+end
+
+--LuaModule 消息处理
+function LoginModule:OnModuleMessage(msg,...)
+	self.ModuleMessages[msg](...);
+end
+
+
+--LuaModule显示
+function LoginModule:OnModuleShow(arg)
+
+end
+
+--LuaModule 释放
+function LoginModule:OnModuleRelease()
+	LuaModuleDispatcher:UnRegister(ModuleDef.LoginModule)
+
+end
+
+
+return  LoginModule
+

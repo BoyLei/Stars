@@ -1,0 +1,254 @@
+TenTimesWindow = class("TenTimesWindow", UIPanel)
+
+--local CardItem = require("View/UIWindow/DrawCard/CardItem")
+
+function TenTimesWindow:Awake()
+
+end
+
+function TenTimesWindow:BindModule(m)
+    TenTimesWindow.module = m;
+end
+
+function TenTimesWindow:InitControls(obj)
+	self.transform = self.prefab.transform;
+	self.gameObject = self.transform.gameObject;
+
+    -- self.cardItem = self.transform:Find("Cut4Cam90/AssemblyRatio2/SV/Viewport/Content/CardItem");
+    -- self.allItems = {};
+    -- for i = 0, 9 do
+    --     local go = nil;
+    --     if i == 0 then
+    --         go = self.transform:Find("Cut4Cam90/AssemblyRatio2/SV/CardItem1").gameObject;
+    --     else
+    --         go = self.transform:Find("Cut4Cam90/AssemblyRatio2/SV/CardItem1 (" .. i .. ")").gameObject;
+    --     end
+
+    --     local cardItem = CardItem:New(go);
+    --     table.insert(self.allItems, cardItem);
+    -- end
+
+    self.tenTimesBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/TenTimesBtn"):GetComponent(typeof(Button));
+    self.tenTimesBtn.onClick:AddListener(function()
+        -- local hasNum = BusinessManager.Instance:GetCurrencyNum(104001);
+        -- if self.costNum > hasNum then
+        --     Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_154"));
+        --     return;
+        -- end
+
+        -- -- 再开10次
+        -- -- local isFull = false;
+        -- -- for _, v in pairs(self.module.gacheLimit) do
+        -- --     if v == self.cardPoolID then
+        -- --         isFull = true;
+        -- --         break
+        -- --     end
+        -- -- end
+        
+        -- local isFull = true;
+        -- local info = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.ComCount):GetData(19);
+        -- if info ~= nil then
+        --     isFull = info.RemainCount < 10;
+        -- end
+
+        -- if isFull then
+        --     Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_155"));
+        --     return;
+        -- end
+        -- local gachaReq = CS.ProtoMsg.GachaReq();
+        -- gachaReq.IsTen = true;
+        -- gachaReq.PoolID = self.cardPoolID;
+        -- CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+        --     gachaReq, false);
+
+        -- self.tenTimesBtn.interactable = false;
+        -- DOVirtual.DelayedCall(1, function()
+        --     self:SetTenTimesBtn();
+        -- end);
+        self.module.drawCardWindow:TenDC()
+    end);
+    self.okBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/Ok"):GetComponent(typeof(Button));
+    self.okBtn.onClick:AddListener(function()
+      --  DrawCardUI.Instance:ShowTenTimes(false);
+        MutiScenesMergeManager.Instance:UnloadScene();
+
+        --LuaModuleDispatcher:SendMessage(ModuleDef.DrawCardModule, "ResetTips", { });
+		
+		DrawCardUI.Instance.tenTimesCardsGo:SetActive(false);
+        self.Close();
+
+        LuaModuleDispatcher:SendMessage(ModuleDef.DrawCardModule, "OnOpenDrawCard", {useold = true})
+    end);
+
+    self.costText = self.transform:Find("Cut4Cam90/AssemblyRatio2/TenTimes/Cost"):GetComponent(typeof(Text));
+    self.discountGo = self.transform:Find("Cut4Cam90/AssemblyRatio2/TenTimes/Discount").gameObject;
+    self.tentimesDesc = self.transform:Find("Cut4Cam90/AssemblyRatio2/TenTimes").gameObject;
+    self.coinImg = self.transform:Find("Cut4Cam90/AssemblyRatio2/TenTimes/Coin"):GetComponent(typeof(Image));
+
+    local useCoin = nil;
+    for _, v in pairs(ConfigDataAccessor.CardPool) do
+        if useCoin == nil then
+            useCoin = v.UseToken;
+            break
+        end
+    end
+    local cfg = ConfigDataAccessor.Item[useCoin];
+    -- LoadIcon(self.coinImg,cfg.Icon);
+    ResourceHelper:LoadIconAsync(self.coinImg, "", cfg.Icon, false)
+
+    for i=1, 10 do
+        local btn = self.transform:Find("Cut4Cam90/AssemblyRatio2/Bg"..i):GetComponent(typeof(Button));
+        btn.onClick:AddListener(function()
+            local cid = self.curCardItems[i];
+            if cid > 0 then
+                LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", { cid,false,0,btn.transform,0});
+            end
+        end);
+    end
+end
+
+function TenTimesWindow:SetTenTimesBtn()
+
+    local cardPool = ConfigDataAccessor.CardPool;
+    local v = cardPool[self.cardPoolID]
+    local skip = GameManager.Instance:IsConditionMete(v.DisplayCondition);
+    skip = skip and not self.module.drawCardWindow:IsTimesLimit(v.ID);
+    if not skip then 
+        self.tenTimesBtn.gameObject:SetActive(false)
+        self.tentimesDesc:SetActive(false)
+    else
+        self.tenTimesBtn.gameObject:SetActive(true)
+        self.tentimesDesc:SetActive(true)
+    end
+    -- local isFull = false;
+    -- for _, v in pairs(self.module.gacheLimit) do
+    --     if v == self.cardPoolID then
+    --         isFull = true;
+    --         break
+    --     end
+    -- end
+
+    -- local isFull = false;
+    -- local info = FixMessageManager.Instance:GetMDMgr(FixUpdateDef.ComCount):GetData(19);
+    -- if info ~= nil then
+    --     isFull = info.RemainCount < 10;
+    -- end
+
+    -- local hasNum = BusinessManager.Instance:GetCurrencyNum(104001);
+    -- if hasNum < self.costNum then
+    --     isFull = true;
+    -- end
+	
+	-- local data = self.module.timesLimit;
+	-- local cardPool = ConfigDataAccessor.CardPool;
+	-- if cardPool[self.cardPoolID].GachaTimesLimits > 0 then
+	-- 	for i = 0, data.Count - 1 do
+	-- 		if data[i].PoolID == self.cardPoolID then
+	-- 			if data[i].History >= cardPool[self.cardPoolID].GachaTimesLimits then
+	-- 				isFull = true;
+	-- 			end
+	-- 			break;
+	-- 		end
+	-- 	end
+	-- end
+	
+    -- if self.tenTimesBtn ~= nil then
+    --     self.tenTimesBtn.interactable = not isFull;
+    -- end
+end
+
+function TenTimesWindow:Init(data)
+    if data == nil then
+        return;
+    end
+
+    self.cardPoolID = data.PoolID;
+
+    -- local items = data.GachaResult;
+    -- for i = 1, 10 do
+    --     local finalDrops = items[i - 1].FinalDrop;
+    --     local finalDrop = finalDrops[0];
+    --     local originDrop = items[i - 1].OriginDrop;
+    --     self.allItems[i]:Init(originDrop, finalDrop);
+    -- end
+
+    local cardPool = ConfigDataAccessor.CardPool;
+    self.costNum = 0;
+    --65.6
+    local languagetype = LanguageManager.Instance:GetLanguageType()
+    local rect = self.discountGo.transform:GetComponent(typeof(RectTransform))
+    if languagetype == 1 then 
+        rect.anchoredPosition = Vector2(89,0)
+    elseif languagetype == 2 then 
+        rect.anchoredPosition = Vector2(124.3,-4.1)
+    end
+
+    if cardPool[self.cardPoolID].SaleRaito > 0 then
+        --self.costText.text = "抽卡消耗：10		<color=#64EBA4>x" .. (math.floor(cardPool[self.cardPoolID].SaleRaito / 1000)) .. "</color>";
+        self.costText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_TenTimesWindow_costText"), {(math.floor(cardPool[self.cardPoolID].SaleRaito / 1000)),10});
+
+        self.discountGo:SetActive(true);
+
+        self.costNum = math.floor(cardPool[self.cardPoolID].SaleRaito / 1000);
+    else
+        --self.costText.text = "抽卡消耗：10";
+        self.costText.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_TenTimesWindow_costText2"), {10});
+
+        self.discountGo:SetActive(false);
+
+        self.costNum = 10;
+    end
+
+    self:SetTenTimesBtn();
+
+    self.curCardItems = {};
+    local items = data.GachaResult;
+    for i = 1, 10 do
+		local finalDrops = 0;
+		if items[i - 1].FinalDrop.Count > 0 then
+			finalDrops = items[i - 1].FinalDrop[0].Index;
+		end
+        local originDrop = items[i - 1].OriginDrop.Index;
+        if finalDrops ~= originDrop then
+            self.curCardItems[i] = finalDrops;
+        else
+            self.curCardItems[i] = 0;
+        end
+    end
+end
+
+function TenTimesWindow:OnShow()
+    print("TenTimesWindow:OnShow" .. self.prefab.name)
+end
+
+function TenTimesWindow:Start()
+
+end
+
+function TenTimesWindow:OnEnable()
+
+end
+
+function TenTimesWindow:OnDisable()
+
+end
+
+function TenTimesWindow:OnDestroy()
+
+end
+
+function TenTimesWindow:OnOpen(arg)
+    self.IsOpen = true;
+end
+
+function TenTimesWindow:OnClose(arg)
+    self:CloseWindow();
+    self.module.tenTimesWindow = nil;
+end
+
+function TenTimesWindow:CloseWindow()
+    self.IsOpen = false;
+    self.module.tenTimesWindow = nil;
+end
+
+return TenTimesWindow

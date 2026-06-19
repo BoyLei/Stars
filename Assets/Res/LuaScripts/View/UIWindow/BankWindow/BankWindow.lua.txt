@@ -1,0 +1,150 @@
+BankWindow = class("BankWindow", UIPanel)
+
+local JsPanel = require("View/UIWindow/BankWindow/JsPanel")
+local BuyPanel = require("View/UIWindow/BankWindow/BuyPanel")
+
+function BankWindow:Awake()
+
+end
+
+function BankWindow:BindModule(m)
+	BankWindow.module = m;
+	self.onCloseDestroy(false);
+end
+
+function BankWindow:InitControls()
+	self.transform = self.prefab.transform;
+	self.gameObject = self.transform.gameObject;
+
+	self.tradeType = CS.ProtoMsg.Money2Money.M2MG2D
+	local jsButton = self.transform:Find("Root/JSBtn"):GetComponent(typeof(JButton));
+	local buyButton = self.transform:Find("Root/BuyBtn"):GetComponent(typeof(JButton));
+	self.jsSelected = self.transform:Find("Root/JSBtn/selected").gameObject;
+	self.jsUnSelected = self.transform:Find("Root/JSBtn/noselected").gameObject;
+	self.buySelected = self.transform:Find("Root/BuyBtn/selected").gameObject;
+	self.buyUnSelected = self.transform:Find("Root/BuyBtn/noselected").gameObject;
+
+	jsButton.OnClick = function()
+		self:MakeSelected(1)
+		self.curShowPanel = self.jsPanel;
+    end
+	buyButton.OnClick = function()
+		self:MakeSelected(2)
+		self.curShowPanel = self.buyPanel;
+    end
+
+	local cancleBtn = self.transform:Find("Root/BtnCancle"):GetComponent(typeof(JButton));
+	cancleBtn.OnClick = function()
+		self.Close();
+    end
+
+	self.confirmBtn = self.transform:Find("Root/BtnConfirm"):GetComponent(typeof(JButton));
+	self.confirmBtn.OnClick = function()
+		local money2MoneyReq = CS.ProtoMsg.Money2MoneyReq();
+		money2MoneyReq.PID = GameManager.Instance.mainPlayerId;
+		money2MoneyReq.TradeType = self.tradeType;
+		if self.tradeType == CS.ProtoMsg.Money2Money.M2MG2D then
+			money2MoneyReq.Num = self.jsPanel:GetNum();
+		else
+			money2MoneyReq.Num = self.buyPanel:GetNum();
+		end
+		CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, money2MoneyReq, false);
+    end
+
+	local jsPanelObj = self.transform:Find("Root/Js").gameObject;
+	self.jsPanel = JsPanel:New(self,jsPanelObj);
+
+	local buyPanelObj = self.transform:Find("Root/Buy").gameObject;
+	self.buyPanel = BuyPanel:New(self,buyPanelObj);
+
+	local jsIntroduceBtn = self.transform:Find("Root/Js/CurrentRate/JsIntroduceBtn"):GetComponent(typeof(JButton));
+	jsIntroduceBtn.OnClick = function()
+		CS.StarProjectDef.UIAPI.ShowGameplayInfo(11301)
+    end
+
+    local buyIntroduceBtn = self.transform:Find("Root/Buy/CurrentRate/BuyIntroduceBtn"):GetComponent(typeof(JButton));
+	buyIntroduceBtn.OnClick = function()
+		CS.StarProjectDef.UIAPI.ShowGameplayInfo(11301)
+    end
+
+	self.TimeTickFunc = function()
+		self.jsPanel:SetRateAndTime(self.module.rate, self.module:GetLeftTime());
+		self.buyPanel:SetRateAndTime(self.module.rate, self.module:GetLeftTime());
+	end
+
+	self.curShowPanel = self.jsPanel;
+end
+
+function BankWindow:MakeSelected(openTag)
+	if openTag==1 then
+		self.tradeType = CS.ProtoMsg.Money2Money.M2MG2D
+		self.jsPanel:Show(self.module.rate, self.module:GetLeftTime());
+		self.buyPanel:Hide();
+		self.jsSelected:SetActive(true);
+		self.jsUnSelected:SetActive(false);
+		self.buySelected:SetActive(false);
+		self.buyUnSelected:SetActive(true);
+	else
+		self.tradeType = CS.ProtoMsg.Money2Money.M2MD2G
+		self.jsPanel:Hide();
+		self.buyPanel:Show(self.module.rate, self.module:GetLeftTime());
+		self.jsSelected:SetActive(false);
+		self.jsUnSelected:SetActive(true);
+		self.buySelected:SetActive(true);
+		self.buyUnSelected:SetActive(false);
+	end
+end
+
+function BankWindow:SetRateAndTime(rate, stime)
+	self.jsPanel:SetRateAndTime(rate, stime);
+	self.buyPanel:SetRateAndTime(rate, stime);
+end
+
+function BankWindow:Show(r, t)
+	self.jsPanel:Show(r, t);
+	self.buyPanel:Hide();
+end
+
+function BankWindow:RefreshData()
+	self.jsPanel:RefreshData();
+	self.buyPanel:RefreshData();
+end
+
+function BankWindow:SetRate()
+
+end
+
+function BankWindow:OnShow()
+end
+
+function BankWindow:Start()
+	MonoHelper.AddSecTimeUpdateListener(self.TimeTickFunc);
+end
+
+function BankWindow:OnEnable()
+	
+end
+
+function BankWindow:OnDisable()
+
+end
+
+function BankWindow:OnDestroy()
+
+end
+
+function BankWindow:OnOpen(arg)
+	self.IsOpen = true;
+end
+
+function BankWindow:OnClose(arg)
+	self:CloseWindow();
+	--self.module.bankWindowView = nil
+end
+
+function BankWindow:CloseWindow()
+	self.IsOpen = false;
+	--self.module.bankWindowView = nil
+end
+
+return BankWindow

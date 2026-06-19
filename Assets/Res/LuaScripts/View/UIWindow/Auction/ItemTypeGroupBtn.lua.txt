@@ -1,0 +1,205 @@
+--[[
+*文件名   :   ItemTypeGroupBtn
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/09 09:44:49"
+*创建人   :   "DL"
+*版权所有 :   游卡网络科技技术有限公司
+]] local ItemTypeGroupBtn = {}
+
+ItemTypeGroupBtn.__index = ItemTypeGroupBtn
+
+local ItemTypeBtn = require("View/UIWindow/Auction/ItemTypeBtn");
+
+function ItemTypeGroupBtn:GetNew(_prefab, _parent)
+    local self = {};
+
+    setmetatable(self, ItemTypeGroupBtn);
+
+    self:Load(_prefab, _parent);
+
+    return self;
+
+end
+
+function ItemTypeGroupBtn:Load(_prefab, _parent)
+    local go = newObject(_prefab);
+    -- UIRes.LoadPrefabAsync("Recharge/Prefab/ItemTypeGroupBtn", function(go)
+
+    self.gameObject = go;
+    self.transform = go.transform;
+
+    self.transform:SetParent(_parent);
+    self.transform.localPosition = Vector3.zero
+    self.transform.localScale = Vector3.one
+
+    -- 道具类型组的 分类
+    self.SelectNode = self.transform:Find("GroupBtn/SelectNode");
+
+    self.TypeName = self.transform:Find("GroupBtn/TypeName");
+
+    self.ItemTypeName = self.TypeName:GetComponent(typeof(Text));
+
+    self.ContentSizeFitter = self.transform:GetComponent(typeof(ContentSizeFitter));
+
+    -- 类型组按钮 开/关 节点
+    self.OpenNode = self.transform:Find("GroupBtn/OpenNode");
+    self.CloseNode = self.transform:Find("GroupBtn/CloseNode");
+
+    self.ContentRoot = self.transform:Find("TypeBtnContent");
+    self.ContentRootSizeFitter = self.ContentRoot:GetComponent(typeof(ContentSizeFitter));
+
+    self.ItemTypeBtnCopy = self.transform:Find("ItemTypeBtn");
+
+    -- 点击事件
+    local btn = self.transform:Find("GroupBtn"):GetComponent(typeof(JButton));
+    btn.OnClick = function()
+        self:OnBtnClick();
+    end
+
+    -- end)
+end
+
+-- 全局 节点
+-- self.ContentRoot         -- content 的根节点
+-- self.ItemTypeName
+-- self.SelectNode
+-- self.OpenNode
+-- self.CloseNode
+
+-- 全局变量
+-- self.type
+-- self.groups
+
+-- self.select           -- 是否选中, 主要是指 按钮组 里面有一个 类型的按钮被选中
+-- self.isOpen           -- 是否 开启
+
+-- 创建 道具类型按钮
+function ItemTypeGroupBtn:Create(itemTypeGroupInfo, clickGroupCB, clickTypeItemClick)
+    self.type = itemTypeGroupInfo.type;
+    self.groups = itemTypeGroupInfo.groups;
+    self.typeName = itemTypeGroupInfo.name;
+    self.select = false;
+    self.isOpen = false;
+
+    -- 点击 类型组的 回调. 考虑到 后续 策划 可能会提 点击其它按钮 收起 类型组的逻辑,所以 增加了这个回调
+    self.onGroupClick = clickGroupCB;
+
+    -- 点击 类型按钮的 回调 参数: (self,ItemTypeBtn)
+    self.onTypeItemClick = clickTypeItemClick;
+
+    self:RefreshUI();
+
+end
+
+-- 刷新UI
+function ItemTypeGroupBtn:RefreshUI()
+
+    -- 道具组的名字
+    -- self.ItemTypeName.text = self:GetTypeGroupName();
+    self.ItemTypeName.text = self.typeName;
+
+    -- 是否选中
+    self:RefreshSelect();
+
+    -- 刷新是否展开
+    self:RefreshIsOpen();
+end
+
+function ItemTypeGroupBtn:RefreshSelect()
+
+    -- 是否选中 由 子类型按钮 是否选中 决定, 所以 如果 子类型按钮选中, 此处有相应的变化
+    self.SelectNode.gameObject:SetActive(self.select);
+
+end
+
+-- 刷新 是否开启 类型按钮组
+function ItemTypeGroupBtn:RefreshIsOpen()
+
+    self.OpenNode.gameObject:SetActive(self.isOpen);
+    self.CloseNode.gameObject:SetActive(not self.isOpen);
+
+    self.ContentRoot.gameObject:SetActive(self.isOpen);
+
+    -- 如果 显示 类型按钮组 但是没创建 按钮, 那就去 创建 它的所有 类型按钮
+    if self.isOpen and self.ContentRoot.transform.childCount == 0 then
+        self:CreatTypeBtns();
+    end
+
+    -- self.ContentRootSizeFitter:SetLayoutVertical();
+
+    -- 先对
+    --- self.ContentSizeFitter:SetLayoutVertical();
+end
+
+-- 创建 按钮组的 所有类型 按钮
+function ItemTypeGroupBtn:CreatTypeBtns()
+
+    for i, v in pairs(self.groups) do
+        -- local ItemTypeBtnCopyNode = newObject(self.ItemTypeBtnCopy);
+        local itemTypeBtn = ItemTypeBtn:GetNew(self.ItemTypeBtnCopy.gameObject, self.ContentRoot,
+            function(selectItemTypeBtn)
+
+                if self.onTypeItemClick ~= nil then
+                    -- 通知 外面 点击了 哪个 类型的 按钮组 和 选择的 类型按钮, 由外部 决定 按钮是否执行 悬着
+                    self.onTypeItemClick(self, selectItemTypeBtn);
+
+                end
+            end);
+
+        itemTypeBtn:Create(v);
+    end
+
+    self.ItemTypeBtnCopy.gameObject:SetActive(false);
+end
+
+-- 外部触发 这个按钮 的点击 逻辑
+function ItemTypeGroupBtn:SetSelect(isSelect)
+    self.select = isSelect;
+
+    self:RefreshUI();
+end
+
+-- 按钮点击触发的逻辑, 道具类型组的 按钮点击 应该只关心 开关，所以 并不需要 外部记录
+function ItemTypeGroupBtn:OnBtnClick()
+
+    self.isOpen = not self.isOpen;
+
+    self:RefreshIsOpen();
+
+    -- 如果 有 类型组 按钮的 回调, 触发它的 回调, 目前这个回调. 为了拓展 后面 策划想 点击一个 按钮组 关闭其它按钮组 逻辑
+    if self.onGroupClick ~= nil then
+        self.onGroupClick(self);
+    end
+
+end
+
+--[[
+1   - 普通
+2   - 装备
+3   - 可使用
+
+101 - 货币
+]]
+-- 类型组的 名称
+local TypeGroupName = {
+    [0] = LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_52"),
+    [1] = LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_53"),
+    [2] = LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_54"),
+    [3] = LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_55"),
+    [101] = LanguageHelp:GetLanguageByKey("ShowSystemMessage_New_56")
+};
+
+-- 获取类型组的 名字
+function ItemTypeGroupBtn:GetTypeGroupName()
+
+    local typeName = TypeGroupName[self.type];
+
+    if typeName ~= nil then
+        return typeName;
+    end
+    return "ItemType_" .. self.type;
+
+end
+
+return ItemTypeGroupBtn;

@@ -1,0 +1,174 @@
+--[[
+*文件名   :   AvgAsideBox
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/10/25 15:57:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+AvgAsideBox = class("AvgAsideBox", UIPanel)
+AvgAsideBox.m_TalkBoxContent = nil
+AvgAsideBox.m_TalkBoxName = nil
+
+function AvgAsideBox:Awake()
+    self.m_TalkBoxContent = self:Find("TalkBoxContent"):GetComponent(typeof(Text))
+    self.m_TalkBoxName = self:Find("TalkBoxNameBg/TalkBoxName"):GetComponent(typeof(Text))
+
+    self.tw_content = nil
+    self.talkConetntNow = nil
+    self.text_speed = 20
+    self.module = nil
+end
+
+function AvgAsideBox:BindModule(m)
+    print(".............")
+    self.module = m
+end
+
+function AvgAsideBox:Start()
+end
+
+function AvgAsideBox:OnEnable()
+end
+
+function AvgAsideBox:OnDisable()
+end
+
+function AvgAsideBox:OnDestroy()
+end
+
+function AvgAsideBox:OnOpen(arg)
+end
+
+function AvgAsideBox:OnClose(arg)
+end
+
+function AvgAsideBox:GetTalkContentById(idx)
+    --self.talkConetntNow = LocalDataManager.Instance:GetCommonDialogDataCell(idx);
+    self.talkConetntNow = self.module:CommonDialogDataCellById(idx)
+
+    self:RefeshTalkInfo()
+end
+
+function AvgAsideBox:GetNextTalkContent()
+    --等待时间
+    local waitTime = self.talkConetntNow.Show_time / 1000
+
+    if self.tw ~= nil then
+        self.tw:Kill()
+    end
+    --延迟一段时间后调用
+    self.tw =
+        DOVirtual.DelayedCall(
+        waitTime,
+        function()
+            local nextIds = self.talkConetntNow.Next_dialog_id
+
+            if #nextIds > 1 then
+                --有问题直接结束
+                self:FinishTalk()
+            else --切换到下一句对话
+                if not (self.IsPlayVoice) then
+                    --结束对话
+                    if nextIds[1] == 0 then
+                        self:FinishTalk()
+                    else
+                        self:GetTalkContentById(nextIds[1])
+                    end
+                end
+            end
+        end
+    )
+end
+
+function AvgAsideBox:RefeshTalkInfo()
+    --显示名字
+    if self.talkConetntNow.Name == "" or self.talkConetntNow.Name == nil then
+        self.m_TalkBoxName.gameObject:SetActive(false)
+    else
+        self.m_TalkBoxName.gameObject:SetActive(true)
+        self.m_TalkBoxName.text = self.talkConetntNow.Name2
+    end
+    --显示内容
+
+    --[[
+
+	if self.tw_content~= nil then
+		self.tw_content:Kill();
+	end
+	self.m_TalkBoxContent.text="";
+	self.tw_content=self.m_TalkBoxContent:DOText(self.talkConetntNow.Dialog_desc2,self.text_speed):SetSpeedBased():SetEase(Ease.Linear):OnComplete(function ()
+
+			self:GetNextTalkContent();
+		end);
+	]]
+    self.m_TalkBoxContent.text = self.talkConetntNow.Dialog_desc2
+    self:GetNextTalkContent()
+    --播放语音
+    self.IsPlayVoice = false
+    if self.SoundKey ~= nil then
+        SoundManager.Instance:StopVoice(self.SoundKey)
+        self.SoundKey = nil
+    end
+
+    -- 播放语音
+    if self.talkConetntNow.Voice_id ~= "" and self.talkConetntNow.Voice_id ~= "0" then
+        local rest =
+            SoundManager.Instance:PlayVoice(
+            self.talkConetntNow.Voice_id,
+            self.gameObject,
+            function(key)
+                --Play Complete
+                if self.IsPlayVoice and key == self.SoundKey then
+                    self.IsPlayVoice = false
+                    self:GetNextTalkContent()
+                end
+            end
+        )
+        --超时保底
+        if self.tw_back ~= nil then
+            self.tw_back:Kill()
+            self.tw_back = nil
+        end
+        self.tw_back =
+            DOVirtual.DelayedCall(
+            20,
+            function()
+                self.IsPlayVoice = false
+                self:GetNextTalkContent()
+            end
+        )
+        self.IsSoundSuccess = rest.Item1
+        self.SoundKey = rest.Item2
+
+        if self.IsSoundSuccess then
+            self.IsPlayVoice = true
+        end
+    end
+end
+
+function AvgAsideBox:FinishTalk()
+    if self.tw_content ~= nil then
+        self.tw_content:Kill()
+    end
+
+    if self.tw ~= nil then
+        self.tw:Kill()
+    end
+
+    if self.tw_back ~= nil then
+        self.tw_back:Kill()
+        self.tw_back = nil
+    end
+    if self.SoundKey ~= nil then
+        SoundManager.Instance:StopVoice(self.SoundKey)
+        self.SoundKey = nil
+    end
+    self.IsPlayVoice = false
+
+    UIManager.Instance:CloseWidget("Avg/AvgAsideBox")
+
+    self.module:OnFinishAvgAsideBox()
+end
+
+return AvgAsideBox

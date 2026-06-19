@@ -1,0 +1,86 @@
+---@class PartnerDialogWidget
+PartnerDialogWidget = class("PartnerDialogWidget", UIPanel)
+function PartnerDialogWidget:Awake()
+    self.transform = self.prefab.transform;
+    self.gameObject = self.transform.gameObject;
+    self.TransBg = self:Find("Cut4Cam90/AssemblyRatio2/Center/Frame/ImgTips"):GetComponent(TRectTransform);
+    self.TxtDialog = self:Find("Cut4Cam90/AssemblyRatio2/Center/Frame/ImgTips/LevelName"):GetComponent(TText);
+    self.ImgFrame = self:Find("Cut4Cam90/AssemblyRatio2/Center/Frame"):GetComponent(TImage);
+    self.ImgHead = self:Find("Cut4Cam90/AssemblyRatio2/Center/Frame/Icon"):GetComponent(TImage);
+
+    self.OnSecTimeUpdate = function()
+        self:OnSecTimeUpdateHandler()
+    end
+    self.gameObject:SetActive(true);
+end
+
+function PartnerDialogWidget:OnOpen(args)
+    local dialogID = tonumber(args)
+    if dialogID then
+        local config = ConfigDataAccessor.CommonDialog[dialogID]
+        if config then
+            self.TxtDialog.text = config.Dialog_desc
+            CS.UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(self.TransBg.gameObject.transform);
+            self.curTime = config.Show_time/1000
+            MonoHelper.AddSecTimeUpdateListener(self.OnSecTimeUpdate);
+        end
+
+        --local id = tonumber(params[3])
+        --local config=ConfigDataAccessor.Partner[id];
+        --if config then
+        --    local avatarConfig = ConfigDataAccessor.Avatar[config.AvatarID];
+        --    if avatarConfig then
+        --        local modelHead = ConfigDataAccessor.ModelHead[avatarConfig.HeadID]
+        --        if modelHead then
+        --            ResourceHelper:LoadSpriteAtlasAsync(self.ImgHead,modelHead.HeadAtlasName..modelHead.MinHead)
+        --
+        --        end
+        --    end
+        --    ResourceHelper:LoadSpriteAtlasAsync(self.ImgFrame,"UI/StarWorld/Atlas/IconRole/Hud_Partner_Bg_"..config.Quality)
+        --end
+    else
+        self.Close()
+    end
+end
+
+function PartnerDialogWidget:OnSecTimeUpdateHandler()
+    self.curTime = self.curTime - 1;
+    if self.curTime <= 0 then
+        self.curTime = 0;
+    end
+
+    if self.curTime <= 0 then
+        MonoHelper.RemoveSecTimeUpdateListener(self.OnSecTimeUpdate);
+        self.Close()
+    end
+end
+
+function PartnerDialogWidget:OnShow()
+end
+
+function PartnerDialogWidget:Start()
+
+end
+
+function PartnerDialogWidget:OnEnable()
+
+end
+
+function PartnerDialogWidget:OnDisable()
+
+end
+
+function PartnerDialogWidget:OnDestroy()
+    MonoHelper.RemoveSecTimeUpdateListener(self.OnSecTimeUpdate);
+end
+
+function PartnerDialogWidget:OnClose(arg)
+    self:CloseWindow();
+    MonoHelper.RemoveSecTimeUpdateListener(self.OnSecTimeUpdate);
+end
+
+function PartnerDialogWidget:CloseWindow()
+    self.IsOpen = false;
+end
+
+return PartnerDialogWidget

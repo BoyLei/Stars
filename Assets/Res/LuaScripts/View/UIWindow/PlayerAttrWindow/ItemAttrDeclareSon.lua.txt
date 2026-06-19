@@ -1,0 +1,105 @@
+--[[
+*文件名   :   ItemAttrDeclareSon
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/06 15:34:41"
+*创建人   :   "quzhenxin"
+*版权所有 :   游卡网络科技技术有限公司
+]] ItemAttrDeclareSon = class("ItemAttrDeclareSon", UIPanel);
+
+ItemAttrDeclareSon.__index = ItemAttrDeclareSon;
+ItemAttrDeclareSon.Transform = nil;
+ItemAttrDeclareSon.AttrName = nil;
+ItemAttrDeclareSon.AttrDes = nil;
+ItemAttrDeclareSon.Arrow = nil;
+ItemAttrDeclareSon.AttrData = nil;
+ItemAttrDeclareSon.Btn = nil;
+ItemAttrDeclareSon.Image = nil;
+ItemAttrDeclareSon.CallBack = nil;
+
+ItemAttrDeclareSon.ImageColor = nil;
+ItemAttrDeclareSon.AttrDesColor = nil;
+
+function ItemAttrDeclareSon:ctor(_go)
+    self.Transform = _go.transform;
+    self.AttrName = self.Transform:Find("Text/AttrName"):GetComponent(typeof(Text));
+    -- self.Arrow=self.Transform:Find("Text/Image/Arrow");
+    self.AttrDes = self.Transform:Find("Text"):GetComponent(typeof(Text));
+    self.Btn = _go:GetComponent(typeof(JButton));
+    self.Image = _go:GetComponent(typeof(Image));
+
+    self.ImageColor = Color(0.2547, 0.2547, 0.2547, 1);
+    self.AttrDesColor = Color(0.6, 0.6, 0.6, 1);
+
+    self.BtnClickFun = function()
+        self:OnClickHandler();
+    end
+
+    return self;
+end
+
+-- 数据更新
+function ItemAttrDeclareSon:UpdateContent(data, callBack, mainPlayerLevel)
+    self.AttrData = data;
+
+    if self.AttrData == nil then
+        return;
+    end
+
+    self:OnSelect(false);
+
+    self.CallBack = callBack;
+
+    self.AttrName.text = self.AttrData.Name;
+
+    local params = {};
+    local value = self.AttrData.Value;
+    if value == nil then
+        value = 1;
+    end
+    if self.AttrData.ExtraVal > 0 then
+        value = self.AttrData.ExtraVal;
+    end
+    if self.AttrData.AttType == 2 then
+        --value = value / 100;
+	    value = roundToDecimal2(value / 100, 1);
+    end
+    table.insert(params, value);
+
+    table.insert(params, mainPlayerLevel);
+    self.AttrDes.text = StringFormat(self.AttrData.Des, params);
+
+    self.Btn.OnClick = self.BtnClickFun;
+end
+
+function ItemAttrDeclareSon:OnClickHandler(data)
+    self.CallBack(self.AttrData);
+    self:OnSelect(true);
+end
+
+function ItemAttrDeclareSon:OnSelect(select)
+    -- if self.Arrow == nil then
+    -- return;
+    -- end
+    -- self.Arrow.gameObject:SetActive(select);
+
+    local a = 0;
+    if select then
+        a = 1;
+    end
+    self.ImageColor.a = a;
+    self.Image.color = self.ImageColor;
+
+    if select then
+        self.AttrDesColor.r = 0.8627;
+        self.AttrDesColor.g = 0.9019;
+        self.AttrDesColor.b = 0.7843;
+    else
+        self.AttrDesColor.r = 0.6;
+        self.AttrDesColor.g = 0.6;
+        self.AttrDesColor.b = 0.6;
+    end
+    self.AttrDes.color = self.AttrDesColor;
+end
+
+return ItemAttrDeclareSon;

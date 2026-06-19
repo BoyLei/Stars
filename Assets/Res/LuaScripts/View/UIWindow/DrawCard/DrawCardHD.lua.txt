@@ -1,0 +1,64 @@
+local DrawCardHD = {}
+DrawCardHD.__index = DrawCardHD
+
+function DrawCardHD:New(obj, id)
+	local self = {};
+	setmetatable(self, DrawCardHD);
+
+	self:InitControls(obj, id)
+
+	return self;
+end
+
+function DrawCardHD:InitControls(obj, id)
+	self.gameObject = obj;
+	self.transform = obj.transform;
+
+	self.item = self.transform:Find("SV/Viewport/Content/Item");
+	self.leftTimes = self.transform:Find("Times1"):GetComponent(typeof(Text));
+
+	self:InitData(id)
+end
+
+function DrawCardHD:InitData(id)
+	local tb = {}
+	local srGroup = ConfigDataAccessor.CardPool[id].SRGroup;
+	for _,v in pairs(ConfigDataAccessor.PartnerGroup) do
+		if v.PartnerGroup == srGroup then
+			table.insert(tb, v.IncludePartner);
+		end
+	end
+
+	for _,v in pairs(tb) do
+		local go = newObject(self.item.gameObject)
+		go.transform:SetParent(self.item.parent);
+		go.transform.localPosition = Vector3.zero;
+		go.transform.localScale = Vector3.one;
+		go:SetActive(true);
+		go.transform:SetAsLastSibling();
+
+		local image = go.transform:Find("Head"):GetComponent(typeof(Image));
+		local avatarDataCell = ConfigDataAccessor.Avatar[ConfigDataAccessor.Partner[v].AvatarID];
+		if avatarDataCell ~= nil then
+			local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID];
+			if headCfg ~= nil then
+				--image.sprite = AtlasManager.Instance:GetSprite(headCfg.HeadAtlasName, headCfg.MaxHead);
+				ResourceHelper:LoadIconByAtlasAsync(
+					image,
+					headCfg.HeadAtlasName,
+					headCfg.MinHead,
+					false
+				)
+			end
+		end
+
+		local name = go.transform:Find("Name"):GetComponent(typeof(Text));
+		name.text = ConfigDataAccessor.Partner[v].Name;
+	end
+end
+
+function DrawCardHD:RefreshSsrTimes(t, ft)
+	self.leftTimes.text = tostring(ft);
+end
+
+return DrawCardHD

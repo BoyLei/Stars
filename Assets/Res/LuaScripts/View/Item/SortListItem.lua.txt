@@ -1,0 +1,77 @@
+--[[
+*文件名   :   SortListItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/1 14:50:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local SortListItem = {}
+
+SortListItem.__index = SortListItem
+
+
+
+
+function SortListItem:New(_go) 
+    local self = {};    
+    setmetatable(self, SortListItem); 
+    
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+    self.name1=self.transform:Find("selected/tex"):GetComponent(typeof(Text));
+    self.name2=self.transform:Find("noselected/tex"):GetComponent(typeof(Text));
+
+
+    self.go_Selected=self.transform:Find("selected").gameObject;
+    self.go_Selected:SetActive(false);
+
+    self.go_NoSelected=self.transform:Find("noselected").gameObject;
+    self.go_NoSelected:SetActive(true);
+
+
+    --点击事件
+	self.transform:GetComponent(typeof(JButton)).OnClick=(function()
+        if self.OnItemClick ~= nil then
+		    self.OnItemClick(self); 
+        end
+	end);
+
+    
+    self.IsUsed=false;
+    self.gameObject:SetActive(false);
+
+    return self;    --返回自身
+end
+
+function SortListItem:SetUse(b)
+    self.IsUsed=b;
+    self.gameObject:SetActive(b);
+end
+
+function SortListItem:InitItem(onItemClick)
+    self.OnItemClick=onItemClick;
+    self:SetUse(false);
+end
+
+function SortListItem:SetItem(name,idx)
+    self:SetUse(true);
+
+    self.name1.text=name;
+    self.name2.text=name;
+
+    self.Idx=idx;
+
+    self:MakeSelected(false)
+    
+end
+
+function SortListItem:MakeSelected(b)
+    self.go_Selected:SetActive(b);
+    self.go_NoSelected:SetActive(not(b));
+end
+
+
+return SortListItem;

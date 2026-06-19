@@ -1,0 +1,103 @@
+local TotalAdd = {}
+TotalAdd.__index = TotalAdd
+
+function TotalAdd:New(obj)
+    local self = {};
+    setmetatable(self, TotalAdd);
+
+    self:InitControls(obj)
+
+    return self;
+end
+
+function TotalAdd:InitControls(obj)
+    self.gameObject = obj;
+    self.transform = obj.transform;
+
+    self.propItem = self.transform:Find("SV/Viewport/Content/Item");
+    self.allPropItems = {};
+
+    self.noAddGo = self.transform:Find("NoAdd").gameObject;
+end
+
+function TotalAdd:InitData(data, id)
+    local allPropAdd = {};
+    local tree = {};
+    if id == nil then
+        tree = data.AllTree;
+    else
+        for k, v in pairs(data.AllTree) do
+            if k == id then
+                tree[id] = v;
+                break
+            end
+        end
+    end
+    for k, v in pairs(tree) do
+        for k2, v2 in pairs(v.Tree) do
+            local itemData = ConfigDataAccessor.AttriTTNode[k2];
+            if itemData ~= nil then
+                local attrId = itemData.AttrID;
+                if allPropAdd[attrId] == nil then
+                    allPropAdd[attrId] = 0;
+                end
+
+                if v2 == 1 then
+                    allPropAdd[attrId] = allPropAdd[attrId] + itemData.FirLvAttrValue;
+                elseif v2 == 2 then
+                    allPropAdd[attrId] = allPropAdd[attrId] + itemData.SecLvAttrValue;
+                else
+                    allPropAdd[attrId] = allPropAdd[attrId] + itemData.ThrLvAttrValue;
+                end
+            end
+        end
+    end
+
+    local keys = {}
+    for key, _ in pairs(allPropAdd) do
+        table.insert(keys, key)
+    end
+    table.sort(keys);
+
+    for k, v in pairs(self.allPropItems) do
+        GameObject.Destroy(v);
+    end
+    self.allPropItems = {};
+    for k, v in pairs(keys) do
+        local propTrans = newObject(self.propItem.gameObject);
+        propTrans:SetActive(true);
+        propTrans.transform:SetParent(self.propItem.transform.parent);
+        propTrans.transform.localPosition = Vector3.zero;
+        propTrans.transform.localScale = Vector3.one;
+        local propIcon = propTrans.transform:Find("Image"):GetComponent(typeof(Image));
+        local propName = propTrans.transform:Find("PropName"):GetComponent(typeof(Text));
+        local propValue = propTrans.transform:Find("PropValue"):GetComponent(typeof(Text));
+
+        local attrs = ConfigDataAccessor.Attribute;
+
+        local iconName = nil;
+        for k2, v2 in pairs(attrs) do
+            if v2.AttrId == v then
+                iconName = v2.Icon;
+                break
+            end
+        end
+        if iconName ~= nil then
+            ResourceHelper:LoadIconByAtlasAsync(propIcon, ResourceHelper.AtlasPathIconAttribute, iconName, false)
+        end
+
+        for k2, v2 in pairs(attrs) do
+            if v2.AttrId == v then
+                propName.text = v2.Name;
+                break
+            end
+        end
+        propValue.text = tostring(allPropAdd[v]);
+
+        table.insert(self.allPropItems, propTrans);
+    end
+
+    self.noAddGo:SetActive(#self.allPropItems==0);
+end
+
+return TotalAdd

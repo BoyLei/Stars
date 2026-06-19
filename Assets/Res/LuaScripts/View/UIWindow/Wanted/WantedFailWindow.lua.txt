@@ -1,0 +1,183 @@
+--[[
+*文件名   :   WantedFailWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/06/06 15:37:18"
+*创建人   :   "quzhenxin"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+WantedFailWindow = class("WantedFailWindow", UIPanel)
+
+
+WantedFailWindow.IsOpen = false;
+
+WantedFailWindow.m_IsRevive = false; -- 是否复活
+WantedFailWindow.m_Countdown = 20;
+local m_AtlasPath = "TextBattle";
+
+
+function WantedFailWindow:Awake()
+    self.transform = self.prefab.transform;
+    self.gameObject = self.transform.gameObject;
+
+    local FrameTransForm = self.transform:Find("Cut4Cam90/AssemblyRatio2").transform;
+    self.Bg = FrameTransForm:Find("Center/bg").gameObject;
+    self.Title = FrameTransForm:Find("Center/bg/Title"):GetComponent(typeof(Image));
+    self.Title2 = FrameTransForm:Find("Center/bg/Title2").gameObject;
+    self.MapName = FrameTransForm:Find("Center/bg/MapName"):GetComponent(typeof(Text));
+
+    -- 失败【结算】
+    self.FailPanel = FrameTransForm:Find("Center/FailPanel").gameObject;
+    self.FailTipsCountdown = FrameTransForm:Find("Center/FailPanel/Countdown"):GetComponent(typeof(Text));
+    -- 【确定】【J按钮】
+    self.JBtnSure = FrameTransForm:Find("Center/FailPanel/JBtnSure"):GetComponent(typeof(JButton));
+    self.JBtnSureFun = function()
+        self:OnClickSureJBtn();
+    end
+    self.JBtnSure.OnClick = self.JBtnSureFun;
+    -- 失败【复活】
+    self.RevivePanel = FrameTransForm:Find("Center/RevivePanel").gameObject;
+    self.ReviveTipsCountdown = FrameTransForm:Find("Center/RevivePanel/Countdown"):GetComponent(typeof(Text));
+    -- 倒计时
+
+    -- update事件
+    self.UpdateFun = function()
+        self:UpdateTime();
+    end
+    MonoHelper.AddUpdateListener(self.UpdateFun);
+end
+
+function WantedFailWindow:BindModule(module)
+	self.module = module;
+end
+
+function WantedFailWindow:Start()
+
+end
+
+function WantedFailWindow:OnEnable()
+
+end
+
+function WantedFailWindow:OnDisable()
+
+end
+
+function WantedFailWindow:OnDestroy()
+    MonoHelper.RemoveUpdateListener(self.UpdateFun);
+end
+
+function WantedFailWindow:OnOpen(arg)
+    self.IsOpen = true;
+    --self:InitData(arg);
+end
+
+function WantedFailWindow:OnClose(arg)
+    self.IsOpen = false;
+    self.module.FailWindow = nil;
+    self:CloseWindow();
+end
+
+function WantedFailWindow:InitData(arg)
+    self.m_IsRevive = arg.IsRevive;
+
+    self.FailPanel:SetActive((not self.m_IsRevive));
+    self.RevivePanel:SetActive(self.m_IsRevive);
+    self.Title2:SetActive(self.m_IsRevive);
+    self.MapName.text = "";
+    self.m_Countdown = SystemConstConfigs.DailyCopy_Delay;
+    local v3 = Vector3.zero;
+    if self.m_IsRevive then
+        -- 复活界面
+        self.m_Countdown = SystemConstConfigs.TeamWantedCopy_RiseTime;
+        self.ReviveTipsCountdown.text = self.m_Countdown .. "s";
+
+        v3.y = 110;
+        self.Bg.transform.localPosition = v3;
+        --self.Title.text =LanguageHelp:GetLanguageByKey("Local_Str_Waiting_for_resurrection")
+        --  ResourceHelper:GetSpriteInAtlasByName(self.AtlasPath, "TextLose3",function (sp)
+		-- 		if sp ~= nil then
+		-- 			self.Title.sprite = sp
+		-- 		end
+		--  end)
+         LanguageManager.Instance:GetLanguageImg(m_AtlasPath, "TextLose3",function (sp)
+            if sp ~= nil then
+                self.Title.sprite = sp
+            end
+        end);
+    else
+        -- 失败界面
+        self.MapName.text =LanguageHelp:GetLanguageByKey("Local_Str_playName1")
+        self.FailTipsCountdown.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_WantedChallengeSuccessWindow_Tips"), {self.m_Countdown});
+
+        v3.y = 285;
+        self.Bg.transform.localPosition = v3;
+        --self.Title.text =LanguageHelp:GetLanguageByKey("Local_Str_Challenge_failure")
+        -- ResourceHelper:GetSpriteInAtlasByName(self.AtlasPath, "TextLose1",function (sp)
+		-- 		if sp ~= nil then
+		-- 			self.Title.sprite = sp
+		-- 		end
+		-- end)
+        LanguageManager.Instance:GetLanguageImg(m_AtlasPath, "TextLose1",function (sp)
+            if sp ~= nil then
+                self.Title.sprite = sp
+            end
+        end);
+    end
+
+    self.PlayAnimation("SecretAreaFailWindow_Open", nil);
+end
+
+-- 更新倒计时
+function WantedFailWindow:UpdateTime()
+    if self.m_Countdown > 0 and self.IsOpen then
+        local fixedDeltaTime = Time.deltaTime;
+        self.m_Countdown = self.m_Countdown - fixedDeltaTime;
+        local times = math.floor(self.m_Countdown + 0.5);
+        if self.m_IsRevive then
+            -- 复活界面
+            self.ReviveTipsCountdown.text = times .. "s";
+        else
+            ---- 失败界面
+            self.FailTipsCountdown.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_WantedChallengeSuccessWindow_Tips"), {times});
+        end
+
+        if self.m_Countdown <= 0 then
+            -- 【复活】倒计时结束 服务器会自动复活
+            -- 【失败】服务器会主动切场景
+            -- 倒计时没有了就自动关闭界面
+            if self.m_IsRevive then
+                self:OnClickReviveJBtn();
+            else
+                self:OnClickSureJBtn();
+            end
+        end
+    end
+end
+
+----------------------------------------------------- 按钮点击事件 【STAR】 ------------------------------------------
+
+-- 点击【复活】按钮
+function WantedFailWindow:OnClickReviveJBtn()
+    -- 发送复活请求
+    -- 这里要等服务器的回复
+    --self.Close();
+    LuaModuleDispatcher:SendMessage(ModuleDef.WantedModule, "SendReviveReq", nil);
+end
+
+-- 点击【确定】按钮
+function WantedFailWindow:OnClickSureJBtn()
+    -- 发送退出副本请求
+    -- 这里要等服务器的回复
+    --self.Close();
+    LuaModuleDispatcher:SendMessage(ModuleDef.WantedModule, "SendLeaveInstanceReq", nil);
+end
+
+----------------------------------------------------- 按钮点击事件 【END】 ------------------------------------------
+
+-- 关闭界面
+function WantedFailWindow:CloseWindow()
+
+end
+
+return WantedFailWindow;

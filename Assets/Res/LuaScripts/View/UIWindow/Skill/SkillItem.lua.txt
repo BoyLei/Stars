@@ -1,0 +1,100 @@
+-- 技能条目
+local SkillItem = {}
+SkillItem.__index = SkillItem
+
+function SkillItem:New(obj, w)
+	local self = {};
+	setmetatable(self, SkillItem);
+
+	self:InitControls(obj)
+
+	self.skillWindow = w;
+
+	return self;
+end
+
+function SkillItem:InitControls(obj)
+	self.gameObject = obj;
+	self.transform = obj.transform;
+
+	self.normalGo = self.transform:Find("Normal").gameObject;
+	self.checkGo = self.transform:Find("Check").gameObject;
+	self.checkGo:SetActive(false);
+	self.skillIcon = self.transform:Find("Icon"):GetComponent(typeof(Image));
+	self.usedGo = self.transform:Find("Used").gameObject;
+	self.usedGo:SetActive(false);
+	self.talentGo = self.transform:Find("Level").gameObject;
+	self.talentGo:SetActive(false);
+	self.talentText = self.transform:Find("Level/Text"):GetComponent(typeof(Text));
+	self.upgradeGo = self.transform:Find("Upgrade").gameObject;
+	self.upgradeGo:SetActive(false);
+	self.percentText = self.transform:Find("Percent"):GetComponent(typeof(Text));
+	self.nameText = self.transform:Find("Name"):GetComponent(typeof(Text));
+
+	self.selGo = self.transform:Find("Sel").gameObject;
+
+	self.SkillJb = self.transform:Find("Icon"):GetComponent(typeof(JButton));
+	self.SkillJb.OnClick = function()
+		self.skillWindow:OnClick(self.skillId, self);
+	end
+end
+
+function SkillItem:Refresh(skillId, open, talentId, lv, curSel)
+	self.skillId = skillId;
+	self:Show(true);
+	self.usedGo:SetActive(open);
+
+	local skillName = nil;
+	local id = ConfigDataAccessor.TalentList[talentId].BattleActive[1];
+	for _,v in pairs(ConfigDataAccessor.SkillDescList) do
+		if v.SkillID == id and v.Level == lv then
+            ResourceHelper:LoadIconAsync(self.skillIcon, ResourceHelper.AtlasPathSkill, v.IconPath, false)
+			skillName = v.SkillName;
+			break;
+		end
+	end
+
+	--设置天赋
+	self.talentGo:SetActive(true);
+	local talentExist = false;
+	for _, v in pairs(ConfigDataAccessor.TalentList) do
+		if talentId == v.ID then
+			if v.Type == 0 then
+				self.talentText.text = "I";
+			elseif v.Type == 1 then
+				self.talentText.text = "II";
+			elseif v.Type == 2 then
+				self.talentText.text = "III";
+			end
+			talentExist = true;
+			break;
+		end
+	end
+
+	if not talentExist then
+		self.talentText.text = "-";
+	end
+
+	local maxLevel = 0;
+	for k,v in pairs(ConfigDataAccessor.SkillLevelList) do
+		if v.SkillID == skillId then
+			if v.Skill_Level > maxLevel then
+				maxLevel = v.Skill_Level;
+			end
+		end
+	end
+	self.percentText.text = lv--[[..'/'..maxLevel]]--;
+	self.nameText.text = skillName;
+
+	self.selGo:SetActive(skillId == curSel);
+end
+
+function SkillItem:SetSel(isSel)
+	self.selGo:SetActive(isSel);
+end
+
+function SkillItem:Show(b)
+	self.gameObject:SetActive(b);
+end
+
+return SkillItem

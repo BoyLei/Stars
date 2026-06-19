@@ -1,0 +1,82 @@
+-- 战力提示Item
+local PowerBigModuleItem = {}
+PowerBigModuleItem.__index = PowerBigModuleItem
+
+function PowerBigModuleItem:New(obj)
+    local self = {};
+    setmetatable(self, PowerBigModuleItem);
+
+    self:Init(obj)
+
+    return self;
+end
+
+function PowerBigModuleItem:Init(obj)
+    self.gameObject = obj;
+    self.transform = obj.transform;
+    self.ItemModuleCopy = self.transform:Find("ItemModuleCopy");
+
+    self.progressAnim = self.ItemModuleCopy:Find("JieBian/02"):GetComponent(typeof(Pandavfx_Anim));
+    self.progressBg = self.ItemModuleCopy:Find("ImgKuang"):GetComponent(typeof(Image));
+
+    self.icon = self.ItemModuleCopy:Find("Icon"):GetComponent(typeof(Image));
+    self.titleText = self.ItemModuleCopy:Find("NameBg/Title"):GetComponent(typeof(Text));
+
+    local jButton = self.ItemModuleCopy:GetComponent(typeof(JButton));
+    jButton.OnClick = function()
+        self.clickCB(self.moduleData);
+    end
+
+    self.moduleData = nil;
+    self.clickCB = nil;
+
+end
+
+function PowerBigModuleItem:SetClickCB(clickCB)
+    self.clickCB = clickCB;
+end
+
+function PowerBigModuleItem:UpdateData(moduleData)
+    local isChangeData = self.moduleData ~= moduleData;
+
+    -- 赋值 模块数据
+    self.moduleData = moduleData;
+
+    if self.moduleData == nil then
+        self:Show(false);
+        return;
+    end
+
+    self:Show(true);
+
+    self:UpdateProgress(moduleData.Progress);
+
+    if not isChangeData then
+        return;
+    end
+
+    self:UpdateIcon();
+end
+
+function PowerBigModuleItem:UpdateIcon()
+
+    self.titleText.text = self.moduleData.PowerModuleDataCellCfg.PartName;
+
+    -- 刷新 icon
+    ResourceHelper:LoadAtlasPathIconAsync(self.icon, self.moduleData.PowerModuleDataCellCfg.PartIcon, false)
+
+end
+
+-- 刷新 模块进度
+function PowerBigModuleItem:UpdateProgress(progress)
+
+    self.progressAnim:UpdateW(1 - progress);
+
+    self.progressBg.fillAmount = progress;
+end
+
+function PowerBigModuleItem:Show(b)
+    self.gameObject:SetActive(b);
+end
+
+return PowerBigModuleItem

@@ -1,0 +1,466 @@
+--[[
+*文件名   :   PolishAmuletMenu
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] local PolishAmuletMenu = {}
+
+PolishAmuletMenu.__index = PolishAmuletMenu
+
+local EquipedAmuletItem = require("View/Uiwindow/Amulet/EquipedAmuletItem")
+local PolishAmuletSkillPoint = require("View/Uiwindow/Amulet/PolishAmuletSkillPoint")
+local ItemGrid = require("View/Item/ItemGrid");
+
+function PolishAmuletMenu:New(_go, polishAmulet)
+    local self = {};
+    setmetatable(self, PolishAmuletMenu);
+
+    self.PolishAmulet = polishAmulet;
+
+    self.gameObject = _go;
+    self.transform = _go.transform;
+
+    -- 选择按钮
+    self.go_btns = self.transform:Find("BtnList").gameObject;
+    self.btns = {} -- 永远显示
+    self.btns2 = {} -- 当前已经强化到的显示
+    for i = 1, 10 do
+        local btn = self.transform:Find("BtnList/Btn" .. i).gameObject;
+
+        btn:GetComponent(typeof(JButton)).OnClick = (function()
+            self:OnBtnClick(i);
+        end);
+
+        local btn1 = self.transform:Find("BtnList/Btn" .. i).gameObject;
+        table.insert(self.btns, btn1);
+
+        local btn2 = self.transform:Find("BtnListLight/Btn" .. i).gameObject;
+        table.insert(self.btns2, btn2);
+    end
+
+    -- 技能点
+    self.pointList = {}
+    for i = 1, 6 do
+        local _goIt = self.transform:Find("Info/Mask/List/Skill" .. i).gameObject;
+        local pointItem = PolishAmuletSkillPoint:New(_goIt);
+        table.insert(self.pointList, pointItem);
+    end
+
+    -- 当前选中框
+    self.selectBox = self.transform:Find("SelectedNow");
+    self.selectBoxRect = self.selectBox:GetComponent(typeof(RectTransform));
+    self.selectBoxY = self.selectBox.position.y;
+    self.selectBoxZ = self.selectBox.position.z;
+    -- self.selectBox.gameObject:SetActive(false);
+    self:RefeshSelectBoxPos(1);
+
+    -- 成功率
+    self.successRate = self.transform:Find("SelectedNow/tex"):GetComponent(typeof(Text));
+
+    -- 铭刻按钮
+    local BtnUnPolish = self.transform:Find("PolishMenu/BtnUnPolish"):GetComponent(typeof(JButton));
+    BtnUnPolish.OnClick = (function()
+        self:OnPolishClick();
+    end);
+
+    -- 消耗显示
+    -- 金币
+    self.useCoinSp = self.transform:Find("PolishMenu/Money/Icon"):GetComponent(typeof(Image));
+    self.useCoinNum = self.transform:Find("PolishMenu/Money/Num"):GetComponent(typeof(Text));
+
+    -- 道具
+    self.items = {}
+    for i = 1, 4 do
+        local it = ItemGrid:New(self.transform:Find("PolishMenu/Items/ItemGrid" .. i).gameObject);
+        it:InitItem(false, function(ritem)
+            self:OnItemClick(ritem)
+        end);
+        table.insert(self.items, it);
+    end
+
+    -- 按钮菜单
+    self.go_PolishMenu = self.transform:Find("PolishMenu").gameObject
+
+    -- 无需铭刻
+    self.go_PolishMax = self.transform:Find("PolishMax").gameObject
+
+    -- 监听铭刻回调
+    self.message1 = function(data)
+        self:OnPolishAmuletRet(data)
+    end
+
+    -- 监听铭刻错误码
+    self.message2 = function(data)
+        self:OnPolishAmuletReqRet(data)
+    end
+
+    -- 铭刻的遮罩
+    self.go_PolishMask = self.transform.parent:Find("ClickMask").gameObject
+
+    self.SelectedIdx = 0;
+
+    return self; -- 返回自身
+end
+
+function PolishAmuletMenu:OnMessage()
+    CS.SGF.Network.NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.PolishAmuletRetID, self.message1, nil);
+    CS.SGF.Network.MsgRetManager.Instance:OnMessageEnum(self.message2, CS.MsgIDEnum.PolishAmuletReqID);
+
+end
+function PolishAmuletMenu:OffMessage()
+    CS.SGF.Network.NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.PolishAmuletRetID, self.message1, nil);
+    CS.SGF.Network.MsgRetManager.Instance:OffMessageEnum(self.message2, CS.MsgIDEnum.PolishAmuletReqID);
+
+end
+
+function PolishAmuletMenu:OnItemClick(ritem)
+    LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips", {ritem.BaseID, false, 0, ritem.transform, 0});
+end
+
+function PolishAmuletMenu:OnPolishAmuletReqRet(args)
+    print("铭刻回调");
+
+    local RetMsgID = args.MsgRet.RetMsgID; -- 对应的消息号(这个可以判断是哪个协议)
+
+    local RetCode = args.MsgRet.RetCode; -- 错误码，对应弹窗配置表ID，0为成功
+
+    if RetCode == 0 then
+
+        self.go_PolishMask:SetActive(false);
+        -- 成功
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_146"));
+
+        -- 刷新面板
+        self:Refesh(self.Data, true);
+
+    else
+
+        self.go_PolishMask:SetActive(false);
+
+    end
+
+end
+
+function PolishAmuletMenu:OnPolishAmuletRet(data)
+    print("铭刻回调");
+
+    self.go_PolishMask:SetActive(false);
+    -- 成功
+    Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_146"));
+
+    -- 刷新面板
+    self:Refesh(self.Data, true);
+
+end
+
+function PolishAmuletMenu:OnPolishClick()
+    print("开始铭刻")
+
+    if self.IsMoneyEnough then
+        self.go_PolishMask:SetActive(true);
+
+        local polishAmuletReq = CS.ProtoMsg.PolishAmuletReq();
+        polishAmuletReq.PType = self.PolishType;
+        polishAmuletReq.AmuletID = self.EntityID;
+        polishAmuletReq.Index = self.PolishIndex;
+
+        CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+            polishAmuletReq, false);
+
+    else
+
+        Util.ShowMessage(self.IsMoneyEnoughStr);
+
+    end
+
+end
+
+function PolishAmuletMenu:OnBtnClick(idx)
+    if self.CanSelectedPolish then
+        self.SelectedIdx = idx;
+        self:SpecialPolishRefesh(self.Data);
+    end
+end
+
+function PolishAmuletMenu:RefeshSelectBoxPos(idx)
+    self.selectBox.position = Vector3(self.btns[idx].transform.position.x, self.selectBoxY, self.selectBoxZ);
+end
+
+function PolishAmuletMenu:Refesh(data, needShowEff)
+
+    if data ~= nil then
+
+        -- 重置选择框
+        if self.Data ~= data then
+            self.SelectedIdx = 0;
+        end
+
+        self.gameObject:SetActive(true);
+
+        self.EntityID = data.EntityID;
+
+        local baseID = data.BaseID;
+        local combatSkills = data.CombatSkills;
+
+        local PolishNum = combatSkills.CurPolish; -- 已经铭刻的次数
+
+        local itemCfg = ConfigDataAccessor.Item[baseID];
+        local amuletEquipCfg = ConfigDataAccessor.AmuletEquip[baseID];
+
+        local amuletEquipLevelCfg = ConfigDataAccessor.GetAmuletEquipLevel(amuletEquipCfg.EquipLevel, itemCfg.SubType);
+
+        local maxNum = ConfigDataAccessor.GetMaxPolishNum(itemCfg.Quality); -- 铭刻次数的上限
+
+        for i = 1, #self.btns do
+            self.btns[i]:SetActive(false);
+        end
+        for i = 1, maxNum do
+            self.btns[i]:SetActive(true);
+        end
+
+        for i = 1, #self.btns2 do
+            self.btns2[i]:SetActive(false);
+        end
+        for i = 1, PolishNum do
+            self.btns2[i]:SetActive(true);
+        end
+
+        -- 显示技能词条
+        for i = 1, #self.pointList do
+            self.pointList[i].gameObject:SetActive(false);
+        end
+        for i = 0, combatSkills.List.Count - 1 do
+            if i + 1 <= #self.pointList then
+                self.pointList[i + 1].gameObject:SetActive(true);
+                local cs = combatSkills.List[i];
+                self.pointList[i + 1]:Refesh(maxNum, cs, combatSkills.List)
+            end
+        end
+
+        if needShowEff then
+            if self.CanSelectedPolish then
+                -- 特殊洗练
+                for i = 0, combatSkills.List.Count - 1 do
+                    if i + 1 <= #self.pointList then
+                        self.pointList[i + 1]:ShowPolishPs(self.SelectedIdx)
+                    end
+                end
+            else
+                -- 通常洗练
+                for i = 0, combatSkills.List.Count - 1 do
+                    if i + 1 <= #self.pointList then
+                        self.pointList[i + 1]:ShowPolishPs(PolishNum)
+                    end
+                end
+            end
+        end
+
+        local SkillsCount = combatSkills.List.Count;
+        if SkillsCount > 6 then
+            SkillsCount = 6;
+        end
+        self.selectBoxRect.sizeDelta = Vector2(self.selectBoxRect.sizeDelta.x, 108.3 + (SkillsCount - 1) * 118);
+
+        -- 判断是否可以选择性洗练
+        if PolishNum >= maxNum then
+            self.CanSelectedPolish = true;
+            -- self.go_btns:SetActive(true);
+
+        else
+            self.CanSelectedPolish = false;
+            -- self.go_btns:SetActive(false);
+        end
+
+        -- 显示消耗
+        if self.CanSelectedPolish then
+            -- 特殊洗练
+            self:SpecialPolishRefesh(data);
+        else
+            -- 通常洗练
+            self:NormalPolishRefesh(data);
+        end
+
+    else
+        self.gameObject:SetActive(false);
+
+    end
+
+    self.Data = data;
+
+end
+
+function PolishAmuletMenu:NormalPolishRefesh(data)
+
+    self.selectBox.gameObject:SetActive(true);
+
+    local baseID = data.BaseID;
+    local combatSkills = data.CombatSkills;
+    local PolishNum = combatSkills.CurPolish; -- 已经铭刻的次数
+
+    self.go_PolishMax:SetActive(false);
+    self.go_PolishMenu:SetActive(true);
+
+    -- 正常的洗练
+    self.PolishIndex = PolishNum + 1; -- 需要洗练的Idx
+
+    self:RefeshSelectBoxPos(self.PolishIndex);
+
+    local itemCfg = ConfigDataAccessor.Item[baseID];
+    local amuletEquipCfg = ConfigDataAccessor.AmuletEquip[baseID];
+
+    local AmuletPointCfg = ConfigDataAccessor.GetAmuletPoint(amuletEquipCfg.EquipLevel, itemCfg.Quality,
+        self.PolishIndex);
+
+    -- 计算成功率
+    local rate = AmuletPointCfg.SuccessRate / 100;
+    -- self.successRate.text="成功率\n"..rate.."%"
+    self.successRate.text = "" .. rate .. "%"
+
+    local MoneyCost = AmuletPointCfg.MoneyCost;
+    local ItemCost = AmuletPointCfg.ItemCost;
+
+    local expend = {};
+    expend.Money = MoneyCost;
+    expend.Item_id = {};
+    expend.Item_num = {};
+
+    expend.Item_id[1] = ItemCost[1];
+    expend.Item_num[1] = ItemCost[2];
+
+    self:CalculateNeeds(expend);
+
+    self.PolishType = 0;
+end
+
+function PolishAmuletMenu:_byte2bin(n)
+    -- print("_byte2bin"..n);
+
+    local t = {}
+    for i = 32, 0, -1 do
+        t[#t + 1] = math.floor(n / 2 ^ i)
+        n = n % 2 ^ i
+    end
+
+    -- print(table.concat(t));
+
+    return t;
+    -- return table.concat(t)
+end
+
+function PolishAmuletMenu:SpecialPolishRefesh(data)
+
+    -- 啥都没选
+    if self.SelectedIdx == 0 then
+        self.selectBox.gameObject:SetActive(false);
+        self.go_PolishMax:SetActive(false);
+        self.go_PolishMenu:SetActive(false);
+        return;
+    end
+
+    local baseID = data.BaseID;
+    local combatSkills = data.CombatSkills;
+    local PolishNum = combatSkills.CurPolish; -- 已经铭刻的次数
+
+    self.PolishIndex = self.SelectedIdx;
+
+    self:RefeshSelectBoxPos(self.PolishIndex);
+
+    local itemCfg = ConfigDataAccessor.Item[baseID];
+    local amuletEquipCfg = ConfigDataAccessor.AmuletEquip[baseID];
+
+    local AmuletPointCfg = ConfigDataAccessor.GetAmuletPoint(amuletEquipCfg.EquipLevel, itemCfg.Quality,
+        self.PolishIndex);
+
+    local isAllMax = true;
+    -- 判断是否达到上限
+    for i = 0, combatSkills.List.Count - 1 do
+
+        local cs = combatSkills.List[i];
+        local Points = cs.Points; -- 点数分布，二进制
+        local pList = self:_byte2bin(Points);
+
+        if pList[33 - self.PolishIndex] == 0 then
+            isAllMax = false;
+        end
+
+    end
+
+    -- 计算成功率
+    local rate = AmuletPointCfg.SuccessRate / 100;
+    -- self.successRate.text="成功率\n"..rate.."%"
+    self.successRate.text = "" .. rate .. "%"
+
+    -- 一列达到最大后就不需要再刷新了
+    if isAllMax then
+        self.selectBox.gameObject:SetActive(true);
+        self.go_PolishMax:SetActive(true);
+        self.go_PolishMenu:SetActive(false);
+        return;
+    else
+        self.selectBox.gameObject:SetActive(true);
+        self.go_PolishMax:SetActive(false);
+        self.go_PolishMenu:SetActive(true);
+    end
+
+    local MoneyCost = AmuletPointCfg.MoneyCost;
+    local ItemCost = AmuletPointCfg.ItemCost;
+    local ExtraCost = AmuletPointCfg.ExtraCost;
+
+    local expend = {};
+    expend.Money = MoneyCost;
+    expend.Item_id = {};
+    expend.Item_num = {};
+
+    expend.Item_id[1] = ItemCost[1];
+    expend.Item_num[1] = ItemCost[2];
+    expend.Item_id[2] = ExtraCost[1];
+    expend.Item_num[2] = ExtraCost[2];
+
+    self:CalculateNeeds(expend);
+
+    self.PolishType = 1;
+end
+
+function PolishAmuletMenu:CalculateNeeds(expend)
+
+    DOVirtual.DelayedCall(0.05, function()
+
+        self.IsMoneyEnoughStr = LanguageHelp:GetLanguageByKey("Local_Str_No_Item");
+        self.IsMoneyEnough = true;
+        -- 道具消耗（货币）
+        local cfgM = ConfigDataAccessor.Item[expend.Money[1]];
+        -- LoadIcon(self.useCoinSp,cfgM.Icon);
+        ResourceHelper:LoadIconAsync(self.useCoinSp, "", cfgM.Icon, false)
+
+        local haveMoneyNum = BusinessManager.Instance:GetCurrencyNum(expend.Money[1]);
+        if haveMoneyNum >= (expend.Money[2]) then
+            -- self.useCoinNum.text=""..haveMoneyNum.."/"..expend.Money[2];
+            self.useCoinNum.text = expend.Money[2];
+        else
+            self.IsMoneyEnough = false;
+            self.useCoinNum.text = "<color=#ff0000>" .. (expend.Money[2]) .. "</color>";
+
+            -- self.IsMoneyEnoughStr=cfgM.Name.."不足";
+            self.IsMoneyEnoughStr.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_ShopItem_buyErrorMsg"),
+                {cfgM.Name});
+
+        end
+
+        -- 消耗道具
+        for i = 1, #self.items do
+            self.items[i].gameObject:SetActive(false);
+        end
+        for i = 1, #expend.Item_id do
+            self.items[i].gameObject:SetActive(true);
+            local isItemEnough = self.items[i]:SetItemNum(expend.Item_id[i], expend.Item_num[i], true);
+            if not (isItemEnough) then
+                self.IsMoneyEnough = false;
+            end
+        end
+    end)
+
+end
+
+return PolishAmuletMenu;

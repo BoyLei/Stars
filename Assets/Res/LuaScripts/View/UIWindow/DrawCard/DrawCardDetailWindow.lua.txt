@@ -1,0 +1,436 @@
+DrawCardDetailWindow = class("DrawCardDetailWindow", UIPanel)
+
+local QualityEnum = 
+{
+	QualityNone = 0;	
+	QualityN = 1;
+	QualityR = 2;
+	QualitySR = 3;
+	QualitySSR = 4;
+}
+
+function DrawCardDetailWindow:Awake()
+
+end
+
+function DrawCardDetailWindow:BindModule(m)
+	DrawCardDetailWindow.module = m;
+end
+
+function DrawCardDetailWindow:InitControls()
+	self.transform = self.prefab.transform;
+	self.gameObject = self.transform.gameObject;
+	self.root = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root").gameObject;
+	self.AssemblyRatio = self.transform:Find("Cut4Cam90/AssemblyRatio2");
+	self.cardItem = self.transform:Find("SV/Viewport/Content/CardItem");
+	
+	self.rNode = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/R").gameObject;
+		
+	self.bgSSR = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/R/SSR");
+	self.bgSR = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/R/SR");
+	self.bgR = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/R/R");
+	self.bgN = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/R/N1");
+
+	self.partnerIcon = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/R/Icon/Icon"):GetComponent(typeof(Image));
+	self.quality = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/R/Quality"):GetComponent(typeof(Image));
+	self.ssr = self.quality.transform:Find("Ssr");
+	self.sr = self.quality.transform:Find("Sr");
+	self.r = self.quality.transform:Find("R");
+	self.n = self.quality.transform:Find("N");
+	self.name = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/R/Name_FuJi/Name"):GetComponent(typeof(Text));
+	self.new = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/R/newbg");
+	self.desc = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/Desc"):GetComponent(typeof(Text));
+
+	-- self.renderTexture = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/R/RawImage"):GetComponent(typeof(RawImage));
+
+	self.nextBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/NextBtn"):GetComponent(typeof(Button));
+	self.nextBtn.onClick:AddListener(function()
+			if self.curIndex < self.allData.GachaResult.Count - 1 then
+				self:Init(self.allData, self.curIndex + 1);
+				if self:GetCurLv() >= 3 then
+					local showobj = ""
+					if self.curlv == 3 then 
+						showobj = "effects/ui/drawcard/DrawcardGoldenPurple" 
+					elseif self.curlv == 4 then 
+						showobj = "effects/ui/drawcard/DrawcardGoldenGolden"
+					end
+					self.go_perfab1=ResourceManager.Instance:LoadGameObject(showobj);
+					self.go_perfab1.transform:SetParent(self.AssemblyRatio,false);
+					--self.go_perfab1.transform.localScale=Vector3(1,1,1);
+					--self.go_perfab1.transform.localPosition=Vector3(0,0,0);
+					self.go_perfab1:SetActive(true);
+					DelayInvoker.DelayInvoke(self, 3.2, function()
+							GameObject.Destroy(self.go_perfab1)
+							self.go_perfab1 = nil
+							self:ShowModel();
+						end);
+				else
+					self:ShowModel();
+				end
+			elseif self.allData.GachaResult.Count == 10 then
+				LuaModuleDispatcher:SendMessage(ModuleDef.DrawCardModule, "OnOpenTenTimesWindow", {self.allData});
+				self:PushDisplayGob();
+				--self.gameObject:SetActive(false);
+				self.Close();
+			else
+				self:PushDisplayGob();
+				MutiScenesMergeManager.Instance:UnloadScene();
+
+				LuaModuleDispatcher:SendMessage(ModuleDef.DrawCardModule, "ResetTips", { });
+				self.Close();
+
+				LuaModuleDispatcher:SendMessage(ModuleDef.DrawCardModule, "OnOpenDrawCard", {useold = true})
+			end
+		end);
+
+	self.skipBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/SkipBtn"):GetComponent(typeof(Button));
+	self.skipBtn.onClick:AddListener(function()
+			LuaModuleDispatcher:SendMessage(ModuleDef.DrawCardModule, "OnOpenTenTimesWindow", {self.allData});
+			self:PushDisplayGob();
+			--self.gameObject:SetActive(false);
+			self.Close();
+		end);
+	
+	self.drawAnimator = self.transform:GetComponent(typeof(Animator));
+
+	self.rewardGo1 = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/zhuanhuan/01").gameObject;
+	self.fx1 = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/zhuanhuan/01/Fx");
+	self.fx2 = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/zhuanhuan/01/Fx01");
+	self.zhDi1 = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/zhuanhuan/01/Icon/di"):GetComponent(typeof(Image));
+	self.zhIcon1 = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/zhuanhuan/01/Icon/icon"):GetComponent(typeof(Image));
+	self.zhIconBtn1 = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/zhuanhuan/01/Icon/icon"):GetComponent(typeof(Button));
+	self.zhIconBtn1.onClick:AddListener(function()
+			self.tipsCloseBtn.gameObject:SetActive(true);
+			LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",
+				{self.equipID1,false ,0,self.zhIconBtn1.transform,0});
+
+				LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnHideJumpInfo",nil);
+
+
+
+		end);
+	self.nameTxt1 = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/zhuanhuan/01/IconText/name"):GetComponent(typeof(Text));
+	self.numTxt1 = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/zhuanhuan/01/IconText/num"):GetComponent(typeof(Text));
+
+	self.zhDi2 = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/zhuanhuan/02/Icon/di"):GetComponent(typeof(Image));
+	self.zhIcon2 = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/zhuanhuan/02/Icon/icon"):GetComponent(typeof(Image));
+	self.zhIconBtn2 = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/zhuanhuan/02/Icon/icon"):GetComponent(typeof(Button));
+	self.zhIconBtn2.onClick:AddListener(function()
+			self.tipsCloseBtn.gameObject:SetActive(true);
+			LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",
+				{self.equipID2,false ,0,self.zhIconBtn2.transform,0});
+
+
+				LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnHideJumpInfo",nil);
+
+
+
+		end);
+	self.nameTxt2 = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/zhuanhuan/02/IconText/name"):GetComponent(typeof(Text));
+	self.numTxt2 = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/zhuanhuan/02/IconText/num"):GetComponent(typeof(Text));
+	
+	self.tipsCloseBtn = self.transform:Find("Cut4Cam90/AssemblyRatio2/Root/TipsCloseBtn"):GetComponent(typeof(Button));
+	self.tipsCloseBtn.onClick:AddListener(function()
+			self.tipsCloseBtn.gameObject:SetActive(false);
+		end);
+	--IRoot.UiPageRoot:SetActive(false)
+	local canvasgroup = UIRoot.UiPageRoot:GetComponent(typeof(CanvasGroup))
+    canvasgroup.alpha = 1
+end
+
+function DrawCardDetailWindow:Init(data, index)
+	-- self.ItemData=BusinessManager.Instance:GetItemByItemEntityId(self.EntityID);
+	self.tipsCloseBtn.gameObject:SetActive(false);
+	
+	self.allData = data;
+	self.curIndex = index;
+
+	local gachas = data.GachaResult;
+	self.skipBtn.gameObject:SetActive(gachas.Count > 1);
+
+	local curData = gachas[self.curIndex];
+
+	local originDrop = curData.OriginDrop;
+	
+	local finalDrop = originDrop;
+	if curData.FinalDrop.Count > 0 then
+		finalDrop = curData.FinalDrop[0];
+	end
+
+	local itemData = ConfigDataAccessor.Item[originDrop.Index];
+	if itemData == nil then
+		return;
+	end
+	
+	local str = itemData.Name;
+	local nameStr =str:sub(1, 3)..str:sub(4, string.len(str))
+	-- "<size=116>" .. str:sub(1, 3) .. "</size><size=50> </size><size=84> " .. str:sub(4, string.len(str)) ..
+	-- "</size>";
+	self.name.text = nameStr;
+	-- local name1 = self.name.transform:Find("Name1"):GetComponent(typeof(Text));
+	-- local name2 = self.name.transform:Find("Name2"):GetComponent(typeof(Text));
+	-- name1.text = nameStr;
+	-- name2.text = nameStr;
+
+	local partnerData = ConfigDataAccessor.Partner[originDrop.Index];
+	local lv = partnerData.Quality;
+
+	self.curlv = lv;
+	self:ShowQuality(lv);
+	self.desc.text = partnerData.GachaSlogen;
+	
+	self.ssr.gameObject:SetActive(lv == QualityEnum.QualitySSR);
+	self.sr.gameObject:SetActive(lv == QualityEnum.QualitySR);
+	self.r.gameObject:SetActive(lv == QualityEnum.QualityR);
+	self.n.gameObject:SetActive(lv == QualityEnum.QualityN);
+
+	self.new.gameObject:SetActive(originDrop.Index == finalDrop.Index);
+	--if self.curModel ~= nil then
+		--BusinessManager.Instance:CloseModel(0, self.curModel);
+		--self.curModel = nil;
+	--end
+	local baseAnis = ConfigDataAccessor.Avatar[partnerData.AvatarID].BaseAnims;
+	self.baseAni = ConfigDataAccessor.ModelAnimancerList[baseAnis];
+	self.partnerID = partnerData.AvatarID;
+	--UIManager.Instance:SetRawCamrea(true);
+
+	local showFirst = false;
+	local curRewards = {};
+	if originDrop.Index ~= finalDrop.Index then
+		curRewards[1] = {};
+		curRewards[1].id = finalDrop.Index;
+		curRewards[1].num = finalDrop.Count;
+		showFirst = true;
+		self.equipID1 = finalDrop.Index;
+	end
+	local cardPool = ConfigDataAccessor.CardPool[data.PoolID];
+	curRewards[2] = {};
+	curRewards[2].id = cardPool.AssociateToken;
+	curRewards[2].num = cardPool.AssociateTokenNum;
+	self.equipID2 = cardPool.AssociateToken;
+
+	self:ShowExtraRewards(curRewards, showFirst and gachas.Count == 1, lv);
+end
+
+local showmodelpos = Vector3(626.33, 100, 398.56)
+--local showmodelpos = Vector3(10426.33, 100, 398.56)会抖动的原因
+function DrawCardDetailWindow:ShowModel()
+	-- self.renderTexture.texture = ResourceManager.Instance.RenderTexture;
+
+	-- self.modelPos = {
+	--     [0] = Vector3(-1.324, -0.2, 2.091),
+	--     [1] = Vector3(0.11, -0.05, -0.09),
+	--     [2] = Vector3(1.088, -0.2, 2.11)
+	-- }
+	-- return BusinessManager.Instance:ShowModel(0, id, self.modelPos[1]);
+	local id = self.partnerID;
+	self:PushDisplayGob();
+--	local avatarDataCell = ConfigDataAccessor.Avatar[id];
+	if self.modelfx ~= nil then 
+		GameObject.Destroy(self.modelfx)
+		self.modelfx = nil
+	end
+	ResourceManager.Instance:PopGameObject("Roles/Template/Display_Model", function(go)
+			if go == nil then
+				return;
+			end
+			
+			local min = ConfigDataAccessor.SystemList[223].Value;
+			local max = ConfigDataAccessor.SystemList[224].Value
+			local dt = math.random(min,max);
+
+			UIManager.Instance:SetDrawCardModel(go, id, self.baseAni.DrawCardShow, self.baseAni.DrawCardIdle, self.baseAni.DrawCardEnter,dt);
+			go:SetActive(true);
+			go.transform.parent = DrawCardUI.Instance.parent;
+			go.transform.position = showmodelpos
+			self.m_ModelViewDisplay = go:GetComponent(typeof(RoleViewDisplay));
+			if self.m_ModelViewDisplay ~= nil then
+				local rotation = Quaternion.Euler(0, 0, 0);
+				self.m_ModelViewDisplay:SetRotation(rotation);
+				--self.m_DisplayRawing:SetState(true);
+			end
+			--新增流光特效
+			if self.curlv >= 3 then 
+				local cardfxname = "Fx_CharacteCK_Light_SR"
+				if self.curlv == 3 then 
+					cardfxname = "Fx_CharacteCK_Light_SR"
+				elseif self.curlv == 4 then 
+					cardfxname = "Fx_CharacteCK_Light_SSR"
+				end
+				self.modelfx=ResourceManager.Instance:LoadGameObject("effects/ui/drawcard/"..cardfxname);
+				self.modelfx.transform:SetParent(DrawCardUI.Instance.parent,false);
+				self.modelfx.transform.position = showmodelpos;
+				self.modelfx:SetActive(true);
+			end
+		end);
+
+		local lv = self.curlv;
+		if lv == QualityEnum.QualitySSR then
+			self.drawAnimator:Play("SSR", 0, 0);
+		elseif lv == QualityEnum.QualitySR then
+			self.drawAnimator:Play("SR", 0, 0);
+		elseif lv == QualityEnum.QualityR then
+			self.drawAnimator:Play("R", 0, 0);
+		else
+			self.drawAnimator:Play("N", 0, 0);
+		end
+end
+
+function DrawCardDetailWindow:ShowQuality(lv)
+	self.ssr.gameObject:SetActive(lv == QualityEnum.QualitySSR);
+	self.sr.gameObject:SetActive(lv == QualityEnum.QualitySR);
+	self.r.gameObject:SetActive(lv == QualityEnum.QualityR);
+	self.n.gameObject:SetActive(lv == QualityEnum.QualityN);
+
+	self.bgSSR.gameObject:SetActive(lv == QualityEnum.QualitySSR);
+	self.bgSR.gameObject:SetActive(lv == QualityEnum.QualitySR);
+	self.bgR.gameObject:SetActive(lv == QualityEnum.QualityR);
+	self.bgN.gameObject:SetActive(lv == QualityEnum.QualityN);
+end
+
+function DrawCardDetailWindow:OnShow()
+	print("TenTimesWindow:OnShow" .. self.prefab.name)
+end
+
+function DrawCardDetailWindow:Start()
+
+end
+
+function DrawCardDetailWindow:OnEnable()
+
+end
+
+function DrawCardDetailWindow:OnDisable()
+
+end
+
+function DrawCardDetailWindow:OnDestroy()
+
+end
+
+function DrawCardDetailWindow:OnOpen(arg)
+	self.IsOpen = true;
+end
+
+function DrawCardDetailWindow:OnClose(arg)
+	self:CloseWindow();
+	if self.modelfx then 
+		GameObject.Destroy(self.modelfx)
+		self.modelfx = nil
+	end
+	self.module.drawCardDetailWindow = nil;
+end
+
+function DrawCardDetailWindow:CloseWindow()
+	self.IsOpen = false;
+	if self.curModel ~= nil then
+		BusinessManager.Instance:CloseModel(0, self.curModel);
+		self.curModel = nil;
+	end
+	self:PushDisplayGob()
+	--CS.DynamicUIRoot.EntityUIRoot.gameObject:SetActive(true);
+	--CS.EntityRoot.Instance.gameObject:SetActive(true);
+	--UIManager.Instance:SetRawCamrea(false);
+	self.module.drawCardDetailWindow = nil
+	--UIRoot.UiPageRoot:SetActive(true)
+	UIManager.Instance:CloseDrawCardModel();
+end
+
+function DrawCardDetailWindow:PushDisplayGob()
+	if self.m_ModelViewDisplay ~= nil then
+		ResourceManager.Instance:PushGameObject("Roles/Template/Display_Model", self.m_ModelViewDisplay.gameObject);
+		--GameObject.Destroy(self.m_ModelViewDisplay.gameObject);
+		self.m_ModelViewDisplay = nil;
+		--self.m_DisplayRawing:SetModelView(self.m_ModelViewDisplay);
+	end
+end
+
+function DrawCardDetailWindow:GetEffectName(lv)
+	if lv == QualityEnum.QualitySSR then
+		return "FX_UI_SSR_zhuanhuan01";
+	elseif lv == QualityEnum.QualitySR then
+		return "FX_UI_SR_zhuanhuan01";
+	elseif lv == QualityEnum.QualityR then
+		return "FX_UI_R_zhuanhuan01";
+	else
+		return "FX_UI_N_zhuanhuan01";
+	end
+end
+
+function DrawCardDetailWindow:GetEffectName2(lv)
+	if lv == QualityEnum.QualitySSR then
+		return "FX_UI_SSR_zhuanhuan02";
+	elseif lv == QualityEnum.QualitySR then
+		return "FX_UI_SR_zhuanhuan02";
+	elseif lv == QualityEnum.QualityR then
+		return "FX_UI_R_zhuanhuan02";
+	else
+		return "FX_UI_N_zhuanhuan02";
+	end
+end
+
+function DrawCardDetailWindow:ShowExtraRewards(rewards, showFirst, lv)
+	self.rewardGo1:SetActive(showFirst);
+	if showFirst then
+		local curItem = nil;
+		for k,v in pairs(rewards) do
+			curItem = k;
+			break;
+		end
+		local strName1 = self:GetEffectName(lv);
+
+		self.go_perfab1=ResourceManager.Instance:LoadGameObject("effects/ui/drawcard/"..strName1);
+		self.go_perfab1.transform:SetParent(self.fx1);
+		self.go_perfab1.transform.localScale=Vector3(1,1,1);
+		self.go_perfab1.transform.localPosition=Vector3(0,0,0);
+		
+		local strName2 = self:GetEffectName2(lv);
+		self.go_perfab2=ResourceManager.Instance:LoadGameObject("effects/ui/drawcard/"..strName2);
+		self.go_perfab2.transform:SetParent(self.fx2);
+		self.go_perfab2.transform.localScale=Vector3(1,1,1);
+		self.go_perfab2.transform.localPosition=Vector3(0,0,0);
+	end
+	
+	local index = 1;
+	for k,v in pairs(rewards) do
+		local itcfg =ConfigDataAccessor.Item[v.id];
+		if index == 1 and showFirst then
+			local quality=itcfg.Quality; 
+			ResourceHelper:LoadIconByAtlasAsync(
+				self.zhDi1,
+				ResourceHelper.AtlasPathCommonItem,
+				"Bag_Grid_sq" .. quality,
+				false
+			)
+			ResourceHelper:LoadIconAsync(self.zhIcon1, "", itcfg.Icon, false);
+			self.nameTxt1.text = itcfg.Name;
+			self.numTxt1.text = "x"..v.num;
+		else
+			local quality=itcfg.Quality; 
+			ResourceHelper:LoadIconByAtlasAsync(
+				self.zhDi2,
+				ResourceHelper.AtlasPathCommonItem,
+				"Bag_Grid_sq" .. quality,
+				false
+			)
+			ResourceHelper:LoadIconAsync(self.zhIcon2, "", itcfg.Icon, false);
+			self.nameTxt2.text = itcfg.Name;
+			self.numTxt2.text = "x"..v.num;
+		end
+		index = index + 1;
+	end
+end
+
+function DrawCardDetailWindow:HideWindow()
+	self.root:SetActive(false)
+end
+
+function DrawCardDetailWindow:ShowWindow()
+	self.root:SetActive(true)
+end
+
+function  DrawCardDetailWindow:GetCurLv()
+	return  self.curlv
+end
+
+return DrawCardDetailWindow

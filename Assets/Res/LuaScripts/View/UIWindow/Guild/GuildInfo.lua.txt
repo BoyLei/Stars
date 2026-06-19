@@ -1,0 +1,501 @@
+--[[
+*文件名   :   GuildInfo
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] local GuildInfo = {}
+
+GuildInfo.__index = GuildInfo
+
+local GuildEventLog = require("View/Uiwindow/Guild/GuildEventLog")
+local GuildEdit = require("View/Uiwindow/Guild/GuildEdit")
+
+function GuildInfo:New(_go, guildInfoWindow)
+    local self = {}
+    setmetatable(self, GuildInfo)
+
+    self.GuildInfoWindow = guildInfoWindow
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.IsFirstIn = true
+
+    self.Name = self.transform:Find("Right/NameInputField/Name"):GetComponent(typeof(Text))
+
+    self.Desc = self.transform:Find("Right/DescInputField"):GetComponent(typeof(InputField))
+
+    self.Zi = self.transform:Find("Right/NameInputField/zi"):GetComponent(typeof(Text))
+
+    self.Lv = self.transform:Find("Right/lv"):GetComponent(typeof(Text))
+    self.ID = self.transform:Find("Right/id"):GetComponent(typeof(Text))
+    self.MasterName = self.transform:Find("Right/name"):GetComponent(typeof(Text))
+    self.ActivePoints = self.transform:Find("Right/point"):GetComponent(typeof(Text))
+    self.MemberNum = self.transform:Find("Right/member"):GetComponent(typeof(Text))
+
+    self.ExpTex = self.transform:Find("Right/NameInputField/num"):GetComponent(typeof(Text))
+    self.ExpBar = self.transform:Find("Right/NameInputField/jindutiao/jindutiao1"):GetComponent(typeof(Image))
+
+    self.CE = self.transform:Find("Right/battlePoint"):GetComponent(typeof(Text)) -- 战力
+
+    self.Label = {}
+    for i = 1, 3 do
+        self.transform:Find("label/label" .. i .. "/tt"):GetComponent(typeof(Text)).text = ConfigDataAccessor.GuildLabel[i].LabelDec
+
+        table.insert(self.Label, self.transform:Find("label/label" .. i).gameObject)
+    end
+
+    self.Icon = self.transform:Find("icon"):GetComponent(typeof(Image))
+    self.IconBg = self.transform:Find("iconBg"):GetComponent(typeof(Image))
+    self.Icon2 = self.transform:Find("Right/NameInputField/icon"):GetComponent(typeof(Image))
+
+    local btnLog = self.transform:Find("label/BtnLog"):GetComponent(typeof(JButton))
+    btnLog.OnClick = (function()
+        self:OnBtnLogClick()
+    end)
+
+    -- 拷贝按钮
+    local btnCopy = self.transform:Find("Right/CopyIDBtn"):GetComponent(typeof(JButton))
+    btnCopy.OnClick = (function()
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Tips28"))
+        GUIUtility.systemCopyBuffer = self.ID.text
+        -- DeadMosquito.AndroidGoodies.AGClipboard.SetClipBoardText("label", "This text is now saved in clipboard");
+    end)
+
+    -- 前往冒险团领地
+    local btnGoToGuildTerritory = self.transform:Find("Right/BtnGoToGuildTerritory"):GetComponent(typeof(JButton))
+    btnGoToGuildTerritory.OnClick = (function()
+        UIManager.Instance:CloseAllLoadedWindowNWidget()
+        TaskHelper.FindPathByArea(
+            100,
+            1,
+            1,
+            function()
+            end
+        )
+    end)
+
+    -- 修改冒险团名按钮
+    local btnEditName = self.transform:Find("Right/NameInputField/Edit"):GetComponent(typeof(JButton))
+    btnEditName.OnClick = (function()
+        local data = {}
+        data.Title = LanguageHelp:GetLanguageByKey("Local_Str_Tips29")
+        data.Tips = LanguageHelp:GetLanguageByKey("Local_Str_Tips30")
+        data.Placeholder = LanguageHelp:GetLanguageByKey("Local_Str_Tips31")
+
+        -- 道具不足
+        data.ItemID = 0
+        data.NeedNum = 0
+        data.HaveNum = 0
+        data.IsItemEnough = false
+        local config = ConfigDataAccessor.Cost[10005]
+        if config ~= nil then
+            local count = #config.ItemCost
+            for i = 1, count do
+                local id = config.ItemCost[i]
+                data.ItemID = id
+                data.NeedNum = config.ItemNum[i]
+                data.HaveNum = BusinessManager.Instance:GetCurrencyNum(id)
+                data.IsItemEnough = (data.HaveNum >= data.NeedNum)
+            end
+        end
+
+        data.OnConfirm = function(name)
+            self:OnEditNameClick(name)
+        end
+
+        -- 打开改名UI
+        UIManager.Instance:OpenWidget("Common/ChangeInputFieldWidget", false, data, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, false)
+    end)
+    self.btnEditNameGo = self.transform:Find("Right/NameInputField/Edit").gameObject
+
+    -- 修改冒险团信息按钮
+    local btnEditInfo = self.transform:Find("Right/NameInputField/Setting"):GetComponent(typeof(JButton))
+    btnEditInfo.OnClick = (function()
+        self:OnEditInfoClick()
+    end)
+    self.btnEditInfoGo = self.transform:Find("Right/NameInputField/Setting").gameObject
+
+    -- 修改冒险团公告按钮
+    local btnEditNotice = self.transform:Find("Right/DescInputField/Edit"):GetComponent(typeof(JButton))
+    btnEditNotice.OnClick = (function()
+        self:OnEditNoticeClick()
+    end)
+    self.btnEditNoticeGo = self.transform:Find("Right/DescInputField/Edit").gameObject
+
+    self.GuildEventLog = GuildEventLog:New(self.transform.parent:Find("EventLog").gameObject)
+    self.GuildEdit = GuildEdit:New(self.transform.parent:Find("Edit").gameObject, guildInfoWindow)
+
+    -- 冒险团事件记录回调
+    self.message1 = function(data)
+        self:OnGuildMyGetEventRet(data)
+    end
+
+    -- 修改冒险团名回调
+    self.message2 = function(data)
+        self:OnGuildMyUpNameRet(data)
+    end
+
+    -- 修改冒险团名回调失败
+    self.message3 = function(data)
+        self:OnGuildMyUpNameReqRet(data)
+    end
+
+    -- 修改冒险团公告回调
+    self.message4 = function(data)
+        self:OnGuildMyChangeInfoReqRet(data)
+    end
+
+    self.gameObject:SetActive(false)
+
+    return self -- 返回自身
+end
+
+function GuildInfo:OnEditInfoClick()
+    self.GuildEdit:Show(true)
+end
+
+function GuildInfo:OnEditNoticeClick()
+    -- 等CD
+    local serverTime = GameManager.Instance:GetServerTimeStamp() / 1000
+    local UpGNoticeTime = self.GuildInfoWindow.module.GuildInfo.UpGNoticeTime -- 上次修改时间
+    local GuildChangeNoticeCD = ConfigDataAccessor.SystemList[99].Value -- 冒险团改公告CD
+    local leftTime = GuildChangeNoticeCD - (serverTime - UpGNoticeTime)
+
+    if leftTime > 0 then
+        local timeStr = SecToStringColon2(leftTime)
+        -- Util.ShowMessage("您之前修改过冒险团公告， "..timeStr.." 内无法修改过冒险团公告");
+        Util.ShowMessage(StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Tips32"), {timeStr}))
+
+        do
+            return
+        end
+    end
+
+    -- 点击修改冒险团公告
+    local msg = CS.ProtoMsg.GuildMyChangeInfoReq()
+    local baseInfo = CS.ProtoMsg.GuildBaseField()
+    baseInfo.Notice = self.Desc.text
+    baseInfo.Declaration = self.GuildInfoWindow.module.GuildInfo.BaseInfo.Declaration
+    baseInfo.BadgeID = self.GuildInfoWindow.module.GuildInfo.BaseInfo.BadgeID
+    baseInfo.LabelID = self.GuildInfoWindow.module.GuildInfo.BaseInfo.LabelID
+    baseInfo.IconBg = self.GuildInfoWindow.module.GuildInfo.BaseInfo.IconBg
+    msg.BaseInfo = baseInfo
+    SendClient2CenterReq(msg)
+end
+
+function GuildInfo:OnEditNameClick(name)
+    if name == "" then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Tips24"))
+        return false
+    end
+
+    if string.utf8len(name) <= 1 then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Tips25"))
+        return false
+    end
+
+    -- 等CD
+    local serverTime = GameManager.Instance:GetServerTimeStamp() / 1000
+    local UpGNameTime = self.GuildInfoWindow.module.GuildInfo.UpGnameTime -- 上次修改时间
+    local GuildChangeNameCD = ConfigDataAccessor.SystemList[98].Value -- 冒险团改名CD
+    local leftTime = GuildChangeNameCD - (serverTime - UpGNameTime)
+
+    if leftTime > 0 then
+        local timeStr = SecToStringColon2(leftTime)
+        -- Util.ShowMessage("您之前修改过冒险团名， "..timeStr.." 内无法修改过冒险团名");
+        Util.ShowMessage(StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_266"), {timeStr}))
+        return false
+    end
+
+    -- 道具不足
+    local str = ""
+    local itemName = ""
+    local itemNum = ""
+    local isItemEnough = true
+    local config = ConfigDataAccessor.Cost[10005]
+    if config ~= nil then
+        local count = #config.ItemCost
+        for i = 1, count do
+            local id = config.ItemCost[i]
+            local needNum = config.ItemNum[i]
+
+            local haveNum = BusinessManager.Instance:GetCurrencyNum(id)
+
+            isItemEnough = (haveNum >= needNum)
+
+            itemName = ConfigDataAccessor.Item[id].Name
+            itemNum = "" .. needNum
+            -- str="是否消耗 "..needNum.." "..ConfigDataAccessor.Item[id].Name.." 来修改冒险团名";
+        end
+    end
+
+    if not (isItemEnough) then
+        -- Util.ShowMessage(itemName.."不足");
+        Util.ShowMessage(StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_ShopItem_buyErrorMsg"), {itemName}))
+
+        return false
+    else
+        UIManager.Instance:CloseWidget("Common/ChangeInputFieldWidget", nil, false)
+
+        self.Name.text = name
+
+        -- 点击修改冒险团名
+        local guildMyUpNameReq = CS.ProtoMsg.GuildMyUpNameReq()
+        guildMyUpNameReq.NewGuildName = name
+        CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, guildMyUpNameReq, false)
+        return true
+    end
+
+    --[[
+        CS.StarProjectDef.UIAPI.ShowMsgBox(
+        17,
+        function(str)
+            if str == "SURE" then
+                if not (isItemEnough) then
+                    -- Util.ShowMessage(itemName.."不足");
+                    Util.ShowMessage(StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_ShopItem_buyErrorMsg"), {itemName}))
+
+                    return false
+                else
+                    UIManager.Instance:CloseWidget("Common/ChangeInputFieldWidget", nil, false)
+
+                    self.Name.text = name
+
+                    -- 点击修改冒险团名
+                    local guildMyUpNameReq = CS.ProtoMsg.GuildMyUpNameReq()
+                    guildMyUpNameReq.NewGuildName = name
+                    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, guildMyUpNameReq, false)
+                    return true
+                end
+            else
+            end
+        end,
+        itemNum,
+        itemName
+    )
+    
+    ]]
+    return true
+end
+
+-- 点击日志
+function GuildInfo:OnBtnLogClick()
+    -- 拉取冒险团事件记录
+    local msg = CS.ProtoMsg.GuildMyGetEventReq()
+    SendClient2CenterReq(msg)
+end
+
+-- 修改冒险团公告回调
+function GuildInfo:OnGuildMyChangeInfoReqRet(args)
+    local RetMsgID = args.MsgRet.RetMsgID -- 对应的消息号(这个可以判断是哪个协议)
+
+    local RetCode = args.MsgRet.RetCode
+
+    if RetCode == 0 then
+        if self.gameObject.activeSelf then
+            -- self.GuildInfoWindow.module.GuildInfo.UpGNoticeTime=data.data.CGBInfoTime;--上次修改时间
+
+            -- 修改掉本地缓存
+            self.GuildInfoWindow.module.GuildInfo.BaseInfo.Notice = self.Desc.text
+            -- 成功
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Tips33"))
+        end
+    else
+        -- 不需要处理，交给上层去处理
+        -- args.IsDialog=true
+        -- Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_83"));
+    end
+end
+
+-- 收到修改冒险团名c错误处理
+function GuildInfo:OnGuildMyUpNameReqRet(args)
+    local RetMsgID = args.MsgRet.RetMsgID -- 对应的消息号(这个可以判断是哪个协议)
+
+    local RetCode = args.MsgRet.RetCode
+    if RetCode == 0 then
+    else
+        -- 不需要处理，交给上层去处理
+        -- args.IsDialog=true
+        -- Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_83"));
+
+        -- 该回去
+        self.Name.text = self.GuildInfoWindow.module.GuildInfo.GuName
+    end
+end
+
+-- 收到修改冒险团名回调
+function GuildInfo:OnGuildMyUpNameRet(data)
+    if self.gameObject.activeSelf then
+        self.GuildInfoWindow.module.GuildInfo.UpGnameTime = data.data.UpGNameTime -- 上次修改时间
+        -- 修改掉本地缓存
+        self.GuildInfoWindow.module.GuildInfo.GuName = self.Name.text
+
+        local str = self.Name.text
+        self.Zi.text = Util.GteFirstChar(str)
+
+        -- 成功
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Tips34"))
+    end
+end
+
+-- 收到冒险团事件记录回调
+function GuildInfo:OnGuildMyGetEventRet(data)
+    if self.gameObject.activeSelf then
+        if data.data ~= nil then
+            -- 成功
+
+            local GEvent = data.data.EventList
+
+            -- 打开UI
+            self.GuildEventLog:Show(true, GEvent)
+        else
+            -- 失败
+            -- Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_195"));
+        end
+    end
+end
+
+function GuildInfo:Show(b)
+    self.gameObject:SetActive(b)
+    if b then
+        RedPointManager.Instance:TriggerConditionTypeBoolValue(RedPointConditionType.Union_Notice, false)
+        self:Refesh()
+    else
+    end
+end
+
+function GuildInfo:OnMessage()
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.GuildMyGetEventRetID, self.message1, nil)
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.GuildMyUpNameRetID, self.message2, nil)
+    CS.SGF.Network.MsgRetManager.Instance:OnMessageEnum(self.message3, CS.MsgIDEnum.GuildMyUpNameReqID)
+    CS.SGF.Network.MsgRetManager.Instance:OnMessageEnum(self.message4, CS.MsgIDEnum.GuildMyChangeInfoReqID)
+end
+
+function GuildInfo:OffMessage()
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.GuildMyGetEventRetID, self.message1, nil)
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.GuildMyUpNameRetID, self.message2, nil)
+    CS.SGF.Network.MsgRetManager.Instance:OffMessageEnum(self.message3, CS.MsgIDEnum.GuildMyUpNameReqID)
+    CS.SGF.Network.MsgRetManager.Instance:OffMessageEnum(self.message4, CS.MsgIDEnum.GuildMyChangeInfoReqID)
+end
+
+function GuildInfo:Refesh()
+    if self.GuildInfoWindow.module.GuildInfo ~= nil then
+        -- 存储信息
+        local BaseInfo = self.GuildInfoWindow.module.GuildInfo.BaseInfo -- 基础信息
+
+        local GuildName = self.GuildInfoWindow.module.GuildInfo.GuName -- 冒险团名
+
+        -- local UserCount=self.GuildInfoWindow.module.GuildInfo.UserCount; --冒险团人数
+
+        local GuildID = self.GuildInfoWindow.module.GuildInfo.GuildID -- 冒险团ID
+        local GuNumber = self.GuildInfoWindow.module.GuildInfo.GuNumber -- 冒险团短ID
+
+        local CurExp = self.GuildInfoWindow.module.GuildInfo.GuExp -- 冒险团当前经验值
+
+        local Level = self.GuildInfoWindow.module.GuildInfo.GuLevel -- 冒险团等级
+
+        local Activation = self.GuildInfoWindow.module.GuildInfo.Activation -- 活跃度
+
+        local badgeID = BaseInfo.BadgeID -- 头像ID
+        local labelID = BaseInfo.LabelID -- 标签ID
+        local iconBg = BaseInfo.IconBg -- 头像背景ID
+
+        self.IsFirstIn = true
+        self.Name.text = GuildName
+
+        local str = GuildName
+        -- self.Zi.text=string.sub(str, 1, utf8.offset(str, 1) - 1)
+        self.Zi.text = Util.GteFirstChar(str)
+
+        self.IsFirstIn = false
+        self.Desc.text = BaseInfo.Notice -- 冒险团公告
+
+        self.ID.text = GuNumber
+        -- self.Lv.text=""..Level.."级";
+        self.Lv.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {Level})
+
+        local PresidentName = self.GuildInfoWindow.module.AllGuildInfo.PresidentName -- 团长名
+
+        self.MasterName.text = PresidentName
+
+        --下次更新活跃度的时间
+        local nextUpdateTime = self.GuildInfoWindow.module.GuildInfo.ActiveValueInvaildTime
+        --最近一次更新活跃度的时间
+        local lastUpdateTime = self.GuildInfoWindow.module.GuildInfo.ActiveValueUpdateTime
+        --当前时间
+        local tt = GameManager.Instance:GetServerTimeStamp()
+        local serverNowTime = math.floor(tt / 1000)
+
+        if nextUpdateTime > serverNowTime then
+            self.ActivePoints.text = Activation
+        else
+            self.ActivePoints.text = 0
+        end
+
+        local cfg = ConfigDataAccessor.GuildLevel[Level]
+
+        local maxMember = cfg.GuildNum
+        self.MemberNum.text = self.GuildInfoWindow.module.AllGuildInfo.UserCount .. "/" .. maxMember
+
+        -- 经验值
+        self.ExpTex.text = "" .. CurExp .. "/" .. cfg.ExpCost
+        self.ExpBar.fillAmount = CurExp / cfg.ExpCost
+
+        -- 冒险团标签
+        for i = 1, #self.Label do
+            self.Label[i]:SetActive(false)
+        end
+        if labelID > 0 then
+            self.Label[labelID]:SetActive(true)
+        end
+
+        self.CE.text = "?????" -- 冒险团战力
+
+        -- 冒险团图标
+        if badgeID > 0 then
+            ResourceHelper:GetSpriteInAtlasByName(
+                ResourceHelper.AtlasGuild,
+                "Guild_icon_0" .. badgeID,
+                function(sp)
+                    if sp ~= nil then
+                        self.Icon.sprite = sp
+                        self.Icon2.sprite = sp
+                    end
+                end
+            )
+        end
+
+        if iconBg > 0 then
+            -- 冒险团图标背景(新UI创建)
+            local iconbgNum = iconBg + 6
+            local iconbgStr = "Guild_icon_0" .. iconbgNum
+            if iconbgNum > 9 then
+                iconbgStr = "Guild_icon_" .. iconbgNum
+            end
+            ResourceHelper:GetSpriteInAtlasByName(
+                ResourceHelper.AtlasGuild,
+                iconbgStr,
+                function(sp2)
+                    if sp2 ~= nil then
+                        self.IconBg.sprite = sp2
+                    end
+                end
+            )
+        end
+
+        -- 判断冒险团权限
+
+        -- 修改权限
+        local canEditGuildInfo = self.GuildInfoWindow:IsHaveGuildPower(5)
+        self.Desc.interactable = canEditGuildInfo
+
+        self.btnEditNameGo:SetActive(canEditGuildInfo)
+        self.btnEditInfoGo:SetActive(canEditGuildInfo)
+        self.btnEditNoticeGo:SetActive(canEditGuildInfo)
+    end
+end
+
+return GuildInfo

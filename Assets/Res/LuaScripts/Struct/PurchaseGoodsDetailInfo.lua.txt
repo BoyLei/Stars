@@ -1,0 +1,37 @@
+---------------------------------------------------------------------
+-- Stars (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2022-11-01 17:40:06
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class PurchaseGoodsDetailInfo
+PurchaseGoodsDetailInfo = class("PurchaseGoodsDetailInfo")
+
+--道具ID
+local ItemID=0;
+
+--是否关注
+local IsAttention;
+
+--底价
+local Price;
+
+--在售数量
+local SellNum;
+
+--到期时间
+local Time;
+
+
+function PurchaseGoodsDetailInfo:ctor(id,isAttention,price,sellNum,time)
+	self.ItemID=id;
+	self.IsAttention=isAttention;
+	self.Price=price;
+	self.SellNum=sellNum;
+	self.Time=time;
+end
+
+return  PurchaseGoodsDetailInfo;

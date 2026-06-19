@@ -1,0 +1,468 @@
+--[[
+*文件名   :   PartnersWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/12/14 16:42:46"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+ PartnersWidget = class("PartnersWidget", UIPanel)
+
+local PartnerItem = require("View/Item/PartnerItem")
+
+---表现层
+PartnersWidget.m_PartnerRawImage = nil;
+PartnersWidget.m_PartnerName = nil;
+PartnersWidget.m_PartnerQuality = nil;
+PartnersWidget.m_DetailsBtn = nil;
+PartnersWidget.m_Dropdown = nil;
+PartnersWidget.m_ScrollView = nil;
+PartnersWidget.m_ItemGrid = nil;
+PartnersWidget.m_StatBtn = nil;
+PartnersWidget.m_battleNum = nil;
+PartnersWidget.SelectPartner = nil;
+PartnersWidget.m_ItemRoot = nil;
+PartnersWidget.m_grid = nil;
+PartnersWidget.m_StatBtnText = nil;
+PartnersWidget.m_DisplayRawing = nil;
+---数据层
+PartnersWidget.Partners = nil;
+PartnersWidget.SelectIndex = -1;
+PartnersWidget.PartnerItems = nil;
+PartnersWidget.Index = nil; ---槽位索引
+PartnersWidget.IsEmpty = true; ---有没选中
+PartnersWidget.m_avatarDataCell = nil;
+PartnersWidget.SourcePartners = nil; -- 原始数据
+PartnersWidget.CurrentDropIndex = 0;
+
+local SetPartnerInfofunc=nil;
+local BackBattleTeamfunc=nil;
+
+
+function PartnersWidget:Awake()
+    self.PartnerItems = {}
+    self.m_PartnerRawImage = self:Find("PartnerRawImage"):GetComponent(typeof(RawImage));
+    self.m_PartnerName = self:Find("LeftTop/Image/Text"):GetComponent(typeof(Text));
+    self.m_PartnerQuality = self:Find("LeftTop/Quality/Quality"):GetComponent(typeof(Image));
+    self.m_DetailsBtn = self:Find("LeftTop/DetailsBtn"):GetComponent(typeof(Button));
+    self.m_Dropdown = self:Find("Right/Dropdown"):GetComponent(typeof(Dropdown));
+    self.m_ScrollView = self:Find("Right/Scroll View"):GetComponent(typeof(SuperScrollViewController));
+    self.m_ItemGrid = self:Find("Right/ItemGrid").gameObject;
+    self.m_ItemGrid:SetActive(false);
+
+    self.m_StatBtn = self:Find("Right/StatBtn"):GetComponent(typeof(JButton));
+    self.m_StatBtnText = self:Find("Right/StatBtn/Text"):GetComponent(typeof(Text));
+    self.m_battleNum = self:Find("LeftBottom/battle/battleNum"):GetComponent(typeof(Text));
+    self.m_grid = self:Find("Right/Scroll View/Mask/List"):GetComponent(typeof(RectTransform));
+    self.m_ItemRoot = self:Find("Right/Scroll View/Mask/List");
+    self.m_DisplayRawing = self:Find("DisplayRawimg"):GetComponent(typeof(DisplayRawimg));
+
+    self.m_ScrollView:NewScroll(self.m_ItemGrid, 0, function(tr, idx)
+        self:OnItemRefesh(tr, idx);
+    end);
+	
+	SetPartnerInfofunc=function(id)
+		self:SetPartnerInfo()
+	end
+
+	BackBattleTeamfunc=function(result)
+		self:BackBattleTeam()
+	end
+
+
+end
+
+function PartnersWidget:Start()
+    self.m_DetailsBtn.onClick:AddListener(function()
+        self:OnClickDetailsBtn()
+    end);
+    self.m_StatBtn.OnClick = function()
+        self:OnClickStatBtn()
+    end;
+    self.m_Dropdown.onValueChanged:AddListener(function(index)
+        self:OnDropDownHandler(index);
+    end);
+end
+
+function PartnersWidget:OnDropDownHandler(index)
+    self.CurrentDropIndex = index;
+    -- 0 全部
+    -- 1 6星
+    -- 2 5星
+    self:SetPartners(false);
+end
+
+function PartnersWidget:BackBattleTeam()
+    LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OnOpenBattleTeam");
+end
+
+function PartnersWidget:CleanAllSelected()
+    -- 无限列表
+    for i = 1, #self.PartnerItems do
+        self.PartnerItems[i]:OnSelect(false);
+    end
+end
+
+function PartnersWidget:OnSelect(selectIndex)
+    self.SelectIndex = selectIndex;
+    self:CleanAllSelected();
+    self:SetPartnerInfo();
+end
+
+function PartnersWidget:OnItemRefesh(tr, idx)
+    if self.PartnerItems == nil then
+        return;
+    end
+    for i = 1, #self.PartnerItems do
+        if self.PartnerItems[i].transform == tr then
+            self.PartnerItems[i]:UpdateContent(self.Partners[idx + 1], self.SelectIndex); -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+        end
+    end
+    local bi = PartnerItem.new(tr.gameObject, self.m_ItemRoot, self.AtlasPath, function(index)
+        self:OnSelect(index)
+    end);
+    bi.prefab:SetActive(true);
+    bi:UpdateContent(self.Partners[idx + 1], self.SelectIndex); -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+    table.insert(self.PartnerItems, bi);
+end
+
+function PartnersWidget:OnEnable()
+    UIManager.Instance:SetRawCamrea(true);
+    LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OnCloseWindowMenu");
+
+
+    CS.StarProject.GlobalEvent.OnPartnerFresh:AddListener(SetPartnerInfofunc);
+
+    CS.StarProject.GlobalEvent.OnPartnerBattleRet:AddListener(BackBattleTeamfunc);
+
+    CS.StarProject.GlobalEvent.OnPartnerFallRet:AddListener(BackBattleTeamfunc);
+
+end
+
+function PartnersWidget:OnDisable()
+    self:PushDisplayGob();
+    UIManager.Instance:SetRawCamrea(false);
+    LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OnOpenWindowMenu");
+	
+	CS.StarProject.GlobalEvent.OnPartnerFresh:RemoveListener(SetPartnerInfofunc);
+
+	CS.StarProject.GlobalEvent.OnPartnerBattleRet:RemoveListener(BackBattleTeamfunc);
+
+	CS.StarProject.GlobalEvent.OnPartnerFallRet:RemoveListener(BackBattleTeamfunc);
+	
+end
+
+function PartnersWidget:OnDestroy()
+
+end
+
+function PartnersWidget:SetPartners(needFind)
+
+    self.Partners = {}
+    if self.CurrentDropIndex == 0 then
+        for k, v in pairs(self.SourcePartners) do
+            table.insert(self.Partners, v)
+        end
+    else
+        local selectStart = 7 - self.CurrentDropIndex
+        for k, v in pairs(self.SourcePartners) do
+            if v.CurStar == selectStart then
+                table.insert(self.Partners, v)
+            end
+        end
+    end
+	
+	-- 状态权重映射表
+	local stateWeights = {
+		[CS.ProtoMsg.PartnerState.InBattle] = 2,
+		[CS.ProtoMsg.PartnerState.Concretization] = 2,
+		[CS.ProtoMsg.PartnerState.Assist] = 1
+	}
+
+	-- 辅助函数，获取伙伴的质量，如果伙伴信息不存在则返回0
+	local function getQuality(partnerIndex)
+		local config = ConfigDataAccessor.Partner[partnerIndex]
+		return config and config.Quality or 0
+	end
+
+	-- 排序函数
+	table.sort(self.Partners, function(p1, p2)
+			-- 获取状态权重，如果状态未知则默认为0
+			local t1 = stateWeights[p1.State] or 0
+			local t2 = stateWeights[p2.State] or 0
+
+			-- 如果状态权重不同，根据权重排序
+			if t1 > t2 then return true end
+			if t1 < t2 then return false end
+
+			-- 状态权重相同，比较等级
+			local lv1 = p1.Level or 0
+			local lv2 = p2.Level or 0
+
+			if lv1 > lv2 then return true end
+			if lv1 < lv2 then return false end
+
+			-- 等级相同，比较质量
+			local quality1 = getQuality(p1.Index)
+			local quality2 = getQuality(p2.Index)
+
+			return quality1 > quality2
+		end)
+	if needFind and self.SelectIndex==0 and #self.Partners>0 then
+		self.SelectIndex=self.Partners[1].Index
+	end
+    self.m_ScrollView:ContinueScroll(GetTableLen(self.Partners));
+    self:SetPartnerInfo();
+end
+
+function PartnersWidget:SortCompareInBattle(p1, p2)
+    if p1 == nil then
+        return false;
+    end
+    if p2 == nil then
+        return true;
+    end
+    return p1.State == CS.ProtoMsg.PartnerState.InBattle or p1.State == CS.ProtoMsg.PartnerState.Concretization;
+end
+
+function PartnersWidget:SortCompareQuality(p1, p2)
+    if p1 == nil then
+        return false;
+    end
+    if p2 == nil then
+        return true;
+    end
+    local config1 = ConfigDataAccessor.Partner[p1.Index];
+    local config2 = ConfigDataAccessor.Partner[p2.Index];
+    return config1.Quality > config2.Quality
+end
+
+function PartnersWidget:SortCompareStar(p1, p2)
+    if p1 == nil then
+        return false;
+    end
+    if p2 == nil then
+        return true;
+    end
+    return p1.CurStar > p2.CurStar
+end
+function PartnersWidget:SortCompareFight(p1, p2)
+    if p1 == nil then
+        return false;
+    end
+    if p2 == nil then
+        return true;
+    end
+    if p1.State == CS.ProtoMsg.PartnerState.InBattle or p1.State == CS.ProtoMsg.PartnerState.Concretization then
+        return true;
+    else
+        local config1 = ConfigDataAccessor.Partner[p1.Index];
+        local config2 = ConfigDataAccessor.Partner[p2.Index];
+        local PartnerNature1 = ConfigDataAccessor.PartnerNature[config1.Nature][p1.Level]
+        local PartnerNature2 = ConfigDataAccessor.PartnerNature[config2.Nature][p2.Level]
+        if PartnerNature1 ~= nil and PartnerNature2 ~= nil then
+            return PartnerNature1.Power > PartnerNature2.Power
+        end
+    end
+end
+
+function PartnersWidget:SortCompare(p1, p2)
+
+end
+
+function PartnersWidget:OnOpen(arg)
+    self.CurrentDropIndex = 0;
+    self.m_Dropdown.value = self.CurrentDropIndex;
+    self.SourcePartners = arg.Partners;
+    self.IsEmpty = arg.IsEmpty; ---有没选中
+    self.Index = arg.Index; ---槽位索引
+    self.SelectIndex = arg.SelectIndex;
+    self:SetPartners(true);
+end
+
+function PartnersWidget:GetSelectPartner()
+    if self.Partners == nil then
+        return nil
+    end
+
+    for _k, _v in pairs(self.Partners) do
+        if _v.Index == self.SelectIndex then
+            return _v
+        end
+    end
+end
+
+function PartnersWidget:SetPartnerInfo()
+    local data = self:GetSelectPartner();
+    if data == nil then
+        return
+    end
+
+    local config = ConfigDataAccessor.Partner[data.Index];
+    if config ~= nil then
+        self.m_PartnerName.text = config.Name
+        self:GetSprite(self:GetQualityName(config.Quality), function(sp)
+            self.m_PartnerQuality.sprite = sp
+        end)
+        self.m_PartnerQuality:SetNativeSize();
+        local isGray = false;
+        local isEnterPartner = false;
+        if data.State == CS.ProtoMsg.PartnerState.InBattle or data.State == CS.ProtoMsg.PartnerState.Concretization then
+            if data.CurSeat == self.Index then
+                isEnterPartner = true;
+            end
+
+            isGray = true
+        end
+        if isEnterPartner then
+            isGray = false;
+        end
+
+        self.m_StatBtn.UnClick = isGray
+        self.m_StatBtnText.text = self:GetStateName(data.State, isEnterPartner);
+
+        local avatarDataCell = ConfigDataAccessor.Avatar[config.AvatarID];
+        if avatarDataCell ~= nil then
+            self:SetModel(avatarDataCell, String2Vector3(config.ModelScale), String2Vector3(config.ModelRot),
+                String2Vector3(config.ModelPos), config.ModelAnima);
+        end
+
+        local PartnerNature = ConfigDataAccessor.PartnerNature[config.Nature][data.Level]
+        if PartnerNature ~= nil then
+            self.m_battleNum.text = tostring(PartnerNature.Power);
+        end
+    end
+end
+
+function PartnersWidget:GetQualityName(quality)
+    if quality == 1 then
+        return "Partner_quality_n"
+    elseif quality == 2 then
+        return "Partner_quality_r"
+    elseif quality == 3 then
+        return "Partner_quality_sr"
+    elseif quality == 4 then
+        return "Partner_quality_ssr"
+    end
+    return "Partner_quality_ssr"
+end
+
+function PartnersWidget:GetStateName(state, isEnterPartner)
+    if isEnterPartner then
+        return LanguageHelp:GetLanguageByKey("Local_Str_Downarray")
+    end
+    -- 闲置 ，助战
+    if state == CS.ProtoMsg.PartnerState.DefaultState or state == CS.ProtoMsg.PartnerState.Assist then
+        if self.IsEmpty then
+            return LanguageHelp:GetLanguageByKey("Local_Str_GoIntoBattle")
+        else
+            return LanguageHelp:GetLanguageByKey("Local_Str_Replace")
+        end
+    elseif state == CS.ProtoMsg.PartnerState.InBattle or state == CS.ProtoMsg.PartnerState.Concretization then
+        return LanguageHelp:GetLanguageByKey("Local_Str_AlreadyDeployed")
+    end
+end
+
+function PartnersWidget:SetModel(avatarDataCell, scale, localRotate, localPos, animName)
+    if self.m_avatarDataCell ~= avatarDataCell then
+        ------- 设置模型
+        self:PushDisplayGob();
+        self.m_avatarDataCell = avatarDataCell;
+        ResourceManager.Instance:PopGameObject("Roles/Template/Display_Model", function(go)
+            if go == nil then
+                return;
+            end
+            if self.m_avatarDataCell == nil then
+                ResourceManager.Instance:PushGameObject("Roles/Template/Display_Model", go);
+                return;
+            end
+            UIManager.Instance:SetModel2UI2(go, self.m_avatarDataCell.AvatarID, CS.StarProjectDef.ThreeDModelPos.Raw, scale,
+                Vector3.zero, localRotate, localPos, animName);
+            go:SetActive(true);
+            self.m_ModelViewDisplay = go:GetComponent(typeof(RoleViewDisplay));
+            self.m_DisplayRawing:SetModelView(self.m_ModelViewDisplay);
+
+            if self.m_ModelViewDisplay ~= nil then
+                local rotation = Quaternion.Euler(0, 0, 0);
+                self.m_ModelViewDisplay:SetRotation(rotation);
+                self.m_DisplayRawing:SetState(true);
+            end
+
+            if self.m_ModelViewDisplay ~= nil then
+                local rotation = Quaternion.Euler(0, 0, 0);
+                self.m_ModelViewDisplay:SetRotation(rotation);
+                self.m_DisplayRawing:SetState(true);
+            end
+
+            ------- 设置模型
+            self.m_PartnerRawImage.texture = ResourceManager.Instance.RenderTexture;
+        end);
+
+    end
+    if self.m_ModelViewDisplay ~= nil then
+        local rotation = Quaternion.Euler(0, 0, 0);
+        self.m_ModelViewDisplay:SetRotation(rotation);
+        self.m_DisplayRawing:SetState(true);
+    end
+end
+
+function PartnersWidget:PushDisplayGob()
+    if self.m_ModelViewDisplay ~= nil then
+        ResourceManager.Instance:PushGameObject("Roles/Template/Display_Model", self.m_ModelViewDisplay.gameObject);
+        -- GameObject.DestroyImmediate(self.m_ModelViewDisplay.gameObject);
+        self.m_ModelViewDisplay = nil;
+        self.m_DisplayRawing:SetModelView(self.m_ModelViewDisplay);
+    end
+end
+
+function PartnersWidget:OnClose(arg)
+    self:PushDisplayGob();
+    self.Partners = nil;
+    self.SelectIndex = -1;
+    self.Index = nil; ---槽位索引
+    self.IsEmpty = true; ---有没选中
+    self.m_avatarDataCell = nil;
+end
+
+function PartnersWidget:OnClickDetailsBtn()
+    LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OpenDetailWidget", {self.SelectIndex, 1});
+end
+
+function PartnersWidget:OnClickStatBtn()
+
+    local data = self:GetSelectPartner();
+    if data == nil then
+        return
+    end
+    local Index = 0;
+    if data.State == CS.ProtoMsg.PartnerState.Assist then
+        Index = 10
+    end
+
+    if Index == 0 then
+        self:DoAction(data);
+    else
+        UIAPI.ShowMsgBox(Index, function(EventName)
+            if EventName == "SURE" then
+                self:DoAction(data);
+            end
+        end)
+    end
+
+end
+
+function PartnersWidget:DoAction(data)
+    ---出战
+    if data.State == CS.ProtoMsg.PartnerState.InBattle or data.State == CS.ProtoMsg.PartnerState.Concretization then
+        if data.CurSeat == self.Index then
+            LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "PartnerFallReq", self.SelectIndex);
+
+        end
+    else
+        LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "PartnerBattleReq", {self.SelectIndex, self.Index});
+
+    end
+end
+
+return PartnersWidget

@@ -1,0 +1,71 @@
+local RightPanel = {}
+RightPanel.__index = RightPanel
+
+local SingleAdd = require("View/UIWindow/TalentWindow/SingleAdd")
+local TotalAdd = require("View/UIWindow/TalentWindow/TotalAdd")
+
+function RightPanel:New(obj,fb1,fb2)
+    local self = {};
+    setmetatable(self, RightPanel);
+
+    self:InitControls(obj,fb1,fb2)
+
+    return self;
+end
+
+function RightPanel:InitControls(obj, fb1,fb2)
+    self.gameObject = obj;
+    self.transform = obj.transform;
+
+    local singleAddObj = self.transform:Find("Cut4Cam90").gameObject;
+    local totalAddObj = self.transform:Find("TotalAdd").gameObject;
+
+    self.singleAdd = SingleAdd:New(singleAddObj, self);
+    self.totalAdd = TotalAdd:New(totalAddObj);
+
+    -- self.foldBtn = self.transform:Find("Fold"):GetComponent(typeof(Button));
+    -- self.foldBtn.onClick:AddListener(function()
+    --     self.gameObject:SetActive(false);
+	-- 	LuaModuleDispatcher:SendMessage(ModuleDef.TalentModule, "OnCloseRightPanel", {});
+    -- end)
+
+    self.foldBtn1 = fb1;
+    self.foldBtn1.onClick:AddListener(function()
+        self.gameObject:SetActive(false);
+        self.foldBtn1.gameObject:SetActive(false);
+        LuaModuleDispatcher:SendMessage(ModuleDef.TalentModule, "OnCloseRightPanel1", {});
+    end)
+
+    self.foldBtn2 = fb2;
+    self.foldBtn2.onClick:AddListener(function()
+        self.gameObject:SetActive(false);
+        self.foldBtn2.gameObject:SetActive(false);
+        LuaModuleDispatcher:SendMessage(ModuleDef.TalentModule, "OnCloseRightPanel2", {});
+    end)
+end
+
+
+function RightPanel:Show(isShow, t, id, lv, treeData, totalCost, preLight, leavePoint)
+	self.gameObject:SetActive(isShow);
+    self.singleAdd.gameObject:SetActive(false);
+    self.totalAdd.gameObject:SetActive(false);
+    if not isShow then
+        return;
+    end
+
+    if t == "singlenode" then
+        self.singleAdd.gameObject:SetActive(true);
+        self.singleAdd:InitData(id, lv, totalCost, preLight, leavePoint);
+	elseif t == "alltree" then
+		self.totalAdd.gameObject:SetActive(true);
+		self.totalAdd:InitData(treeData);
+    else--singletree
+        self.totalAdd.gameObject:SetActive(true);
+        self.totalAdd:InitData(treeData, id);
+    end
+
+    self.foldBtn1.gameObject:SetActive(true);
+    self.foldBtn2.gameObject:SetActive(true);
+end
+
+return RightPanel

@@ -1,0 +1,239 @@
+
+local KeyMap = {
+	ID = 1,
+	Ustring = 2,
+	Note = 3,
+	MailTitle = 4,
+	MailTitleComment = 5,
+	MailTxt = 6,
+	MailTxtComment = 7,
+
+}
+
+local R = {
+	_1 = 'MailMailTitle',
+	_2 = 'MailMailTxt',
+	_3 = "排行榜奖励补领",
+	_4 = "冒险企划奖励补发",
+}
+
+local MailList = 
+{
+	[101]=
+	{
+		101,
+		"BAG_FULL",
+		"背包满了",
+		L("MailMailTitle101"),
+		"啊哦,背包满了！",
+		L("MailMailTxt101"),
+		"您的背包已满，以下道具被暂存至伊文塔邮箱啦，记得尽早来领取哦！",
+	},
+	[1000]=
+	{
+		1000,
+		"Guild_Declaration",
+		"修改宣言通知所有人",
+		L("MailMailTitle1000"),
+		"冒险团宣言",
+		L("MailMailTxt1000"),
+		"您所在的冒险团更改了宣言：{0}",
+	},
+	[1100]=
+	{
+		1100,
+		"BANK_BUY_ITEMS",
+		"交易行购买商品",
+		L("MailMailTitle1100"),
+		"购买商品成功",
+		L("MailMailTxt1100"),
+		"您花费了{0}瑞德拉金币，购买了{1}个[Item_Name_{2}]，请查收！",
+	},
+	[1101]=
+	{
+		1101,
+		"BANK_BUY_ICONS",
+		"交易行购买货币（金币/绑钻）",
+		L("MailMailTitle1101"),
+		"[Item_Name_{3}]出售成功",
+		L("MailMailTxt1101"),
+		"您在{0}点{1}分上架的{2}[Item_Name_{3}]已经成功售出，以10:{4}的汇率获取了{5}[Item_Name_{6}],请查收！",
+	},
+	[1111]=
+	{
+		1111,
+		"GUILD_AUCTION_DIVIDEND",
+		"拍卖行:分红邮件",
+		L("MailMailTitle1111"),
+		"拍卖分红发放",
+		L("MailMailTxt1111"),
+		"本次拍卖共成交{0}件拍品，以下是您的拍卖分红，请查收！",
+	},
+	[1112]=
+	{
+		1112,
+		"GUILD_AUCTION_BID_BACK",
+		"拍卖行:竞价退回 拍卖行返还金币",
+		L("MailMailTitle1112"),
+		"拍卖金币退还",
+		L("MailMailTxt1112"),
+		"您竞拍的[Item_Name_{0}]已有更高出价，现将瑞德拉金币返还给您，请查收附件。",
+	},
+	[1113]=
+	{
+		1113,
+		"GUILD_AUCTION_BID_ITEM",
+		"拍卖行:竞拍道具",
+		L("MailMailTitle1113"),
+		"拍卖行[Item_Name_{2}]竞拍成功",
+		L("MailMailTxt1113"),
+		"您花费了{0}瑞德拉金币，成功竞拍了{1}个[Item_Name_{2}]，请查收！",
+	},
+	[1200]=
+	{
+		1200,
+		"GNG_PERSON_RANK_REWARD",
+		"GNG 个人奖励:无畏之战个人邮件+公会午间活动",
+		L("MailMailTitle1200"),
+		"无畏之战个人排行奖励",
+		L("MailMailTxt1200"),
+		"恭喜你在本场无畏之战活动中取得了个人排名第{0}的好成绩，请查收奖励。",
+	},
+	[1210]=
+	{
+		1210,
+		"PLAYMODE_ACTIVE_REISSUE",
+		"每日活跃度",
+		L("MailMailTitle1210"),
+		"日常活跃度奖励",
+		L("MailMailTxt1210"),
+		"以下是您{0}月{1}日未领取的活跃度奖励，请查收！",
+	},
+	[1220]=
+	{
+		1220,
+		"PLAYMODE_DONATE_REISSUE",
+		"公会捐献奖励补领",
+		L("MailMailTitle1220"),
+		"协会募集奖励",
+		L("MailMailTxt1220"),
+		"以下是您{0}月{1}日未领取的协会募集委托累计完成奖励，请查收！",
+	},
+	[1300]=
+	{
+		1300,
+		"SIGNIN_MONTHCARD_REISSUE",
+		"月卡补领",
+		L("MailMailTitle1300"),
+		"补给凭证奖励",
+		L("MailMailTxt1300"),
+		"以下是您{0}月{1}日未领取的补给凭证奖励，请查收！",
+	},
+	[1310]=
+	{
+		1310,
+		"SevenDaysTarget_REISSUE",
+		"七日目标奖励补领",
+		L("MailMailTitle1310"),
+		"伟大航线奖励",
+		L("MailMailTxt1310"),
+		"伟大航线活动已经结束，以下是您未领取的奖励，请查收！",
+	},
+	[1320]=
+	{
+		1320,
+		"TimeReward_REISSUE",
+		"在线奖励补领",
+		L("MailMailTitle1320"),
+		"在线奖励",
+		L("MailMailTxt1320"),
+		"您昨日有未领取的在线奖励，现已随邮件发送，请及时查收！",
+	},
+	[1400]=
+	{
+		1400,
+		"FieldBoss_Knockout",
+		"野外首领尾刀奖励",
+		L("MailMailTitle1400"),
+		"协会讨伐最后一击",
+		L("MailMailTxt1400"),
+		"您参与协会讨伐与[Monster_Name_{0}]的战斗并对目标造成了最后一击，请查收奖励。",
+	},
+	[1500]=
+	{
+		1500,
+		"Rank_REWARD_REISSUE",
+		R._3,
+		L("MailMailTitle1500"),
+		R._3,
+		L("MailMailTxt1500"),
+		"以下是您在排行榜[RankCommon_RankName_{0}]未领取的排行奖励，请查收！",
+	},
+	[301]=
+	{
+		301,
+		"QT_COMPLETE_REWARD",
+		"问卷奖励领取",
+		L("MailMailTitle301"),
+		"问卷调研活动谢礼",
+		L("MailMailTxt301"),
+		"感谢您参与问卷调研活动，以下是参与谢礼，请查收！",
+	},
+	[1600]=
+	{
+		1600,
+		"SecretCopy_REISSUE",
+		"拟态梦境赛季奖励补领",
+		L("MailMailTitle1600"),
+		"拟态梦境赛季奖励",
+		L("MailMailTxt1600"),
+		"以下是您{0}月{1}日至{2}月{3}日赛季未领取的拟态梦境赛季奖励，请查收！",
+	},
+	[1601]=
+	{
+		1601,
+		"SecretCopy_DAILYREISSUE",
+		"拟态梦境每日奖励补发",
+		L("MailMailTitle1601"),
+		"拟态梦境每日任务奖励",
+		L("MailMailTxt1601"),
+		"以下是您{0}月{1}日未领取的拟态梦境每日任务奖励，请查收！",
+	},
+	[1700]=
+	{
+		1700,
+		"AwakeningReward",
+		"转职奖励没领就直接转掉补发",
+		L("MailMailTitle1700"),
+		"觉醒奖励补发",
+		L("MailMailTxt1700"),
+		"您有未领取的觉醒条件达成奖励，现已随邮件发送，请及时查收！",
+	},
+	[1800]=
+	{
+		1800,
+		"SignInReward",
+		"未领取的签到奖励",
+		L("MailMailTitle1800"),
+		"签到奖励补发",
+		L("MailMailTxt1800"),
+		"您有未领取的签到奖励，现已随邮件发送，请及时查收！",
+	},
+	[1900]=
+	{
+		1900,
+		"BPReward",
+		R._4,
+		L("MailMailTitle1900"),
+		R._4,
+		L("MailMailTxt1900"),
+		"冒险企划已更新，以下是您未领取的奖励，请及时查收！",
+	},
+
+}
+
+do
+    MT(KeyMap, MailList)
+end
+
+return MailList

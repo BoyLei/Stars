@@ -1,0 +1,604 @@
+--[[
+*文件名   :   GuildJoin
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] local GuildJoin = {}
+
+GuildJoin.__index = GuildJoin
+
+local GuildItem = require("View/Uiwindow/Guild/GuildItem")
+
+function GuildJoin:New(_go, guildJoinWindow)
+    local self = {}
+    setmetatable(self, GuildJoin)
+
+    self.GuildJoinWindow = guildJoinWindow
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    -- 道具列表
+    self.BagItemList = {}
+    -- 无限列表
+    self.go_BagItem = self.transform:Find("Scroll View/Mask/List/GuildItem").gameObject
+
+    self.tr_ItemRoot = self.transform:Find("Scroll View/Mask/List")
+    self.go_BagItem:SetActive(false)
+    self.go_BagItem.transform:SetParent(self.transform)
+    self.BagScorllView = self.transform:Find("Scroll View"):GetComponent(typeof(SuperScrollViewController))
+    self.BagScorllView:NewScroll(
+        self.go_BagItem,
+        0,
+        function(tr, idx)
+            self:OnBagItemRefesh(tr, idx)
+        end
+    )
+
+    self.go_info = self.transform:Find("Right/Info").gameObject
+    self.go_null = self.transform:Find("Right/Null").gameObject
+
+    self.Icon = self.transform:Find("Right/Info/icon"):GetComponent(typeof(Image))
+    self.IconBg = self.transform:Find("Right/Info/iconBg"):GetComponent(typeof(Image))
+
+    self.MasterName = self.transform:Find("Right/Info/Master"):GetComponent(typeof(Text))
+    self.LvLimit = self.transform:Find("Right/Info/LvLimit"):GetComponent(typeof(Text))
+    self.BattlePointLimit = self.transform:Find("Right/Info/BattlePoint"):GetComponent(typeof(Text))
+
+    self.Desc = self.transform:Find("Right/Info/Desc"):GetComponent(typeof(Text))
+
+    self.IsSearching = false
+    self.GuildSearch = self.transform:Find("Down/InputField"):GetComponent(typeof(InputField))
+    -- 搜索
+    self.transform:Find("Down/SearchBtn"):GetComponent(typeof(JButton)).OnClick = (function()
+        self:OnSearchClick()
+    end)
+
+    -- 一键申请
+    self.transform:Find("Down/BtnAll"):GetComponent(typeof(JButton)).OnClick = (function()
+        self:OnSubmitAllClick()
+    end)
+
+    -- 申请按钮
+    self.transform:Find("Right/Info/BtnSubmit"):GetComponent(typeof(JButton)).OnClick = (function()
+        self:OnSubmitClick()
+    end)
+    self.go_btnBtnSubmit = self.transform:Find("Right/Info/BtnSubmit").gameObject
+    self.go_NotComit = self.transform:Find("Right/Info/NotComit").gameObject
+
+    -- 取消申请按钮
+    self.transform:Find("Right/Info/BtnCancel"):GetComponent(typeof(JButton)).OnClick = (function()
+        -- 点击取消申请
+        local msg = CS.ProtoMsg.GuMgrCelApplyReq()
+        msg.GuildID:Add(self.SelectedGuildInfo.GuildID)
+        SendClient2CenterReq(msg)
+    end)
+    self.go_btnCancel = self.transform:Find("Right/Info/BtnCancel").gameObject
+
+    -- 申请回调
+    self.message1 = function(data)
+        self:OnGuMgrApplyRet(data)
+    end
+
+    -- 取消申请回调
+    self.message2 = function(data)
+        self:OnGuMgrCelApplyRet(data)
+    end
+
+    -- 所有冒险团列表回调
+    self.message3 = function(data)
+        self:OnGuMgrGetListRet(data)
+    end
+
+    -- 所有冒险团列表回调错误码
+    self.message4 = function(data)
+        self:OnGuMgrGetListRetRet(data)
+    end
+
+    self.gameObject:SetActive(false)
+
+    return self -- 返回自身
+end
+
+function GuildJoin:OnGuMgrGetListRetRet(args)
+    local RetMsgID = args.MsgRet.RetMsgID -- 对应的消息号(这个可以判断是哪个协议)
+
+    local RetCode = args.MsgRet.RetCode
+    if RetCode == 0 then
+        -- 成功
+    else
+        -- 不需要处理，交给上层去处理
+        -- args.IsDialog=true
+
+        self.IsSearching = false
+    end
+end
+
+function GuildJoin:OnSearchClick()
+    if self.GuildSearch.text == "" then
+        if self.IsSearching then
+            -- 拉取冒险团列表
+            local msg = CS.ProtoMsg.GuMgrGetListReq()
+            SendClient2CenterReq(msg)
+            self.IsSearching = false
+            return
+        else
+            Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Tips35"))
+            return
+        end
+    end
+
+    self.IsSearching = true
+    -- 拉取搜索的冒险团列表
+    local msg = CS.ProtoMsg.GuMgrGetListReq()
+    msg.GuName = self.GuildSearch.text
+    local gid = tonumber(self.GuildSearch.text)
+    if gid == nil then
+        msg.GuildID = 0
+    else
+        msg.GuildID = gid
+    end
+    SendClient2CenterReq(msg)
+end
+
+function GuildJoin:OnSubmitAllClick()
+    -- 等CD
+    local serverTime = GameManager.Instance:GetServerTimeStamp() / 1000
+    local outGuildTime = BusinessManager.Instance:GetOutGuildTime()
+    local outGuildCd = ConfigDataAccessor.SystemList[93].Value -- 重新加入冒险团CD
+    local leftTime = outGuildCd - (serverTime - outGuildTime)
+
+    if leftTime > 0 then
+        local timeStr = SecToStringColon2(leftTime)
+        -- Util.ShowMessage("您刚离开一个冒险团， "..timeStr.." 内无法加入新冒险团");
+        Util.ShowMessage(StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Tips23"), {timeStr}))
+        do
+            return
+        end
+    end
+
+    local GuildApplyLimit = ConfigDataAccessor.SystemList[94].Value -- 申请加入冒险团的个数上限
+
+    -- 超过上限
+    if self.UserApplyGuildCount >= GuildApplyLimit then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_267"))
+        do
+            return
+        end
+    end
+
+    -- 发送请求
+    local msg = CS.ProtoMsg.GuMgrApplyReq()
+
+    -- 点击申请
+
+    -- 申请在上限以内
+    local leftNum = GuildApplyLimit - self.UserApplyGuildCount
+
+    for i = 1, #self.BagItemList do
+        if leftNum <= 0 then
+            break
+        end
+
+        local info = self.BagItemList[i].Info
+
+        local userPower = FightPowerManager.Instance:GetSeverPowerByModuleType(0, false) -- 当前战力
+
+        -- LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_198的排除")
+        if (info.JoinLevel <= GameManager.Instance:GetPlayerLevel()) and (info.JoinPower <= userPower) then
+            -- 人数没达到上限，并且没有申请的发起申请
+            if not (info.IsMaxMemberNum) and not (info.IsApply) then
+                msg.GuildID:Add(info.GuildID)
+                leftNum = leftNum - 1
+            end
+        end
+    end
+
+    if msg.GuildID.Count == 0 then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_196"))
+        return
+    end
+
+    SendClient2CenterReq(msg)
+end
+
+function GuildJoin:OnSubmitClick()
+    -- 等CD
+    local serverTime = GameManager.Instance:GetServerTimeStamp() / 1000
+    local outGuildTime = BusinessManager.Instance:GetOutGuildTime()
+    local outGuildCd = ConfigDataAccessor.SystemList[93].Value -- 重新加入冒险团CD
+    local leftTime = outGuildCd - (serverTime - outGuildTime)
+
+    if leftTime > 0 then
+        local timeStr = SecToStringColon2(leftTime)
+        -- Util.ShowMessage("您刚离开一个冒险团， "..timeStr.." 内无法加入新冒险团");
+        Util.ShowMessage(StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_Tips23"), {timeStr}))
+
+        do
+            return
+        end
+    end
+
+    local GuildApplyLimit = ConfigDataAccessor.SystemList[94].Value -- 申请加入冒险团的个数上限
+
+    -- 超过上限
+    if self.UserApplyGuildCount >= GuildApplyLimit then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_267"))
+        do
+            return
+        end
+    end
+
+    -- 人数达到上限
+    if self.SelectedGuildInfo.IsMaxMemberNum then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_197"))
+        do
+            return
+        end
+    end
+
+    -- 加入等级
+    if self.SelectedGuildInfo.JoinLevel > GameManager.Instance:GetPlayerLevel() then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_198"))
+        do
+            return
+        end
+    end
+
+    -- 加入战力
+    local userPower = FightPowerManager.Instance:GetSeverPowerByModuleType(0, false) -- 当前战力
+    if self.SelectedGuildInfo.JoinPower > userPower then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_Power_198"))
+        do
+            return
+        end
+    end
+
+    -- 点击申请
+    local msg = CS.ProtoMsg.GuMgrApplyReq()
+    msg.GuildID:Add(self.SelectedGuildInfo.GuildID)
+    SendClient2CenterReq(msg)
+end
+
+-- 取消申请回调
+function GuildJoin:OnGuMgrCelApplyRet(data)
+    -- 成功
+    Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_199"))
+
+    local WithdrawGids = data.data.GuildID -- 成功了哪些，id 刷新UI用
+    self.UserApplyGuildCount = self.UserApplyGuildCount - WithdrawGids.Count
+
+    -- 刷新UI
+    for i = 1, #self.ItemDataList do
+        for j = 0, WithdrawGids.Count - 1 do
+            local data = self.ItemDataList[i]
+            if data.GuildID == WithdrawGids[j] then
+                data.ApplyTime = 0
+                data.IsApply = false
+            end
+        end
+    end
+    self.BagScorllView:ContinueScroll(#self.ItemDataList, false)
+
+    self:RefeshInfo()
+end
+
+-- 申请回调
+function GuildJoin:OnGuMgrApplyRet(data)
+    -- 成功
+    Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_200"))
+
+    local ApplyGids = data.data.GuildID -- 成功了哪些，id 刷新UI用
+    self.UserApplyGuildCount = self.UserApplyGuildCount + ApplyGids.Count
+
+    -- 刷新UI
+    for i = 1, #self.ItemDataList do
+        for j = 0, ApplyGids.Count - 1 do
+            local data = self.ItemDataList[i]
+            if data.GuildID == ApplyGids[j] then
+                data.ApplyTime = GameManager.Instance:GetServerTimeStamp() / 1000
+                data.IsApply = true
+            end
+        end
+    end
+    self.BagScorllView:ContinueScroll(#self.ItemDataList, false)
+
+    self:RefeshInfo()
+
+    -- 判断是是否
+    DOVirtual.DelayedCall(
+        0.3,
+        function()
+            if BusinessManager.Instance:GetGuildID() > 0 then
+                UIManager.Instance:CloseAllLoadedWindowNWidget()
+                LuaModuleDispatcher:SendMessage(ModuleDef.GuildModule, "OnOpenGuildInfo", {1})
+            end
+        end
+    )
+end
+
+--
+function GuildJoin:OnGuMgrGetListRet(data)
+    if data.data ~= nil then
+        -- 成功
+        self.AllGuildInfo = data.data.Datas
+        self.PageID = data.data.PageID
+        self.UserApplyGuildCount = data.data.UserApplyGuildCount
+        self:Refesh()
+
+        if self.IsSearching then
+            if self.AllGuildInfo.Count > 0 then
+                Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_201"))
+            else
+                Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_268"))
+            end
+        end
+    else
+        -- 失败
+        -- Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_202"));
+    end
+end
+
+function GuildJoin:OnBagItemRefesh(tr, idx)
+    for i = 1, #self.BagItemList do
+        if self.BagItemList[i].transform == tr then
+            self.BagItemList[i]:SetItem(self.ItemDataList[idx + 1]) -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+        end
+    end
+
+    local bi =
+        GuildItem:New(
+        tr.gameObject,
+        function(ritem)
+            self:OnItemClick(ritem)
+        end,
+        ResourceHelper.AtlasGuild
+    )
+
+    bi.gameObject:SetActive(true)
+    bi:SetItem(self.ItemDataList[idx + 1]) -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+
+    table.insert(self.BagItemList, bi)
+end
+
+function GuildJoin:OnItemClick(ritem)
+    -- 无限列表
+    for i = 1, #self.BagItemList do
+        self.BagItemList[i]:MakeSelected(false)
+    end
+    ritem:MakeSelected(true)
+
+    self.SelectedGuildInfo = ritem.Info -- 当前选中的冒险团信息
+
+    self:RefeshInfo()
+end
+
+function GuildJoin:RefeshInfo()
+    -- 存储信息
+    local BaseInfo = self.SelectedGuildInfo.BaseInfo -- 基础信息
+
+    local PresidentName = self.SelectedGuildInfo.PresidentName -- 团长名
+
+    local JoinLevel = self.SelectedGuildInfo.JoinLevel -- 加入等级
+    local JoinPower = self.SelectedGuildInfo.JoinPower -- 加入战力
+
+    local badgeID = BaseInfo.BadgeID -- 头像ID
+    local iconBg = BaseInfo.IconBg -- 头像背景ID
+
+    -- 冒险团图标
+    if badgeID > 0 then
+        ResourceHelper:GetSpriteInAtlasByName(
+            ResourceHelper.AtlasGuild,
+            "Guild_icon_0" .. badgeID,
+            function(sp)
+                if sp ~= nil then
+                    self.Icon.sprite = sp
+                end
+            end
+        )
+    end
+
+    -- 冒险团图标背景(新UI创建)
+    if iconBg > 0 then
+        local iconbgNum = iconBg + 6
+        local iconbgStr = "Guild_icon_0" .. iconbgNum
+        if iconbgNum > 9 then
+            iconbgStr = "Guild_icon_" .. iconbgNum
+        end
+        ResourceHelper:GetSpriteInAtlasByName(
+            ResourceHelper.AtlasGuild,
+            iconbgStr,
+            function(sp2)
+                if sp2 ~= nil then
+                    self.IconBg.sprite = sp2
+                end
+            end
+        )
+    end
+
+    self.MasterName.text = PresidentName
+
+    self.Desc.text = BaseInfo.Declaration
+
+    local showJoinBtn = true
+
+    -- 等级限制
+    -- self.LvLimit.text="Lv."..JoinLevel;
+    if JoinLevel == 0 then
+        self.LvLimit.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips36")
+    else
+        -- 加入等级
+        local meetLv = true
+        if JoinLevel > GameManager.Instance:GetPlayerLevel() then
+            meetLv = false
+            showJoinBtn = false
+        end
+
+        -- self.LvLimit.text=JoinLevel.."级";
+        if meetLv then
+            self.LvLimit.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {JoinLevel})
+        else
+            self.LvLimit.text = "<color=#BF3232>" .. StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {JoinLevel}) .. "</color>"
+        end
+    end
+
+    -- 战力限制
+    if JoinPower == 0 then
+        self.BattlePointLimit.text = LanguageHelp:GetLanguageByKey("Local_Str_Tips36")
+    else
+        -- 加入战力
+        local meetPower = true
+        local userPower = FightPowerManager.Instance:GetSeverPowerByModuleType(0, false) -- 当前战力
+        if JoinPower > userPower then
+            meetPower = false
+            showJoinBtn = false
+        end
+
+        if meetPower then
+            self.BattlePointLimit.text = GetTotalPowerRankLevel(JoinPower)
+        else
+            self.BattlePointLimit.text = "<color=#BF3232>" .. GetTotalPowerRankLevel(JoinPower) .. "</color>"
+        end
+    end
+
+    if not (self.SelectedGuildInfo.IsApply) then
+        self.go_btnBtnSubmit:SetActive(showJoinBtn)
+        self.go_NotComit:SetActive(not (showJoinBtn))
+        self.go_btnCancel:SetActive(false)
+    else
+        self.go_btnBtnSubmit:SetActive(false)
+        self.go_NotComit:SetActive(false)
+        self.go_btnCancel:SetActive(true)
+    end
+end
+
+function GuildJoin:Show(b)
+    self.gameObject:SetActive(b)
+    if b then
+        NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.GuMgrApplyRetID, self.message1, nil)
+        NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.GuMgrCelApplyRetID, self.message2, nil)
+        NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.GuMgrGetListRetID, self.message3, nil)
+        CS.SGF.Network.MsgRetManager.Instance:OnMessageEnum(self.message4, CS.MsgIDEnum.GuMgrGetListRetID)
+
+        self.go_info:SetActive(false)
+        self.go_null:SetActive(true)
+
+        -- 拉取冒险团列表
+        local msg = CS.ProtoMsg.GuMgrGetListReq()
+        SendClient2CenterReq(msg)
+    else
+        NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.GuMgrApplyRetID, self.message1, nil)
+        NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.GuMgrCelApplyRetID, self.message2, nil)
+        NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.GuMgrGetListRetID, self.message3, nil)
+        CS.SGF.Network.MsgRetManager.Instance:OffMessageEnum(self.message4, CS.MsgIDEnum.GuMgrGetListRetID)
+
+        self.SelectedGuildInfo = nil
+        self.IsSearching = false
+        self.GuildSearch.text = ""
+    end
+end
+
+function GuildJoin:Refesh()
+    if self.ItemDataList == nil then
+        self.ItemDataList = {}
+    else
+        for k, _ in pairs(self.ItemDataList) do
+            self.ItemDataList[k] = nil
+        end
+    end
+
+    -- 刷新数据 EventInfo
+    for i = 0, self.AllGuildInfo.Count - 1 do
+        local data = {}
+        data.PresidentName = self.AllGuildInfo[i].PresidentName
+        data.UserCount = self.AllGuildInfo[i].UserCount
+        data.ApplyTime = self.AllGuildInfo[i].ApplyTime
+
+        data.GuildID = self.AllGuildInfo[i].GuildData.GuildID
+        data.GuName = self.AllGuildInfo[i].GuildData.GuName
+        data.Level = self.AllGuildInfo[i].GuildData.GuLevel
+        data.JoinLevel = self.AllGuildInfo[i].GuildData.JoinPlayerLv
+        data.JoinPower = self.AllGuildInfo[i].GuildData.JoinPlayerPower
+        data.Activation = self.AllGuildInfo[i].GuildData.Activation
+
+        data.BaseInfo = self.AllGuildInfo[i].GuildData.BaseInfo
+
+        data.BadgeID = data.BaseInfo.BadgeID
+        data.LabelID = data.BaseInfo.LabelID
+        data.IconBg = data.BaseInfo.IconBg
+
+        data.IsSelected = false
+        data.IsMaxMemberNum = false
+
+        -- 标记是否是已经申请的
+        data.IsApply = data.ApplyTime > 0
+
+        if self.SelectedGuildInfo ~= nil and self.SelectedGuildInfo.GuildID == data.GuildID then
+            self.SelectedGuildInfo = data
+            data.IsSelected = true
+        end
+
+        table.insert(self.ItemDataList, data)
+    end
+
+    self:SortItem(self.ItemDataList)
+    self.BagScorllView:ContinueScroll(#self.ItemDataList, false)
+
+    -- 默认选第一个
+    if #self.ItemDataList > 0 then
+        if self.SelectedGuildInfo == nil then
+            self:OnItemClick(self.BagItemList[1])
+        else
+            self:RefeshInfo()
+        end
+
+        self.go_info:SetActive(true)
+        self.go_null:SetActive(false)
+    else
+        -- 隐藏右边
+        self.go_info:SetActive(false)
+        self.go_null:SetActive(true)
+    end
+end
+
+function GuildJoin:SortItem(tbl)
+    do
+        return
+    end
+
+    if #tbl > 1 then
+        table.sort(
+            tbl,
+            function(a, b)
+                -- 等级降序
+                if a.HeraldryLevel > b.HeraldryLevel then
+                    return true
+                elseif a.HeraldryLevel == b.HeraldryLevel then
+                    -- 可共鸣优先
+                    if a.CanResonanceSlot > b.CanResonanceSlot then
+                        return true
+                    elseif a.CanResonanceSlot == b.CanResonanceSlot then
+                        if a.SortProp < b.SortProp then
+                            -- 按SortProp升序
+                            return true
+                        elseif a.SortProp == b.SortProp then
+                            -- 如果SortProp相等，按Type升序
+                            if a.ItemType < b.ItemType then
+                                return true
+                            elseif a.ItemType == b.ItemType then
+                                -- 如果Type相等，按Id升序
+                                return a.BaseID < b.BaseID
+                            end
+                        end
+                    end
+                end
+                return false
+            end
+        )
+    end
+end
+
+return GuildJoin

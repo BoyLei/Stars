@@ -1,0 +1,67 @@
+--跑马灯
+MarqueeWidget = class("MarqueeWidget", UIPanel)
+
+function MarqueeWidget:Awake()
+
+end
+
+function MarqueeWidget:BindModule(m)
+    MarqueeWidget.module = m;
+end
+
+function MarqueeWidget:InitControls()
+    self.transform = self.prefab.transform;
+    self.gameObject = self.transform.gameObject;
+
+    self.content = self.transform:Find("Root/Bg/Text"):GetComponent(typeof(Text));
+end
+
+function MarqueeWidget:Init(data)
+    self.content.text = data;
+	self.gameObject:SetActive(true);
+	self:LateClose();
+end
+
+function MarqueeWidget:LateClose()
+	if self.tw ~= nil then
+		self.tw:Kill();
+		self.tw = nil;
+	end
+	self.tw = DOVirtual.DelayedCall(3, function()
+		--self.Close();
+		self.gameObject:SetActive(false);
+	end)
+end
+
+function MarqueeWidget:OnShow()
+end
+
+function MarqueeWidget:Start()
+
+end
+
+function MarqueeWidget:OnEnable()
+
+end
+
+function MarqueeWidget:OnDisable()
+
+end
+
+function MarqueeWidget:OnDestroy()
+
+end
+
+function MarqueeWidget:OnOpen(arg)
+    self.IsOpen = true;
+end
+
+function MarqueeWidget:OnClose(arg)
+    self:CloseWindow();
+end
+
+function MarqueeWidget:CloseWindow()
+    self.IsOpen = false;
+end
+
+return MarqueeWidget

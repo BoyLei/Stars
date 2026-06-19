@@ -1,0 +1,53 @@
+--[[
+*文件名   :   TestWindow
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/08/19 10:53:43"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+TestWindow=class("TestWindow",UIPanel)
+TestWindow.m_Content=nil;
+TestWindow.m_Button=nil;
+TestWindow.m_Text=nil;
+
+
+function TestWindow:Awake()
+	self.m_Content=self:Find("Content"):GetComponent(typeof(RectTransform));
+	self.m_Button=self:Find("Content/Button"):GetComponent(typeof(Button));
+	self.m_Text=self:Find("Content/Text (hint)"):GetComponent(typeof(Text));
+end
+
+function TestWindow:Start()
+	self.m_Button.onClick:AddListener(function() self:OnClickButton() end);
+
+end
+
+function TestWindow:OnEnable()
+	
+end
+
+function TestWindow:OnDisable()
+	
+end
+
+function TestWindow:OnDestroy()
+
+end
+
+function TestWindow:OnOpen(arg)
+
+end
+
+function TestWindow:OnClose(arg)
+
+end
+
+function TestWindow:OnClickButton()
+	print("OnClickButton");
+	self.m_Text.text="TestWindow:OnClickButton"
+end
+
+
+
+return  TestWindow

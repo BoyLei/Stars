@@ -1,0 +1,249 @@
+--[[
+*文件名   :   PartyTimeRewardWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/12/06 10:33:06"
+*创建人   :   "quzhenxin"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+PartyTimeRewardWidget=class("PartyTimeRewardWidget",UIPanel)
+
+local PartyTimeRewardItem=require("View/UIWidget/PartyTime/PartyTimeRewardItem")
+local SelectBtn= require("View/Item/SelectBtn")
+local ItemGrid=require("View/Item/ItemGrid");
+
+function PartyTimeRewardWidget:Awake()
+	self.transform=self.prefab.transform;
+	self.gameObject=self.transform.gameObject;
+
+	self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/BtnClose"):GetComponent(typeof(JButton)).OnClick=(function()
+		self:OnPlayBack();
+	end);
+
+
+	--菜单按钮
+	self.MenuBtns={};
+
+	local btn1=SelectBtn:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/tag1").gameObject);
+	btn1:InitItem(1,function (idx)
+		self:OnMenuBtnClick(idx);
+	end);
+	table.insert(self.MenuBtns,btn1);
+
+	local btn2=SelectBtn:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/tag2").gameObject);
+	btn2:InitItem(2,function (idx)
+		self:OnMenuBtnClick(idx);
+	end);
+	table.insert( self.MenuBtns,btn2);
+
+
+    --道具列表
+    self.PartyTimeRewardItemList={};
+	--无限列表
+	self.go_PartyTimeRewardItem = self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/Rank/Scroll View/Mask/List/Item").gameObject;
+
+	self.tr_ItemRoot=self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/Rank/Scroll View/Mask/List");
+	self.go_PartyTimeRewardItem:SetActive(false);
+	self.go_PartyTimeRewardItem.transform:SetParent(self.transform);
+	self.EventRewardPersonalScorllView=self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/Rank/Scroll View"):GetComponent(typeof(SuperScrollViewController));
+	self.EventRewardPersonalScorllView:NewScroll(self.go_PartyTimeRewardItem, 0, function (tr,idx)
+		self:OnPartyTimeRewardItemRefesh(tr,idx);
+	end);
+
+
+	--公会奖励
+	self.go_RewardGuild=self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/Rank").gameObject
+
+	--挂机奖励
+	self.go_RewardWait=self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/Wait").gameObject
+
+	--标题
+    self.title = self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/Wait/title1/tt1"):GetComponent(typeof(Text));
+
+	--道具
+	self.items={}
+	for i=1,6 do
+		local it = ItemGrid:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/Wait/Item/Items/ItemGrid"..i).gameObject);
+		it:InitItem(false,function(ritem)  
+			self:OnItemClick(ritem);
+		end);
+		table.insert( self.items,it);
+	end
+	
+end
+
+
+
+
+function PartyTimeRewardWidget:OnMenuBtnClick(idx)
+
+	if self.idxNow==idx then
+		return;
+	end
+
+	
+	self.idxNow=idx;
+
+	for i=1,#self.MenuBtns do
+		self.MenuBtns[i]:MakeSelected(false);
+	end
+	self.MenuBtns[idx]:MakeSelected(true);
+
+	self:Refesh();
+
+end
+
+
+function PartyTimeRewardWidget:OnPartyTimeRewardItemRefesh(tr,idx)
+
+	for i=1,#self.PartyTimeRewardItemList do
+		if self.PartyTimeRewardItemList[i].transform == tr then
+            self.PartyTimeRewardItemList[i]:SetItem(self.ItemDataList[idx+1]);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+		end
+
+	end
+
+    local bi = PartyTimeRewardItem:New(tr.gameObject);
+
+	bi.gameObject:SetActive(true);
+	bi:SetItem(self.ItemDataList[idx+1]);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+
+    table.insert(self.PartyTimeRewardItemList, bi);
+
+end
+
+
+
+
+function PartyTimeRewardWidget:Refesh()
+
+    if self.ItemDataList==nil then
+        self.ItemDataList ={}
+    else
+        for k,_ in pairs(self.ItemDataList) do self.ItemDataList[k] = nil end
+    end
+
+
+	if self.idxNow==1 then
+
+		self.go_RewardGuild:SetActive(true);
+		self.go_RewardWait:SetActive(false);
+
+
+		for k,v in pairs(ConfigDataAccessor.PartyTimeGuildReward) do
+			
+			local data={};
+			data.rank=v.Reward_need_num;
+			data.rankTex=""..data.rank;
+	
+			data.reward=v.Reward;
+			data.num=v.RewardNum;
+
+			table.insert( self.ItemDataList, data );
+		end
+
+		self:SortItem(self.ItemDataList);
+
+		self.EventRewardPersonalScorllView:ContinueScroll(#self.ItemDataList);
+
+
+	elseif self.idxNow==2 then
+		self.go_RewardGuild:SetActive(false);
+		self.go_RewardWait:SetActive(true);
+
+		--奖励道具
+		for i=1,#self.items do
+			self.items[i].gameObject:SetActive(false);
+		end
+
+		local costID= ConfigDataAccessor.SystemList[227].Value;
+		local config=ConfigDataAccessor.Cost[costID];
+		if config~=nil then
+			local count=#config.ItemCost
+			for i = 1, count do
+				self.items[i].gameObject:SetActive(true);
+				self.items[i]:SetItemNum(config.ItemCost[i],config.ItemNum[i]);
+			end
+		end
+
+
+		--挂机奖励
+		local getDuration= ConfigDataAccessor.SystemList[226].Value;
+		local getTimes= ConfigDataAccessor.SystemList[228].Value;
+		self.title.text=StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_PartyTimeRewardWidget_Title"),{getDuration,getTimes});
+
+
+	end
+
+
+
+
+
+
+
+
+end
+
+
+function PartyTimeRewardWidget:SortItem(tbl)
+
+	if #tbl > 1 then
+
+		table.sort(tbl, function(a, b)
+			--升序
+			if a.rank < b.rank then
+				return true
+			end
+			return false
+		end)
+
+	end
+
+end
+
+function PartyTimeRewardWidget:Start()
+
+end
+
+function PartyTimeRewardWidget:OnEnable()
+	
+end
+
+function PartyTimeRewardWidget:OnDisable()
+	
+end
+
+function PartyTimeRewardWidget:OnDestroy()
+
+end
+
+
+function PartyTimeRewardWidget:RefeshData()
+
+	
+end
+
+function PartyTimeRewardWidget:OnOpen(arg)
+
+
+
+	self:OnMenuBtnClick(1);
+
+end
+
+
+function PartyTimeRewardWidget:OnClose(arg)
+
+end
+
+function PartyTimeRewardWidget:OnPlayBack()
+
+	self.gameObject:SetActive(false);
+	UIManager.Instance:CloseWidget("PartyTime/PartyTimeRewardWidget",nil,false);
+
+end
+
+
+
+return  PartyTimeRewardWidget

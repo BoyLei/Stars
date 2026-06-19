@@ -1,0 +1,306 @@
+function NumberToStringemicolon(num) --分号隔开 例如 1000,000
+    if num > 999 and num then
+        num = math.floor(num / 1000)
+        return tostring(num) .. "千"
+    end
+    return tostring(math.floor(num))
+end
+
+function NumFormat(num, deperator)
+    local str1 = ""
+    local str = tostring(num)
+    local strLen = string.len(str)
+
+    if deperator == nil then
+        deperator = ","
+    end
+    deperator = tostring(deperator)
+
+    for i = 1, strLen do
+        str1 = string.char(string.byte(str, strLen + 1 - i)) .. str1
+        if math.fmod(i, 3) == 0 then
+            --下一个数 还有
+            if strLen - i ~= 0 then
+                str1 = "," .. str1
+            end
+        end
+    end
+    return str1
+end
+
+function string.IsNullOrEmpty(str)
+    return str == nil or str == ''
+end
+
+function StringSplit(str, sep)
+    local t = {};
+    for w in string.gmatch(str, "[^" .. sep .. "]+") do
+        table.insert(t, w);
+    end
+    return t;
+end
+
+function StringSplitToNumber(str, sep)
+    local t = {};
+    for w in string.gmatch(str, "[^" .. sep .. "]+") do
+        t[#t + 1] = tonumber(w);
+    end
+    return t;
+end
+
+-- 添加颜色标签
+function AddColorTagByValue(value, str)
+    if not value then return str end
+    if string.len(value) == 6 then
+        value = value .. "FF";
+    end
+    return "<color=#" .. value .. ">" .. str .. "</color>";
+end
+
+-- 去掉颜色标签
+function RemoveColorTag(str)
+    return string.gsub(str, "(</?color.->)", "");
+end
+
+-- 添加字体大小标签
+function AddSizeTagByValue(value, str)
+    if not value then return str end
+    return "<size=" .. value .. ">" .. str .. "</size>";
+end
+
+-- 去掉字体大小标签
+function RemoveSizeTag(str)
+    return string.gsub(str, "(</?size.->)", "");
+end
+
+function SubStringUTF8(str, startIndex, endIndex) --截取中英混合UTF8字符串，不论中英长度均为1
+    if startIndex < 0 then
+        startIndex = SubStringGetTotalIndex(str) + startIndex + 1;
+    end
+
+    if endIndex ~= nil and endIndex < 0 then
+        endIndex = SubStringGetTotalIndex(str) + endIndex + 1;
+    end
+
+    if endIndex == nil then
+        return string.sub(str, SubStringGetTrueIndex(str, startIndex));
+    else
+        return string.sub(str, SubStringGetTrueIndex(str, startIndex), SubStringGetTrueIndex(str, endIndex + 1) - 1);
+    end
+end
+
+function SubStringGetTotalIndex(str) --获取中英混合UTF8字符串的真实字符数量
+    local curIndex = 0;
+    local i = 1;
+    local lastCount = 1;
+    repeat
+        lastCount = SubStringGetByteCount(str, i)
+        i = i + lastCount;
+        curIndex = curIndex + 1;
+    until (lastCount == 0);
+    return curIndex - 1;
+end
+
+function SubStringGetTrueIndex(str, index)
+    local curIndex = 0;
+    local i = 1;
+    local lastCount = 1;
+    repeat
+        lastCount = SubStringGetByteCount(str, i)
+        i = i + lastCount;
+        curIndex = curIndex + 1;
+    until (curIndex >= index);
+    return i - lastCount;
+end
+
+--返回当前字符实际占用的字符数
+function SubStringGetByteCount(str, index)
+    local curByte = string.byte(str, index)
+    local byteCount = 1;
+    if curByte == nil then
+        byteCount = 0
+    elseif curByte > 0 and curByte <= 127 then
+        byteCount = 1
+    elseif curByte >= 192 and curByte <= 223 then
+        byteCount = 2
+    elseif curByte >= 224 and curByte <= 239 then
+        byteCount = 3
+    elseif curByte >= 240 and curByte <= 247 then
+        byteCount = 4
+    end
+    return byteCount;
+end
+
+--获取字符表配置
+function GetString(strId)
+    return ConfigData.StringConfig.GetStringConfigById(strId)
+end
+
+function GetFormatString(strId, ...)
+    return ConfigData.StringConfig.GetFormatStringConfig(strId, ...)
+end
+
+--获取颜色
+function GetHTMLColor(id)
+    return ConfigData.ColorConfig.GetHTMLColorConfig(id)
+end
+
+function GetRGBAColor(id)
+    return ConfigData.ColorConfig.GetRGBAColorConfig(id)
+end
+
+function GetRGBA255Color(id)
+    return ConfigData.ColorConfig.GetRGBA255ColorConfig(id)
+end
+
+--获取客户端通用配置表
+function GetClientCommonConfig(id)
+    return ConfigData.ClientConfig.GetClientCommonConfig(id)
+end
+
+--获取错误码表配置
+function GetErrorCodeTip(id)
+    return ConfigData.ErrorCodeConfig.GetErrorCodeStr(tonumber(id))
+end
+
+function ConvertRGBA2Hex(color)
+    local str = ""
+    if string.len(string.sub(string.format("%#x", color.r), 3)) == 1 then
+        str = str .. "0" .. string.sub(string.format("%#x"), 3)
+    else
+        str = str .. string.sub(string.format("%#x", color.r), 3)
+    end
+
+    if string.len(string.sub(string.format("%#x", color.g), 3)) == 1 then
+        str = str .. "0" .. string.sub(string.format("%#x"), 3)
+    else
+        str = str .. string.sub(string.format("%#x", color.g), 3)
+    end
+
+    if string.len(string.sub(string.format("%#x", color.b), 3)) == 1 then
+        str = str .. "0" .. string.sub(string.format("%#x"), 3)
+    else
+        str = str .. string.sub(string.format("%#x", color.b), 3)
+    end
+
+    if string.len(string.sub(string.format("%#x", color.a), 3)) == 1 then
+        str = str .. "0" .. string.sub(string.format("%#x"), 3)
+    else
+        str = str .. string.sub(string.format("%#x", color.a), 3)
+    end
+    return str
+end
+
+local function utfstrlen(str)
+    local len = #str
+    local left = len
+    local cnt = 0
+    local arr = { 0, 0xc0, 0xe0, 0xf0, 0xf8, 0xfc }
+    while left ~= 0 do
+        local tmp = string.byte(str, -left)
+        local i = #arr
+        while arr[i] do
+            if tmp >= arr[i] then
+                left = left - i
+                break
+            end
+            i = i - 1
+        end
+        cnt = cnt + 1
+    end
+    return cnt
+end
+
+function SubUTF8String(str, start, len)
+    local firstResult = ""
+    local strResult = ""
+
+    --去除空格
+    local newStr = string.gsub(str, "%s", "")
+    local maxLen = string.len(newStr)
+    start = start - 1
+    --找到起始位置
+    local preSite = 1
+    if start > 0 then
+        for i = 1, maxLen do
+            local s_dropping = string.byte(newStr, i)
+            if not s_dropping then
+                local s_str = string.sub(newStr, preSite, i - 1)
+                preSite = i + 1
+                break
+            end
+
+
+            if s_dropping < 128 or (i + 1 - preSite) == 3 then
+                local s_str = string.sub(newStr, preSite, i)
+                preSite = i + 1
+                firstResult = firstResult .. s_str
+                local curLen = utfstrlen(firstResult)
+                if (curLen == start) then
+                    break
+                end
+            end
+        end
+    end
+
+    --截取字符串
+    preSite = string.len(firstResult) + 1
+    local startC = preSite
+    for i = startC, maxLen do
+        local s_dropping = string.byte(newStr, i)
+        if not s_dropping then
+            local s_str = string.sub(newStr, preSite, i - 1)
+            preSite = i
+            strResult = strResult .. s_str
+            return strResult
+        end
+        if s_dropping < 128 or (i + 1 - preSite) == 3 then
+            local s_str = string.sub(newStr, preSite, i)
+            preSite = i + 1
+            strResult = strResult .. s_str
+            local curLen = utfstrlen(strResult)
+            if (curLen == len) then
+                return strResult
+            end
+        end
+    end
+
+
+
+    return strResult
+end
+
+---字符串转成Vector3
+function String2Vector3(str)
+    local result = Vector3(0, 0, 0)
+    local atr = string.split(str, ',')
+    if atr ~= nil then
+        if #atr > 0 then
+            result.x = tonumber(atr[1])
+        end
+        if #atr > 1 then
+            result.y = tonumber(atr[2])
+        end
+        if #atr > 2 then
+            result.z = tonumber(atr[3])
+        end
+    end
+
+    return result
+end
+
+---{0}{1}字符替换
+---@param str 原字符
+---@param params 参数 string table
+---@return string
+function StringFormat(str, params)
+    -- for i = 1, #params, 1 do
+    --     local replaceStr = "{" .. i - 1 .. "}";
+    --     local val = params[i];
+    --     str = string.gsub(str, replaceStr, val);
+    -- end
+    -- return str;
+    return (str:gsub("{(%d+)}", function(i)
+        return params[tonumber(i) + 1]
+    end))
+end

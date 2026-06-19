@@ -1,0 +1,123 @@
+--[[
+*文件名   :   EquipRecastSelectedBoxItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/24 15:31:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local EquipRecastSelectedBoxItem = {}
+
+EquipRecastSelectedBoxItem.__index = EquipRecastSelectedBoxItem
+
+function EquipRecastSelectedBoxItem:New(_go) 
+    local self = {};    
+    setmetatable(self, EquipRecastSelectedBoxItem); 
+    
+
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+
+    self.Name1=self.transform:Find("noselected/desc"):GetComponent(typeof(Text));
+    self.Name2=self.transform:Find("selected/desc"):GetComponent(typeof(Text));
+
+    self.go_noselected=self.transform:Find("noselected").gameObject;
+    self.go_selected=self.transform:Find("selected").gameObject;
+
+
+    --点击自己
+	local btnClick=self.transform:GetComponent(typeof(JButton));
+	btnClick.OnClick=(function()
+        if self.OnClick~= nil then
+		    self.OnClick(self);
+        end
+	end);
+
+
+    return self;    --返回自身
+end
+
+
+
+
+function EquipRecastSelectedBoxItem:InitItem(OnClick)
+    self.OnClick=OnClick;
+
+end
+
+function EquipRecastSelectedBoxItem:SetItem(data)
+    
+
+    if data~=nil then
+
+        self.Data=data;
+
+        self.CfgID=data.CfgID;
+
+
+        local cfg=ConfigDataAccessor.EquipSub[self.CfgID];
+		
+		local attrName1 = "";
+		if cfg ~= nil then
+
+
+			if cfg.AttType==4 then
+				--技能
+				attrName1 = cfg.Name.."+"..cfg.Num[1];
+			else
+				--属性
+				attrName1 = cfg.Name
+			end
+		end
+        
+		local name=attrName1;
+		self.Name1.text=name;
+		self.Name2.text=name;
+
+
+		self:MakeSelected(data.IsSelected);
+    end
+
+
+end
+
+function EquipRecastSelectedBoxItem:SetAmuletItem(data)
+
+
+	if data~=nil then
+
+		self.Data=data;
+
+		self.CfgID=data.CfgID;
+
+
+		local cfg=ConfigDataAccessor.PassiveDesc;
+		for k,v in pairs(cfg) do
+			if v.SkillID == self.CfgID then
+				self.Name1.text=v.SkillName;
+				self.Name2.text=v.SkillName;
+				
+				break;
+			end
+		end
+
+		self:MakeSelected(data.IsSelected);
+	end
+
+
+end
+
+function EquipRecastSelectedBoxItem:MakeSelected(b)
+
+    self.go_selected:SetActive(b);
+    self.Data.IsSelected=b;
+
+end
+
+
+
+
+
+return EquipRecastSelectedBoxItem;

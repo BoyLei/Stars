@@ -1,0 +1,251 @@
+--[[
+*文件名   :   ExtractSkillSort
+*内  容   :	  定轨的筛选界面
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local ExtractSkillSort = {}
+
+ExtractSkillSort.__index = ExtractSkillSort
+
+local ExtractItem=require("View/Uiwindow/Amulet/ExtractItem")
+
+function ExtractSkillSort:New(_go,extractAmuletSelectMenu) 
+    local self = {};    
+    setmetatable(self, ExtractSkillSort); 
+    
+    self.ExtractAmuletSelectMenu=extractAmuletSelectMenu;
+
+
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+    
+    --道具列表
+    self.BagItemList={};
+	--无限列表
+	self.go_BagItem = self.transform:Find("ExtractItem").gameObject;
+
+	self.rect_grid=self.transform:Find("Scroll View/Mask/List"):GetComponent(typeof(RectTransform));
+
+	self.tr_ItemRoot=self.transform:Find("Scroll View/Mask/List");
+	self.go_BagItem:SetActive(false);
+	self.BagScorllView=self.transform:Find("Scroll View"):GetComponent(typeof(SuperScrollViewController));
+	self.BagScorllView:NewScroll(self.go_BagItem, 0, function (tr,idx)
+		self:OnBagItemRefesh(tr,idx);
+	end);
+
+    --点击确认
+	self.transform:Find("BtnConfirm"):GetComponent(typeof(JButton)).OnClick=(function()
+		self:Show(false);
+	end);
+
+
+    --点击关闭
+    self.transform:Find("BtnClose"):GetComponent(typeof(JButton)).OnClick=(function()
+		self:Show(false);
+	end);
+
+
+    
+    self:Show(false);
+
+    return self;    --返回自身
+end
+
+function ExtractSkillSort:Show(b,type)
+    self.gameObject:SetActive(b);
+    if b then
+        self.Type=type;
+        self:Refesh();
+    end
+end
+
+function ExtractSkillSort:Refesh(noResetPos)
+
+
+	if noResetPos==nil then
+		self.rect_grid.anchoredPosition=Vector2(self.rect_grid.anchoredPosition.x,0);
+	end
+
+	self:CleanAllSelected();
+
+
+
+	self:ClearItemData();
+	
+    local dataT={};
+    dataT.WarSkillId=0;
+    --添加一个全部选择
+    table.insert( self.ItemDataList,dataT);
+
+
+    --每一级的点数
+	local perLevelPoint=5;
+
+
+    if self.Type==1 then
+
+        --攻击
+        local WarSkillId=1001;
+        local pd=ConfigDataAccessor.GetPassiveDesc(WarSkillId,1);
+        while pd~= nil do
+
+            local maxLv=ConfigDataAccessor.GetPassiveDescMaxLv(WarSkillId);
+
+            pd=ConfigDataAccessor.GetPassiveDesc(WarSkillId,1);
+            if pd~= nil then
+                local data={};
+                data.WarSkillId=WarSkillId;
+                data.Lv=maxLv;
+                data.Points=maxLv*perLevelPoint;
+                table.insert( self.ItemDataList,data);
+                WarSkillId=WarSkillId+1;
+            end
+        end
+
+    else
+
+        --防御
+        local WarSkillId=1001;
+        local pd=ConfigDataAccessor.GetPassiveDesc(WarSkillId,1);
+        while pd~= nil do
+
+            local maxLv=ConfigDataAccessor.GetPassiveDescMaxLv(WarSkillId);
+
+            pd=ConfigDataAccessor.GetPassiveDesc(WarSkillId,1);
+            if pd~= nil then
+                local data={};
+                data.WarSkillId=WarSkillId;
+                data.Lv=maxLv;
+                data.Points=maxLv*perLevelPoint;
+                table.insert( self.ItemDataList,data);
+                WarSkillId=WarSkillId+1;
+            end
+        end
+
+    end
+
+
+	self:RefeshItems();
+
+
+	--关闭道具Tips
+	if GameManager.Instance.IsOpenItemTips then
+		LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnCloseTips",{  });
+	end
+
+
+end
+
+
+------------------------------
+------------------------------无限列表相关
+
+
+
+--刷新装备列表
+function ExtractSkillSort:RefeshItems()
+	
+
+
+	--self:SortItem(self.ItemDataList);
+
+	self.BagScorllView:ContinueScroll(#self.ItemDataList);
+
+
+
+end
+
+
+function ExtractSkillSort:CleanAllSelected()
+	--无限列表
+	for i=1,#self.BagItemList do
+		self.BagItemList[i]:MakeSelected(false);
+	end
+end
+
+function ExtractSkillSort:OnBagItemRefesh(tr,idx)
+
+
+	for i=1,#self.BagItemList do
+		if self.BagItemList[i].transform == tr then
+            self.BagItemList[i]:RefeshSortItem(self.ItemDataList[idx+1]);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+		end
+
+	end
+
+	--tr.gameObject:SetActive(true);
+    local bi = ExtractItem:New(tr.gameObject);
+	bi:SetItem(idx,function (ritem)
+		self:OnItemClick(ritem);
+	end)
+	bi.gameObject:SetActive(true);
+	bi:RefeshSortItem(self.ItemDataList[idx+1]);--idx是从0开始，如果ItemDataList是lua的table需要idx+1
+
+    table.insert(self.BagItemList, bi);
+
+end
+
+function ExtractSkillSort:OnItemClick(bitem)
+
+	self:CleanAllSelected();
+	bitem:MakeSelected(true);
+	
+
+
+    self.ExtractAmuletSelectMenu.MultSelectWarSkillId=bitem.WarSkillId;
+    self.ExtractAmuletSelectMenu.MultSelectStr=bitem.SkillName;
+    
+
+    --刷新
+    self.ExtractAmuletSelectMenu:Refesh();
+
+end
+
+function ExtractSkillSort:ClearItemData()
+
+	if self.ItemDataList==nil then
+		self.ItemDataList ={}
+	else
+		for k,_ in pairs(self.ItemDataList) do self.ItemDataList[k] = nil end
+		--self.ItemDataList ={}
+	end
+end
+
+function ExtractSkillSort:SortItem(tbl)
+
+	if #tbl > 1 then
+
+		table.sort(tbl, function(a, b)
+			if a.SortProp < b.SortProp then
+				-- 按SortProp升序
+				return true
+			elseif a.SortProp == b.SortProp then
+				-- 如果SortProp相等，按Type升序
+				if a.ItemType < b.ItemType then
+					return true
+				elseif a.ItemType == b.ItemType then
+					-- 如果Type相等，按Id升序
+					return a.BaseID < b.BaseID
+				end
+			end
+			return false
+		end)
+
+	end
+
+end
+
+
+------------------------------无限列表相关
+------------------------------
+
+
+
+
+return ExtractSkillSort;

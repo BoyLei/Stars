@@ -1,0 +1,206 @@
+--[[
+*文件名   :   DailyTeamTaskWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/06/30 16:36:29"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+DailyTeamTaskWidget=class("DailyTeamTaskWidget",UIPanel)
+DailyTeamTaskWidget.m_Countdown=nil;
+DailyTeamTaskWidget.m_Text=nil;
+DailyTeamTaskWidget.m_finish=nil;
+DailyTeamTaskWidget.GameEndTime=0;
+DailyTeamTaskWidget.GameEnd=false
+DailyTeamTaskWidget.m_TaskName=nil;
+DailyTeamTaskWidget.m_jbt=nil;
+DailyTeamTaskWidget.Select = nil;
+DailyTeamTaskWidget.m_BoxData=nil;
+DailyTeamTaskWidget.m_ProgressBg=nil;
+DailyTeamTaskWidget.m_TimeProgress=nil;
+
+local TimeTickFunc=nil;
+local OnTargetChangeFunc=nil;
+local OnClickJBtFunc=nil;
+local GameEndFunc=nil;
+
+function DailyTeamTaskWidget:Awake()
+	self.m_BoxData=self:Find("Root/BoxData").gameObject
+	self.m_Countdown=self:Find("Root/BoxData/Time/Countdown"):GetComponent(typeof(Text));
+	self.m_Text=self:Find("Root/Task1/Text"):GetComponent(typeof(Text));
+	self.m_finish=self:Find("Root/Task1/Image/finish").gameObject;
+	self.m_TaskName=self:Find("Root/TaskName"):GetComponent(typeof(Text));
+	self.Select=self:Find("Root/Task1/Select").gameObject
+	self.m_TimeProgress=self:Find("Root/ProgressBg/TimeProgress"):GetComponent(typeof(RectTransform));
+	self.m_ProgressBg=self:Find("Root/ProgressBg").gameObject;
+	self.m_jbt=self:Find("Root"):GetComponent(typeof(JButton));
+	self.GameEnd=false;
+	self.Data=nil;
+	TimeTickFunc=function()
+		self:OnTimeTick()
+	end
+	GameEndFunc=function(IsSuccess)
+		self:OnGameEnd(IsSuccess)
+	end
+	OnTargetChangeFunc=function(data)
+		self:OnTargetChange(data)
+	end
+	OnClickJBtFunc=function()
+		self:OnClickJBt();
+	end
+	self.m_jbt.OnClick= OnClickJBtFunc;
+	CS.StarProject.GlobalEvent.OnEctypeTargetDataChange:AddListener(OnTargetChangeFunc);
+	--OnDailyTeamGameEnd
+end
+
+function DailyTeamTaskWidget:OnClickJBt()
+	-- 寻路
+	if self.Data == nil then
+		return
+	end
+	local needShow = true;
+
+	if self.Data:HasFollow() then
+		TaskHelper.FindToDynamicTarget("DailyTeamTaskWidget",self.Data.FollowID, 1, function(result)
+				--- 关闭
+				self.Select:SetActive(false)
+				if not result then
+					needShow = false;
+				end
+			end)
+	else
+		local spid = self.Data:GetSpawnerID();
+		if spid > 0 then
+			TaskHelper.FindPathByEctype(spid, 1, function(result)
+					--- 关闭
+					self.Select:SetActive(false)
+					if not result then
+						needShow = false;
+					end
+				end)
+		else
+			needShow = false;
+		end
+	end
+
+	self.Select:SetActive(needShow)
+
+end
+
+function DailyTeamTaskWidget:OnTargetChange(data)
+
+	self.Data=data;
+	if data==nil then
+		LogError("data==nil")
+		return
+	end
+	local active=true;
+	if self.Data.GoalId==5000000 then
+		active=false;
+		
+	end
+	self.m_BoxData.gameObject:SetActive(active)
+	self.m_ProgressBg.gameObject:SetActive(active)
+	self.m_TaskName.text=data.TileName
+	self.m_Text.text=""
+	if data.Contents.Count<1 then
+		LogError("副本目标数量小于1")
+		return
+	end
+	self.m_Text.text=data.Contents[0].Content
+
+	local _ContentContentSizeFitter=self.m_Text:GetComponent(typeof(ContentSizeFitter));
+	_ContentContentSizeFitter:SetLayoutVertical();
+
+end
+
+function DailyTeamTaskWidget:OnGameEnd(IsSuccess)
+	self.GameEnd=true;
+	self.m_finish:SetActive(IsSuccess)
+end
+
+function DailyTeamTaskWidget:OnTimeTick()
+	if self.GameEnd then
+		return
+	end
+	if self.m_Countdown==nil then
+		return
+	end
+	local time=math.ceil((self.GameEndTime-TimeUtils.ServerNowStampMilli)/1000)
+	if time<=0 then
+		self:SetProcess(0)
+		return
+	end
+	self:SetProcess(time/SystemConstConfigs.TeamDailyCopy_CopyTimeLimit)
+	self.m_Countdown.text = SecToStringColon2(time);
+end
+
+function DailyTeamTaskWidget:SetProcess(process)
+	self.m_TimeProgress:SetWidth(290*process)
+end
+
+function DailyTeamTaskWidget:Start()
+
+end
+
+function DailyTeamTaskWidget:OnEnable()
+	self.Data=nil;
+
+	MonoHelper.AddSecTimeUpdateListener(TimeTickFunc);
+	CS.StarProject.GlobalEvent.OnDailyTeamGameEnd:AddListener(
+		GameEndFunc
+	);
+
+
+
+end
+
+function DailyTeamTaskWidget:OnDisable()
+	self.Data=nil;
+	MonoHelper.RemoveSecTimeUpdateListener(TimeTickFunc);
+	CS.StarProject.GlobalEvent.OnDailyTeamGameEnd:RemoveListener(
+		GameEndFunc
+	);
+	--CS.StarProject.GlobalEvent.OnEctypeTargetDataChange:RemoveListener(OnTargetChangeFunc);
+end
+
+function DailyTeamTaskWidget:OnDestroy()
+
+end
+
+function DailyTeamTaskWidget:Fresh(arg)
+	self.GameEnd=false;
+	self.m_finish:SetActive(false)
+	self.GameEndTime=arg.GameEndTime
+	--local bossName=""
+	--local config= ConfigDataAccessor.Monster[arg.BossID]
+	--if config~=nil then
+	--bossName=config.Name
+	--end
+	--self.m_Text.text="击败"..bossName
+	self:OnTimeTick();
+	self.m_BoxData:SetActive(true)
+	if arg.AwardMonID>0 then
+		Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Tips"));
+	end
+end
+
+function DailyTeamTaskWidget:OnOpen(arg)
+	self.m_BoxData:SetActive(false)
+	--local sys=ConfigDataAccessor.System[91];
+	--if sys~=nil then
+		--self.m_Countdown.text = SecToStringColon2(tonumber(sys.Value));
+	--end
+	local data=BusinessManager.Instance:EctypeTargetData();
+	if data~=nil then
+		self:OnTargetChange(data)
+	end
+end
+
+function DailyTeamTaskWidget:OnClose(arg)
+	self.GameEnd=false;
+end
+
+
+
+return  DailyTeamTaskWidget

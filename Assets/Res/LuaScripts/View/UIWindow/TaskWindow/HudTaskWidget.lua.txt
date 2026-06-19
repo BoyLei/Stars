@@ -1,0 +1,339 @@
+--[[
+*文件名   :   HudTaskWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/09/27 13:45:47"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+HudTaskWidget = class("HudTaskWidget", UIPanel)
+
+local TaskWindowPath = "TaskWindow/Prefab/TaskWindow"
+
+HudTaskWidget.m_BtnTask = nil;
+HudTaskWidget.m_BtnTeam = nil;
+HudTaskWidget.m_BtnGve = nil;
+HudTaskWidget.m_Arrow = nil;
+HudTaskWidget.m_ArrowIcon = nil;
+HudTaskWidget.m_TaskWidget = nil;
+HudTaskWidget.m_GveWidget = nil;
+HudTaskWidget.m_TeamWidget = nil;
+HudTaskWidget.m_TaskNo = nil;
+HudTaskWidget.m_TaskAct = nil;
+HudTaskWidget.m_TeamNo = nil;
+HudTaskWidget.m_TeamAct = nil;
+HudTaskWidget.m_GveNo = nil;
+HudTaskWidget.m_GveAct = nil;
+
+HudTaskWidget.IsFlod = true;
+HudTaskWidget.TabIndex = 1;
+
+local BtnTaskFunc = nil;
+local BtnTeamFunc = nil;
+local BtnGveFunc = nil;
+local ArrowFunc = nil;
+local OnShowRootFunc = nil;
+
+--组队
+local TeamWidget = require("View/UIWindow/TeamWindow/TeamWidget")
+
+local TaskWidget = require("View/UIWindow/TaskWindow/TaskWidget")
+
+local GVEWidget = require("View/UIWindow/Event/GVEWidget")
+
+
+function HudTaskWidget:Awake()
+	self.Root = self:Find("Root").gameObject;
+	self.m_BtnTask = self:Find("Root/Menu/BtnTask"):GetComponent(typeof(JButton));
+	self.m_BtnTeam = self:Find("Root/Menu/BtnTeam"):GetComponent(typeof(JButton));
+	self.m_BtnGve = self:Find("Root/Menu/BtnGve"):GetComponent(typeof(JButton));
+	self.m_Arrow = self:Find("Root/Menu/Arrow"):GetComponent(typeof(JButton));
+	self.m_ArrowIcon = self:Find("Root/Menu/Arrow/Image");
+	self.m_CanvasGroup = self:Find("Root/Mask"):GetComponent(typeof(CanvasGroup));;
+	self.m_TaskWidget = self:Find("Root/Mask/Tween/TaskWidget").gameObject;
+	self.m_GveWidget = self:Find("Root/Mask/Tween/GveWidget").gameObject;
+	self.m_TeamWidget = self:Find("Root/Mask/Tween/TeamWidget").gameObject;
+	self.m_TaskNo = self:Find("Root/Menu/BtnTask/No").gameObject;
+	self.m_TaskAct = self:Find("Root/Menu/BtnTask/Act").gameObject;
+	self.m_TeamNo = self:Find("Root/Menu/BtnTeam/No").gameObject;
+	self.m_TeamAct = self:Find("Root/Menu/BtnTeam/Act").gameObject;
+	self.m_GveNo = self:Find("Root/Menu/BtnGve/No").gameObject;
+	self.m_GveAct = self:Find("Root/Menu/BtnGve/Act").gameObject;
+
+	self.TabIndex = 0;
+	self.IsFlod = true;
+	BtnTaskFunc = function() self:OnClickBtnTask(); end;
+	BtnTeamFunc = function() self:OnClickBtnTeam(); end;
+	BtnGveFunc = function() self:OnClickBtnGve(); end;
+	ArrowFunc = function() self:OnClickArrow(); end;
+	OnShowRootFunc = function(active) self:ActiveRoot(active); end
+
+	self:HideTab(2)
+	self:HideTab(3)
+	self:ActiveTab(1)
+	--组队相关
+	self.teamCloseBtn = self:Find("Root/CloseBtn"):GetComponent(typeof(Button));
+	self.teamCloseBtn.gameObject:SetActive(false);
+
+	self.teamWidget = TeamWidget:New(self.m_TeamWidget, self.teamCloseBtn);
+	self.taskWidget = TaskWidget.new(self.m_TaskWidget, self.AtlasPath,self.Root)
+	self.gveWidget = GVEWidget:New(self.m_GveWidget, self);
+	self.m_BtnGve.gameObject:SetActive(false);
+
+	self.teamCloseBtn.onClick:AddListener(function()
+			self.teamWidget:CloseTeamWidget();
+		end);
+	self.OnRefresh=function(index)
+		self:OnSwitch(index)
+	end
+	CS.StarProject.GlobalEvent.OnRefreshHudTaskIndex:AddListener(self.OnRefresh);
+end
+
+function HudTaskWidget:StartGve()
+	if BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.PlayModeGVE) then
+		self.m_BtnGve.gameObject:SetActive(true);
+		self:OnClickBtnGve();
+		UIManager.Instance:SetScreenUIEffect(UIDef.ScreenUIEffects_Gve, true);
+	end
+
+	self.gveWidget:OnListener();
+	self.gveWidget:Fresh();
+end
+
+function HudTaskWidget:EndGve()
+	UIManager.Instance:SetScreenUIEffect(UIDef.ScreenUIEffects_Gve, false);
+	self.m_BtnGve.gameObject:SetActive(false);
+	self.gveWidget:OffListener();
+	self:OnSwitch(1);
+end
+
+function HudTaskWidget:FreshGve()
+	self.gveWidget:Fresh();
+end
+
+function HudTaskWidget:FreshTask()
+	self.taskWidget:Fresh();
+end
+
+function HudTaskWidget:ActiveRoot(active)
+	if self.Root ~= nil then
+		self.Root.gameObject:SetActive(active)
+		if  self.taskWidget~=nil then
+			if active then
+				self.taskWidget:FreshLayout()
+				
+				if not self.m_BtnTeam.gameObject.activeSelf then
+					self.m_TeamWidget:SetActive(false);
+				end
+			else
+				self.taskWidget:OnDisable()
+			end
+		end
+
+	end
+end
+
+function HudTaskWidget:Start()
+	CS.StarProject.GlobalEvent.OnSetTaskWidgetShow:AddListener(OnShowRootFunc);
+	self.m_BtnTask.OnClick = BtnTaskFunc;
+	self.m_BtnTeam.OnClick = BtnTeamFunc;
+	self.m_BtnGve.OnClick = BtnGveFunc;
+	self.m_Arrow.OnClick = ArrowFunc;
+	self:FreshArrow();
+end
+
+function HudTaskWidget:OnEnable()
+
+end
+
+function HudTaskWidget:OnDisable()
+
+end
+
+function HudTaskWidget:OnDestroy()
+	CS.StarProject.GlobalEvent.OnSetTaskWidgetShow:RemoveListener(OnShowRootFunc);
+
+end
+
+function HudTaskWidget:OnOpen(arg)
+	self.taskWidget:OnOpen();
+	local mapType= GameManager.Instance:GetCurMapType()
+	self:ActiveRoot(mapType==CS.ProtoMsg.SpaceType.SpaceScene)
+end
+
+function HudTaskWidget:BindModule(module)
+    self.module = module;
+end
+
+function HudTaskWidget:OnClose(arg)
+	CS.StarProject.GlobalEvent.OnRefreshHudTaskIndex:RemoveListener(self.OnRefresh);
+	if self.taskWidget then
+		self.taskWidget:OnClose()
+	end
+	self.module.TaskWidget = nil;
+end
+
+function HudTaskWidget:HideTab(index)
+	if index == 1 then
+		self.m_TaskAct:SetActive(false)
+		self.m_TaskNo:SetActive(true)
+		self.m_TaskWidget:SetActive(false)
+	elseif index == 2 then
+		self.m_TeamAct:SetActive(false)
+		self.m_TeamNo:SetActive(true)
+		self.m_TeamWidget:SetActive(false)
+	elseif index == 3 then
+		self.m_GveAct:SetActive(false)
+		self.m_GveNo:SetActive(true)
+		self.m_GveWidget:SetActive(false)
+	end
+end
+
+function HudTaskWidget:ActiveTab(index)
+	if index == 1 then
+		self.m_TaskAct:SetActive(true)
+		self.m_TaskNo:SetActive(false)
+		self.m_TaskWidget:SetActive(true)
+		self.TabIndex = index;
+	elseif index == 2 then
+		self.m_TeamAct:SetActive(true)
+		self.m_TeamNo:SetActive(false)
+		self.m_TeamWidget:SetActive(true)
+		self.TabIndex = index;
+	elseif index == 3 then
+		self.m_GveAct:SetActive(true)
+		self.m_GveNo:SetActive(false)
+		self.m_GveWidget:SetActive(true)
+		self.TabIndex = index;
+	end
+end
+
+function HudTaskWidget:OnSwitch(index)
+	--关闭老的
+	self:HideTab(self.TabIndex)
+	--激活新的
+	self:ActiveTab(index)
+end
+
+function HudTaskWidget:OnClickBtnTask()
+	if self.TabIndex == 1 then
+		-- 打开任务界面
+		--self.callBack(self.TabIndex)
+		-- UIManager.Instance:OpenWindow(TaskWindowPath, TaskHelper.GetAllWindow(true),
+		-- 	CS.StarProjectDef.MainPageCommond.HideBoth)
+		UIManager.Instance:OpenWindowAsync(TaskWindowPath, nil, TaskHelper.GetAllWindow(true),
+			CS.StarProjectDef.MainPageCommond.HideBoth)
+	else
+		self:OnSwitch(1)
+	end
+end
+
+function HudTaskWidget:OnClickBtnTeam()
+	if self.TabIndex == 2 then
+		-- 打开组队界面
+		--self.callBack(self.TabIndex)
+
+		if self.inTeam ~= nil then
+			self.teamWidget:ShowIsCaptain(self.isCaptain);
+		else
+			-- 不在队伍中，打开创建队伍界面
+			-- LuaModuleDispatcher:SendMessage(ModuleDef.TeamModule, "OnOpenTeamLobbyWindow", {});
+
+			self.teamWidget:CreateTeam();
+		end
+	else
+		self:OnSwitch(2)
+	end
+end
+
+function HudTaskWidget:SetTeamWidget(data)
+	self.inTeam = data;
+
+	if self.inTeam == nil then
+		-- 不在队伍中，打开创建队伍界面
+		-- LuaModuleDispatcher:SendMessage(ModuleDef.TeamModule, "OnOpenTeamLobbyWindow", {});
+
+		self.teamWidget:SetTeamInfo(nil);
+		local getAllTeamInfoReq = CS.ProtoMsg.GetAllTeamInfoReq();
+		getAllTeamInfoReq.Select = CS.ProtoMsg.SelectTeamType.Null;
+		-- getAllTeamInfoReq.PlayeID = GameManager.Instance.mainPlayerId;
+		CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeSpace,
+			getAllTeamInfoReq, false);
+
+		self.teamWidget:ActiveTeamBg(false);
+	else
+		self.teamWidget:SetTeamInfo(data);
+		-- 在队伍中，显示队伍列表
+		self.isCaptain = false;
+		for i = 0, data.UserInfos.Count - 1 do
+			if data.UserInfos[i].Eid == GameManager.Instance.mainPlayerId and data.UserInfos[i].IsCaptain then
+				self.isCaptain = true;
+			end
+		end
+
+		self.teamWidget:ActiveTeamBg(true);
+	end
+end
+
+function HudTaskWidget:RefreshTeamWidget(data)
+	self.inTeam = data;
+	self.teamWidget:SetTeamInfo(data);
+	-- 在队伍中，显示队伍列表
+	self.isCaptain = false;
+	if data ~= nil then
+		for i = 0, data.UserInfos.Count - 1 do
+			if data.UserInfos[i].Eid == GameManager.Instance.mainPlayerId and data.UserInfos[i].IsCaptain then
+				self.isCaptain = true;
+			end
+		end
+	end
+
+	self.teamWidget:ActiveTeamBg(data ~= nil and data.UserInfos ~= nil and data.UserInfos.Count > 0);
+end
+
+function HudTaskWidget:OnClickBtnGve()
+	if self.TabIndex == 3 then
+
+	else
+
+		if BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.PlayModeGVE) then
+			self:OnSwitch(3)
+		end
+
+	end
+end
+
+----------------- 通缉任务item ⬇⬇⬇⬇⬇⬇⬇⬇⬇⬇⬇
+
+-- 通知通缉任务更新状态
+-- 0全刷1刷新阶位信息2刷新次数
+function HudTaskWidget:InformWantedTask(informState)
+	if self.taskWidget ~= nil then
+		self.taskWidget:InformWantedTask(informState);
+	end
+end
+
+----------------- 通缉任务item ⬆⬆⬆⬆⬆⬆⬆⬆⬆⬆⬆
+
+function HudTaskWidget:OnClickArrow()
+	self.IsFlod = not self.IsFlod;
+	if self.m_CanvasGroup then
+		self.m_CanvasGroup.blocksRaycasts = self.IsFlod
+	end
+	if self.IsFlod then
+		self.PlayAnimation("TaskWindowAnim_Open");
+	else
+		self.PlayAnimation("TaskWindowAnim_Close");
+	end
+	self:FreshArrow();
+end
+
+function HudTaskWidget:FreshArrow()
+	if self.IsFlod then
+		self.m_ArrowIcon.localScale = Vector3(1, 1, 1);
+	else
+		self.m_ArrowIcon.localScale = Vector3(-1, 1, 1);
+	end
+end
+
+return HudTaskWidget

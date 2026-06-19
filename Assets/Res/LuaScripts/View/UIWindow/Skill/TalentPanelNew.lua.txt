@@ -1,0 +1,96 @@
+-- TalentPanelNew
+local TalentPanelNew = {}
+TalentPanelNew.__index = TalentPanelNew;
+
+local TalentItemNew = require("View/UIWindow/Skill/TalentItemNew");
+
+function TalentPanelNew:New(obj, backCb)
+    local self = {};
+    setmetatable(self, TalentPanelNew);
+
+    self.gameObject = obj;
+    self.transform = obj.transform;
+
+    self:Init(backCb)
+
+    return self;
+end
+
+-- 天赋界面, 传入 返回按钮点击的 回调
+function TalentPanelNew:Init(backCb)
+
+    self.m_root = self.transform:Find("Cut4Cam90");
+    self.m_skillDesc = self.m_root:Find("skillDesc"):GetComponent(typeof(Text));
+
+    self.m_TalentItemNew = self.m_root:Find("TalentItemNew").gameObject;
+
+    self.talents = {}
+
+    for i = 1, 3 do
+        local talentItem = GameObject.Instantiate(self.m_TalentItemNew);
+        local parent = self.m_root:Find("Talent" .. i).gameObject;
+
+        self.talents[i] = TalentItemNew:New(talentItem, parent);
+    end
+
+    self.m_TalentItemNew:SetActive(false);
+
+    self.m_backBtn = self.m_root:Find("back"):GetComponent(typeof(JButton));
+
+    self.m_backCb = backCb;
+    self.m_backBtn.OnClick = function()
+        self:m_backCb();
+    end
+
+end
+
+-- 更新当前 天赋面板的显示 
+-- jobSkillID: 职业技能
+-- selectTalentID: 当前职业技能的天赋id
+-- lv:  天赋等级
+function TalentPanelNew:Update(jobSkillID, selectTalentID, lv)
+    self.jobSkillID = jobSkillID;
+    self.talentID = selectTalentID;
+    self.lv = lv;
+    self.talenCfg = nil;
+
+    local i = 1;
+    local talenCfgs = GetJobSkillTalents(jobSkillID);
+
+    for _, item in pairs(talenCfgs) do
+        -- 目前设定 就是最多 3个天赋,如果 后面有多个再说
+        if i <= 3 then
+            self.talents[i].gameObject:SetActive(true);
+            -- 根据玩家身上数据刷新
+            self.talents[i]:UpdateItem(jobSkillID, item.ID, lv, selectTalentID);
+        end
+
+        -- 获取 当前 天赋的配置
+        if item.ID == selectTalentID then
+            self.talenCfg = item;
+        end
+
+        i = i + 1;
+    end
+
+    -- 将 没有天赋配置的 天赋 节点关闭
+    for j = i, 3, 1 do
+        self.talents[j].gameObject:SetActive(false);
+    end
+
+    self:RefreshDesc();
+end
+
+function TalentPanelNew:RefreshDesc()
+    -- 2024/3/4
+    -- 技能优化单 8	天赋详情的文本描述与效果图不符（仅有技能名） 天赋详情的文本描述去掉
+
+    -- self.skillDescCfg = GetJobSkillLevelDescCfg(self.talentID, self.lv);
+
+    -- if self.skillDescCfg ~= nil then
+
+    -- self.m_skillDesc.text = self.skillDescCfg.SkillName;
+    -- end
+end
+
+return TalentPanelNew;

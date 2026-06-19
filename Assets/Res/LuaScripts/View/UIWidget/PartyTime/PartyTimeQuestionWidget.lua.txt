@@ -1,0 +1,417 @@
+--[[
+*文件名   :   PartyTimeQuestionWidget
+*内  容   :   午间GVE的小面板
+*说  明   :
+*创建日期 :   "2022/12/02 14:19:07"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] 
+PartyTimeQuestionWidget = class("PartyTimeQuestionWidget", UIPanel)
+
+local PartyTimeQuestionItem = require("View/UIWidget/PartyTime/PartyTimeQuestionItem");
+local PartyTimeQuestionSliderDot = require("View/UIWidget/PartyTime/PartyTimeQuestionSliderDot");
+local ObjectPool = require("Common/Helper/ObjectPool")
+
+function PartyTimeQuestionWidget:Awake()
+    self.transform = self.prefab.transform
+    self.gameObject = self.transform.gameObject
+    
+    self.m_Root = self:Find("Root").gameObject;
+
+
+    self.m_Time = self:Find("Root/Top/time"):GetComponent(typeof(Text));
+    self.m_Num = self:Find("Root/Top/num"):GetComponent(typeof(Text));
+
+    self.m_Info = self:Find("Root/Top/info"):GetComponent(typeof(Text));
+
+
+
+    self.go_Time=self:Find("Root/Top/time").gameObject;
+    self.go_Wait=self:Find("Root/Top/Wait").gameObject;
+    self.t_Wait=self:Find("Root/Top/Wait/Data/info"):GetComponent(typeof(Text));
+
+
+    self.go_SelectMenu=self:Find("Root/Top/SelectMenu").gameObject;
+
+    self.PartyTimeQuestionItems={}
+    for i=1,4 do
+
+        local pqi=PartyTimeQuestionItem:New(self:Find("Root/Top/SelectMenu/SelectMenuItem"..i).gameObject);
+        table.insert( self.PartyTimeQuestionItems, pqi);
+
+    end
+
+    --上方奖励
+    self.m_Score = self:Find("Root/Top/points"):GetComponent(typeof(Text));
+   
+    --对象池
+    local _go2=self:Find("Root/Top/sliderDot").gameObject;
+    self.rewardsPool=ObjectPool:New(3,
+        "View/UIWidget/PartyTime/PartyTimeQuestionSliderDot",_go2,_go2.transform.parent,function (ritem)
+            ritem:InitItem();	
+        end,
+        --回收回调
+        function (ritem)
+            ritem:SetUse(false);
+        end
+    );
+
+
+    --最大积分
+    self.MaxScore=0;
+    for k,v in pairs(ConfigDataAccessor.PartyTimeGuildReward) do
+        if k>self.MaxScore then
+            self.MaxScore=k;
+        end
+    end
+
+    --进度条最大长度
+    self.slider= self:Find("Root/Top/sliderBg/slider"):GetComponent(typeof(RectTransform));
+    self.sliderMaxW=self.slider.sizeDelta.x;
+    self.startPosX=self.slider.anchoredPosition.x-self.sliderMaxW/2;
+
+    self.HaveScore=0;
+
+
+    self:Reset();
+        
+
+	--活动倒计时
+	--刷新时间
+	self.NeedRefesh=false;
+	MonoHelper.AddUpdateListener(function ()
+		self:RefeshLeftTime();
+	end)
+
+end
+
+
+function PartyTimeQuestionWidget:Start()
+	
+end
+
+--重置UI
+function PartyTimeQuestionWidget:Reset()
+    --派对时刻玩法阶段时间
+    local allPlayTime= ConfigDataAccessor.SystemList[234].Value;
+    local eachPlayTime= ConfigDataAccessor.SystemList[230].Value;
+    
+    self.allQuesNum=math.floor(allPlayTime/eachPlayTime);
+
+    self.go_SelectMenu:SetActive(false);
+
+    self.IsWaitForQuestion=true;
+    self.state=0;
+
+    self:OnActiveSelf(false);
+end
+
+
+--显示和隐藏
+function PartyTimeQuestionWidget:OnActiveSelf(active)
+    self.m_Root:SetActive(active);
+
+    if active and self.IsWaitForQuestion and self.state~=1 then
+        self:SetToStateWaitForQuestion();
+    end
+
+    if active then
+        UIQueueManager.Instance:AddUIQueueGOB(self.gameObject);
+    else
+        UIQueueManager.Instance:DelUIQueueGOB(self.gameObject);
+    end
+end
+
+
+--刷新积分
+function PartyTimeQuestionWidget:UpdateScore(score)
+    self.HaveScore=score;
+
+    if self.HaveScore>self.MaxScore then
+        self.HaveScore=self.MaxScore;
+    end
+
+    self.m_Score.text=""..self.HaveScore;
+
+    self:RefeshChest();
+end
+
+
+--刷新上方宝箱状态
+function PartyTimeQuestionWidget:RefeshChest()
+    
+    --if self.m_Root.activeSelf then
+
+        --刷新进度格子
+        self.rewardsPool:RecycleAll();
+        for k,v in pairs(ConfigDataAccessor.PartyTimeGuildReward) do
+            local item=self.rewardsPool:Spawn();
+            local posX=0;
+            item:SetItem(v,self.startPosX+self.sliderMaxW*k/self.MaxScore,self.HaveScore);
+        end
+        self.slider.sizeDelta=Vector2(self.sliderMaxW*self.HaveScore/self.MaxScore ,self.slider.sizeDelta.y);
+
+    --end
+end
+
+
+--刷新倒计时
+function PartyTimeQuestionWidget:RefeshLeftTime()
+
+	if self.NeedRefesh then
+		local serverNowTime = math.floor(GameManager.Instance:GetServerTimeStamp()/1000) 
+		local serverCloseTime = self.EndTime/1000;
+		local leftTime=serverCloseTime-serverNowTime;
+
+		if leftTime>0 then
+            if self.state==1 then
+                self.t_Wait.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_PartyTimeQuestionWidget3"), {SecToStringColon2(leftTime)}) ;
+            elseif self.state==4 then
+                self.t_Wait.text =  StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_PartyTimeQuestionWidget4"), {SecToStringColon2(leftTime)}) ;
+            else
+                self.m_Time.text = SecToStringColon2(leftTime);
+            end
+		else
+			--活动结束
+			self.NeedRefesh=false;
+
+            if self.state==4 then
+                --直接关闭自己
+                self:OnActiveSelf(false);
+            end
+		end
+	end
+end
+
+--设置为没有题目阶段
+function PartyTimeQuestionWidget:SetToStateWaitForQuestion()
+
+    self.go_Wait:SetActive(false);
+    self.go_Time:SetActive(false);
+    self.go_SelectMenu:SetActive(false);
+    self.m_Num.text="";
+    self.m_Info.text=LanguageHelp:GetLanguageByKey("Local_Str_PartyTimeQuestionWidget_MidEnter");--下一题即将开始
+    self:UpdateScore(0);
+
+    self.NeedRefesh=false;
+end
+
+
+--设置为预热阶段
+function PartyTimeQuestionWidget:SetToState0()
+    self.state=0;
+
+    --预热阶段
+
+    --出现中间的UI，但是显示是答题即将开始
+    --出现左边的UI，但是只有点击前往
+
+    self.NeedRefesh=false;
+    self.go_SelectMenu:SetActive(false);
+end
+
+
+--设置为准备阶段
+function PartyTimeQuestionWidget:SetToState1(startTime)
+    self.state=1;
+    self.go_Wait:SetActive(true);
+    self.go_Time:SetActive(false);
+    --准备阶段
+
+    --出现中间的UI，但是显示是答题即将开始
+    --出现左边的UI，但是只有点击前往
+
+    self.NeedRefesh=true;
+    self.m_Info.text=LanguageHelp:GetLanguageByKey("Local_Str_PartyTimeQuestionWidget1");--答题即将开始
+    self.EndTime=startTime+ ConfigDataAccessor.SystemList[233].Value*1000;--派对时刻准备阶段时间
+    self.m_Num.text="1/"..self.allQuesNum;
+    self:UpdateScore(0)
+    self.go_SelectMenu:SetActive(false);
+end
+
+--活动阶段 -- 答题阶段
+function PartyTimeQuestionWidget:SetToState2(startTime,data)
+    
+    self.IsWaitForQuestion=false;
+
+    self.state=2;
+    self.go_Wait:SetActive(false);
+    self.go_Time:SetActive(true);
+    --活动阶段 -- 答题阶段
+
+    --出现中间的UI，显示题目和选项
+    --出现左边的UI，开始刷新挂机奖励
+
+    --题目和答案
+    local ConfigID=data.ConfigID;-- 题目ID
+    local QuestionList=data.QuestionList;--问题列表
+    
+    local Index=data.Index;--第几道题
+    
+
+    local cfg=ConfigDataAccessor.PartyQA[ConfigID];
+
+
+    for i=1,#self.PartyTimeQuestionItems do
+        self.PartyTimeQuestionItems[i].gameObject:SetActive(false);
+    end
+    for i=0,QuestionList.Count-1 do
+
+        self.PartyTimeQuestionItems[i+1].gameObject:SetActive(true);
+        local quest=QuestionList[i];
+
+        local str=LanguageHelp:GetLanguageByKey(quest);
+        if str ~="" then
+            self.PartyTimeQuestionItems[i+1]:RefeshQuestion(str);
+        else
+            self.PartyTimeQuestionItems[i+1]:RefeshQuestion(quest);
+        end
+
+    end
+
+    self.NeedRefesh=true;
+    self.m_Info.text=cfg.Qcontent;
+
+    self.EndTime=startTime+ (ConfigDataAccessor.SystemList[230].Value-ConfigDataAccessor.SystemList[231].Value)*1000;--答题时间
+    self.m_Num.text=""..Index.."/"..self.allQuesNum;
+
+
+    
+    self.module:HideAllAreaEff();
+    --显示光圈
+    if QuestionList.Count==4 then
+        for areaid=4,7 do
+            self.module:AddAreaEff(areaid);
+        end
+    end
+
+    self.go_SelectMenu:SetActive(true);
+
+end
+
+
+--活动阶段 -- 公布答案阶段
+function PartyTimeQuestionWidget:SetToState3(startTime,trueSelect)
+    
+    self.state=3;
+    self.go_Wait:SetActive(false);
+    self.go_Time:SetActive(true);
+
+    --出现中间的UI，显示题目和选项
+    --出现左边的UI，开始刷新挂机奖励
+
+    self.NeedRefesh=true;
+    self.EndTime=startTime+ ConfigDataAccessor.SystemList[231].Value*1000;--结算时间
+
+    --正确答案的索引
+    for i=1,#self.PartyTimeQuestionItems do
+        self.PartyTimeQuestionItems[i]:TrueChoice(false);
+    end
+
+    self.PartyTimeQuestionItems[trueSelect]:TrueChoice(true);
+
+
+    if self.playerSelect~=nil and self.playerSelect>0 and self.playerSelect~=trueSelect then
+        self.PartyTimeQuestionItems[self.playerSelect]:IsSelfWrong(true);
+    end
+    
+
+    --隐藏光圈
+    self.module:HideAllAreaEff();
+
+    --暂时先不显示答案
+    if not(self.IsWaitForQuestion) then
+        self.go_SelectMenu:SetActive(true);
+    end
+end
+
+
+
+--答题结束后的30秒缓冲
+function  PartyTimeQuestionWidget:SetToState4(endTime)
+
+
+    self.state=4;
+    self.go_Wait:SetActive(true);
+    self.go_Time:SetActive(false);
+    
+	self.go_SelectMenu:SetActive(false);
+
+    --缓冲阶段
+
+    --出现中间的UI，但是显示是答题活动已经结束
+    --出现左边的UI，但是只有点击前往
+
+    self.NeedRefesh=true;
+    self.m_Info.text=LanguageHelp:GetLanguageByKey("Local_Str_PartyTimeQuestionWidget2");--答题活动已经结束
+    self.EndTime=endTime;--等30秒
+
+    self.module:RemoveAllAreaEff();
+end
+
+--自己的选择
+function  PartyTimeQuestionWidget:PlayerChoice(playerSelect)
+	self.go_SelectMenu:SetActive(true);
+
+    self.playerSelect=playerSelect;
+	
+    for i=1,#self.PartyTimeQuestionItems do
+        self.PartyTimeQuestionItems[i]:RefeshSelect(false);
+    end
+	
+	--取消选择
+	if playerSelect==-1 then
+		return;
+	end
+	
+    self.PartyTimeQuestionItems[playerSelect]:RefeshSelect(true);
+end
+
+
+
+--其他人的选择
+function  PartyTimeQuestionWidget:UpdatePeople(data)
+	self.go_SelectMenu:SetActive(true);
+
+
+	local dd={0,0,0,0};
+	
+    for k,v in pairs(data) do
+		dd[v]=dd[v]+1;
+    end
+	
+	for i=1,#self.PartyTimeQuestionItems do
+		self.PartyTimeQuestionItems[i]:RefeshPeople(dd[i]);
+	end
+	
+
+end
+
+
+
+function PartyTimeQuestionWidget:BindModule(m)
+    self.module=m;
+end
+
+function PartyTimeQuestionWidget:OnEnable()
+
+end
+
+function PartyTimeQuestionWidget:OnDisable()
+
+end
+
+function PartyTimeQuestionWidget:OnDestroy()
+end
+
+function PartyTimeQuestionWidget:OnOpen(arg)
+	self:OnActiveSelf(false);
+end
+
+function PartyTimeQuestionWidget:OnClose(arg)
+    self.module.PartyTimeQuestionWidget=nil;
+end
+
+
+
+return PartyTimeQuestionWidget

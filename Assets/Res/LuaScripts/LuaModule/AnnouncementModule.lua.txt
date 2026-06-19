@@ -1,0 +1,245 @@
+--[[
+*文件名   :   AnnouncementModule
+*内  容   :
+*说  明   :	  公告 模块
+*创建日期 :   ""
+*创建人   :   ""
+*版权所有 :   游卡网络科技技术有限公司
+]] AnnouncementModule = class("AnnouncementModule", BaseLuaModule);
+
+local AnnouncementWindowPath = "Announcement/AnnouncementWindow";
+
+-- 公告数据
+AnnouncementModule.AnnouncementDatas = nil;
+
+-- LuaModule 消息模块
+AnnouncementModule.ModuleMessages = {
+
+    ["OnOpen"] = function(...)
+        AnnouncementModule:OnOpen(...);
+    end,
+
+    ["OnClose"] = function(...)
+        AnnouncementModule:OnClose(...);
+    end,
+    -- uiwindow 关闭时 回调 module 的接口
+    ["OnWindowClose"] = function(...)
+        AnnouncementModule:OnWindowClose(...);
+    end,
+
+    ["ReqAnnouncement"] = function(...)
+        AnnouncementModule:ReqAnnouncement(...);
+    end
+
+}
+
+-- LuaModule 创建
+function AnnouncementModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.AnnouncementModule, self)
+    print("[公告] 公告 模块创建");
+    -- 公告只需要在进入游戏的时候拉取一次
+    self:ReqAnnouncement(function()
+        -- print("[公告] 模块创建时 拉取公告");
+    end);
+end
+
+function AnnouncementModule:ReqAnnouncement(cb)
+    print("[公告] 请求公告数据");
+    -- LuaModuleDispatcher:SendMessage(ModuleDef.LoginModule, "ReqAnnouncement", {true});
+
+    GameManager.Instance:GetHttpAnnouncement(function(announcements)
+        self.AnnouncementDatas = announcements;
+        if announcements == nil then
+            -- print("[公告] 拉取不到公告数据");
+            if cb ~= nil then
+                cb();
+            end
+
+            return;
+        end
+
+        -- 刷新公告的红点数
+        self:RefreshRedPointData();
+
+        if cb ~= nil then
+            cb();
+        end
+    end);
+end
+
+-- 是否拥有公告数据
+function AnnouncementModule:HasAnnouncementData()
+    if self.AnnouncementDatas == nil then
+        return false;
+    end
+
+    if self.AnnouncementDatas.data ~= nil and self.AnnouncementDatas.data.Count > 0 then
+        return true;
+    end
+
+    return false;
+end
+
+-- 打开界面
+function AnnouncementModule:OnOpen(...)
+    local tb = ...;
+
+    -- 是否是自动弹。 在登录界面 sdk 登录后 会自动弹
+    local isAutoTip = false;
+
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        self.SelectType = tb[1];
+        isAutoTip = tb[2];
+    else
+        -- C#调用
+        self.SelectType = tb[0];
+        isAutoTip = tb[1];
+    end
+    -- Log("[公告] 1112212121");
+    Log("[公告] Announcement OnOpen " .. tostring(GameManager.Instance.IsLoginInitState));
+
+    -- 首先判断是否拥有公告数据,如果拥有公告数据, 那就直接显示公告界面
+    if self:HasAnnouncementData() then
+        if not GameManager.Instance.IsLoginInitState then
+            Log("[公告] 拉取到配置数据,但是 此时不在 登录界面");
+            return;
+        end
+        self:ShowPanel(isAutoTip);
+    else
+        -- 如果没有公告数据, 那就先请求数据, 在获取数据的回调中显示这个界面
+        self:ReqAnnouncement(function()
+            if not GameManager.Instance.IsLoginInitState then
+                Log("[公告] 拉取到配置数据,但是 此时不在 登录界面");
+                return;
+            end
+            self:ShowPanel(isAutoTip);
+        end);
+    end
+end
+
+-- 显示公告界面
+function AnnouncementModule:ShowPanel(isAutoTip)
+    -- 如果是自动弹的 公告弹窗, 需要判断 是否有公告数据, 没有的话就不弹
+    if isAutoTip and not self:HasAnnouncementData() then
+        --         print("[公告] 没有 数据, 所以就不自动弹");
+        return;
+    end
+
+    -- local AnnouncementWindow = UIManager.Instance:OpenWindow(AnnouncementWindowPath, nil,
+    --     CS.StarProjectDef.MainPageCommond.HideNone, true);
+
+    -- -- 记录一个 uiwindow 的引用,
+    -- if self.AnnouncementWindow == nil then
+    --     self.AnnouncementWindow = AnnouncementWindow:GetLuaPanel().ScriptTable;
+    --     self.AnnouncementWindow:BindModule(self);
+    -- end
+
+    -- self.AnnouncementWindow:OnShow(self.AnnouncementDatas, self.SelectType);
+
+    self.AsyncLoadAnnouncementWindowCb = function(ui)
+        if ui ~= nil then
+            if self.AnnouncementWindow == nil then
+                self.AnnouncementWindow = ui:GetLuaPanel().ScriptTable;
+                self.AnnouncementWindow:BindModule(self);
+            end
+
+            -- self:OnClose();
+
+            -- 如果 公告界面加载完成后 发现 不再登录首界面, 那就关闭公告这个window
+            if not GameManager.Instance.IsLoginInitState then
+                --         print("[公告] 加载了prefab,但是 不再登录界面, 所以就不自动弹");
+
+                UIManager.Instance:CloseWidget(AnnouncementWindowPath);
+                return;
+            end
+            self.AnnouncementWindow:OnShow(self.AnnouncementDatas, self.SelectType);
+        end
+        self.AsyncLoadAnnouncementWindowCb = nil;
+    end
+    UIManager.Instance:OpenWidgetAsync(AnnouncementWindowPath, self.AsyncLoadAnnouncementWindowCb, false);
+end
+
+-- 检查红点状态
+function AnnouncementModule:CheckRedPointState(announcementID)
+    local isHad = LocalCacheManager.Instance:Has("AnnounceMent_" .. announcementID);
+    -- if isHad then
+    --     local v = LocalCacheManager.Instance:Get("AnnounceMent_" .. announcementID);
+
+    --     print("[公告] " .. announcementID .. " v --->" .. tostring(v));
+
+    -- end
+
+    return not isHad;
+end
+
+-- 计算 datas 的红点数
+function AnnouncementModule:RefreshRedPointData()
+    local data = self.AnnouncementDatas;
+    if data == nil or data.code ~= 0 then
+        --         print("[公告] 回复数据 code 0, 没有数据");
+        return;
+    end
+
+    if data.data.Count == 0 then
+        --         print("[公告] 回复数据 data数量 0, 没有数据");
+        return;
+    end
+
+    local activityCount = 0;
+    local announcementCount = 0;
+    local announcementTotalCount = 0;
+
+    for i = 1, data.data.Count, 1 do
+        local v = data.data[i - 1];
+
+        -- 如果检查到 需要红点
+        if self:CheckRedPointState(v.id) then
+            if v.type == "announcement" then
+                announcementCount = announcementCount + 1;
+            elseif v.type == "activity" then
+                activityCount = activityCount + 1;
+            end
+        end
+    end
+
+    announcementTotalCount = activityCount + announcementCount;
+
+    print(
+        "[公告] 刷新 红点数 activityCount: " .. activityCount .. " , announcementCount: " .. announcementCount ..
+            " announcementTotalCount: " .. announcementTotalCount);
+
+    RedPointManager.Instance:RefreshRedPointCount(RedPointType.Announcement_Activity, activityCount);
+    RedPointManager.Instance:RefreshRedPointCount(RedPointType.Announcement, announcementCount);
+    RedPointManager.Instance:RefreshRedPointCount(RedPointType.Announcement_Total, announcementTotalCount);
+end
+
+-- LuaModule 释放
+function AnnouncementModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.AnnouncementModule)
+end
+
+-- LuaModule显示
+function AnnouncementModule:OnModuleShow(arg)
+
+end
+
+-- LuaModule 消息处理
+function AnnouncementModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...);
+end
+
+-- 关闭界面
+function AnnouncementModule:OnClose()
+    if self.AnnouncementWindow ~= nil then
+        self.AnnouncementWindow:Close();
+    end
+end
+
+-- 关闭界面后 module执行的回调
+function AnnouncementModule:OnWindowClose(...)
+    self.AnnouncementWindow = nil;
+end
+
+return AnnouncementModule;

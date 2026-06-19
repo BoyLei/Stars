@@ -1,0 +1,278 @@
+---------------------------------------------------------------------
+-- src (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-11-14 14:21:27
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class TutorialItem
+
+TutorialItem =class("TutorialItem")
+
+local Path=nil;
+local GoObj=nil;
+local OldParent=nil;
+local OldIndex=nil;
+local Shape=0;
+local IsForeceGuide=false;
+local Fx=nil;
+local NowParent=nil;
+local m_Frame=nil;
+local Direction=nil;
+local Config=nil;
+local OnReciveEventHanderFunc=nil;
+local OnClickScreenHanderFunc=nil;
+local OnButtonClick=nil;
+local OnEndCallBack=nil;
+function TutorialItem:ctor(path,go,oparent,oindex,shape,isforce,fx,parent,frame,dir,cfg,cb)
+	self.Path=path;
+	self.GoObj=go;
+	self.OldParent=oparent;
+	self.OldIndex=oindex;
+	self.Shape=shape;
+	self.IsForeceGuide=isforce;
+	self.Fx=fx;
+	self.NowParent=parent;
+	self.m_Frame=frame;
+	self.Direction=dir;
+	self.Config=cfg;
+	self.OnEndCallBack=cb;
+
+	self.OnReciveEventHanderFunc=function(type,evt)
+		self:OnReciveEventHander(type,evt);
+	end
+
+	self.OnClickScreenHanderFunc=function(evt)
+		self:OnClickScreenHander(evt)
+	end
+	self.OnFinishTutorialHanderFunc=function(index)
+		self:OnFinishTutorialHander(index)
+	end
+	--屏幕点击
+	CS.StarProject.GlobalEvent.OnClickScreen:AddListener(self.OnClickScreenHanderFunc);
+	--接收事件
+	CS.StarProject.GlobalEvent.OnReciveEvent:AddListener(self.OnReciveEventHanderFunc);
+	--引导完成
+	CS.StarProject.GlobalEvent.OnFinishTutorial:AddListener(self.OnFinishTutorialHanderFunc);
+
+end
+
+---如果标记位被置为true 则完成该步骤
+function TutorialItem:OnFinishTutorialHander(index)
+	if self.Config.FlagIndex== index then
+		self:FinishCurrent(true);
+	end
+end
+
+function TutorialItem:OnReciveEventHander(type,evt)
+	if  self.Config.CompleteConfig.CompleteTypeType == CS.E_TutorialCompleteTypeType.ReciveEvent then
+
+		if (self.Config.CompleteConfig.Event==type and self.Config.CompleteConfig.Prams[0] == tostring(evt)) then
+
+			self:FinishCurrent(false);
+		end
+
+	end
+end
+
+
+function TutorialItem:OnClickScreenHander(evt)
+	if  self.Config.CompleteConfig.CompleteTypeType == CS.E_TutorialCompleteTypeType.ClickScreen then
+		self:FinishCurrent(false);
+	end
+end
+
+--[[
+-- 设置UI自适应后的位置
+function TutorialItem:SetAdaptPostion(position, anchorMin)
+    if not GlobalUIDefine.Instance.PhoneHasBang then
+        local offsetX = 60
+        -- 左对齐
+        if anchorMin.x == 0 then
+            position.x = position.x - offsetX
+        -- 右对齐
+        elseif anchorMin.x == 1 then
+            position.x = position.x + offsetX
+        end
+    end
+    
+    return position
+end
+]]
+
+local pivotSetting = Vector2(0.5,0.5)
+function  TutorialItem:OnBegine()
+	if self.GoObj~=nil then
+
+		self:RegisterFinishEvent();
+
+		if self.IsForeceGuide then
+			self.GoObj:SetParent(self.NowParent);
+		end
+
+		if self.m_Frame~=nil then
+			self.m_Frame.transform:SetParent(self.NowParent);
+
+			-- 原对象
+			local rectTrs1=self.GoObj:GetComponent(typeof(RectTransform));
+			local sizeDelta1=rectTrs1.sizeDelta
+			-- 引导对象
+			local rectTrs2=self.m_Frame.transform:GetComponent(typeof(RectTransform));
+			rectTrs2.pivot=pivotSetting
+			self.m_Frame.transform.localScale=Vector3(1,1,1)
+			local VLayoutGroup=self.m_Frame.transform:GetComponent(typeof(VerticalLayoutGroup));
+			local ContentContentSizeFitter=self.m_Frame.transform:GetComponent(typeof(ContentSizeFitter));
+			ContentContentSizeFitter:SetLayoutVertical();
+			VLayoutGroup:CalculateLayoutInputVertical();
+			--强制刷新  self.m_Frame节点
+			CS.UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(rectTrs2);
+			local sizeDelta2=rectTrs2.sizeDelta
+			local dir=self.Direction;
+			print("dir"..dir.x..dir.y)
+			rectTrs2.position = rectTrs1.position
+			local localpos = rectTrs2.localPosition
+			local pivot = rectTrs1.pivot
+			rectTrs2.localPosition = rectTrs2.localPosition + Vector3(( 0.5 - pivot.x)*rectTrs1.sizeDelta.x,(0.5 - pivot.y)*rectTrs1.sizeDelta.y,0)
+			local arrowPixel = self.Config.ShowArrow and 50 or 0
+			local ofx=((sizeDelta1.x +sizeDelta2.x)*0.5+arrowPixel)*dir.x*(-1)
+			local ofy=((sizeDelta1.y+ sizeDelta2.y)*0.5+arrowPixel)*dir.y*(-1)
+			
+			local cal=Vector3(rectTrs2.localPosition.x+ofx, rectTrs2.localPosition.y+ofy, 0)
+			rectTrs2.localPosition=cal
+		end
+
+		local rectTrs1=self.GoObj:GetComponent(typeof(RectTransform));
+		local sizeDelta1=rectTrs1.sizeDelta
+		if self.Fx~=nil and self.Fx.gameObject~=nil then
+			self.Fx.gameObject:SetActive(true)
+			self.Fx.transform:SetParent(self.GoObj.transform)
+			local m_SquareRts=	self.Fx:GetComponent(typeof(RectTransform));
+			m_SquareRts.pivot=rectTrs1.pivot
+			m_SquareRts.anchorMin=Vector2(0,0)
+			m_SquareRts.anchorMax=Vector2(1,1)
+			m_SquareRts.offsetMin=Vector2(-20,-20)
+			m_SquareRts.offsetMax=Vector2(20,20)
+			self.Fx.transform.localScale=Vector3(1,1,1)
+		end
+
+	end
+end
+
+function TutorialItem:RegisterFinishEvent()
+	if self.Config.CompleteConfig ~=nil then
+
+		if self.Config.CompleteConfig.CompleteTypeType == CS.E_TutorialCompleteTypeType.Click or
+			self.Config.CompleteConfig.CompleteTypeType == CS.E_TutorialCompleteTypeType.LongPress then
+
+			local path = self.Config.CompleteConfig.Prams[0];
+			local isClick = self.Config.CompleteConfig.CompleteTypeType == CS.E_TutorialCompleteTypeType.Click;
+			local go= UIManager.Instance:GetPlaneNodeFromOfflineData(path);
+
+
+			if go==nil then
+				LogError("Not Find GameObject By Path "..path);
+				return;
+			end
+
+			if isClick then
+
+				local  jbtn= go:GetComponent(typeof(JButton));
+				if jbtn ~=nil then
+
+					jbtn.AddtionAction =function(go)
+						jbtn.AddtionAction = nil;
+						self:FinishCurrent(false);
+					end
+
+				else
+
+					local  btn= go:GetComponent(typeof(Button));
+					if btn ~=nil then
+						self.OnButtonClick=function()
+							if self.OnButtonClick~=nil then
+								btn.onClick:RemoveListener(self.OnButtonClick);
+							end
+							self:FinishCurrent(false);
+						end
+						btn.onClick:AddListener(self.OnButtonClick);
+					end
+
+				end
+
+			else
+
+				local jbtn = go:GetComponent(typeof(JButton));
+				if jbtn ~=nil then
+
+					jbtn.AddtionPressDown =function(go)
+						jbtn.AddtionPressDown = nil;
+						self:FinishCurrent(false);
+					end
+
+				end
+
+			end
+
+			---延迟
+		elseif self.Config.CompleteConfig.CompleteTypeType == CS.E_TutorialCompleteTypeType.Delay then
+			local time=tonumber(self.Config.CompleteConfig.Prams[0])/1000
+			self.DelayFunc=function()
+				self:FinishCurrent(false);
+			end
+			DelayInvoker.DelayInvoke(self, time, self.DelayFunc);
+		end
+	end
+end
+
+function TutorialItem:FinishCurrent(stop)
+
+	if self.IsForeceGuide then
+		self.GoObj.transform:SetParent(self.OldParent);
+		self.GoObj.transform:SetSiblingIndex(self.OldIndex);
+	end
+	if self.Fx~=nil and self.Fx.gameObject~=nil then
+		GameObject.Destroy(self.Fx.gameObject)
+		self.Fx=nil;
+	end
+
+	if self.m_Frame~=nil and self.m_Frame.gameObject~=nil then
+		GameObject.Destroy(self.m_Frame.gameObject)
+		self.m_Frame=nil;
+	end
+	--屏幕点击
+	if self.OnClickScreenHanderFunc~=nil then
+		CS.StarProject.GlobalEvent.OnClickScreen:RemoveListener(self.OnClickScreenHanderFunc);
+	end
+	self.OnClickScreenHanderFunc=nil;
+	
+	--接收事件
+	if self.OnReciveEventHanderFunc~=nil then
+		CS.StarProject.GlobalEvent.OnReciveEvent:RemoveListener(self.OnReciveEventHanderFunc);
+	end
+	self.OnReciveEventHanderFunc=nil;
+
+	
+	if self.OnFinishTutorialHanderFunc~=nil then
+		CS.StarProject.GlobalEvent.OnFinishTutorial:RemoveListener(self.OnFinishTutorialHanderFunc);
+	end
+	self.OnFinishTutorialHanderFunc=nil;
+
+	self.OnButtonClick=nil;
+	self.DelayFunc=nil;
+	if  self.OnEndCallBack ~=nil then
+		self.OnEndCallBack(self.Path,self.Config.ID,stop)
+		self.OnEndCallBack=nil;
+	end
+end
+
+function TutorialItem:RePlay()
+	if self.Fx~=nil then
+		self.Fx.gameObject:SetActive(false)
+		self.Fx.gameObject:SetActive(true)
+	end
+end
+
+
+return TutorialItem

@@ -1,0 +1,608 @@
+--[[
+*文件名   :   PartnerDetailWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/12/16 13:59:32"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]] PartnerDetailWidget = class("PartnerDetailWidget", UIPanel)
+
+local PartnerHeadItem = require("View/UIWindow/PartnerWindow/PartnerHeadItem")
+local PartnerBasePart = require("View/UIWindow/PartnerWindow/PartnerBasePart")
+local CertificationPart = require("View/UIWindow/PartnerWindow/CertificationPart")
+local PartnerSkillPart = require("View/UIWindow/PartnerWindow/PartnerSkillPart")
+local PartnerEquipTips = require("View/UIWindow/PartnerWindow/New/PartnerEquipTips")
+local PartnerEquipItems = require("View/UIWindow/PartnerWindow/New/PartnerEquipItems")
+
+---表现层
+PartnerDetailWidget.m_Root = nil;
+PartnerDetailWidget.m_PartnerRawImage = nil;
+PartnerDetailWidget.m_DisplayRawimg = nil;
+PartnerDetailWidget.m_ScrollView = nil;
+PartnerDetailWidget.m_ItemGrid = nil;
+PartnerDetailWidget.m_PartnerRoot = nil;
+PartnerDetailWidget.m_PaintBtn = nil;
+PartnerDetailWidget.m_FashionBtn = nil;
+PartnerDetailWidget.m_GuideBtn = nil;
+PartnerDetailWidget.m_Menus = nil;
+PartnerDetailWidget.m_BasePart = nil;
+PartnerDetailWidget.m_CertificationPart = nil;
+PartnerDetailWidget.m_SkillPart = nil;
+PartnerDetailWidget.m_Quality = nil;
+PartnerDetailWidget.m_IntroduceBtn = nil;
+-- 属性
+PartnerDetailWidget.m_PartnerInfo = nil;
+PartnerDetailWidget.PartnerName = nil;
+PartnerDetailWidget.Stars = nil;
+PartnerDetailWidget.Power = nil;
+PartnerDetailWidget.PowerText = nil;
+
+-- 资质
+PartnerDetailWidget.CertificationText = nil;
+PartnerDetailWidget.PreviewBtn = nil;
+
+---数据层
+PartnerDetailWidget.Partners = nil;
+PartnerDetailWidget.SelectIndex = -1;
+PartnerDetailWidget.PartnerItems = nil;
+PartnerDetailWidget.m_avatarDataCell = nil;
+
+PartnerDetailWidget.CertificationToppedPart = nil;
+PartnerDetailWidget.PartnerBasePart = nil;
+PartnerDetailWidget.CertificationPart = nil;
+PartnerDetailWidget.PartnerSkillPart = nil;
+PartnerDetailWidget.CurrentPart = nil;
+PartnerDetailWidget.Module = nil;
+PartnerDetailWidget.SubTag = 1;
+PartnerDetailWidget.IsOpen = false;
+local UpgradeFunc = nil;
+local PartnerUpLevelFunc = nil;
+function PartnerDetailWidget:Awake()
+	self.m_Root = self:Find("Root"):GetComponent(typeof(RectTransform));
+	self.m_leftTrans = self:Find("Root/Left");
+	self.m_PartnerRawImage = self:Find("Root/Left/PartnerRawImage"):GetComponent(typeof(RawImage));
+	self.m_DisplayRawimg = self:Find("Root/Left/DisplayRawimg"):GetComponent(typeof(DisplayRawimg));
+	self.m_ScrollView = self:Find("Root/Left/Scroll View"):GetComponent(typeof(SuperScrollViewController));
+	self.m_ItemGrid = self:Find("Root/Left/ItemGrid").gameObject;
+	self.m_PartnerRoot = self:Find("Root/Left/Scroll View/Mask/List");
+	self.m_PaintBtn = self:Find("Root/Right/PaintBtn"):GetComponent(typeof(Button));
+	self.m_FashionBtn = self:Find("Root/Right/FashionBtn"):GetComponent(typeof(Button));
+	self.m_GuideBtn = self:Find("Root/Right/GuideBtn"):GetComponent(typeof(Button));
+	self.m_Quality = self:Find("Root/Left/Quality"):GetComponent(typeof(Image));
+	self.m_Menus = self:Find("Root/Right/Menus"):GetComponent(typeof(StarUITabMenu));
+	self.m_BasePart = self:Find("Root/Right/BasePart").gameObject;
+	self.m_CertificationPart = self:Find("Root/Right/CertificationPart").gameObject;
+	self.m_SkillPart = self:Find("Root/Right/SkillPart").gameObject;
+	self.m_PartnerInfo = self:Find("Root/Right/PartnerInfo").gameObject;
+	self.PartnerName = self:Find("Root/Right/PartnerInfo/PartnerName"):GetComponent(typeof(Text));
+	self.m_IntroduceBtn = self:Find("Root/Right/BasePart/Image/IntroduceBtn"):GetComponent(typeof(Button));
+	self.Stars = {}
+	table.insert(self.Stars, self:Find("Root/Right/PartnerInfo/Stars/Star1").gameObject)
+	table.insert(self.Stars, self:Find("Root/Right/PartnerInfo/Stars/Star2").gameObject)
+	table.insert(self.Stars, self:Find("Root/Right/PartnerInfo/Stars/Star3").gameObject)
+	table.insert(self.Stars, self:Find("Root/Right/PartnerInfo/Stars/Star4").gameObject)
+	table.insert(self.Stars, self:Find("Root/Right/PartnerInfo/Stars/Star5").gameObject)
+	table.insert(self.Stars, self:Find("Root/Right/PartnerInfo/Stars/Star6").gameObject)
+	self.PreviewBtn = self:Find("Root/Right/CertificationPart/PreviewBtn"):GetComponent(typeof(Button));
+	self.Power = self:Find("Root/Right/BasePart/Power"):GetComponent(typeof(Text));
+	self.PowerText = self:Find("Root/Right/BasePart/Text"):GetComponent(typeof(Text));
+
+	self.CertificationText = self:Find("Root/Right/CertificationPart/Num"):GetComponent(typeof(Text));
+	self.m_ScrollView:NewScroll(self.m_ItemGrid, 0, function(tr, idx)
+			self:OnItemRefesh(tr, idx);
+		end);
+	self.PartnerItems = {}
+
+	self.PartnerBasePart = PartnerBasePart.new(self.m_BasePart, self.m_PartnerRoot, self.AtlasPath, nil)
+	self.CertificationPart = CertificationPart.new(self.m_CertificationPart, self.m_PartnerRoot, self.AtlasPath, nil)
+	self.PartnerSkillPart = PartnerSkillPart.new(self.m_SkillPart, self.m_PartnerRoot, self.AtlasPath, nil)
+	self.SelectIndex = 0;
+
+	UpgradeFunc = function(index)
+		self:OnPartnerUpgrade(index)
+	end
+
+	PartnerUpLevelFunc = function(index, lv)
+		self:OnPartnerUpLevel(index, lv)
+	end
+
+	self.equipGO = self:Find("Root/Equip").gameObject;
+	self.partnerEquipTipsGO = self.equipGO.transform:Find("PartnerEquipTips").gameObject;
+	self.equipItemsGO = self.equipGO.transform:Find("EquipItems").gameObject;
+	self.equipTypeText = self.equipGO.transform:Find("EquipItems/EquipType/tex"):GetComponent(typeof(Text));
+
+	self.equipTypesGO = self:Find("Root/Left/Items").gameObject;
+	self.equipItems = {};
+	for i = 1, 3 do
+		local equipItem = self:Find("Root/Left/Items/Item" .. i);
+
+		self.equipItems[i] = {};
+		self.equipItems[i].btn = equipItem:GetComponent(typeof(Button));
+		self.equipItems[i].btn.onClick:AddListener(function()
+				for j = 1, 3 do
+					self.equipItems[j].selfGo:SetActive(i == j);
+				end
+				self:OnOpenPartnerEquip(i, false);
+				if i == 1 then
+					self.equipTypeText.text =LanguageHelp:GetLanguageByKey("Local_Str_artifacts")
+				elseif i == 2 then
+					self.equipTypeText.text =LanguageHelp:GetLanguageByKey("Local_Str_armband")
+				else
+					self.equipTypeText.text =LanguageHelp:GetLanguageByKey("Local_Str_Nucflash")
+				end
+			end);
+
+		self.equipItems[i].selfGo = equipItem:Find("Sel").gameObject;
+		self.equipItems[i].bgRare = equipItem:Find("BgRare"):GetComponent(typeof(Image));
+		self.equipItems[i].icon = equipItem:Find("Icon"):GetComponent(typeof(Image));
+
+		self.equipItems[i].stars = {};
+		for j = 1, 3 do
+			self.equipItems[i].stars[j] = equipItem:Find("Stars/Star" .. j).gameObject;
+		end
+	end
+
+	self.equipCloseBtn = self:Find("Root/Equip/Close"):GetComponent(typeof(Button));
+	self.equipCloseBtn.onClick:AddListener(function()
+			self:OnClosePartnerEquip();
+		end);
+end
+
+function PartnerDetailWidget:OnOpenPartnerEquip(equipType, istakeoff)
+	self.curEquipType = equipType;
+
+	if self.partnerEquipTips == nil then
+		self.partnerEquipTips = PartnerEquipTips:ctor(self.partnerEquipTipsGO);
+	end
+	if self.partnerEquipItems == nil then
+		self.partnerEquipItems = PartnerEquipItems:ctor(self.equipItemsGO);
+	end
+
+	local data = self:GetSelectPartner();
+	if data == nil then
+		return
+	end
+
+	local equipedEquip = BusinessManager.Instance:GetPartnerEquipedEquip(data.ID, equipType);
+
+	self.equipGO:SetActive(true);
+	if equipedEquip == nil then
+		self.partnerEquipTips:Hide();
+	else
+		self.partnerEquipTips:Show(equipedEquip.BaseID, equipedEquip.BaseID, equipedEquip.EntityID, data.ID);
+	end
+	self.partnerEquipItems:Show(equipType, self, equipedEquip, istakeoff);
+
+	self.m_PartnerRawImage.transform.parent = self.equipGO.transform;
+	self.equipTypesGO.transform.parent = self.equipGO.transform;
+end
+
+function PartnerDetailWidget:OnTakeOff()
+	if self.partnerEquipTips ~= nil then
+		self.partnerEquipTips:OnTakeOff();
+		self:InitEquip();
+	end
+end
+
+function PartnerDetailWidget:RefreshEquips(istakeoff)
+	self:OnOpenPartnerEquip(self.curEquipType, istakeoff)
+	self:InitEquip();
+end
+
+function PartnerDetailWidget:OnClosePartnerEquip()
+	self.equipGO:SetActive(false);
+	for j = 1, 3 do
+		self.equipItems[j].selfGo:SetActive(false);
+	end
+
+	self.m_PartnerRawImage.transform.parent = self.m_leftTrans;
+	self.equipTypesGO.transform.parent = self.m_leftTrans;
+end
+
+function PartnerDetailWidget:InitEquip()
+	local data = self:GetSelectPartner();
+	for i = 1, 3 do
+		self.equipItems[i].icon.gameObject:SetActive(false);
+		for j = 1, 3 do
+			self.equipItems[i].stars[j]:SetActive(false);
+		end
+		self.equipItems[i].bgRare.gameObject:SetActive(false);
+	end
+
+	if data == nil then
+		return
+	end
+	for i = 1, 3 do
+		local equipedEquip = BusinessManager.Instance:GetPartnerEquipedEquip(data.ID, i);
+
+		if equipedEquip ~= nil then
+			self.equipItems[i].icon.gameObject:SetActive(true);
+
+			local baseID = equipedEquip.BaseID;
+
+			local cfg2 = ConfigDataAccessor.Item[baseID];
+			self.equipItems[i].bgRare.gameObject:SetActive(true);
+			ResourceHelper:LoadIconByAtlasAsync(self.equipItems[i].bgRare, ResourceHelper.AtlasPathCommonItem,
+				"Bag_Grid_sq" .. cfg2.Quality, false)
+
+			local itemData = ConfigDataAccessor.Item[equipedEquip.BaseID]
+			ResourceHelper:LoadIconAsync(self.equipItems[i].icon, "", itemData.Icon, false)
+
+			local partnerEquip = ConfigDataAccessor.PartnerEquip;
+			if partnerEquip[baseID] ~= nil then
+				for j = 1, 3 do
+					self.equipItems[i].stars[j]:SetActive(j <= partnerEquip[baseID].AdvancedLevel);
+				end
+			end
+		end
+	end
+end
+
+function PartnerDetailWidget:Start()
+	self.m_PaintBtn.onClick:AddListener(function()
+			self:OnClickPaintBtn()
+		end);
+	self.m_FashionBtn.onClick:AddListener(function()
+			self:OnClickFashionBtn()
+		end);
+	self.m_GuideBtn.onClick:AddListener(function()
+			self:OnClickGuideBtn()
+		end);
+	self.PreviewBtn.onClick:AddListener(function()
+			self:OnClickPreviewBtn()
+		end);
+	self.m_IntroduceBtn.onClick:AddListener(function()
+			self:OnClickIntroduceBtn()
+		end);
+	---伙伴升星成功
+
+end
+
+function PartnerDetailWidget:OnEnable()
+	LuaModuleDispatcher:SendMessage(ModuleDef.BattleTeamModule, "OnForceTab", 2);
+
+	CS.StarProject.GlobalEvent.OnPartnerUpLevel:AddListener(PartnerUpLevelFunc);
+	-- CS.StarProject.GlobalEvent.OnPartnerFresh:AddListener(UpgradeFunc);
+end
+
+function PartnerDetailWidget:OnDisable()
+	CS.StarProject.GlobalEvent.OnPartnerUpLevel:RemoveListener(PartnerUpLevelFunc);
+	-- CS.StarProject.GlobalEvent.OnPartnerFresh:RemoveListener(UpgradeFunc);
+end
+
+function PartnerDetailWidget:OnDestroy()
+	self.PartnerBasePart:OnDestroy();
+	self.PartnerBasePart = nil;
+
+	self.CertificationPart:OnDestroy();
+	self.CertificationPart = nil;
+
+	self.PartnerSkillPart:OnDestroy();
+	self.PartnerSkillPart = nil;
+end
+
+function PartnerDetailWidget:OnItemRefesh(tr, idx)
+	if self.PartnerItems == nil then
+		return;
+	end
+	for i = 1, #self.PartnerItems do
+		if self.PartnerItems[i].transform == tr then
+			self.PartnerItems[i]:UpdateContent(self.Partners[idx + 1], self.SelectIndex); -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+			return
+		end
+	end
+	local bi = PartnerHeadItem.new(tr.gameObject, self.m_PartnerRoot, self.AtlasPath, function(index)
+			self:OnSelect(index)
+		end);
+	bi.prefab:SetActive(true);
+	bi:UpdateContent(self.Partners[idx + 1], self.SelectIndex, "PartnerDetail"); -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+	table.insert(self.PartnerItems, bi);
+end
+
+function PartnerDetailWidget:CleanAllSelected()
+	-- 无限列表
+	for i = 1, #self.PartnerItems do
+		self.PartnerItems[i]:OnSelect(false);
+	end
+end
+
+function PartnerDetailWidget:OnSelect(selectIndex)
+	self.SelectIndex = selectIndex;
+	SetSelectPartner(self.SelectIndex)
+	self:CleanAllSelected();
+	self:SetPartnerInfo(false, 0);
+end
+
+function PartnerDetailWidget:GetQualityName(quality)
+	if quality == 1 then
+		return "Partner_quality_n"
+	elseif quality == 2 then
+		return "Partner_quality_r"
+	elseif quality == 3 then
+		return "Partner_quality_sr"
+	elseif quality == 4 then
+		return "Partner_quality_ssr"
+	end
+end
+
+function PartnerDetailWidget:SetPartnerInfo(upgrade, lv)
+	local data = self:GetSelectPartner();
+	if data == nil then
+		return
+	end
+	self.m_PartnerInfo:SetActive(self.m_Menus.CurrentIndex ~= 3)
+	local config = ConfigDataAccessor.Partner[data.Index];
+	for i = 1, #self.Stars do
+		if i <= data.CurStar then
+			self.Stars[i]:SetActive(true)
+		else
+			self.Stars[i]:SetActive(false)
+		end
+	end
+
+	if config ~= nil then
+		self.PartnerName.text = config.Name
+		self:GetSprite(self:GetQualityName(config.Quality), function(sp)
+				self.m_Quality.sprite = sp
+			end)
+
+		local avatarDataCell = ConfigDataAccessor.Avatar[config.AvatarID];
+		if avatarDataCell ~= nil then
+			self:SetModel(avatarDataCell, String2Vector3(config.ModelScale), String2Vector3(config.ModelRot),
+				String2Vector3(config.ModelPos), config.ModelAnima);
+		end
+
+		self.CertificationText.text = tostring(data.AptitudeBreakStep);
+		local PartnerNature = ConfigDataAccessor.PartnerNature[config.Nature][data.Level]
+		if PartnerNature ~= nil then
+			self.Power.text = tostring(PartnerNature.Power);
+		end
+	end
+
+	self:InitEquip();
+
+	self.CurrentPart:OnShow(data, lv);
+end
+
+function PartnerDetailWidget:SetModel(avatarDataCell, scale, localRotate, localPos, animName)
+	if self.m_avatarDataCell ~= avatarDataCell then
+		------- 设置模型
+		self:PushDisplayGob();
+		self.m_avatarDataCell = avatarDataCell;
+		ResourceManager.Instance:PopGameObject("Roles/Template/Display_Model", function(go)
+				if go == nil then
+					return;
+				end
+				if self.m_avatarDataCell == nil then
+					ResourceManager.Instance:PushGameObject("Roles/Template/Display_Model", go);
+					return;
+				end
+				UIManager.Instance:SetModel2UI2(go, self.m_avatarDataCell.AvatarID, CS.StarProjectDef.ThreeDModelPos.Raw, scale,
+					Vector3.zero, localRotate, localPos, animName);
+				go:SetActive(true);
+				self.m_ModelViewDisplay = go:GetComponent(typeof(RoleViewDisplay));
+				-- self.m_DisplayRawing:SetModelView(self.m_ModelViewDisplay);
+
+				if self.m_ModelViewDisplay ~= nil then
+					local rotation = Quaternion.Euler(0, 0, 0);
+					self.m_ModelViewDisplay:SetRotation(rotation);
+					self.m_DisplayRawimg:SetState(true);
+				end
+
+				------- 设置模型
+				self.m_PartnerRawImage.texture = ResourceManager.Instance.RenderTexture;
+			end);
+
+	end
+	if self.m_ModelViewDisplay ~= nil then
+		local rotation = Quaternion.Euler(0, 0, 0);
+		self.m_ModelViewDisplay:SetRotation(rotation);
+		self.m_DisplayRawimg:SetState(true);
+	end
+end
+
+function PartnerDetailWidget:PushDisplayGob()
+	if self.m_ModelViewDisplay ~= nil then
+		ResourceManager.Instance:PushGameObject("Roles/Template/Display_Model", self.m_ModelViewDisplay.gameObject);
+		-- GameObject.Destroy(self.m_ModelViewDisplay.gameObject);
+		self.m_ModelViewDisplay = nil;
+		self.m_DisplayRawimg:SetModelView(self.m_ModelViewDisplay);
+	end
+end
+
+function PartnerDetailWidget:OnMenusItemClick(index)
+	if index == 1 then
+		-- 基础
+		self.CurrentPart:OnHide();
+		self.CurrentPart = self.PartnerBasePart;
+		local data = self:GetSelectPartner();
+		self.CurrentPart:OnShow(data, 0);
+	elseif index == 2 then
+		self.CurrentPart:OnHide();
+		self.CurrentPart = self.CertificationPart;
+		local data = self:GetSelectPartner();
+		self.CurrentPart:OnShow(data, 0);
+
+		-- 资质
+	elseif index == 3 then
+		-- 技能
+		self.CurrentPart:OnHide();
+		self.CurrentPart = self.PartnerSkillPart;
+		local data = self:GetSelectPartner();
+		self.CurrentPart:OnShow(data, 0);
+
+	end
+	self.SubTag = index;
+	self.m_Menus:Check(index);
+	self:SetPartnerInfo(false, 0);
+end
+
+function PartnerDetailWidget:Sort()
+	-- 出战状态》品质》星级》战力
+	table.sort(self.Partners, function(p1, p2)
+			local t1 = 0;
+			local t2 = 0;
+			if p1.State == CS.ProtoMsg.PartnerState.InBattle or p1.State == CS.ProtoMsg.PartnerState.Concretization then
+				t1 = 1;
+			end
+
+			if p2.State == CS.ProtoMsg.PartnerState.InBattle or p2.State == CS.ProtoMsg.PartnerState.Concretization then
+				t2 = 1;
+			end
+
+			if t1 > t2 then
+				return true
+			elseif t1 == t2 then
+
+				local config1 = ConfigDataAccessor.Partner[p1.Index];
+				local config2 = ConfigDataAccessor.Partner[p2.Index];
+				if config1.Quality > config2.Quality then
+					return true
+				elseif config1.Quality == config2.Quality then
+					if p1.CurStar > p2.CurStar then
+						return true
+					elseif p1.CurStar == p2.CurStar then
+						local PartnerNature1 = ConfigDataAccessor.PartnerNature[config1.Nature][p1.Level]
+						local PartnerNature2 = ConfigDataAccessor.PartnerNature[config2.Nature][p2.Level]
+						if PartnerNature1 == nil then
+							return false
+						end
+
+						if PartnerNature2 == nil then
+							return false
+						end
+
+						return PartnerNature1.Power > PartnerNature2.Power
+					end
+				end
+			end
+			return false;
+		end)
+end
+
+function PartnerDetailWidget:OnOpen(arg)
+	self.IsOpen = true;
+	self.PartnerBasePart:OnHide();
+	self.CertificationPart:OnHide();
+	self.PartnerSkillPart:OnHide();
+	self.m_Menus:Init(self.SubTag, function(index)
+			self:OnMenusItemClick(index);
+
+		end);
+	self.Partners = arg.Partners
+	self.Module = arg.Module;
+	-- if self.Module:GetOldTabIndex()~=2 then
+	local id=GetSelectPartner();
+	if id==0 or id==nil then
+		self.SelectIndex = arg.SelectIndex
+		SetSelectPartner(self.SelectIndex)
+	else
+		self.SelectIndex=id;
+	end
+	-- end
+	self:Sort()
+	self.m_ScrollView:ContinueScroll(#self.Partners);
+
+	if self.SubTag == 1 then
+		self.CurrentPart = self.PartnerBasePart;
+	elseif self.SubTag == 2 then
+		self.CurrentPart = self.CertificationPart;
+	elseif self.SubTag == 3 then
+		self.CurrentPart = self.PartnerSkillPart;
+	end
+
+	self:SetPartnerInfo(false, 0);
+	UIManager.Instance:SetRawCamrea(true);
+
+	if arg.SubTag ~= nil and arg.SubTag > 0 then
+		self:OnMenusItemClick(arg.SubTag);
+	end
+end
+
+function PartnerDetailWidget:GetSelectPartner()
+	if self.Partners == nil then
+		return nil
+	end
+
+	for _k, _v in pairs(self.Partners) do
+		if _v.Index == self.SelectIndex then
+			return _v
+		end
+	end
+end
+
+function PartnerDetailWidget:OnPartnerUpLevel(index, lv)
+	if self.SelectIndex == index and self.IsOpen then
+		self.Partners = self.Module:GetAllPartners();
+		self:Sort()
+		self.m_ScrollView:ContinueScroll(#self.Partners);
+		self:SetPartnerInfo(true, lv);
+		-- local data= self:GetSelectPartner();
+		-- self.CurrentPart:OnShow(data,self.m_PartnerRawImage.texture);
+	end
+end
+
+function PartnerDetailWidget:OnPartnerUpgrade(index)
+	if self.SelectIndex == index and self.IsOpen then
+		self.Partners = self.Module:GetAllPartners();
+		self:Sort()
+		self.m_ScrollView:ContinueScroll(#self.Partners);
+		self:SetPartnerInfo(false, 0);
+		-- local data= self:GetSelectPartner();
+		-- self.CurrentPart:OnShow(data,self.m_PartnerRawImage.texture);
+	end
+end
+
+function PartnerDetailWidget:OnClose(arg)
+	self:PushDisplayGob();
+	self.CurrentPart:OnHide();
+	UIManager.Instance:SetRawCamrea(false);
+	self.Partners = nil;
+	self.Index = nil; ---槽位索引
+	self.m_avatarDataCell = nil;
+	self.m_ModelViewDisplay = nil;
+	self.IsOpen = false;
+
+end
+
+function PartnerDetailWidget:OnClickPaintBtn()
+	Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_272"));
+	-- CS.ES3.Save("RedPoint",2663);
+	LocalCache.GetPartnerRedPointData:AddPartner(1003);
+	LocalCache.GetPartnerRedPointData:RemovePartner(1002);
+	-- CS.ES3.Save("RedPoint1",{id=99,Name="马克"});
+	-- CS.SGF.UI.Framework.SaveManager.Instance:Save("Paint1", {id=99,Name="马克"}, "Paint1", "RedPoint");
+
+end
+
+function PartnerDetailWidget:OnClickFashionBtn()
+	Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_272"));
+	LocalCache.GetPartnerRedPointData:AddPartner(1002);
+end
+
+function PartnerDetailWidget:OnClickGuideBtn()
+	Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_272"));
+
+	local a = LocalCache.GetPartnerRedPointData:IsNewPartner(1002);
+	print(a)
+
+	local b = LocalCache.GetPartnerRedPointData:IsNewPartner(1003);
+	print(b)
+end
+
+function PartnerDetailWidget:OnClickIntroduceBtn()
+	CS.StarProjectDef.UIAPI.ShowGameplayInfo(10302)
+end
+
+function PartnerDetailWidget:OnClickPreviewBtn()
+	local data = self:GetSelectPartner();
+	if data == nil then
+		return
+	end
+	UIManager.Instance:OpenWidget("Partner/Prefab/ToppedPreviewWidget", false, {
+			data = data,
+			parent = self.prefab.transform.parent
+		}, self.prefab.transform.parent);
+end
+
+return PartnerDetailWidget

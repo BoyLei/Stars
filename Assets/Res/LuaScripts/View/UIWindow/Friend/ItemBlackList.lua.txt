@@ -1,0 +1,127 @@
+---------------------------------------------------------------------
+-- Stars (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-08-08 17:20:16
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class ItemBlackList
+ItemBlackList = class("ItemBlackList", UIPanel)
+
+function ItemBlackList:ctor(_go, parent, relieveFinishCB, headCallBack)
+	self.prefab = _go.transform;
+	self.BlackInfo = nil;
+	self.RelieveFinishCB = relieveFinishCB;
+	self.HeadCallBack = headCallBack;
+	-- JBtn 解除
+	self.JBtnRelieve = self:Find("JBtnRelieve"):GetComponent(typeof(JButton));
+	self.JBtnRelieveFun = function()
+		self:OnClickJBtnRelieve();
+	end
+	self.JBtnRelieve.OnClick = self.JBtnRelieveFun;
+	-- 头像边框
+	self.HeadFrame = self:Find("HeadFrame"):GetComponent(typeof(Image));
+	-- 头像
+	self.HeadIcon = self:Find("HeadFrame/HeadIcon"):GetComponent(typeof(Image));
+	-- JBtn 头像
+	self.JBtnHeadIconFun = function()
+		self:OnClickJBtnHeadIcon();
+	end
+	local JBtnHeadIcon = self:Find("HeadFrame/HeadIcon"):GetComponent(typeof(JButton));
+	JBtnHeadIcon.OnClick = self.JBtnHeadIconFun;
+	-- 玩家等级
+	self.Level = self:Find("HeadFrame/LevelBg/Level"):GetComponent(typeof(Text));
+	-- 玩家名称
+	self.PlayerName = self:Find("PlayerName"):GetComponent(typeof(Text));
+	-- 冒险团名
+	self.GuildName = self:Find("GuildName"):GetComponent(typeof(Text));
+
+	self.OnRemoveBlackRespFun = function(data)
+		self:OnRemoveBlackResp(data);
+	end
+end
+
+-- 点击头像
+function ItemBlackList:OnClickJBtnHeadIcon()
+	if self.HeadCallBack == nil then
+		return;
+	end
+	if self.BlackInfo == nil then
+		return;
+	end
+	self.HeadCallBack(self.BlackInfo, self.HeadIcon.transform);
+end
+
+function ItemBlackList:UpdateContent(data, isHas)
+	self.BlackInfo = data;
+	if self.BlackInfo == nil and self.BlackInfo.BlackUserInfo.JobID ~= nil then
+		self.prefab.gameObject:SetActive(false);
+		return;
+	end
+	-- 头像
+	local jobCfg = ConfigDataAccessor.Job[self.BlackInfo.BlackUserInfo.JobID];
+	if jobCfg ~= nil then
+		local avatarDataCell = ConfigDataAccessor.Avatar[jobCfg.AvatarID];
+		if avatarDataCell ~= nil then
+			local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID];
+			if headCfg ~= nil then
+				self:GetSpriteByAtlas(headCfg.HeadAtlasName, headCfg.MinHead, function(sp)
+					self.HeadIcon.sprite = sp
+				end);
+			end
+		end
+	end
+
+	-- 等级
+	--self.Level.text = self.BlackInfo.BlackUserInfo.Level .. "级";
+	self.Level.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {self.BlackInfo.BlackUserInfo.Level});
+
+	-- 名称
+	self.PlayerName.text = self.BlackInfo.BlackUserInfo.UserName;
+	-- 冒险团名
+	local GuildName = LanguageHelp:GetLanguageByKey("Local_Str_Tips19");
+	if self.BlackInfo.BlackUserInfo.GuildName ~= "" then
+		GuildName = self.BlackInfo.BlackUserInfo.GuildName;
+	end
+	self.GuildName.text = GuildName;
+
+	self.prefab.gameObject:SetActive(true);
+end
+
+--移出黑名单
+function ItemBlackList:OnClickJBtnRelieve()
+	CS.StarProjectDef.UIAPI.ShowMsgBox(24, function(str)
+		if str == "SURE" then
+			local pid = self.BlackInfo.BlackUserInfo.UserPID;
+			local key = "ItemBlackList_" .. pid;
+			LuaModuleDispatcher:SendMessage(ModuleDef.FriendModule, "OnSendRemoveBlackReq",
+				{ pid, key, self.OnRemoveBlackRespFun });
+		end
+	end);
+end
+
+-- 点击同意的回调 【code=0是成功】 【message是错误日志，如果错误了就播放】
+function ItemBlackList:OnRemoveBlackResp(data)
+	if data == nil then
+		return;
+	end
+
+	--if data.Result.Code ~= 0 then
+	--CS.StarProject.Service.DisplayProcess.DisplayProcessDispenser.Instance:ShowSystemMessage(data.Result.Message);
+	--return;
+	--end
+
+	if self.RelieveFinishCB == nil then
+		return;
+	end
+
+	if self.BlackInfo == nil then
+		return;
+	end
+
+	self.RelieveFinishCB(self.BlackInfo.BlackUserInfo.UserPID);
+end
+
+return ItemBlackList;

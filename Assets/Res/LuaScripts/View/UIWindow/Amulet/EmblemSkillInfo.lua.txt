@@ -1,0 +1,177 @@
+--[[
+*文件名   :   EmblemSkillInfo
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local EmblemSkillInfo = {}
+
+EmblemSkillInfo.__index = EmblemSkillInfo
+
+function EmblemSkillInfo:New(_go)
+    local self = {}
+    setmetatable(self, EmblemSkillInfo)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    --关闭信息
+    local btnClose = self.transform:Find("Close"):GetComponent(typeof(JButton))
+    btnClose.OnClick = (function()
+        self:Show(false)
+    end)
+
+    self.Name = self.transform:Find("Info/Root/title"):GetComponent(typeof(Text))
+    self.Add = self.transform:Find("Info/Root/add"):GetComponent(typeof(Text))
+    self.Points = self.transform:Find("Info/Root/points"):GetComponent(typeof(Text))
+
+    self.Desc1 = self.transform:Find("Info/Root/desc1"):GetComponent(typeof(Text))
+    self.Desc2 = self.transform:Find("Info/Root/desc2"):GetComponent(typeof(Text))
+
+    self.Icon = self.transform:Find("Info/Root/iconbg/icon"):GetComponent(typeof(Image))
+
+    self:Show(false)
+
+    return self --返回自身
+end
+
+function EmblemSkillInfo:Show(b, sid)
+    self.gameObject:SetActive(b)
+    if b then
+        local skillID = sid
+
+        self:RefeshInfo(skillID)
+    end
+end
+
+function EmblemSkillInfo:RefeshInfo(skillID)
+    --计算战技组成
+    --纹章
+    local pointNow = 0
+    for i = 1, 2 do
+        --获取身上的纹章
+        local itemData = BusinessManager.Instance:GetHeroEquipedAmulet(i)
+        if itemData ~= nil then
+            local combatSkills = itemData.CombatSkills
+            for i = 0, combatSkills.List.Count - 1 do
+                local cs = combatSkills.List[i]
+                if cs.ID == skillID then
+                    local num = self:_byte2binToNum(cs.Points)
+                    pointNow = pointNow + num
+                end
+            end
+        end
+    end
+
+    local ID = skillID --技能id
+    local Points = pointNow --点数
+
+    local maxLv = ConfigDataAccessor.GetPassiveDescMaxLv(ID)
+
+    --点的数量
+    local num = Points
+
+    --每一级的点数
+    local perLevelPoint = 5
+
+    local isMaxLv = false
+    if num >= maxLv * perLevelPoint then
+        isMaxLv = true
+    end
+
+    --计算到下一个等级需要的点数
+    local leftNum = 1
+
+    --计算技能等级
+
+    local lvNext = 1
+    for i = 1, (maxLv - 1) do
+        if lvNext * perLevelPoint > num then
+            leftNum = lvNext * perLevelPoint - num
+            break
+        else
+            lvNext = lvNext + 1
+        end
+    end
+
+    local lvNow = lvNext - 1 --当前等级
+
+    --self.Lv.text=""..lvNow;
+
+    if lvNow == 0 then
+        local pd = ConfigDataAccessor.GetPassiveDesc(ID, 1)
+        ResourceHelper:LoadIconByAtlasAsync(self.Icon, ResourceHelper.AtlasPathEtchSkill, pd.IconPath, false)
+    else
+        local pd = ConfigDataAccessor.GetPassiveDesc(ID, lvNow)
+        ResourceHelper:LoadIconByAtlasAsync(self.Icon, ResourceHelper.AtlasPathEtchSkill, pd.IconPath, false)
+    end
+
+    local lv = lvNow
+    local id = ID
+
+    local pd = nil
+    if lv == 0 then
+        pd = ConfigDataAccessor.GetPassiveDesc(id, 1)
+    else
+        pd = ConfigDataAccessor.GetPassiveDesc(id, lv)
+    end
+    self.Name.text = pd.SkillName
+    --self.Add.text = "精通点：" .. pointNow
+    self.Add.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_EmblemSkillInfo_Add"), {pointNow})
+
+    if isMaxLv then
+        self.Points.text = LanguageHelp:GetLanguageByKey("Local_Str_MaxLevel")
+
+        --self.Desc1.text = "等级" .. lv .. " - " .. pd.Decs
+        self.Desc1.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_EmblemSkillInfo_Desc1"), {lv, pd.Decs})
+
+        self.Desc2.text = LanguageHelp:GetLanguageByKey("Local_Str_MaxLevel2")
+    else
+        if lv == 0 then
+            --self.Points.text = "解锁战技需要<color=#D6D799>" .. leftNum .. "</color>"
+            self.Points.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_EmblemSkillInfo_Points"), {leftNum})
+
+            self.Desc1.text = LanguageHelp:GetLanguageByKey("Local_Str_nonactivated")
+            --self.Desc2.text = "等级" .. (lv + 1) .. "-" .. pd.Decs
+            self.Desc2.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_EmblemSkillInfo_Desc1"), {(lv + 1), pd.Decs})
+        else
+            --self.Points.text = "解锁下一级需要<color=#D6D799>" .. leftNum .. "</color>"
+            self.Points.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_EmblemSkillInfo_Points"), {leftNum})
+
+            --self.Desc1.text = "等级" .. lv .. "-" .. pd.Decs
+            self.Desc1.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_EmblemSkillInfo_Desc1"), {lv, pd.Decs})
+
+            local pd2 = ConfigDataAccessor.GetPassiveDesc(id, lv + 1)
+            --self.Desc2.text = "等级" .. (lv + 1) .. "-" .. pd2.Decs
+            self.Desc2.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_EmblemSkillInfo_Desc1"), {(lv + 1), pd2.Decs})
+        end
+    end
+end
+
+function EmblemSkillInfo:_byte2binToNum(n)
+    --print("_byte2bin"..n);
+
+    local t = {}
+    for i = 32, 0, -1 do
+        t[#t + 1] = math.floor(n / 2 ^ i)
+        n = n % 2 ^ i
+    end
+
+    --点的数量
+    local num = 0
+
+    for i = 1, 20 do
+        if t[33 - i] > 0 then
+            num = num + 1
+        end
+    end
+
+    --print(table.concat(t));
+
+    return num
+    --return table.concat(t)
+end
+
+return EmblemSkillInfo

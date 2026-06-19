@@ -1,0 +1,234 @@
+---------------------------------------------------------------------
+-- Stars (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-02-22 10:51:38
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class PartnerStarRiseDesPanel
+
+local RiseStarItem=require("View/UIWindow/PartnerWindow/RiseStarItem")
+PartnerStarRiseDesPanel = class("PartnerStarRiseDesPanel")
+
+---表现层
+PartnerStarRiseDesPanel.Prefab = nil;
+PartnerStarRiseDesPanel.Atlas = nil;
+
+--PartnerStarRiseDesPanel.PartnerName=nil;
+PartnerStarRiseDesPanel.Stars=nil;
+
+PartnerStarRiseDesPanel.AttrDes=nil;
+PartnerStarRiseDesPanel.SkillDes=nil;
+PartnerStarRiseDesPanel.QualificationDes=nil;
+
+PartnerStarRiseDesPanel.JBtnClose = nil;
+PartnerStarRiseDesPanel.JBtnLeft = nil;
+PartnerStarRiseDesPanel.JBtnRight = nil;
+
+---数据层
+PartnerStarRiseDesPanel.PagingCb = false;
+PartnerStarRiseDesPanel.CurSelectPartnerData = nil;
+PartnerStarRiseDesPanel.CurPartnerCfg = nil;
+PartnerStarRiseDesPanel.CurQualityStarExpendCfg = {};
+PartnerStarRiseDesPanel.StarExpendCfg = nil;
+PartnerStarRiseDesPanel.Index = -1;
+
+PartnerStarRiseDesPanel.RiseStarItem = nil;
+
+function PartnerStarRiseDesPanel:ctor(pb,PagingCb)
+
+	self.Prefab = pb.transform;
+	self.PagingCb = PagingCb;
+
+	--self.PartnerName=self.Prefab:Find("Root/Panel/PartnerInfo/PartnerName"):GetComponent(typeof(Text));
+	--self.Power=self.Prefab:Find("Root/Panel/PartnerInfo/Power"):GetComponent(typeof(Text));
+	self.Stars = {};
+	table.insert(self.Stars,self.Prefab:Find("Root/Panel/Stars/Star1").gameObject);
+	table.insert(self.Stars,self.Prefab:Find("Root/Panel/Stars/Star2").gameObject);
+	table.insert(self.Stars,self.Prefab:Find("Root/Panel/Stars/Star3").gameObject);
+	table.insert(self.Stars,self.Prefab:Find("Root/Panel/Stars/Star4").gameObject);
+	table.insert(self.Stars,self.Prefab:Find("Root/Panel/Stars/Star5").gameObject);
+	table.insert(self.Stars,self.Prefab:Find("Root/Panel/Stars/Star6").gameObject);
+
+	self.AttrDes = self.Prefab:Find("Root/Panel/AttrDes"):GetComponent(typeof(Text));
+	self.SkillDes = self.Prefab:Find("Root/Panel/SkillDes"):GetComponent(typeof(Text));
+	self.QualificationDes = self.Prefab:Find("Root/Panel/QualificationDes"):GetComponent(typeof(Text));
+
+	--self.RiseStarItem = RiseStarItem.new(
+	---1,
+	--self.Prefab:Find("Root/RiseStarItem").gameObject,
+	--self.Atlas,
+	--nil);
+
+
+	self.JBtnClose=self.Prefab:Find("JBtnClose"):GetComponent(typeof(JButton));
+	self.JBtnCloseFun = function()
+		self:ClosePanel()
+	end
+	self.JBtnClose.OnClick = self.JBtnCloseFun;
+	
+	self.JBtnLeft=self.Prefab:Find("Root/Panel/JBtnLeft"):GetComponent(typeof(JButton));
+	self.JBtnLeftFun = function()
+		self:OnBtnPagingClick(-1)
+	end
+	self.JBtnLeft.OnClick = self.JBtnLeftFun;
+	
+	self.JBtnRight=self.Prefab:Find("Root/Panel/JBtnRight"):GetComponent(typeof(JButton));
+	self.JBtnRightFun = function()
+		self:OnBtnPagingClick(1)
+	end
+	self.JBtnRight.OnClick = self.JBtnRightFun;
+
+	self.CurQualityStarExpendCfg = {};
+
+end
+
+function PartnerStarRiseDesPanel:SetAtlas(atlas)
+
+	self.Atlas=atlas;
+	--if self.RiseStarItem ~= nil then
+	--self.RiseStarItem:SetAtlas(atlas);
+	--end
+end
+
+function PartnerStarRiseDesPanel:Init(CurSelectPartnerData,CurPartnerCfg,CurQualityStarExpendCfg,index,worldPos,state)
+
+	if CurSelectPartnerData == nil or CurPartnerCfg == nil or CurQualityStarExpendCfg == nil then
+		Log("PartnerStarRiseDesPanel:Init CurSelectPartnerData==nil or CurPartnerCfg==nil or CurQualityStarExpendCfg==nil err!!!");
+		self:ClosePanel();
+		return;
+	end
+
+	self.Index = index;
+
+	self.CurSelectPartnerData = CurSelectPartnerData;
+	self.CurPartnerCfg = CurPartnerCfg;
+	self.CurQualityStarExpendCfg = CurQualityStarExpendCfg;
+	self.StarExpendCfg = self:GetStarExpendCfg(self.Index);
+	if self.StarExpendCfg == nil then
+		Log("PartnerStarRiseDesPanel:Init StarExpendCfg==nil");
+		self:ClosePanel();
+		return;
+	end
+
+	--
+	--if self.RiseStarItem ~= nil then
+	--self.RiseStarItem.prefab.transform.position = worldPos;
+	--self.RiseStarItem:SetData(self.StarExpendCfg,state);
+	--self.RiseStarItem.prefab.gameObject:SetActive(true);
+	--end
+
+	self:SetBaseData();
+	self:SetRiseStarData();
+
+	self.Prefab.gameObject:SetActive(true);
+
+end
+
+-- 设置基础信息
+function PartnerStarRiseDesPanel:SetBaseData()
+
+	-- 设置星星
+	for i = 1, #self.Stars do
+		self.Stars[i]:SetActive(i <= self.StarExpendCfg.Star);
+	end
+	--self.PartnerName.text = self.CurPartnerCfg.Name;
+	--self:GetSprite(self:GetQualityName(self.CurPartnerCfg.Quality),function (sp)
+	--		self.m_Quality.sprite=sp
+	--	end)
+	-- 目前先只读配置表里面的战斗力
+	--local PartnerNature = ConfigDataAccessor.PartnerNature[self.CurPartnerCfg.Nature][self.CurSelectPartnerData.Level]
+	--if PartnerNature ~= nil then
+	--self.Power.text = tostring(PartnerNature.Power);
+	--end
+
+	-- 界面不要翻页的功能了，但是先注释掉吧，防止后期又要
+	--self.JBtnLeft.gameObject:SetActive(self.Index > 1);
+	--self.JBtnRight.gameObject:SetActive(self.Index < #self.CurQualityStarExpendCfg);
+
+end
+
+-- 设置升星信息
+function PartnerStarRiseDesPanel:SetRiseStarData()
+
+	-- 设置属性
+	local attrNum = self.StarExpendCfg.Value[i];
+	for i = 1, #self.StarExpendCfg.Value do
+		attrNum = self.StarExpendCfg.Value[i];
+		break;
+	end
+	if attrNum == nil then
+		attrNum = 100;
+	end
+	self.AttrDes.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_AttrDes"), {"<color=#E1AF8C> ".. (attrNum / 100) .." </color>"});
+
+	self.SkillDes.text = self:GetParSkillDes() .. "<color=#E1AF8C>1%</color>";
+
+	-- 资质
+	self.QualificationDes.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_QualificationDes"), {"<color=#E1AF8C>".. self.StarExpendCfg.Star .."</color>",});
+end
+
+-- 获得技能描述
+function PartnerStarRiseDesPanel:GetParSkillDes()
+
+	for _k,_v in pairs(ConfigDataAccessor.ParSkill) do
+		if _v.Par == self.CurPartnerCfg.Id and _v.Star == self.StarExpendCfg.Star then
+			return _v.Desc;
+		end
+	end
+
+	return "";
+
+end
+
+-- 获得品质-颜色图标
+function PartnerStarRiseDesPanel:GetQualityName(quality)
+	if quality== 1 then
+		return "Partner_quality_n"
+	elseif quality== 2 then
+		return "Partner_quality_r"
+	elseif quality== 3 then
+		return "Partner_quality_sr"
+	elseif quality== 4 then
+		return "Partner_quality_ssr"
+	end
+end
+
+-- 获得当前升星的配置
+function PartnerStarRiseDesPanel:GetStarExpendCfg(index)
+	local cfg = self.CurQualityStarExpendCfg[index];
+	return cfg;
+end
+
+-- 点击翻页
+function PartnerStarRiseDesPanel:OnBtnPagingClick(num)
+
+	local index = self.Index + num;
+	if index < 1 or index > #self.CurQualityStarExpendCfg then
+		Log("PartnerStarRiseDesPanel:OnBtnPagingClick index=" .. index .. "count=" .. #self.CurQualityStarExpendCfg);
+		return;
+	end
+
+	self.Index = index;
+	local cfg = self:GetStarExpendCfg(self.Index);
+	if cfg == nil then
+		Log("PartnerStarRiseDesPanel:OnBtnPagingClick cfg==nil");
+		return;
+	end
+
+	self.StarExpendCfg = cfg;
+	self:SetBaseData();
+	self:SetRiseStarData();
+
+end
+
+function PartnerStarRiseDesPanel:ClosePanel()
+	self.Prefab.gameObject:SetActive(false);
+	--if self.RiseStarItem ~= nil then
+	--self.RiseStarItem.prefab.gameObject:SetActive(false);
+	--end
+end
+
+return PartnerStarRiseDesPanel;

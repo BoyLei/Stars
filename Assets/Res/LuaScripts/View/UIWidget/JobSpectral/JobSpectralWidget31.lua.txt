@@ -1,0 +1,508 @@
+---------------------------------------------------------------------
+-- Stars (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-03-31 13:43:46
+---------------------------------------------------------------------
+
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+
+---@class JobSpectralWidget31
+
+JobSpectralWidget31 = class("JobSpectralWidget31", UIPanel)
+
+local MaxLength = 6;
+
+--JobSpectralWidget31.CommonState=nil;
+--JobSpectralWidget31.CommonStateSpectral1Bar1=nil;
+--JobSpectralWidget31.CommonStateSpectral1Bg1=nil;
+--JobSpectralWidget31.CommonStateSpectral1Count = nil;
+--JobSpectralWidget31.CommonStateSpectral2Root=nil;
+JobSpectralWidget31.MaxAnim = nil;
+JobSpectralWidget31.AddAnim = nil;
+JobSpectralWidget31.AddAnimInitPos = nil;
+
+JobSpectralWidget31.CommonStateSpectral2List = nil;
+JobSpectralWidget31.CommonStateSpectral2AnimList = nil;
+
+
+--JobSpectralWidget31.ActiveState=nil;
+--JobSpectralWidget31.ActiveStateSpectral1Bar1=nil;
+--JobSpectralWidget31.ActiveStateSpectral1Bg1=nil;
+--JobSpectralWidget31.ActiveStateSpectral1Count=nil;
+--JobSpectralWidget31.ActiveStateSpectral2Root=nil;
+--JobSpectralWidget31.ActiveStateSpectral2List=nil;
+
+----------- 量谱数值
+JobSpectralWidget31.m_TruthSpectral1 = 0;
+--JobSpectralWidget31.m_TruthSpectral2 = 1;
+JobSpectralWidget31.m_CurSpectral1 = 1;
+--JobSpectralWidget31.m_CurSpectral2 = 1;
+JobSpectralWidget31.m_lastRatio = -1;
+
+JobSpectralWidget31.m_IsCountdown = false;
+JobSpectralWidget31.m_MaxTime = 0;
+JobSpectralWidget31.m_Countdown = 0;
+JobSpectralWidget31.m_EventItemPer = 0; -- 最大倒计时/最大个数
+JobSpectralWidget31.m_LastIndex = 0;
+
+--JobSpectralWidget31.Spectral2Dif = 0;
+
+-- JobSpectralWidget31.AtlasPath = "UI/StarWorld/Atlas/HudDashboard";
+-- JobSpectralWidget31.CommonBulletIconNameList = { "", "", "", "", "", "" };
+-- JobSpectralWidget31.ActiveBulletIconNameList = { "", "", "", "", "", "" };
+-- JobSpectralWidget31.CommonMiddleIconNmae = "";
+-- JobSpectralWidget31.CommonMiddleBgNmae = "";
+
+
+function JobSpectralWidget31:Awake()
+    self.onCloseDestroy(true)
+
+	-- --self.CommonStateSpectral1Count = self:Find("CommonStateSpectral1Count"):GetComponent(typeof(Text));
+	-- self.CommonStateSpectral2List = {};
+	-- self.CommonStateSpectral2AnimList = {};
+	-- for i = 1, MaxLength do
+	-- 	local itemPath = "ItemRoot/Item" .. i .. "/Shell";
+	-- 	table.insert(self.CommonStateSpectral2List, self:Find(itemPath).gameObject);
+	-- 	local itemAnimPath = "ItemRoot/Item" .. i .. "/Anim";
+	-- 	table.insert(self.CommonStateSpectral2AnimList, self:Find(itemAnimPath).gameObject);
+	-- end
+
+	self.MaxAnim = self:Find("ItemRoot/MaxAnim").gameObject;
+	self.AddAnim = self:Find("ItemRoot/AddAnim"):GetComponent(typeof(RectTransform));
+
+	self.Progress = self:Find("ItemRoot/ProgressBg/Progress"):GetComponent(typeof(Image));
+
+
+	self.AddAnimInitPos = Vector2.zero;
+	self.AddAnimInitPos.x = 150;
+	self.AddAnimInitPos.y = -14.4;
+	--------------------------------------------- 事件
+	-- update事件
+	-- self.UpdateFun = function()
+	-- 	self:UpdateData();
+	-- end
+	-- -- self.AddSpectralSkillLuaActionFun = function(isEnter)
+	-- -- 	self:OnSpectralSkillBuffAction(isEnter)
+	-- -- end
+	----------------- AOI修改回调
+	--self.AoiTruthSpectral1Fun = function(key, value)
+	--	self:SetTruthSpectral1(value);
+	--end
+	self.AoicurSpectral1Fun = function(key, value)
+		self:SetCurSpectral1(value);
+	end
+end
+
+function JobSpectralWidget31:Start()
+end
+
+function JobSpectralWidget31:OnEnable()
+end
+
+function JobSpectralWidget31:OnDisable()
+end
+
+function JobSpectralWidget31:OnDestroy()
+	--MonoHelper.RemoveUpdateListener(self.UpdateFun);
+end
+
+function JobSpectralWidget31:OnOpen(arg)
+	--MonoHelper.RemoveUpdateListener(self.UpdateFun);
+	self.M_EntityBase = arg;
+	if self.M_EntityBase == nil then
+		print("JobSpectralWidget31:OnOpen() arg is nil error!!!");
+		return;
+	end
+
+	------ 量谱
+	self.m_TruthSpectral1 = 100;
+	--self.m_TruthSpectral1 = self.M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Long, CS.StarProjectDef.AOIAttrDefine.TruthSpectral1);
+	self.m_CurSpectral1 = self.M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Long,
+		CS.StarProjectDef.AOIAttrDefine.curSpectral1);
+	-- self.jobId = self.M_EntityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Uint,
+	-- 	CS.StarProjectDef.AOIAttrDefine.Job);
+	--self:SetUISpectral1(false);
+	self:SetMaxAnimShow(false);
+	self:SetAddAnimShow(false);
+	self:SetUISpectral11();
+	------ 量谱
+
+	-- 绑定属性同步回调  START
+	self:InitAttribute();
+	-- 绑定属性同步回调----- END
+
+	-- 绑定BUFF回调------  START
+
+	-- 绑定BUFF回调------  END
+
+	--MonoHelper.AddUpdateListener(self.UpdateFun);
+end
+
+function JobSpectralWidget31:OnClose(arg)
+	if self.M_EntityBase ~= nil then
+		self:ReleaseInfo();
+	end
+	self:SetMaxAnimShow(false);
+	self:SetAddAnimShow(false);
+end
+
+function JobSpectralWidget31:InitAttribute()
+	--self.M_EntityBase.Data:RegisterAttribute(CS.StarProjectDef.AOIAttrDefine.TruthSpectral1, self.AoiTruthSpectral1Fun);
+	self.M_EntityBase.Data:RegisterAttribute(CS.StarProjectDef.AOIAttrDefine.curSpectral1, self.AoicurSpectral1Fun);
+end
+
+function JobSpectralWidget31:DelAttribute()
+	--self.M_EntityBase.Data:UnRegisterAttribute(CS.StarProjectDef.AOIAttrDefine.TruthSpectral1, self.AoiTruthSpectral1Fun);
+	self.M_EntityBase.Data:UnRegisterAttribute(CS.StarProjectDef.AOIAttrDefine.curSpectral1, self.AoicurSpectral1Fun);
+end
+
+function JobSpectralWidget31:UpdateData()
+	if self.m_IsCountdown then
+		if self.m_Countdown > 0 then
+			local fixedDeltaTime = Time.deltaTime
+			self.m_Countdown = self.m_Countdown - fixedDeltaTime
+			local dif = self.m_MaxTime - self.m_Countdown;
+			local num = math.floor(dif / self.m_EventItemPer)
+			if self.m_LastIndex ~= num then
+				self:SetUISpectral1Item(num, true);
+				self.m_LastIndex = num;
+			end
+			if self.m_Countdown <= 0 then
+				self.m_IsCountdown = false;
+			end
+		end
+	end
+end
+
+---------------- [更新/设置] [属性变化] [START]------------
+
+function JobSpectralWidget31:SetTruthSpectral1(value)
+	if self.M_EntityBase == nil or self.M_EntityBase.Data == nil then
+		return
+	end
+	self.m_TruthSpectral1 = value;
+	if self.m_CurSpectral1 > self.m_TruthSpectral1 then
+		self.m_TruthSpectral1 = self.m_CurSpectral1;
+	end
+	--self:SetUISpectral1(true);
+	self:SetUISpectral11();
+end
+
+function JobSpectralWidget31:SetCurSpectral1(value)
+	if self.M_EntityBase == nil or self.M_EntityBase.Data == nil then
+		return
+	end
+	self.m_CurSpectral1 = value;
+	if self.m_CurSpectral1 > self.m_TruthSpectral1 then
+		self.m_TruthSpectral1 = self.m_CurSpectral1;
+	end
+	-- if self.m_CurSpectral1 <= 0 then
+	-- 	self:SetMaxAnimShow(false);
+	-- end
+	self:SetUISpectral11();
+end
+
+function JobSpectralWidget31:SetUISpectral1(isPlayAnim)
+	for i = 1, #self.CommonStateSpectral2List do
+		local isShow = self.m_CurSpectral1 >= i;
+		--local newIconName = self:GetBulletIconNameByVal(2); -- 默认全部找黄色的圆
+		--local lodIconName = self.CommonBulletIconNameList[i];
+		--if lodIconName ~= newIconName then
+		--local res = SetImage(self.CommonStateSpectral2List[i], self.AtlasPath, newIconName, false);	-- 普通状态的
+		--SetImage(self.ActiveStateSpectral2List[i],self.AtlasPath,newIconName,false);	-- 激活状态的图片改变
+		--if res then
+		--self.CommonBulletIconNameList[i] = newIconName;
+		--self.ActiveBulletIconNameList[i] = newIconName;
+		--end
+		--end
+		self.CommonStateSpectral2List[i]:SetActive(isShow);
+		if isShow then
+			if isPlayAnim then
+				DOVirtual.DelayedCall(0.1 * i, function()
+					self:SetUISpectral1ItemFun(i);
+				end)
+				if i + 1 == #self.CommonStateSpectral2List then
+					DOVirtual.DelayedCall(0.1 * (i + 2), function()
+						self:SetMaxAnimShow(true);
+					end)
+				end
+			end
+		else
+			self.CommonStateSpectral2AnimList[i]:SetActive(isShow);
+		end
+	end
+
+
+	---- 每个职业的量谱拿取规则不一样
+	---- 31是枪炮的职业 取高8位
+	--local val = GetInt64High2Low8(self.m_CurSpectral1);
+	--val = "";
+	--self.CommonStateSpectral1Count.text = val;
+	--self.ActiveStateSpectral1Count.text = val;
+	--local Int64LimitList = GetInt64LimitList(self.m_CurSpectral1);
+	--local maxHighVal = 0;	-- 获取最高位的值
+	--for i = 1, #Int64LimitList do
+	--local int8 = Int64LimitList[i];
+	--local isShow = int8 > 0;
+
+	--local newIconName = self:GetBulletIconNameByVal(int8);
+	--local lodIconName = self.CommonBulletIconNameList[i];
+	--if lodIconName ~= newIconName then
+	--local res = SetImage(self.CommonStateSpectral2List[i],self.AtlasPath,newIconName,false);
+	--SetImage(self.ActiveStateSpectral2List[i],self.AtlasPath,newIconName,false);
+	--if res then
+	--self.CommonBulletIconNameList[i] = newIconName;
+	--self.ActiveBulletIconNameList[i] = newIconName;
+	--end
+	--end
+
+	--self.CommonStateSpectral2List[i].gameObject:SetActive(isShow);
+	--self.ActiveStateSpectral2List[i].gameObject:SetActive(isShow);
+
+	---- 获取最高位的值
+	--if int8 > maxHighVal then
+	--maxHighVal = int8;
+	--end
+	--end
+
+	---- 设置当前中间的进度条图片
+	--local newMiddleIconName = self:GetMiddleIconNameByVal(maxHighVal);
+	--if self.CommonMiddleIconNmae ~= newMiddleIconName then
+	--local res = SetImage(self.CommonStateSpectral1Bar1,self.AtlasPath,newMiddleIconName,false);
+	--SetImage(self.ActiveStateSpectral1Bar1,self.AtlasPath,newMiddleIconName,false);
+	--if res then
+	--self.CommonMiddleIconNmae = newMiddleIconName;
+	--end
+	--end
+	---- 背景
+	--local newMiddleBgName = self:GetMiddleBgNameByVal(maxHighVal);
+	--if self.CommonMiddleBgNmae ~= newMiddleBgName then
+	--local res = SetImage(self.CommonStateSpectral1Bg1,self.AtlasPath,newMiddleBgName,false);
+	--SetImage(self.ActiveStateSpectral1Bg1,self.AtlasPath,newMiddleBgName,false);
+	--if res then
+	--self.CommonMiddleBgNmae = newMiddleBgName;
+	--end
+	--end
+end
+
+function JobSpectralWidget31:SetUISpectral11()
+	local ratio = 0;
+	if self.m_TruthSpectral1 > 0 then
+		ratio = self.m_CurSpectral1 / self.m_TruthSpectral1;
+		if ratio > 1 then
+			ratio = 1;
+		end
+	end
+	--self.Progress.fillAmount = ratio;
+	self.Progress:DOFillAmount(ratio, 0.2);
+	if self.m_lastRatio ~= -1 and ratio > self.m_lastRatio and ratio ~= 1 and self.AddAnim ~= nil then
+		if self.tw_fg1 ~= nil then
+			self.tw_fg1:Kill();
+		end
+		self:SetAddAnimShow(false);
+		self:SetAddAnimShow(true);
+		self.tw_fg1 = self.AddAnim:DOAnchorPosX(150 * (1 - ratio), 100):SetSpeedBased():SetEase(Ease.Linear):OnComplete(function ()
+			self:SetAddAnimShow(false);
+		end);
+	end
+	self:SetMaxAnimShow(false);
+	if ratio == 1 then
+		self:SetMaxAnimShow(true);
+		self.m_lastRatio = 0;
+		self.AddAnim.anchoredPosition = self.AddAnimInitPos;
+	else
+		self.m_lastRatio = ratio;
+	end
+end
+
+function JobSpectralWidget31:SetUISpectral1Item(idx, isShow)
+	--local isShow = self.m_CurSpectral1 >= idx;
+	if self.CommonStateSpectral2List == nil or self.CommonStateSpectral2List == {} then
+		return;
+	end
+	if idx < 1 then
+		return;
+	end
+	if idx > #self.CommonStateSpectral2List then
+		return;
+	end
+	self.CommonStateSpectral2List[idx]:SetActive(isShow);
+	--self.CommonStateSpectral2List[idx].transform:GetChild(0).gameObject:SetActive(isShow);
+end
+
+function JobSpectralWidget31:SetUISpectral1ItemFun(idx)
+	local isShow = self.m_CurSpectral1 >= idx;
+	self.CommonStateSpectral2AnimList[idx]:SetActive(isShow);
+end
+
+function JobSpectralWidget31:SetMaxAnimShow(isShow)
+	if self.MaxAnim == nil then
+		return
+	end
+	self.MaxAnim:SetActive(isShow);
+end
+
+function JobSpectralWidget31:SetAddAnimShow(isShow)
+	if self.AddAnim == nil then
+		return
+	end
+	self.AddAnim.gameObject:SetActive(isShow);
+end
+
+function JobSpectralWidget31:SetCountdown(countdown, startCountdown)
+	self.m_MaxTime = countdown;
+	self.m_Countdown = startCountdown;
+	self.m_EventItemPer = self.m_MaxTime / MaxLength;
+end
+
+function JobSpectralWidget31:SetOpenCountdown(isOpen)
+	self.m_IsCountdown = isOpen;
+	self.m_LastIndex = 0;
+	if self.m_IsCountdown == false then
+		self:SetUISpectral1(false);
+	end
+end
+
+-- function JobSpectralWidget31:SetTruthSpectral2(value)
+-- 	--if self.M_EntityBase == nil or self.M_EntityBase.Data == nil then
+-- 	--return
+-- 	--end
+-- 	--self.m_TruthSpectral2 = value;
+-- 	--if self.m_CurSpectral2 > self.m_TruthSpectral2 then
+-- 	--self.m_TruthSpectral2 = self.m_CurSpectral2;
+-- 	--end
+-- 	--self:SetUISpectral2();
+-- end
+
+-- function JobSpectralWidget31:SetCurSpectral2(value)
+-- 	if self.M_EntityBase == nil or self.M_EntityBase.Data == nil then
+-- 		return
+-- 	end
+-- 	self.Spectral2Dif = math.abs(value - self.m_CurSpectral2);
+-- 	self.m_CurSpectral2 = value;
+-- 	if self.m_CurSpectral2 > self.m_TruthSpectral2 then
+-- 		self.m_TruthSpectral2 = self.m_CurSpectral2;
+-- 	end
+-- 	self:SetUISpectral2();
+-- end
+
+-- function JobSpectralWidget31:SetUISpectral2()
+-- 	local ratio = 0;
+-- 	if self.m_TruthSpectral2 > 0 then
+-- 		ratio = self.m_CurSpectral2 / self.m_TruthSpectral2;
+-- 		if ratio > 1 then
+-- 			ratio = 1;
+-- 		end
+-- 	end
+-- 	-- 插值比例
+-- 	local difRatio = self.Spectral2Dif / self.m_TruthSpectral2; -- 3453
+-- 	-- 最多0.1秒
+-- 	local time = difRatio * 5;
+-- 	self.CommonStateSpectral1Bar1:DOFillAmount(ratio, time);
+-- 	--self.CommonStateSpectral1Bar1.fillAmount = ratio;
+-- 	--self.CommonStateSpectral1Bar2.fillAmount = ratio;
+-- 	self.ActiveStateSpectral1Bar1:DOFillAmount(ratio, time);
+-- 	--self.ActiveStateSpectral1Bar1.fillAmount = ratio;
+-- 	--self.ActiveStateSpectral1Bar2.fillAmount = ratio;
+-- end
+
+-- function JobSpectralWidget31:GetBulletIconNameByVal(val)
+-- 	local name = "Hud_Dashboard_QiangS_Bullet01";
+-- 	if val == 1 then
+-- 		name = "Hud_Dashboard_QiangS_Bullet01";
+-- 	elseif val == 2 then
+-- 		name = "Hud_Dashboard_QiangS_Bullet11";
+-- 	elseif val == 3 then
+-- 		name = "Hud_Dashboard_QiangS_Bullet21";
+-- 	elseif val == 4 then
+-- 		name = "Hud_Dashboard_QiangS_Bullet00";
+-- 	elseif val == 5 then
+-- 		name = "Hud_Dashboard_QiangS_Bullet10";
+-- 	elseif val == 6 then
+-- 		name = "Hud_Dashboard_QiangS_Bullet20";
+-- 	end
+-- 	return name;
+-- end
+
+-- function JobSpectralWidget31:GetMiddleIconNameByVal(val)
+-- 	local name = "Hud_Dashboard_QiangS_Bar0";
+-- 	if val == 1 or val == 4 then
+-- 		name = "Hud_Dashboard_QiangS_Bar0";
+-- 	elseif val == 2 or val == 5 then
+-- 		name = "Hud_Dashboard_QiangS_Bar1";
+-- 	elseif val == 3 or val == 6 then
+-- 		name = "Hud_Dashboard_QiangS_Bar2";
+-- 	end
+-- 	return name;
+-- end
+
+-- function JobSpectralWidget31:GetMiddleBgNameByVal(val)
+-- 	local name = "Hud_Dashboard_QiangS_Bar0bg";
+-- 	if val == 1 or val == 4 then
+-- 		name = "Hud_Dashboard_QiangS_Bar0bg";
+-- 	elseif val == 2 or val == 5 then
+-- 		name = "Hud_Dashboard_QiangS_Bar1bg";
+-- 	elseif val == 3 or val == 6 then
+-- 		name = "Hud_Dashboard_QiangS_Bar2bg";
+-- 	end
+-- 	return name;
+-- end
+
+--function JobSpectralWidget31:SetTruthSpectral2(value)
+--if self.M_EntityBase == nil or self.M_EntityBase.Data == nil then
+--return
+--end
+--self.m_TruthSpectral2 = value;
+--if self.m_CurSpectral2 > self.m_TruthSpectral2 then
+--self.m_TruthSpectral2 = self.m_CurSpectral2;
+--end
+--self:SetUISpectral2();
+--end
+
+
+--function JobSpectralWidget31:SetCurSpectral2(value)
+--if self.M_EntityBase == nil or self.M_EntityBase.Data == nil then
+--return
+--end
+--self.m_CurSpectral2 = value;
+--if self.m_CurSpectral2 > self.m_TruthSpectral2 then
+--self.m_TruthSpectral2 = self.m_CurSpectral2;
+--end
+--self:SetUISpectral2();
+--end
+
+--function JobSpectralWidget31:SetUISpectral2()
+
+--for i = 1, #self.CommonStateSpectral2List do
+--self.CommonStateSpectral2List[i]:SetActive(i <= self.m_CurSpectral2);
+--self.ActiveStateSpectral2List[i]:SetActive(i <= self.m_CurSpectral2);
+--end
+
+--end
+
+---------------- [更新/设置] [属性变化] [END]------------
+
+
+function JobSpectralWidget31:ReleaseInfo()
+	self.m_TruthSpectral1 = 0;
+	self.m_CurSpectral1 = 0;
+
+	self.m_IsCountdown = false;
+	self.m_MaxTime = 0;
+	self.m_Countdown = 0;
+	self.m_EventItemPer = 0; -- 最大倒计时/最大个数
+	self.m_LastIndex = 0;
+
+	if self.M_EntityBase == nil or self.M_EntityBase.Data == nil then
+		return;
+	end
+
+	-- 解绑属性同步回调
+	self:DelAttribute();
+
+	--MonoHelper.RemoveUpdateListener(self.UpdateFun);
+	----self.M_EntityBase:DelSpectralSkillLuaAction(self.AddSpectralSkillLuaActionFun);
+end
+
+return JobSpectralWidget31;

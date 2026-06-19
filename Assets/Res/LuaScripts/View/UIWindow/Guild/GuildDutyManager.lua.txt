@@ -1,0 +1,439 @@
+--[[
+*文件名   :   GuildDutyManager
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]] local GuildDutyManager = {}
+
+GuildDutyManager.__index = GuildDutyManager
+
+local GuildDutyManagerItem = require("View/Uiwindow/Guild/GuildDutyManagerItem")
+local SelectBtn = require("View/Item/SelectBtn")
+
+function GuildDutyManager:New(_go, guildMember)
+    local self = {}
+    setmetatable(self, GuildDutyManager)
+
+    self.GuildMember = guildMember
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    -- 道具列表
+    self.GuildDutyItemList = {}
+    -- 无限列表
+    self.go_GuildDutyItem = self.transform:Find("Cut4Cam90/Scroll View/Mask/List/GuildDutyManagerItem").gameObject
+
+    --搜索框
+    self.SearchField = self.transform:Find("Cut4Cam90/InputField"):GetComponent(typeof(InputField))
+    self.SearchField.onValueChanged:AddListener(
+        function()
+            self:OnValChanged()
+        end
+    )
+
+    self.tr_ItemRoot = self.transform:Find("Cut4Cam90/Scroll View/Mask/List")
+    self.go_GuildDutyItem:SetActive(false)
+    self.go_GuildDutyItem.transform:SetParent(self.transform)
+    self.GuildDutyScorllView = self.transform:Find("Cut4Cam90/Scroll View"):GetComponent(typeof(SuperScrollViewController))
+    self.GuildDutyScorllView:NewScroll(
+        self.go_GuildDutyItem,
+        0,
+        function(tr, idx)
+            self:OnGuildDutyItemRefesh(tr, idx)
+        end
+    )
+
+    -- 关闭按钮
+    self.transform:Find("Cut4Cam90/BtnClose"):GetComponent(typeof(JButton)).OnClick = (function()
+        -- 刷新成员列表
+        self.GuildMember:RefeshGuildMemberData()
+
+        self:Show(false)
+    end)
+
+    -- 确认任命
+    self.transform:Find("Cut4Cam90/BtnConfirm"):GetComponent(typeof(JButton)).OnClick = (function()
+        self:OnBtnConfirmClick()
+    end)
+
+    self.go_confirm = self.transform:Find("Cut4Cam90/BtnConfirm").gameObject
+
+    -- 确认踢人
+    self.transform:Find("Cut4Cam90/BtnKick"):GetComponent(typeof(JButton)).OnClick = (function()
+        self:OnBtnKickClick()
+    end)
+
+    self.go_kick = self.transform:Find("Cut4Cam90/BtnKick").gameObject
+
+    self.kickNum = self.transform:Find("Cut4Cam90/KickNum"):GetComponent(typeof(Text))
+
+    self.go_Null = self.transform:Find("Cut4Cam90/Null").gameObject
+
+    -- 当前选中的
+    self.SelectedOperPosLevel = CS.ProtoMsg.GuLevelEnum.Elite
+
+    -- 背包菜单按钮
+    self.MenuBtns = {}
+
+    for i = 1, 4 do
+        local btn = SelectBtn:New(self.transform:Find("Cut4Cam90/Menu/Btn" .. i).gameObject)
+        btn:InitItem(
+            i,
+            function(idx)
+                self:OnMenuBtnClick(idx)
+            end
+        )
+        table.insert(self.MenuBtns, btn)
+    end
+
+    -- 任命回调
+    self.message1 = function(data)
+        self:OnGuildMySetPosLvReqRet(data)
+    end
+
+    -- 踢人回调
+    self.message2 = function(data)
+        self:OnGuildMyKickReqRet(data)
+    end
+
+    self:Show(false)
+
+    return self -- 返回自身
+end
+
+function GuildDutyManager:OnMenuBtnClick(idx)
+    if self.idxNow == idx then
+        return
+    end
+
+    self.NowSelectCount = 0
+    if idx == 1 then
+        --self.kickNum.gameObject:SetActive(false)
+        self.MaxSelectCount = 1
+
+        self.SelectedOperPosLevel = CS.ProtoMsg.GuLevelEnum.GuPresident -- 团长
+        self.go_confirm:SetActive(true)
+        self.go_kick:SetActive(false)
+    elseif idx == 2 then
+        --self.kickNum.gameObject:SetActive(false)
+        self.MaxSelectCount = self.GuildLevelCfg.ViceLeaderNum
+
+        self.SelectedOperPosLevel = CS.ProtoMsg.GuLevelEnum.GuVicePresident -- 副团长
+        self.go_confirm:SetActive(true)
+        self.go_kick:SetActive(false)
+    elseif idx == 3 then
+        --self.kickNum.gameObject:SetActive(false)
+        self.MaxSelectCount = self.GuildLevelCfg.EliteLeaderNum
+
+        self.SelectedOperPosLevel = CS.ProtoMsg.GuLevelEnum.GuElite -- 精英
+        self.go_confirm:SetActive(true)
+        self.go_kick:SetActive(false)
+    elseif idx == 4 then
+        self.MaxSelectCount = 10000
+
+        -- 删除
+        self.go_confirm:SetActive(false)
+        self.go_kick:SetActive(true)
+    --self.kickNum.gameObject:SetActive(false) -- 暂时先关掉，之后海星有空补上
+    end
+
+    self.idxNow = idx
+
+    for i = 1, #self.MenuBtns do
+        self.MenuBtns[i]:MakeSelected(false)
+    end
+    self.MenuBtns[idx]:MakeSelected(true)
+
+    self:Refesh()
+end
+
+-- 点击确认踢人
+function GuildDutyManager:OnBtnKickClick()
+    local cankick = false
+    for k, v in pairs(self.ItemDataList) do
+        if v.IsSelected then
+            cankick = true
+        end
+    end
+
+    if not (cankick) then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_183"))
+        return
+    end
+
+    -- 踢人申请列表
+    local msg = CS.ProtoMsg.GuildMyKickReq()
+    for k, v in pairs(self.ItemDataList) do
+        if v.IsSelected then
+            msg.BePIDlist:Add(v.PID)
+        end
+    end
+    SendClient2CenterReq(msg)
+end
+
+-- 点击确认任命
+function GuildDutyManager:OnBtnConfirmClick()
+    local canSend = false
+    for k, v in pairs(self.ItemDataList) do
+        if v.IsSelected then
+            canSend = true
+        end
+    end
+
+    if not (canSend) then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_184"))
+        return
+    end
+
+    -- 同意任命 批量
+    local msg = CS.ProtoMsg.GuildMySetPosLvReq()
+    msg.PosLv = self.SelectedOperPosLevel
+    for k, v in pairs(self.ItemDataList) do
+        if v.IsSelected then
+            msg.BePID:Add(v.PID)
+        end
+    end
+    SendClient2CenterReq(msg)
+end
+
+-- 回调
+function GuildDutyManager:OnGuildMyKickReqRet(args)
+    local RetMsgID = args.MsgRet.RetMsgID -- 对应的消息号(这个可以判断是哪个协议)
+
+    local RetCode = args.MsgRet.RetCode
+    if RetCode == 0 then
+        -- 成功
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_185"))
+
+        -- 已经修改的id
+        -- local SuOperDBIDS=data.data.SuOperDBIDS;
+
+        -- 修改数据
+        self.GuildMember.GuildInfoWindow:RefeshGuildMemberData()
+    else
+        -- 不需要处理，交给上层去处理
+        -- args.IsDialog=true
+        -- Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_83"));
+    end
+end
+
+-- 任命
+function GuildDutyManager:OnGuildMySetPosLvReqRet(args)
+    local RetMsgID = args.MsgRet.RetMsgID -- 对应的消息号(这个可以判断是哪个协议)
+
+    local RetCode = args.MsgRet.RetCode
+    if RetCode == 0 then
+        -- 成功
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_187"))
+
+        -- 已经修改的id
+        -- local SuOperDBIDS=data.data.SuOperDBIDS;
+
+        -- 修改数据
+        self.GuildMember.GuildInfoWindow:RefeshGuildMemberData()
+
+        -- 任命别的团长后要关闭页面
+        if self.idxNow == 1 then
+            self:Show(false)
+        end
+    else
+        -- 不需要处理，交给上层去处理
+        -- args.IsDialog=true
+        -- Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_83"));
+    end
+end
+
+function GuildDutyManager:OnGuildDutyItemRefesh(tr, idx)
+    for i = 1, #self.GuildDutyItemList do
+        if self.GuildDutyItemList[i].transform == tr then
+            self.GuildDutyItemList[i]:SetItem(self.ItemDataList[idx + 1]) -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+            return
+        end
+    end
+
+    local bi = GuildDutyManagerItem:New(tr.gameObject, self)
+
+    bi.gameObject:SetActive(true)
+    bi:SetItem(self.ItemDataList[idx + 1]) -- idx是从0开始，如果ItemDataList是lua的table需要idx+1
+
+    table.insert(self.GuildDutyItemList, bi)
+end
+
+function GuildDutyManager:Show(b)
+    self.gameObject:SetActive(b)
+    if b then
+        -- 获取冒险团等级的配置
+        self.GuildLevelCfg = ConfigDataAccessor.GuildLevel[self.GuildMember.GuildInfoWindow.module.GuildInfo.GuLevel]
+
+        -- 判断冒险团任命权限
+        local posLevelID = BusinessManager.Instance:GetGuildPosLevel()
+        if posLevelID == 1001 then -- 团长
+            self.MenuBtns[1].gameObject:SetActive(true)
+            self.MenuBtns[2].gameObject:SetActive(true)
+            self.MenuBtns[3].gameObject:SetActive(true)
+        elseif posLevelID == 1002 then -- 副团长
+            self.MenuBtns[1].gameObject:SetActive(false)
+            self.MenuBtns[2].gameObject:SetActive(true)
+            self.MenuBtns[3].gameObject:SetActive(true)
+        elseif posLevelID == 1003 then -- 精英
+            self.MenuBtns[1].gameObject:SetActive(false)
+            self.MenuBtns[2].gameObject:SetActive(false)
+            self.MenuBtns[3].gameObject:SetActive(false)
+        end
+
+        -- 踢人
+        local canKickMember = self.GuildMember.GuildInfoWindow:IsHaveGuildPower(2)
+        self.MenuBtns[4].gameObject:SetActive(canKickMember)
+
+        self.idxNow = -1
+        for i = 1, #self.MenuBtns do
+            if self.MenuBtns[i].gameObject.activeSelf then
+                self:OnMenuBtnClick(i)
+            end
+        end
+    else
+    end
+end
+
+function GuildDutyManager:OnMessage()
+    CS.SGF.Network.MsgRetManager.Instance:OnMessageEnum(self.message1, CS.MsgIDEnum.GuildMySetPosLvReqID)
+    CS.SGF.Network.MsgRetManager.Instance:OnMessageEnum(self.message2, CS.MsgIDEnum.GuildMyKickReqID)
+end
+
+function GuildDutyManager:OffMessage()
+    CS.SGF.Network.MsgRetManager.Instance:OffMessageEnum(self.message1, CS.MsgIDEnum.GuildMySetPosLvReqID)
+    CS.SGF.Network.MsgRetManager.Instance:OffMessageEnum(self.message2, CS.MsgIDEnum.GuildMyKickReqID)
+end
+
+function GuildDutyManager:Refesh()
+    -- UI没打开就不刷新
+    if not (self.gameObject.activeSelf) then
+        do
+            return
+        end
+    end
+
+    -- 筛选成员列表
+
+    if self.ItemDataList == nil then
+        self.ItemDataList = {}
+    else
+        for k, _ in pairs(self.ItemDataList) do
+            self.ItemDataList[k] = nil
+        end
+    end
+
+    local UserInfos = self.GuildMember.GuildInfoWindow.module.UserInfos
+
+    local DayData = self.GuildMember.GuildInfoWindow.module.GuildInfo.DayData
+
+    local UpTime = DayData.UpTime
+    local isToday = CheckIsToday(UpTime)
+    local TUserNum = 0
+    if isToday then
+        TUserNum = DayData.TUserNum
+    end
+    --最大踢人数量
+    self.kickNum.text = "" .. TUserNum .. "/" .. ConfigDataAccessor.SystemList[194].Value --最大踢人数量
+
+    for i = 0, UserInfos.Count - 1 do
+        local v = UserInfos[i]
+        local PosLevelID = 0
+        if v.Player.PlayerPosLv == CS.ProtoMsg.GuLevelEnum.GuPresident then -- 团长
+            PosLevelID = 1001
+        elseif v.Player.PlayerPosLv == CS.ProtoMsg.GuLevelEnum.GuVicePresident then -- 副团长
+            PosLevelID = 1002
+        elseif v.Player.PlayerPosLv == CS.ProtoMsg.GuLevelEnum.GuElite then -- 精英
+            PosLevelID = 1003
+        elseif v.Player.PlayerPosLv == CS.ProtoMsg.GuLevelEnum.GuOrdinary then -- 普通成员
+            PosLevelID = 1004
+        end
+
+        -- 排除自己，同时只选择权限比自己低的
+        local myPosLevel = BusinessManager.Instance:GetGuildPosLevel()
+        if v.Eid ~= GameManager.Instance.mainPlayerId and PosLevelID > myPosLevel then
+            local offInfo = v.Offline
+            local gUInfo = v.Player
+
+            local data = {}
+
+            data.ModelID = offInfo.ModelID
+            data.Level = offInfo.Level
+            data.RiskLevel = offInfo.RiskLevel
+            data.Power = offInfo.Power
+            data.IsOnline = offInfo.IsOnline -- 登录状态
+            data.LogOutTime = offInfo.LogOutTime -- 下线时间
+            data.UserName = offInfo.UserName
+            data.JobID = offInfo.JobID
+
+            data.PID = gUInfo.PID
+            data.PlayerPosLv = gUInfo.PlayerPosLv -- 职位等级
+            data.Activation = gUInfo.Activation
+            data.TUserNum = gUInfo.TUserNum -- 踢人次数
+            data.BanChatNum = gUInfo.BanChatNum -- 禁言次数
+            data.BanChatTime = gUInfo.BanChatTime -- 禁言结束时间
+
+            data.IsSelected = false
+
+            if self.SearchField.text == "" then
+                --搜索全部
+                table.insert(self.ItemDataList, data)
+            elseif string.find(data.UserName, self.SearchField.text) ~= nil then
+                --判断是否包含名字
+                table.insert(self.ItemDataList, data)
+            end
+        end
+    end
+
+    self:SortItem(self.ItemDataList)
+
+    self.go_Null:SetActive(#self.ItemDataList == 0)
+
+    self.GuildDutyScorllView:ContinueScroll(#self.ItemDataList)
+end
+
+function GuildDutyManager:OnValChanged()
+    self:Refesh()
+end
+
+function GuildDutyManager:SortItem(tbl)
+    do
+        return
+    end
+
+    if #tbl > 1 then
+        table.sort(
+            tbl,
+            function(a, b)
+                -- 等级降序
+                if a.HeraldryLevel > b.HeraldryLevel then
+                    return true
+                elseif a.HeraldryLevel == b.HeraldryLevel then
+                    -- 可共鸣优先
+                    if a.CanResonanceSlot > b.CanResonanceSlot then
+                        return true
+                    elseif a.CanResonanceSlot == b.CanResonanceSlot then
+                        if a.SortProp < b.SortProp then
+                            -- 按SortProp升序
+                            return true
+                        elseif a.SortProp == b.SortProp then
+                            -- 如果SortProp相等，按Type升序
+                            if a.ItemType < b.ItemType then
+                                return true
+                            elseif a.ItemType == b.ItemType then
+                                -- 如果Type相等，按Id升序
+                                return a.BaseID < b.BaseID
+                            end
+                        end
+                    end
+                end
+                return false
+            end
+        )
+    end
+end
+
+return GuildDutyManager

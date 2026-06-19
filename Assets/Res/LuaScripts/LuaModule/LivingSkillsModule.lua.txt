@@ -1,0 +1,311 @@
+--[[
+*文件名   :   LivingSkillsModule
+*内  容   :
+*说  明   :
+*创建日期 :   "2024/01/16 16:54:24"
+*创建人   :   "zhaoerdong"
+*版权所有 :   游卡网络科技技术有限公司
+]] LivingSkillsModule = class("LivingSkillsModule", BaseLuaModule)
+
+local LivingSkillsPath = "LivingSkills/Prefab/LivingSkillsWindow"
+local LivingWarehousePath = "LivingSkills/Prefab/LivingWarehouseWindow"
+local LifeSkillCreatWidgetPath = "LivingSkills/Prefab/LifeSkillCreatWidget"
+-- LuaModule 消息模块
+LivingSkillsModule.ModuleMessages = {
+
+    ["OpenLivingSkillsWindow"] = function(...)
+        LivingSkillsModule:OnOpenLivingSkillsWindow(...)
+    end,
+
+    ["OpenLifeSkillCreatWidget"] = function(...)
+        LivingSkillsModule:OnOpenLifeSkillCreatWidget(...)
+    end,
+
+    ["OpenLivingWarehouseWindow"] = function(...)
+        LivingSkillsModule:OnOpenLivingWarehouseWindow(...)
+    end,
+
+    ["UnLockCreate"] = function(...)
+        LivingSkillsModule:OnUnLockCreate(...)
+    end,
+
+    --[[制造 产出基础道具,概率有高级产物产出]]
+    ["LifeSkillProduceItemReq"] = function(...)
+        LivingSkillsModule:OnLifeSkillProduceItemReq(...)
+    end,
+
+    ["OnGetMinePosition"] = function(...)
+        LivingSkillsModule:GetMinePosition(...)
+    end,
+
+    ["CloseSkillsWindow"] = function(...)
+        LivingSkillsModule:OnCloseSkillsWindow(...)
+    end
+
+}
+LivingSkillsModule.MapStaticData = nil;
+
+-- LuaModule 创建
+function LivingSkillsModule:OnModuleCreate(arg)
+    LuaModuleDispatcher:Register(ModuleDef.LivingSkillsModule, self)
+    -- 主角创建成功
+    CS.StarProject.GlobalEvent.OnRoleCreateComplete:AddListener(function(arg)
+        self:OnLifeSkillQueryMapGatherObjInfoReq();
+    end)
+
+    self.LifeSkillQueryMapGatherMapInfoRet = function(data)
+        self:OnLifeSkillQueryMapGatherMapInfoRet(data)
+    end
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.LifeSkillQueryMapGatherMapInfoRetID,
+        self.LifeSkillQueryMapGatherMapInfoRet, self)
+end
+
+-- LuaModule 消息处理
+function LivingSkillsModule:OnModuleMessage(msg, ...)
+    self.ModuleMessages[msg](...);
+end
+
+-- LuaModule显示
+function LivingSkillsModule:OnModuleShow(arg)
+
+end
+
+function LivingSkillsModule:OnCloseSkillsWindow(...)
+    UIManager.Instance:CloseWindow(LivingSkillsPath);
+end
+
+function LivingSkillsModule:GetMinePosition(...)
+
+    local tb = ...;
+    local MineID = 0; -- 矿ID
+    local MaxCnt = 0; -- 上限
+    local cb = nil;
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        MineID = tb[1];
+        MaxCnt = tb[2];
+        cb = tb[3];
+    else
+        -- C#调用
+        MineID = tb[0];
+        MaxCnt = tb[1];
+        cb = tb[2];
+    end
+    local currMapID = GameManager.Instance:GetCurMapId();
+    local find = false;
+    local now = TimeUtils.GetServerTimeNow()
+    local pos = Vector3.zero;
+    local mapID = 0;
+    local dis = 0;
+    local rolePos = GameManager.Instance.M_MainPlayerCtrlBase.M_Curr:Position();
+    -- 本地图算最近的
+    if self.MapStaticData:ContainsKey(currMapID) then
+        local Mines = self.MapStaticData[currMapID].Mines
+        if Mines ~= nil then
+            for k, v in pairs(Mines) do
+                local useCnt = BusinessManager.Instance:GetMineUseCount(currMapID, v.MineIndex);
+                if v.MineId == MineID and useCnt < MaxCnt then
+                    local v = Vector3(v.Pos.X, v.Pos.Y, v.Pos.Z);
+                    local d = Vector3.Distance(v, rolePos)
+                    if not find then
+                        pos = v;
+                        mapID = currMapID;
+                        dis = d;
+                        find = true;
+                    else
+                        if d < dis then
+                            pos = v;
+                            dis = d;
+                            -- print("当前距离"..d.."位置".."("..pos.x..","..pos.y..","..pos.z..")")
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    -- print(MineID)
+
+    if not find then
+        for k, v in pairs(self.MapStaticData) do
+            for k1, v1 in pairs(v.Mines) do
+                -- print(k1.."v1.MineId"..v1.MineId)
+                local useCnt = BusinessManager.Instance:GetMineUseCount(k, v1.MineIndex);
+                if v1.MineId == MineID and useCnt < MaxCnt then
+                    pos = Vector3(v1.Pos.X, v1.Pos.Y, v1.Pos.Z);
+                    mapID = k;
+                    find = true;
+                    break
+                end
+            end
+        end
+    end
+    if find then
+        if cb ~= nil then
+            cb(mapID, pos)
+            UIManager.Instance:CloseWindow(LivingSkillsPath);
+        end
+    else
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_22"))
+    end
+
+end
+
+function LivingSkillsModule:OnOpenLivingSkillsWindow(...)
+    local sceneType = GameManager.Instance:GetCurMapType()
+    if (sceneType == CS.ProtoMsg.SpaceType.SpaceScene) or (sceneType == CS.ProtoMsg.SpaceType.SpaceGuildTerritory) then
+
+        local tb = ...;
+        local MineID = 0; -- 配方ID
+        local JobID = 0;
+        local Type = 2;
+        -- 列表
+        if type(tb) == "table" then
+            -- Lua调用
+            MineID = tb[1] or 0;
+            JobID = tb[2] or 1;
+            Type = tb[3] or 2;
+        else
+            -- C#调用
+            MineID = tb[0] or 0;
+            JobID = tb[1] or 1;
+            Type = tb[2] or 2;
+        end
+
+        -- UIManager.Instance:OpenWindow(LivingSkillsPath,{MineID=MineID,JobID=JobID,Type=Type},CS.StarProjectDef.MainPageCommond.HideBoth,false,false);
+        UIManager.Instance:OpenWindowAsync(LivingSkillsPath, nil, {
+            MineID = MineID,
+            JobID = JobID,
+            Type = Type
+        }, CS.StarProjectDef.MainPageCommond.HideBoth, false, false);
+
+    else
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_23"))
+        return
+    end
+end
+
+function LivingSkillsModule:OnOpenLivingWarehouseWindow(...)
+    -- UIManager.Instance:OpenWindow(LivingWarehousePath);
+    UIManager.Instance:OpenWindowAsync(LivingWarehousePath, nil);
+end
+
+function LivingSkillsModule:OnLifeSkillQueryMapGatherObjInfoReq()
+    local battleSocket = NetworkManager.Instance.gameSocket;
+    if battleSocket == nil then
+        return;
+    end
+    local message = CS.ProtoMsg.LifeSkillQueryMapGatherObjInfoReq();
+    battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message, false);
+end
+function LivingSkillsModule:OnUnLockCreate(...)
+    local battleSocket = NetworkManager.Instance.gameSocket;
+    if battleSocket == nil then
+        return;
+    end
+
+    local tb = ...;
+    local CreateId = 0; -- 配方ID
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        CreateId = tb[1];
+    else
+        -- C#调用
+        CreateId = tb[0];
+    end
+
+    local message = CS.ProtoMsg.LifeSkillUnlockFormulationReq();
+    message.CreateId = CreateId;
+    battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message, false);
+end
+
+function LivingSkillsModule:OnLifeSkillQueryMapGatherMapInfoRet(data)
+
+    self.MapStaticData = data.data.MapStaticData;
+
+    local scenes = BusinessManager.Instance.M_UserSceneLogicDataMD;
+    if scenes ~= nil then
+        if scenes.GatherData ~= nil then
+            for k, v in pairs(scenes.GatherData.MapData) do
+
+                for k1, v1 in pairs(v.Mines) do
+                    self.MapStaticData[k].Mines[k1] = v1
+                end
+            end
+        end
+    end
+end
+
+--[[
+制造 产出基础道具,概率有高级产物产出
+C->Lobby
+判断 生活职业等级,
+判断 消耗活力
+判断 消耗道具
+]]
+function LivingSkillsModule:OnLifeSkillProduceItemReq(...)
+    local battleSocket = NetworkManager.Instance.gameSocket;
+    if battleSocket == nil then
+        return;
+    end
+
+    local tb = ...;
+    local CreateId = 0; -- 配方ID
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        CreateId = tb[1];
+    else
+        -- C#调用
+        CreateId = tb[0];
+    end
+
+    local message = CS.ProtoMsg.LifeSkillProduceItemReq();
+    message.CreateId = CreateId;
+    battleSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message, false);
+end
+
+function LivingSkillsModule:OnOpenLifeSkillCreatWidget(...)
+    local tb = ...;
+    local CreateId = 0; -- 配方ID
+    local CD = 0; -- 单次制作数量
+    local Max = 0; -- 单次制作数量
+    -- 列表
+    if type(tb) == "table" then
+        -- Lua调用
+        CreateId = tb[1];
+        CD = tb[2];
+        Max = tb[3];
+    else
+        -- C#调用
+        CreateId = tb[0];
+        CD = tb[1];
+        Max = tb[2];
+    end
+    -- UIManager.Instance:OpenWidget(LifeSkillCreatWidgetPath,false,{ID=CreateId,Max=Max,CD=CD},nil,CS.StarProjectDef.MainPageCommond.HideNone,false,true);
+    UIManager.Instance:OpenWidgetAsync(LifeSkillCreatWidgetPath, nil, false, {
+        ID = CreateId,
+        Max = Max,
+        CD = CD
+    }, nil, CS.StarProjectDef.MainPageCommond.HideNone, false, true);
+    UIManager.Instance:CloseWindow(LivingSkillsPath);
+end
+
+-- LuaModule显示
+function LivingSkillsModule:OnModuleShow(arg)
+    self:OnOpenLivingSkillsWindow(arg);
+end
+
+function LivingSkillsModule:OnModuleHide(arg)
+
+end
+
+-- LuaModule 释放
+function LivingSkillsModule:OnModuleRelease()
+    LuaModuleDispatcher:UnRegister(ModuleDef.LivingSkillsModule)
+end
+
+return LivingSkillsModule
+

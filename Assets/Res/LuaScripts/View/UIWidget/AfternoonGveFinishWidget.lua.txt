@@ -1,0 +1,122 @@
+--[[
+*文件名   :   AfternoonGveFinishWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/12/06 10:33:06"
+*创建人   :   "quzhenxin"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+AfternoonGveFinishWidget=class("AfternoonGveFinishWidget",UIPanel)
+
+local AfternoonGveRankPart = require("View.UIWindow.Event.AfternoonGveRankPart");
+local AfternoonGveRewardInfo = require("View.UIWindow.Event.AfternoonGveRewardInfo");
+
+function AfternoonGveFinishWidget:Awake()
+	self.transform=self.prefab.transform;
+	self.gameObject=self.transform.gameObject;
+
+	self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/BtnClose"):GetComponent(typeof(JButton)).OnClick=(function()
+		self:OnPlayBack();
+
+		--发个消息清除
+		CS.StarProject.GlobalEvent.OnClearGNGBossReward:Invoke(true);
+
+	end);
+
+
+	self.go_Selected=self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/AutoConfirm/selected").gameObject;
+	self.go_Selected:SetActive(false);
+	self.isSelected=false;
+	self.go_AutoConfirm=self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/AutoConfirm").gameObject;
+	self.go_AutoConfirm:GetComponent(typeof(JButton)).OnClick=(function()
+		self.isSelected=not(self.isSelected);
+		self.go_Selected:SetActive(self.isSelected);
+		self.AfternoonGveRankPart:PullRank(self.isSelected);
+	end);
+
+	
+
+	--排行
+	self.AfternoonGveRankPart=AfternoonGveRankPart:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/Rank").gameObject,nil,function (idx)
+		self.go_AutoConfirm:SetActive(idx==1);
+	end);
+
+	self.AfternoonGveRewardInfoPersonal=AfternoonGveRewardInfo:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/RewardPersonal").gameObject);
+	self.AfternoonGveRewardInfoGuild=AfternoonGveRewardInfo:New(self.transform:Find("Cut4Cam90/AssemblyRatio2/Info/RewardGuild").gameObject);
+
+end
+
+function AfternoonGveFinishWidget:BindModule(module)
+	self.module=module;
+end
+
+
+function AfternoonGveFinishWidget:Refesh()
+
+
+	local GNGPlayStartI2L=GameManager.Instance.GNGPlayStartI2L;--GNG活动属性
+	if GNGPlayStartI2L~=nil then
+		self.StartTime = GNGPlayStartI2L.StartTime;--开始时间
+		self.EndTime = GNGPlayStartI2L.EndTime;--结束时间
+	end
+
+	self.AfternoonGveRankPart:Reset(self.StartTime,self.EndTime,self.isSelected);
+	self.AfternoonGveRewardInfoPersonal:Reset(self.GNGPersonRewardNtf);
+	self.AfternoonGveRewardInfoGuild:Reset(self.GNGGuildRewardNtf);
+
+end
+
+
+function AfternoonGveFinishWidget:Start()
+
+end
+
+function AfternoonGveFinishWidget:OnEnable()
+	
+end
+
+function AfternoonGveFinishWidget:OnDisable()
+	
+end
+
+function AfternoonGveFinishWidget:OnDestroy()
+
+end
+
+
+function AfternoonGveFinishWidget:RefeshData()
+
+	
+end
+
+function AfternoonGveFinishWidget:OnOpen(arg)
+
+	if type(arg)=="table" then
+		--Lua调用
+		self.GNGPersonRewardNtf =arg[1];
+		self.GNGGuildRewardNtf =arg[2];
+	else
+		--C#调用
+		self.GNGPersonRewardNtf =arg[0];
+		self.GNGGuildRewardNtf =arg[1];
+	end
+
+	self:Refesh();
+
+end
+
+
+function AfternoonGveFinishWidget:OnClose(arg)
+	self.AfternoonGveRankPart:Release();
+end
+
+function AfternoonGveFinishWidget:OnPlayBack()
+
+	self.gameObject:SetActive(false);
+	UIManager.Instance:CloseWidget("Event/AfternoonGveFinishWidget",nil,false);
+
+end
+
+
+
+return  AfternoonGveFinishWidget

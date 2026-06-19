@@ -1,0 +1,69 @@
+--[[
+*文件名   :   PolishAmulet
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local PolishAmulet = {}
+
+PolishAmulet.__index = PolishAmulet
+
+local PolishAmuletEquip=require("View/Uiwindow/Amulet/PolishAmuletEquip")
+local PolishAmuletMenu=require("View/Uiwindow/Amulet/PolishAmuletMenu")
+
+
+function PolishAmulet:New(_go) 
+    local self = {};    
+    setmetatable(self, PolishAmulet); 
+    
+
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+	--关闭信息
+    --[[
+	local btnClose=self.transform:Find("BtnClose"):GetComponent(typeof(JButton));
+	btnClose.OnClick=(function()
+		self:Show(false);
+	end);
+    ]]
+
+    self.PolishAmuletEquip=PolishAmuletEquip:New(self.transform:Find("Equip").gameObject,self);
+    self.PolishAmuletMenu=PolishAmuletMenu:New(self.transform:Find("Menu").gameObject,self);
+
+
+    self.go_NoInfo=self.transform:Find("NoInfo").gameObject;
+
+    self.SelectedItemData=nil;
+
+    self.gameObject:SetActive(false);
+
+    return self;    --返回自身
+end
+
+function PolishAmulet:SetSelectedItemData(data)
+    self.SelectedItemData=data;
+    self.PolishAmuletMenu:Refesh(self.SelectedItemData);
+    self.go_NoInfo:SetActive(self.SelectedItemData==nil);
+end
+
+function PolishAmulet:Show(b,eid)
+    self.gameObject:SetActive(b);
+    if b then
+        self.PolishAmuletMenu:OnMessage();
+        self.PolishAmuletEquip:Show(true,eid);
+        self.PolishAmuletMenu:Refesh(self.SelectedItemData);
+        self.go_NoInfo:SetActive(self.SelectedItemData==nil);
+    else
+        self.PolishAmuletMenu:OffMessage();
+    end
+end
+
+
+
+
+
+return PolishAmulet;

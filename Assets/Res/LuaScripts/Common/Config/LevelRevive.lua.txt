@@ -1,0 +1,100 @@
+
+local KeyMap = {
+	ID = 1,
+	Is_reborn = 2,
+	Is_perfect_enable = 3,
+	Is_reborn_point_enable = 4,
+	Is_aced_revive_enable = 5,
+	Inst_time_dec_per_death = 6,
+	Reborn_point_time_limit = 7,
+	Personal_revive_times = 8,
+	Team_revive_times = 9,
+	Aced_revive_time = 10,
+	Reborn_hp_percent = 11,
+
+}
+
+local R = {
+
+}
+
+local LevelReviveList = 
+{
+	[1]=
+	{
+		1,
+		true,
+		true,
+		false,
+		false,
+		0,
+		5,
+		-1,
+		-1,
+		0,
+		100,
+	},
+	[2]=
+	{
+		2,
+		true,
+		true,
+		false,
+		false,
+		0,
+		5,
+		1,
+		-1,
+		0,
+		100,
+	},
+	[3]=
+	{
+		3,
+		true,
+		true,
+		false,
+		false,
+		0,
+		5,
+		1,
+		3,
+		0,
+		100,
+	},
+	[4]=
+	{
+		4,
+		false,
+		false,
+		false,
+		true,
+		0,
+		0,
+		-1,
+		-1,
+		3,
+		40,
+	},
+	[5]=
+	{
+		5,
+		false,
+		false,
+		false,
+		true,
+		0,
+		0,
+		-1,
+		-1,
+		3,
+		100,
+	},
+
+}
+
+do
+    MT(KeyMap, LevelReviveList)
+end
+
+return LevelReviveList

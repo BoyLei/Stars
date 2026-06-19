@@ -1,0 +1,552 @@
+--[[
+*文件名   :   AvgTalkBox
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/10/21 17:36:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+AvgTalkBox=class("AvgTalkBox",UIPanel)
+AvgTalkBox.m_Background=nil;
+AvgTalkBox.m_Character1=nil;
+AvgTalkBox.m_Character2=nil;
+AvgTalkBox.m_TalkBoxBg=nil;
+AvgTalkBox.m_TalkBoxContent=nil;
+AvgTalkBox.m_TalkBoxName=nil;
+AvgTalkBox.m_TalkNextBtn=nil;
+
+
+local AvgTalkBoxSelectItem = require("View/Item/AvgTalkBoxSelectItem")
+local ObjectPool =require("Common/Helper/ObjectPool")
+
+function AvgTalkBox:Awake()
+
+
+
+	self.m_Background=self:Find("Background"):GetComponent(typeof(Image));
+	self.m_Character1=self:Find("Cut4Cam90/AssemblyRatio2/Char1"):GetComponent(typeof(Image));
+	self.m_Character2=self:Find("Cut4Cam90/AssemblyRatio2/Char2"):GetComponent(typeof(Image));
+
+	self.m_Character1Rect=self.m_Character1:GetComponent(typeof(RectTransform));
+	self.m_Character2Rect=self.m_Character2:GetComponent(typeof(RectTransform));
+
+	self.m_Character1OldX=self.m_Character1Rect.anchoredPosition.x;
+	self.m_Character2OldX=self.m_Character2Rect.anchoredPosition.x;
+
+
+	self.m_TalkBoxBg=self:Find("Cut4Cam90/AssemblyRatio2/TalkBoxBg"):GetComponent(typeof(RectTransform));
+	self.m_TalkBoxContent=self:Find("Cut4Cam90/AssemblyRatio2/TalkBoxBg/TalkBoxContent"):GetComponent(typeof(Text));
+	self.m_TalkBoxName=self:Find("Cut4Cam90/AssemblyRatio2/TalkBoxBg/TalkBoxNameBg/TalkBoxName"):GetComponent(typeof(Text));
+
+	self.m_TalkNextBtn=self.m_Background:GetComponent(typeof(Button));
+
+	self.go_nameBg=self:Find("Cut4Cam90/AssemblyRatio2/TalkBoxBg/TalkBoxNameBg").gameObject;
+	self.go_skipBtn=self:Find("Cut4Cam90/AssemblyRatio2/SkipBtn").gameObject;
+	self.go_selectMenu=self:Find("Cut4Cam90/AssemblyRatio2/Select").gameObject;
+	self.go_selectMenu:SetActive(false);
+
+	self.go_effectSelectMenu=self:Find("Cut4Cam90/AssemblyRatio2/EffectSelect").gameObject;
+	self.go_effectSelectMenu:SetActive(false);
+
+	self.go_nextGo=self:Find("Cut4Cam90/AssemblyRatio2/TalkBoxBg/NextGo").gameObject;
+	self.go_nextGo:SetActive(false);
+
+	self.selectItems={}
+	--初始化选项Item
+	for i =1,4,1 do
+		local _go=self:Find("Cut4Cam90/AssemblyRatio2/Select/Root/SelectItem"..i).gameObject;
+
+		local si=AvgTalkBoxSelectItem:New(_go,function (idx,cID)
+				self:OnSelectClick(idx,cID);
+			end);
+		self.selectItems[i]=si;
+	end
+
+	--初始化效果选项
+	local _go2=self:Find("Cut4Cam90/AssemblyRatio2/EffectSelect/Root/EffectSelectItem").gameObject;
+	self.effectSelectPool=ObjectPool:New(4,"View/Item/AvgTalkBoxEffectSelectItem",_go2,_go2.transform.parent,
+		--生成回调
+		function (ritem)
+			ritem:InitItem(
+				--点击回调
+				function (ri)
+					self:OnEffectSelectClick(ri);
+				end
+			);
+		end,
+		--回收回调
+		function (ritem)
+			ritem:SetUse(false);
+		end
+	)
+
+	self.CanClickToNext=false;
+
+
+	self.talkConetntNow=nil;
+
+	self.IsLeft=true;
+	self.fg1Id="";--左边立绘
+	self.fg2Id="";--右边立绘
+	self.tw_fg1=nil;
+	self.tw_fg2=nil;
+	self.rect_fg1=self.m_Character1:GetComponent(typeof(RectTransform));
+	self.rect_fg2=self.m_Character2:GetComponent(typeof(RectTransform));
+	self.tw_content=nil;--对话内容
+	self.text_speed=20;
+	self.module=nil;
+
+
+end
+
+function AvgTalkBox:BindModule(m)
+	self.module=m;
+end
+
+function AvgTalkBox:Start()
+	self.m_TalkNextBtn.onClick:AddListener(function() self:OnNextButtonClick() end);
+
+	--跳过对话
+	local btnSkip=self.go_skipBtn:GetComponent(typeof(JButton));
+
+	--JButton点击
+	btnSkip.OnClick=function(go)
+		self:FinishTalk()
+	end;
+
+
+end
+
+
+function AvgTalkBox:OnEnable()
+
+end
+
+function AvgTalkBox:OnDisable()
+
+end
+
+function AvgTalkBox:OnDestroy()
+
+end
+
+function AvgTalkBox:OnOpen(arg)
+	self.effectSelectPool:RecycleAll();
+
+	--随便打开一段对话
+	--self:GetTalkContentById(4);
+	self.fg1Id="";
+end
+
+function AvgTalkBox:OnClose(arg)
+
+end
+
+
+--点击下一句对话
+function AvgTalkBox:OnNextButtonClick()
+
+	if not(self.CanClickToNext) then
+		self.CanClickToNext=true;
+		--立马显示完整句子
+		if self.tw_content~= nil then
+			self.tw_content:Kill();
+		end
+		self.go_nextGo:SetActive(true);
+		self.m_TalkBoxContent.text=self.talkConetntNow.Dialog_desc2;
+	else
+		self:GetNextTalkContent();
+	end
+
+end
+
+
+
+
+function AvgTalkBox:OnSelectClick(idx,cID)
+
+	--回调
+	self.module:OnTalkBoxSelectAction(idx);
+
+	print("onClick"..idx);
+	self.go_selectMenu:SetActive(false);
+
+	--[[(暂时关闭)
+	if self.module.NPCEnityID~= nil then
+		idx=0;
+	end
+	]]
+
+	self:GetTalkContentById(cID);
+end
+
+
+function AvgTalkBox:RefeshTalkInfo()
+
+	--是否显示对话名
+	if self.talkConetntNow.Name2 == nil or self.talkConetntNow.Name2 =="" then
+		
+
+
+		--[[
+			需求对接杨蕊涵
+			对话表可不写名字和立绘，根据触发对象自动读取，若填写则读取填写内容
+		]]
+		if self.module.BaseID~=nil then
+			local cfg = ConfigDataAccessor.Npc[self.module.BaseID];
+			if cfg~=nil then
+				self.go_nameBg:SetActive(true);
+				self.m_TalkBoxName.text=cfg.Name;
+			else
+				self.go_nameBg:SetActive(false);
+			end
+		else
+			self.go_nameBg:SetActive(false);
+		end
+
+
+	else
+		self.go_nameBg:SetActive(true);
+		self.m_TalkBoxName.text=self.talkConetntNow.Name2;
+	end
+
+	--对话内容
+	self.go_nextGo:SetActive(false);
+	if self.tw_content~= nil then
+		self.tw_content:Kill();
+	end
+	self.m_TalkBoxContent.text="";
+	self.tw_content=self.m_TalkBoxContent:DOText(self.talkConetntNow.Dialog_desc2,self.text_speed):SetSpeedBased():SetEase(Ease.Linear):OnComplete(function ()
+		self.CanClickToNext=true;	
+		self.go_nextGo:SetActive(true);
+		end);
+
+
+
+	--是否显示跳过按钮
+	self.go_skipBtn:SetActive(self.talkConetntNow.Is_skip == 0);
+
+	--播放语音
+	if self.talkConetntNow.Voice_id ~= 0 then
+		--Util.PlayAvgVoice("Weapon_sword__pickup");
+	end
+
+	--显示选项
+	local nextIds=self.talkConetntNow.Next_dialog_id;
+	if #nextIds>1 then
+		self.go_selectMenu:SetActive(true);
+
+		for i=1,#self.selectItems,1 do
+			self.selectItems[i].gameObject:SetActive(false);
+		end
+
+		local dialog_options=string.split( self.talkConetntNow.Dialog_option, "#");
+		for i=1,#nextIds,1 do
+			self.selectItems[i].gameObject:SetActive(true);
+			--self.selectItems[i]:SetItem(dialog_options[i],nextIds[i]);
+			self.selectItems[i]:SetItem(dialog_options[i],i,nextIds[i]);
+		end
+	end
+
+
+
+	--加载立绘
+
+	if self.tw_fg1~= nil then
+		self.tw_fg1:Kill();
+	end
+	if self.tw_fg2~= nil then
+		self.tw_fg2:Kill();
+	end
+
+
+
+	--没有立绘
+	if self.talkConetntNow.Spine_id==nil or self.talkConetntNow.Spine_id=="" or self.talkConetntNow.Spine_id=="0" then
+
+
+		--[[
+		需求对接杨蕊涵
+		对话表可不写名字和立绘，根据触发对象自动读取，若填写则读取填写内容
+		]]
+		if self.module.BaseID~=nil then
+			local cfg = ConfigDataAccessor.Npc[self.module.BaseID];
+			if cfg~=nil then
+				self.talkConetntNow.Spine_id=""..cfg.AvatarID;
+			else
+				self.m_Character1.gameObject:SetActive(false);
+				self.m_Character2.gameObject:SetActive(false);
+				return;
+			end
+		else
+			self.m_Character1.gameObject:SetActive(false);
+			self.m_Character2.gameObject:SetActive(false);
+			return;
+		end
+
+	end
+
+
+
+	local fgIds=string.split( self.talkConetntNow.Spine_id, "#");--id 用 # 分割
+
+	--判断立绘左右
+	if self.fg1Id=="" then
+		self.IsLeft=true;
+	else
+		self.IsLeft=not(self.IsLeft);
+	end
+
+	if self.fg1Id~= fgIds[1] then
+
+		local AvatarID = math.floor(tonumber(fgIds[1]));
+		local avatarDataCell= ConfigDataAccessor.Avatar[AvatarID];
+		if avatarDataCell == nil then
+			Log("AvgTalkBox:RefeshTalkInfo err avatarDataCell=nil,AvatarID=",AvatarID);
+			return;
+		end
+		
+		local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID];
+		if headCfg == nil then
+			Log("AvgTalkBox:RefeshTalkInfo err headCfg=nil,HeadID=",avatarDataCell.HeadID);
+		end
+
+		--ResourceHelper:LoadIconAsync(self.m_Character1, "", headCfg.HalfDrawing, true)
+		ResourceHelper:LoadSpriteAtlasAsync(self.m_Character1,  ResourceHelper.HeadAtlasPath .. headCfg.HalfDrawing , headCfg.HalfDrawing , true,function() 
+				
+		end)
+
+		self.fg1Id=fgIds[1];
+
+		if self.IsLeft then
+			--坐标偏移
+			if self.talkConetntNow.Offset~=nil and self.talkConetntNow.Offset~="" then
+				self.m_Character1Rect.anchoredPosition=Vector2(tonumber(self.talkConetntNow.Offset)+self.m_Character1OldX,self.m_Character1Rect.anchoredPosition.y);
+			end
+		else
+			--坐标偏移
+			if self.talkConetntNow.Offset~=nil and self.talkConetntNow.Offset~="" then
+				self.m_Character1Rect.anchoredPosition=Vector2(tonumber(self.talkConetntNow.Offset)-self.m_Character1OldX,self.m_Character1Rect.anchoredPosition.y);
+			end
+		end
+	end
+
+	self.m_Character1.gameObject:SetActive(true);
+	if #fgIds ==1 then
+		self.m_Character2.gameObject:SetActive(false);
+		self.tw_fg1=self:MoveFg(self.rect_fg1,0);
+
+	else
+		self.tw_fg1=self:MoveFg(self.rect_fg1,1);
+		self.tw_fg2=self:MoveFg(self.rect_fg2,2);
+
+		if self.fg2Id~= fgIds[2] then
+			local AvatarID = math.floor(tonumber(fgIds[2]));
+			local avatarDataCell= ConfigDataAccessor.Avatar[AvatarID];
+			if avatarDataCell ~= nil then
+				Log("AvgTalkBox:RefeshTalkInfo 1111 err avatarDataCell=nil,AvatarID=",AvatarID);
+				return;
+			end
+			
+			local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID];
+			if headCfg == nil then
+				Log("AvgTalkBox:RefeshTalkInfo 1111 err headCfg=nil,HeadID=",avatarDataCell.HeadID);
+			end
+		
+			--ResourceHelper:LoadIconAsync(self.m_Character2, "", headCfg.HalfDrawing, true)
+			ResourceHelper:LoadSpriteAtlasAsync(self.m_Character2,  ResourceHelper.HeadAtlasPath .. headCfg.HalfDrawing , headCfg.HalfDrawing , true,function() 
+				
+			end)
+			
+			self.fg2Id=fgIds[2];
+		end
+
+		self.m_Character2.gameObject:SetActive(true);
+
+		--坐标偏移
+		if self.talkConetntNow.Offset~=nil and self.talkConetntNow.Offset~="" then
+			self.m_Character1Rect.anchoredPosition=Vector2(tonumber(self.talkConetntNow.Offset)+self.m_Character1OldX,self.m_Character1Rect.anchoredPosition.y);
+			self.m_Character2Rect.anchoredPosition=Vector2(tonumber(self.talkConetntNow.Offset)+self.m_Character2OldX,self.m_Character2Rect.anchoredPosition.y);
+		end
+	end
+
+
+	--立绘明暗和对话名左右位置（需要策划补充表）
+
+
+
+end
+
+
+function AvgTalkBox:ShowNPCSelect()
+
+	--local cfg=LocalDataManager.Instance:GetNPCDataCell(self.module.BaseID);--配置
+	local cfg = ConfigDataAccessor.Npc[self.module.BaseID];
+
+	if cfg==nil then
+		return ;
+	end
+	
+	local commonEffect = cfg.CommonEffect;
+
+	local commonCondition = cfg.CommonCondition;
+
+	self.go_effectSelectMenu:SetActive(true);
+
+	self.effectSelectPool:RecycleAll();
+
+	--基础服务
+	for i=1,#commonEffect do
+
+		local canShow=false;
+		--没有条件
+		if commonCondition[i]==0 then
+			canShow=true;
+		else
+			--local cc=LocalDataManager.Instance:GetCMconditionDataCell(commonCondition[i]);
+			local cc=ConfigDataAccessor.CMcondition[commonCondition[i]];
+			local isMete=GameManager.Instance:IsConditionMete(cc.GroupID);--判断是否满足
+			if isMete then
+				canShow=true;
+			else
+				--不满足时显示
+				if cc.IsShow then
+					canShow=true;
+				end
+			end
+		end
+
+		if canShow then
+			if commonEffect[i]~=0 then
+				--local ce=LocalDataManager.Instance:GetCMeffectDataCell(commonEffect[i]);
+				local ce=ConfigDataAccessor.CMeffect[commonEffect[i]];
+				local selectItem = self.effectSelectPool:Spawn();
+				local tex="";
+				local serviceType=4;
+				if ce~=nil then
+					tex=ce.Name
+					serviceType =ce.Effecttype;
+				end
+				--if commonEffect[i].ServiceName~=nil and commonEffect[i].ServiceName~="" then
+					--tex=commonEffect[i].ServiceName;
+				--end
+				selectItem:SetItem(tex,i,true,nil,serviceType);
+			end
+		end
+	end
+
+	--任务服务
+	local services=BusinessManager.Instance:GetNpcOtherService(self.module.BaseID);
+
+	for i=0,services.Count-1 do
+		local service=services[i];
+
+		--local ce=LocalDataManager.Instance:GetCMeffectDataCell(service.EffectID);
+		local ce=ConfigDataAccessor.CMeffect[service.EffectID];
+		local selectItem = self.effectSelectPool:Spawn();
+		local tex="";
+		local serviceType=4;
+		if ce~=nil then
+			tex=ce.Name
+			serviceType =ce.Effecttype;
+		end
+		if service.ServiceName~=nil and service.ServiceName~="" then
+			tex=service.ServiceName;
+		end
+		selectItem:SetItem(tex,0,false,service,serviceType);
+	end
+
+
+end
+
+
+function AvgTalkBox:OnEffectSelectClick(ri)
+
+	local idx=ri.Idx;
+
+	--NPC服务
+	if self.module.NPCEnityID ~= nil then
+		self.module:CheckNpcInteractiveEffect(ri);
+	end
+
+	print("onEffectClick"..idx);
+	self.go_effectSelectMenu:SetActive(false);
+
+	if self.module.NPCEnityID~= nil then
+		idx=0;
+	end
+	self:GetTalkContentById(idx);
+end
+
+
+
+function AvgTalkBox:MoveFg(fgTr,toPos)
+
+	--暂时去掉
+	do return; end
+
+	local tw=nil;
+
+	--中间
+	if toPos==0 then
+		tw=fgTr:DOAnchorPosX(0,0.2);
+		--左边
+	elseif toPos==1 then
+		tw=fgTr:DOAnchorPosX(-500,0.2);
+		--右边
+	else
+		tw=fgTr:DOAnchorPosX(500,0.2);
+	end
+
+	return tw;
+end
+
+function AvgTalkBox:GetTalkContentById(idx)
+
+	if idx== 0 then
+		self:FinishTalk();
+		return;
+	end
+
+	self.CanClickToNext=false;
+	--self.talkConetntNow = LocalDataManager.Instance:GetCommonDialogDataCell(idx);
+	self.talkConetntNow = self.module:CommonDialogDataCellById(idx);
+	self:RefeshTalkInfo();
+end
+
+function AvgTalkBox:GetNextTalkContent()
+
+	local nextIds=self.talkConetntNow.Next_dialog_id;
+
+	--结束对话
+	if nextIds[1]==0 then
+		self:FinishTalk();
+	else
+		--切换到下一句对话
+		self:GetTalkContentById(nextIds[1]);
+	end
+
+
+end
+
+
+function AvgTalkBox:FinishTalk()
+
+	if self.tw_content~= nil then
+		self.tw_content:Kill();
+	end
+
+	if self.tw_fg1~= nil then
+		self.tw_fg1:Kill();
+	end
+
+	if self.tw_fg2~= nil then
+		self.tw_fg2:Kill();
+	end
+
+	UIManager.Instance:CloseWidget("Avg/AvgTalkBox",nil,true);
+
+	self.module:OnFinishAvgTalkBox();
+end
+
+return  AvgTalkBox

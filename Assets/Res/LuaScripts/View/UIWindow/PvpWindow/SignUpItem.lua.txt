@@ -1,0 +1,63 @@
+local SignUpItem = {}
+SignUpItem.__index = SignUpItem
+
+function SignUpItem:New(obj)
+    local self = {};
+    setmetatable(self, SignUpItem);
+
+    self:InitControls(obj)
+
+    return self;
+end
+
+function SignUpItem:InitControls(obj)
+    self.gameObject = obj;
+    self.transform = obj.transform;
+
+	self.signupTime = self.transform:Find("SignUpTime"):GetComponent(typeof(Text));
+	self.status = self.transform:Find("Status"):GetComponent(typeof(Text));
+	self.startTime = self.transform:Find("StartTime"):GetComponent(typeof(Text));
+
+    self.signBtn = self.transform:Find("SignBtn"):GetComponent(typeof(Button));
+	self.signBtn.onClick:AddListener(function()
+        -- 报名
+        local b10RegisterReq = CS.ProtoMsg.B10RegisterReq();
+        b10RegisterReq.Stage = self.itemData[1].Session;
+		b10RegisterReq.IsCancel = self.isSigned;
+        CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+            b10RegisterReq, false);
+    end);
+	self.signText = self.transform:Find("SignBtn/Text"):GetComponent(typeof(Text));
+end
+
+function SignUpItem:Init(data, hasSign, st)
+	self.status.gameObject:SetActive(hasSign);
+	
+	local curTime = CS.SGF.Time.TimeUtils.ServerNowStampMilli;
+	if curTime < (st + data[1].Start*1000) then
+		self.signBtn.interactable = false;
+		self.signText.text =LanguageHelp:GetLanguageByKey("Local_Str_no_open")
+	elseif curTime <= (st + data[1].End*1000) then
+		self.signBtn.interactable = true;
+		if hasSign then
+			self.signText.text =LanguageHelp:GetLanguageByKey("Local_Str_cancel")
+		else
+			self.signText.text =LanguageHelp:GetLanguageByKey("Local_Str_apply")
+		end
+	elseif curTime <= (st + data[2].End) then
+		self.signBtn.interactable = false;
+		self.signText.text =LanguageHelp:GetLanguageByKey("Local_Str_underway")
+	else
+		self.signBtn.interactable = false;
+		self.signText.text =LanguageHelp:GetLanguageByKey("Local_Str_Over")
+	end
+	-- 报名
+	self.signupTime.text = GetTimeHourMin(st + data[1].Start*1000) .. " ~ " .. GetTimeHourMin(st + data[1].End*1000);
+	-- 比赛
+	self.startTime.text = GetTimeHourMin(st + data[2].Start*1000);
+	
+	self.isSigned = hasSign;
+	self.itemData = data;
+end
+
+return SignUpItem

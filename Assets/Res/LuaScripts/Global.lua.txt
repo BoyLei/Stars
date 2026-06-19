@@ -1,0 +1,50 @@
+require "Common.Define.UnityEngine"
+require "Common.Class.oop"
+-- 多语言lua中间层
+LanguageHelp = (require "Common.Helper.LanguageHelp").new();
+require "Common.Define.EnumDefine"
+require "Common.Class.queue"
+uint64=require "Common.Class.uint64"
+vardump = (require "Common.Helper.Serpent").block
+require "Common.Helper.Function"
+require "Common.Helper.GameObjectHelper"
+require "Common.Helper.MathHelper"
+require "Common.Helper.StringHelper"
+require "LuaModule.Core.BaseLuaModule"
+require "View.Core.UIPanel"
+require "Common.Helper.TimeHelper"
+require "Common.Helper.ProtoHelper"
+
+-- 配置文件
+ConfigDataAccessor = require "Common.Config.ConfigDataAccessor"
+-- Lua结构体
+StructAccessor = require "Struct.StructAccessor"
+-- 资源加载
+ResourceHelper = (require "Common.Helper.ResourceHelper").new();
+
+
+require "Common.Helper.ConfigHelper"
+require "Common.Helper.TableHelper"
+require "View.UIWindow.PartnerMainWindow.PartnerUtils"
+
+LuaModuleDispatcher=(require "Common.Helper.LuaModuleDispatcher").new()
+-----------------Rider EmmyLua  Debugger------------------------------
+-- package.cpath = package.cpath .. ';C:/Users/quzhenxin/AppData/Roaming/JetBrains/Rider2022.1/plugins/EmmyLua/debugger/emmy/windows/x64/?.dll'
+-- local dbg = require('emmy_core')
+-- dbg.tcpConnect('localhost', 9966)
+----------------------------------------------------------------------------------
+
+local _, LuaDebuggee = pcall(require, 'LuaDebuggee')
+if LuaDebuggee and LuaDebuggee.StartDebug then
+    if LuaDebuggee.StartDebug('127.0.0.1', 9826) then
+        print('LuaPerfect: Successfully connected to debugger!')
+    else
+        print('LuaPerfect: Failed to connect debugger!')
+    end
+else
+    print('LuaPerfect: Check documents at: https://luaperfect.net')
+end
+
+function Main()
+    ConfigDataAccessor.Init()
+end

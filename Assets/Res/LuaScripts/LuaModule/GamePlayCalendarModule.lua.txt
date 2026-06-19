@@ -1,0 +1,293 @@
+--[[
+*文件名   :   GamePlayCalendarModule
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/11/28 14:35:39"
+*创建人   :   "caojie"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+GamePlayCalendarModule = class("GamePlayCalendarModule",BaseLuaModule)
+--LuaModule 消息模块
+GamePlayCalendarModule.ModuleMessages =
+{
+	--打开玩法日历界面
+	["OnOpenGamePlayCalendarWindow"]=function(...)
+		GamePlayCalendarModule:OnGamePlayCalendarWindow(...)
+	end,
+}
+
+GamePlayCalendarModule.GamePlayCalendarWindowView = nil
+GamePlayCalendarModule.AllCalendarData = {}
+
+function GamePlayCalendarModule:GetAllCalendarData()
+	-- 如果已构建数据且时间未超过当日，直接返回缓存数据
+	if not self:NeedRebuildCalendarData() then
+		return self.AllCalendarData
+	end
+
+	self:BuildAllCalendarData()
+	return self.AllCalendarData
+end
+
+local weekStrArr = 
+{
+	[1] = LanguageHelp:GetLanguageByKey("Local_Str_Calendar_Week1"),
+	[2] = LanguageHelp:GetLanguageByKey("Local_Str_Calendar_Week2"),
+	[3] = LanguageHelp:GetLanguageByKey("Local_Str_Calendar_Week3"),
+	[4] = LanguageHelp:GetLanguageByKey("Local_Str_Calendar_Week4"),
+}
+function GamePlayCalendarModule:BuildAllCalendarData()
+	-- 如果已构建数据且时间未超过当日，直接返回缓存数据
+	if not self:NeedRebuildCalendarData() then 
+		return
+	end
+	
+	self.AllCalendarData = {}
+	local curServerTimeSec = math.floor(GameManager.Instance:GetServerTimeStamp()/1000)
+	-- 缓存构建数据的时间
+	self.AllCalendarData.GenTime = curServerTimeSec
+	-- 获取当前时间星期几
+	local curWeekDay = GetWeekDay(curServerTimeSec)
+	local reduceDay = curWeekDay == 1 and 0 or -(curWeekDay - 1)
+	-- 获取本周一的时间
+	local curWeekFirstDaySec = GetFutureTimeSec(curServerTimeSec, reduceDay, 0, 0, 0)
+	-- 构建从本周一开始后的四周时间数据
+	for i=1,4 do
+		local weekData = {}
+		for j=1,7 do
+			local dayData = {}
+			local afterDays =  7*(i - 1) + (j - 1)
+			dayData.TimeSec = GetFutureTimeSec(curWeekFirstDaySec, afterDays, 0, 0, 0)
+			dayData.IsToday = false
+			if i == 1 and j == curWeekDay then
+				dayData.IsToday = true
+			end
+			-- 将每日开启的玩法数据构建进日历数据
+			self:BuildAllDayCalendarData(dayData)
+			date = os.date("*t", dayData.TimeSec)
+			dayData.DateStr = string.format("%02d.%02d", date.month, date.day)
+
+			table.insert(weekData, dayData)
+		end
+
+		table.insert(self.AllCalendarData, weekData)
+	end
+
+	for i=1,4 do
+		local weekData = self.AllCalendarData[i]
+		weekData.WeekStr = StringFormat(weekStrArr[i], {weekData[1].DateStr, weekData[7].DateStr});
+	end
+end
+
+function GamePlayCalendarModule:BuildAllDayCalendarData(dayData)
+	local serverTimeSec = dayData.TimeSec
+	for k,v in pairs(ConfigDataAccessor.RecyclePlay) do
+		local DateList=v.DateList;--开放日期，暂时不知道干啥(暂时不管)
+		local LoopType=v.LoopType;--开放循环类型 0 不循环(暂时不管) 1 日循环 2 周循环 3 半月循环
+		local LoopParam=v.LoopParam;--循环时间参数  0/1 不填； 2 填对应的周几；周日需填0；3 填半月对应的第几天；
+		local TimeList=v.TimeList;
+
+		local singleGamePlayData = {}
+		--周循环
+		if LoopType==2 then
+			--获得当前是周几
+			local weekDay=GetWeekDay(serverTimeSec)
+			for i=1,#LoopParam do
+				if weekDay==LoopParam[i] then
+					singleGamePlayData.GamePlayDatas = {}
+					for j=1,#TimeList do
+						singleGamePlayData.GamePlayDatas[j] = self:AddTimeItem(v,TimeList[j],serverTimeSec);
+					end
+					self:BuildSingleGamePlayData(singleGamePlayData)
+				end
+			end
+
+		--半月循环
+		elseif LoopType==3 then
+			--获得当前是几号
+			local day=GetDay(serverTimeSec);
+
+			for i=1,#LoopParam do
+				if day==LoopParam[i] or day+15==LoopParam[i] then
+					singleGamePlayData.GamePlayDatas = {}
+					for j=1,#TimeList do
+						singleGamePlayData.GamePlayDatas[j] = self:AddTimeItem(v,TimeList[j],serverTimeSec);
+					end
+					self:BuildSingleGamePlayData(singleGamePlayData)
+				end
+			end
+
+		--日循环
+		elseif LoopType==1 then
+			for j=1,#TimeList do
+				singleGamePlayData.GamePlayDatas = {}
+				singleGamePlayData.GamePlayDatas[j] = self:AddTimeItem(v,TimeList[j],serverTimeSec);
+			end
+			self:BuildSingleGamePlayData(singleGamePlayData)
+		end
+
+		if dayData.GamePlayDataList == nil then
+			dayData.GamePlayDataList = {}	
+		end
+		
+		table.insert(dayData.GamePlayDataList, singleGamePlayData)
+	end
+	
+	-- 按照时间排序
+	if #dayData.GamePlayDataList > 1 then
+		table.sort(dayData.GamePlayDataList, function(a, b)
+			if a.SortWeight ~= b.SortWeight then
+      			return a.SortWeight < b.SortWeight
+    		end 
+
+    		if a.GamePlayID ~= b.GamePlayID then
+      			return a.GamePlayID < b.GamePlayID
+    		end 
+
+			return false
+		end)
+	end
+end
+
+function GamePlayCalendarModule:BuildSingleGamePlayData(singleGamePlayData)
+	local gamePlayDatas = singleGamePlayData.GamePlayDatas
+	if #gamePlayDatas > 0 then
+		local tempData = gamePlayDatas[1]
+		singleGamePlayData.GamePlayData = tempData
+		singleGamePlayData.GamePlayID = tempData.id
+		singleGamePlayData.GamePlayName = tempData.GamePlayName
+		singleGamePlayData.GamePlayTexture = tempData.GamePlayTexture
+		singleGamePlayData.GamePlayDesc = tempData.GamePlayDesc
+		singleGamePlayData.SortWeight = tempData.openHour * 60 + tempData.openMin
+	end
+
+	local str = ""
+	if #gamePlayDatas > 1 then
+		for i=1,#gamePlayDatas do
+			local data = gamePlayDatas[i]
+			str = str .. self:BuildDisplayTimeData(gamePlayDatas[i],true, i==#gamePlayDatas)
+		end
+		singleGamePlayData.GamePlayDisplayTime = str
+	elseif #gamePlayDatas == 1 then
+		singleGamePlayData.GamePlayDisplayTime = self:BuildDisplayTimeData(gamePlayDatas[1], false, true)
+	end
+
+	return singleGamePlayData
+end
+
+
+-- -- Day
+-- [1] = 
+-- {
+-- 	GamePlayID
+-- 	GamePlayDisplayTime
+-- 	GamePlayName
+-- 	GamePlayTexture
+-- 	GamePlayDesc
+-- 	GamePlayEvents
+-- }
+
+function GamePlayCalendarModule:BuildDisplayTimeData(gamePlayData, isMultiple, isLastTime)
+	local str = ""
+	if isMultiple then
+		str = string.format("%02d:%02d", gamePlayData.openHour, gamePlayData.openMin)
+		if not isLastTime then
+			str = str .. "/"
+		end
+	else
+		str = string.format("%02d:%02d~%02d:%02d", gamePlayData.openHour, gamePlayData.openMin, gamePlayData.closeHour, gamePlayData.closeMin)
+	end
+
+	return str
+end
+
+function GamePlayCalendarModule:AddTimeItem(cfg,timeItem,serverNowTime)
+	local event={};
+	event.id=cfg.ID;
+	event.GamePlayName=cfg.PlayName;
+	event.GamePlayDesc=cfg.PlayDesc;
+	event.GamePlayTexture=cfg.CalendarSPic;
+	local str=string.split(timeItem,"h");
+	event.openHour=tonumber( str[1]);
+	if str[2] ~= nil and str[2] ~= "" then
+		event.openMin=tonumber(string.split(str[2],"m")[1]);
+	else
+		event.openMin=0;
+	end
+
+	local addHour=math.floor((cfg.MinuteNum+event.openMin)/60);
+	event.closeHour=event.openHour+addHour;
+	event.closeMin=(cfg.MinuteNum+event.openMin)-addHour*60;
+
+	--这里再计算一个和开服时间相关得time
+	event.serverCloseTime = GetAimTime(serverNowTime,event.closeHour,event.closeMin);
+	event.serverOpenTime = GetAimTime(serverNowTime,event.openHour,event.openMin);
+	event.gameID=cfg.GameID;
+
+	return event
+end
+
+-- 是否需要重新构建日历数据
+function GamePlayCalendarModule:NeedRebuildCalendarData()
+	-- 无数据直接构建
+	if self.AllCalendarData ~= nil then
+		return true
+	end
+
+	-- 无生成时间数据直接构建
+	if self.AllCalendarData.GenTime == nil then
+		return true
+	end
+
+	local curServerTimeSec = math.floor(GameManager.Instance:GetServerTimeStamp()/1000)
+	local curDay = GetDay(curServerTimeSec)
+
+	local genServerTimeSec = math.floor(self.AllCalendarData.GenTime)
+	local genDay = GetDay(genServerTimeSec)
+
+	-- 当前日期与构建数据日期不一致直接重新构建
+	return curDay ~= genDay
+end
+
+function GamePlayCalendarModule:OnGamePlayCalendarWindow(...)
+	local data = self:GetAllCalendarData()
+	local Cb = function(ui)
+		if ui ~= nil then
+			self.GamePlayCalendarWindowView = ui:GetLuaPanel().ScriptTable;	
+			if self.GamePlayCalendarWindowView ~= nil then
+				self.GamePlayCalendarWindowView.InstPanel = ui
+				self.GamePlayCalendarWindowView:BindModule(self)
+				self.GamePlayCalendarWindowView:RenderAllView(true)
+			end
+		end
+	end
+	UIManager.Instance:OpenWindowAsync("Ectype/Prefab/GamePlayCalendarWindow", Cb, data, CS.StarProjectDef.MainPageCommond.HideNone)
+end
+
+--LuaModule 创建
+function GamePlayCalendarModule:OnModuleCreate(arg)
+	LuaModuleDispatcher:Register(ModuleDef.GamePlayCalendarModule,self)
+end
+
+--LuaModule 消息处理
+function GamePlayCalendarModule:OnModuleMessage(msg,...)
+	self.ModuleMessages[msg](...);
+end
+
+--LuaModule显示
+function GamePlayCalendarModule:OnModuleShow(arg)
+
+end
+
+function GamePlayCalendarModule:OnGamePlayCalendarWindowDestroy(arg)
+	self.GamePlayCalendarWindowView = nil
+end
+
+--LuaModule 释放
+function GamePlayCalendarModule:OnModuleRelease()
+	LuaModuleDispatcher:UnRegister(ModuleDef.GamePlayCalendarModule)
+	self.GamePlayCalendarWindowView = nil
+end
+
+return GamePlayCalendarModule
+

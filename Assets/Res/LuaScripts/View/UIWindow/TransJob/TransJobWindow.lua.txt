@@ -1,0 +1,493 @@
+---------------------------------------------------------------------
+-- Stars (C) CompanyName, All Rights Reserved
+-- Created by: AuthorName
+-- Date: 2023-06-05 18:08:52
+---------------------------------------------------------------------
+-- To edit this template in: Data/Config/Template.lua
+-- To disable this template, check off menuitem: Options-Enable Template File
+---@class TransJobWindow
+TransJobWindow = class("TransJobWindow", UIPanel)
+
+local ItemTransJobTask = require("View/UIWindow/TransJob/ItemTransJobTask");
+local ItemTransJobSkill = require("View/UIWindow/TransJob/ItemTransJobSkill");
+
+TransJobWindow.IsOpen = false
+
+TransJobWindow.m_InitTaskCount = 0; -- 任务数量
+
+TransJobWindow.m_ItemTransJobTaskTb = {} -- 转职任务
+TransJobWindow.m_ItemSkillIconTb = {} -- 技能图标
+TransJobWindow.m_ItemTogglePointTb = {} -- 技能点
+TransJobWindow.m_ItemTogglePointCheckTb = {} -- 技能选中点
+TransJobWindow.m_ItemSkillTb = {} -- 技能
+TransJobWindow.m_JobID = -1; -- 主角职业id
+TransJobWindow.m_TransferJobCfg = nil; -- 转职配置
+TransJobWindow.m_ModelViewDisplay = nil; -- 3d模型节点
+
+local IconPath = "UI/TransJob/Textures/"; -- 转职大图路径
+
+function TransJobWindow:Awake()
+    self:Init()
+end
+
+function TransJobWindow:Init()
+    self.transform = self.prefab.transform
+    self.gameObject = self.transform.gameObject
+
+    local FrameTransForm = self.transform:Find("Cut4Cam90/AssemblyRatio2").transform
+    -- 关闭按钮
+    local CloseBtn = FrameTransForm:Find("LeftTop/CloseBtn"):GetComponent(typeof(JButton))
+    self.CloseBtnFun = function()
+        self.Close()
+    end
+    CloseBtn.OnClick = self.CloseBtnFun;
+    ---------------------------- 左面板
+    -- 职业背景
+    self.DiIcon = FrameTransForm:Find("di"):GetComponent(typeof(Image))
+    -- 职业背景
+    self.FrameIcon = FrameTransForm:Find("frame"):GetComponent(typeof(Image))
+    -- self.bgcolor = FrameTransForm:Find("bgcolor"):GetComponent(typeof(Image))
+
+    -- 2D角色图
+    -- self.RenderTexture = FrameTransForm:Find("RawImage"):GetComponent(typeof(RawImage));
+    self.JobPortrait = FrameTransForm:Find("JobPortrait"):GetComponent(typeof(Image));
+    ---------------------------- 右面板
+    -- 职业背景
+    self.JobIconBg = FrameTransForm:Find("Right/JobIconBg"):GetComponent(typeof(Image))
+    -- 职业图标
+    self.JobIcon = FrameTransForm:Find("Right/JobIconBg/JobIcon"):GetComponent(typeof(Image))
+    -- 职业名称
+    self.JobName = FrameTransForm:Find("Right/JobIconBg/JobName"):GetComponent(typeof(Text))
+    -- 技能数量点
+    -- 技能数量点容器
+    self.SkillIconContent = FrameTransForm:Find("Right/VedioPanel/VideoContent")
+    self.SkillIconItem = FrameTransForm:Find("Right/VedioPanel/SkillIconItem").gameObject;
+    -- 技能数量点
+    -- 技能数量点容器
+    self.TogglePointContent = FrameTransForm:Find("Right/VedioPanel/DownImage/TogglePointContent")
+    self.TogglePointItem = FrameTransForm:Find("Right/VedioPanel/DownImage/TogglePointItem").gameObject;
+    -- 技能名
+    self.SkillName = FrameTransForm:Find("Right/VedioPanel/DownImage/SkillName"):GetComponent(typeof(Text))
+    -- 技能
+    self.SkillScrollView = FrameTransForm:Find("Right/SkillScrollView/Viewport/Content")
+    self.ToggleSkillItem = FrameTransForm:Find("Right/SkillScrollView/ToggleSkillItem").gameObject;
+    ------- 任务
+    self.TaskScrollView = FrameTransForm:Find("Right/TaskScrollView/Viewport/Content")
+    self.TaskItem = FrameTransForm:Find("Right/TaskScrollView/TaskItem").gameObject;
+    -- 转职按钮
+    self.JBtnTransJob = FrameTransForm:Find("Right/JBtnTransJob"):GetComponent(typeof(JButton))
+    self.JBtnTransJobFun = function()
+        self:OnClickJBtnTransJob();
+    end
+    self.JBtnTransJob.OnClick = self.JBtnTransJobFun;
+    -- 转职按钮红点
+    self.JBtnTransJobRedPoint = FrameTransForm:Find("Right/JBtnTransJob/RedPoint").gameObject;
+
+    --------------------------- 注册事件
+    self:RegisterMessage();
+    --------------------------- 注册事件
+
+    --------------------------- 初始化一次性的数据
+
+    --------------------------- 初始化一次性的数据
+end
+
+function TransJobWindow:Start()
+end
+
+function TransJobWindow:OnEnable()
+end
+
+function TransJobWindow:OnDisable()
+end
+
+function TransJobWindow:OnDestroy()
+    self:UnRegisterMessage();
+end
+
+function TransJobWindow:OnOpen(arg)
+    self.IsOpen = true
+
+    -- UIManager.Instance:SetRawCamrea(true);
+    local entityBase = GameManager.Instance.M_MainPlayerCtrlBase
+    if entityBase ~= nil then
+        self.m_JobID = entityBase.Data.Attrs:GetLuaAoiValue(CS.StarProjectDef.EnumAOIType.Uint,
+            CS.StarProjectDef.AOIAttrDefine.Job)
+	else
+		self.m_JobID = arg;
+    end
+    ---- 初始化职业icon
+    self:InitTransJobIcon();
+    ---- 初始化转职任务
+    self:InitTransJobTaskData();
+    ---- 初始化主角职业转职后技能信息
+    self:InitTransJobSkillData();
+
+    self:InitData(arg)
+end
+
+function TransJobWindow:OnClose(arg)
+    self:CloseWindow()
+end
+
+-- 初始化界面信息
+function TransJobWindow:InitData(arg)
+    -- 刷新任务进度
+    self:CheckTaskProgress(0);
+    -- -- 显示模型
+    -- self:SetModel();
+end
+
+-- 刷新任务进度
+function TransJobWindow:CheckTaskProgress(finishTaskID)
+    for i = 1, #self.m_ItemTransJobTaskTb, 1 do
+        local item = self.m_ItemTransJobTaskTb[i];
+        local isGet = item.TaskCfg.ID == finishTaskID and finishTaskID ~= 0;
+        item:CheckTaskProgress(isGet);
+    end
+    self:CheckTransJobBtn();
+end
+
+function TransJobWindow:CheckTransJobBtn()
+    local HeroMD = GameManager.Instance.HeroMD;
+    local TransJobRewardList = HeroMD.TransJobRewardList;
+    local getTaskCount = TransJobRewardList.List.Count;
+    local isFinish = getTaskCount >= self.m_InitTaskCount;
+    self.JBtnTransJob.UnClick = not isFinish;
+    self.JBtnTransJobRedPoint:SetActive(isFinish);
+end
+
+---设置转职信息
+function TransJobWindow:SetTransJobData()
+    if self.m_TransferJobCfg == nil then
+        return;
+    end
+    self.JobName.text = self.m_TransferJobCfg.Name;
+    local index = 1;
+    -- 先把大招加在最前面
+    -- 技能点
+    local gobPointUltimateJobSkills = newObject(self.TogglePointItem);
+    gobPointUltimateJobSkills.transform:SetParent(self.TogglePointContent);
+    gobPointUltimateJobSkills:SetActive(true);
+    gobPointUltimateJobSkills.transform.localPosition = Vector3.zero;
+    gobPointUltimateJobSkills.transform.localScale = Vector3.one;
+    table.insert(self.m_ItemTogglePointTb, gobPointUltimateJobSkills.transform:Find("Check").gameObject);
+    -- 技能图标
+    local gobSkillIconItem = newObject(self.SkillIconItem);
+    gobSkillIconItem.transform:SetParent(self.SkillIconContent);
+    gobSkillIconItem.transform.localPosition = Vector3.zero;
+    gobSkillIconItem.transform.localScale = Vector3.one;
+    local gobSkillIconSpItem = gobSkillIconItem.transform:GetComponent(typeof(Image))
+    table.insert(self.m_ItemSkillIconTb, gobSkillIconItem.gameObject);
+    self:SetSkillIcon(gobSkillIconSpItem, self.m_TransferJobCfg.UltimateJobSkills, index);
+    -- 技能
+    local gobBornJobSkills = newObject(self.ToggleSkillItem);
+    gobBornJobSkills.transform:SetParent(self.SkillScrollView);
+    gobBornJobSkills:SetActive(true);
+    gobBornJobSkills.transform.localPosition = Vector3.zero;
+    gobBornJobSkills.transform.localScale = Vector3.one;
+    local itemBornJobSkills = ItemTransJobSkill:New(gobBornJobSkills, function(skillCfg, index)
+        self:ClickSkillItemCB(skillCfg, index)
+    end);
+    table.insert(self.m_ItemSkillTb, itemBornJobSkills);
+    itemBornJobSkills:OnUpdateContent(self.m_TransferJobCfg.UltimateJobSkills, index);
+    index = index + 1;
+    for key, value in pairs(self.m_TransferJobCfg.TransferJobSkills) do
+        -- 技能点
+        local gob = newObject(self.TogglePointItem);
+        gob.transform:SetParent(self.TogglePointContent);
+        gob:SetActive(true);
+        gob.transform.localPosition = Vector3.zero;
+        gob.transform.localScale = Vector3.one;
+        table.insert(self.m_ItemTogglePointTb, gob.transform:Find("Check").gameObject);
+        -- 技能图标
+        local gob1 = newObject(self.SkillIconItem);
+        gob1.transform:SetParent(self.SkillIconContent);
+        gob1.transform.localPosition = Vector3.zero;
+        gob1.transform.localScale = Vector3.one;
+        local gobSkillIconSpItem = gob1.transform:GetComponent(typeof(Image))
+        table.insert(self.m_ItemSkillIconTb, gob1.gameObject);
+        self:SetSkillIcon(gobSkillIconSpItem, value, index);
+        -- 技能
+        local gob2 = newObject(self.ToggleSkillItem);
+        gob2.transform:SetParent(self.SkillScrollView);
+        gob2:SetActive(true);
+        gob2.transform.localPosition = Vector3.zero;
+        gob2.transform.localScale = Vector3.one;
+        local item = ItemTransJobSkill:New(gob2, function(skillCfg, index)
+            self:ClickSkillItemCB(skillCfg, index)
+        end);
+        table.insert(self.m_ItemSkillTb, item);
+        item:OnUpdateContent(value, index);
+        index = index + 1;
+    end
+    -- 默认选中第一个
+    local defaultSkillItem = self.m_ItemSkillTb[1];
+    if defaultSkillItem ~= nil then
+        defaultSkillItem:SetCheckState(true);
+    end
+end
+
+function TransJobWindow:SetSkillIcon(skillIconGob, skillId, index)
+    local skillIconPath = "";
+    local talentID = 0;
+    local talentCfgs = GetJobSkillTalents(skillId);
+    -- 天赋 ID 采用 默认的天赋ID
+    if talentCfgs ~= nil and #talentCfgs > 0 then
+        talentID = talentCfgs[1].ID;
+    end
+    if talentID == 0 then
+        return;
+    end
+    local cfg = GetJobSkillLevelDescCfg(talentID, 1);
+    if cfg == nil then
+        return;
+    end
+	skillIconPath = IconPath .. "TransJob_SkillIcon_" .. cfg.SkillID;
+    ResourceHelper:LoadIconAsync(skillIconGob, "", skillIconPath, false)
+end
+
+---技能点击回调
+---@param skillCfg 技能配置
+---@param index 点击的下标
+function TransJobWindow:ClickSkillItemCB(skillCfg, index)
+    self:SetSkillPointShow(index);
+    self.SkillName.text = skillCfg.SkillName;
+    for i = 1, #self.m_ItemSkillTb, 1 do
+        local child = self.m_ItemSkillTb[i];
+        local isCheck = i == index;
+        child:SetCheckState(isCheck);
+    end
+    -- 播放技能适配，等待资源
+end
+
+---设置技能点显示
+---@param index 下标
+function TransJobWindow:SetSkillPointShow(index)
+    for i = 1, #self.m_ItemTogglePointTb, 1 do
+        local item = self.m_ItemTogglePointTb[i];
+        local isShow = i == index;
+        item:SetActive(isShow);
+        local skillItem = self.m_ItemSkillIconTb[i];
+        skillItem:SetActive(isShow);
+    end
+end
+
+---任务点击回调
+---@param taskID 技能配置
+function TransJobWindow:ClickTaskItemCB(taskID)
+    local msg = CS.ProtoMsg.TransJobCondRewardReq()
+    msg.ConfigID = taskID
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, msg, false)
+end
+
+---- 初始化模型
+-- function TransJobWindow:SetModel()
+--     local jobCfg = ConfigDataAccessor.Job[self.m_JobID];
+--     if jobCfg ~= nil then
+--         local avatarDataCell = ConfigDataAccessor.Avatar[jobCfg.AvatarID]
+--         if avatarDataCell ~= nil then
+--             ------- 设置模型
+--             ResourceManager.Instance:PopGameObject("Roles/Template/Display_Model", function(go)
+--                 if go == nil then
+--                     return;
+--                 end
+--                 if self.IsOpen == false then
+--                     ResourceManager.Instance:PushGameObject("Roles/Template/Display_Model", go);
+--                     return;
+--                 end
+--                 local pos = Vector3.zero;
+--                 pos.z = 0.5;
+--                 UIManager.Instance:SetModel2UI2(go, jobCfg.AvatarID, CS.StarProjectDef.ThreeDModelPos.Raw, Vector3.one,
+--                     Vector3.zero, Vector3.zero, pos, "idle_01");
+--                 go:SetActive(true);
+--                 self.m_ModelViewDisplay = go:GetComponent(typeof(RoleViewDisplay));
+
+--                 ------- 设置模型
+--                 self.RenderTexture.texture = ResourceManager.Instance.RenderTexture;
+--             end);
+
+--         end
+--     end
+-- end
+
+----------------------------------------------------- 无限列表 【STAR】 ------------------------------------------
+
+----------------------------------------------------- 无限列表 【END】 ------------------------------------------
+
+----------------------------------------------------- 注册事件 【STAR】 ------------------------------------------
+
+function TransJobWindow:RegisterMessage()
+    -- 领取转职条件奖励 返回
+    self.TransJobCondRewardRetCmd = function(data)
+        self:OnTransJobCondRewardRet(data)
+    end
+    NetworkManager.Instance:OnMessageEnum(CS.MsgIDEnum.TransJobCondRewardRetID, self.TransJobCondRewardRetCmd, nil)
+end
+
+function TransJobWindow:UnRegisterMessage()
+    -- 领取转职条件奖励 返回
+    NetworkManager.Instance:OffMessageEnum(CS.MsgIDEnum.TransJobCondRewardRetID, self.TransJobCondRewardRetCmd, nil)
+end
+
+function TransJobWindow:OnTransJobCondRewardRet(data)
+    local res = data.data
+    -- 转职条件表ID
+    self:CheckTaskProgress(res.ConfigID);
+end
+
+----------------------------------------------------- 注册事件 【END】 ------------------------------------------
+
+----------------------------------------------------- 初始化一次性数据 【STAR】 ------------------------------------------
+
+---- 初始化职业icon
+function TransJobWindow:InitTransJobIcon()
+    local dipath = IconPath .. "TransJob_di_" .. self.m_JobID;
+    ResourceHelper:LoadIconAsync(self.DiIcon, "", dipath, false)
+    local framepath = IconPath .. "TransJob_frame_" .. self.m_JobID;
+    ResourceHelper:LoadIconAsync(self.FrameIcon, "", framepath, false)
+    -- local bgpath = IconPath .. "TransJob_bg_" .. self.m_JobID;
+    -- ResourceHelper:LoadIconAsync(self.bgcolor, "", bgpath, false)
+    local jobshi1 = math.floor(self.m_JobID / 10)
+    local JobIconPath = ResourceHelper.HeadAtlasPath .. "Login_LogoChara" .. jobshi1;
+    ResourceHelper:LoadIconAsync(self.JobIcon, "", JobIconPath, false)
+
+    local JobPortraitPath = IconPath .. "TransJob_role_" .. self.m_JobID;
+    ResourceHelper:LoadIconAsync(self.JobPortrait, "", JobPortraitPath, false)
+end
+
+---- 初始化转职任务
+function TransJobWindow:InitTransJobTaskData()
+    for key, value in pairs(ConfigDataAccessor.TransferCondition) do
+        local gob = newObject(self.TaskItem);
+        gob.transform:SetParent(self.TaskScrollView);
+        gob:SetActive(true);
+        gob.transform.localPosition = Vector3.zero;
+        gob.transform.localScale = Vector3.one;
+        local item = ItemTransJobTask:New(gob, function(taskID)
+            self:ClickTaskItemCB(taskID);
+        end);
+        table.insert(self.m_ItemTransJobTaskTb, item);
+        item:OnUpdateContent(value);
+        self.m_InitTaskCount = self.m_InitTaskCount + 1
+    end
+end
+
+---- 初始化主角职业转职后技能信息
+function TransJobWindow:InitTransJobSkillData()
+    if self.m_JobID == -1 then
+        return;
+    end
+    local jobCfg = ConfigDataAccessor.Job[self.m_JobID];
+    self.m_TransferJobCfg = nil;
+    if jobCfg ~= nil then
+        for key, value in pairs(jobCfg.TransferJob) do
+            self.m_TransferJobCfg = ConfigDataAccessor.Job[value];
+        end
+        self:SetTransJobData();
+    end
+end
+
+----------------------------------------------------- 初始化一次性数据 【END】 ------------------------------------------
+
+----------------------------------------------------- 按钮点击事件 【STAR】 ------------------------------------------
+
+-- 点击【转职】按钮
+function TransJobWindow:OnClickJBtnTransJob()
+    local HeroMD = GameManager.Instance.HeroMD;
+    local TransJobRewardList = HeroMD.TransJobRewardList;
+    local getTaskCount = TransJobRewardList.List.Count;
+    local isFinish = getTaskCount >= self.m_InitTaskCount;
+    if isFinish == false then
+        Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_227"));
+        return;
+    end
+    -- 寻路去目标点
+    local jobCfg = ConfigDataAccessor.Job[self.m_JobID];
+    local config = TaskHelper.GetTaskConfig(jobCfg.TransferTask)
+    if config ~= nil then
+        local TaskInfo = TaskHelper.GetRunningTask(jobCfg.TransferTask)
+        if TaskInfo == nil then
+            return;
+        end
+
+        if TaskInfo.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStateNoGetReward then
+            -- 任务未提交or未接取
+        elseif TaskInfo.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStageRunning then
+            -- 任务进行中
+            local taskTarget = TaskHelper.GetTaskTarget(jobCfg.TransferTask)
+            if taskTarget ~= nil then
+                CS.StarProject.GlobalEvent.SelectTaskItem:Invoke(jobCfg.TransferTask)
+                UIManager.Instance:CloseAllLoadedWindowNWidget();
+                TaskHelper.FindPathByTask(taskTarget.MapID, taskTarget.FindPath,taskTarget.TargetID, function(result)
+                    CS.StarProject.GlobalEvent.SelectTaskItem:Invoke(0)
+                    if result and
+                        (taskTarget.FindPath.FindPathType == CS.Task.E_FindPath.NPC or taskTarget.FindPath.FindPathType ==
+                            CS.Task.E_FindPath.InterAction) then
+                        local EventID = TaskHelper.GetTaskRunningEventID(jobCfg.TransferTask)
+                        self:OnFinishPathFinding(taskTarget.TargetID, jobCfg.TransferTask, EventID, taskTarget.taskType)
+                    end
+                end)
+            end
+        elseif TaskInfo.TaskState == CS.ProtoMsg.TaskStateEnum.TaskStageFinished then
+            -- 任务已完成（未领奖）
+            CS.StarProject.GlobalEvent.SelectTaskItem:Invoke(jobCfg.TransferTask)
+            UIManager.Instance:CloseAllLoadedWindowNWidget();
+            -- 任务已完成未提交
+            TaskHelper.FindPathByNpc(config.TaskFinishInfo.FinishTaskMapID, config.TaskFinishInfo.FinishTaskNPC, 1,
+                function(result)
+                    CS.StarProject.GlobalEvent.SelectTaskItem:Invoke(0)
+                    if result then
+                        self:OnFinishPathFinding(config.TaskFinishInfo.FinishTaskNPC, jobCfg.TransferTask, 0,
+                            CS.Task.TaskType.Dialogue)
+                    end
+                end)
+        end
+    end
+end
+
+function TransJobWindow:OnFinishPathFinding(targetid, SourceID, SourceSubID, taskType)
+    if taskType == CS.Task.TaskType.Dialogue then
+        self:OnOpenDialogue(targetid, SourceID, SourceSubID)
+    elseif taskType == CS.Task.TaskType.InterAction then
+        self:OnInterAction(targetid, SourceID, SourceSubID)
+    end
+end
+
+function TransJobWindow:OnInterAction(objectID, SourceID, SourceSubID)
+    local uid = GameManager.Instance:GetObjectEntityIDByConfig(objectID)
+    BusinessManager.Instance:TurnToEntity(uid)
+    LuaModuleDispatcher:SendMessage(ModuleDef.InterActionModule, "QueryInter", uid, true, SourceID, SourceSubID)
+end
+
+function TransJobWindow:OnOpenDialogue(npcID, SourceID, SourceSubID)
+    local lobbyService = CS.ProtoMsg.LobbyServiceReq()
+    lobbyService.MapID = GameManager.Instance:GetCurMapId()
+    lobbyService.UID = GameManager.Instance:GetNPCEntityIDByConfig(npcID)
+    lobbyService.ObjID = npcID
+    lobbyService.SourceType = CS.ProtoMsg.MapServiceSourceTypeEnum.Task
+    lobbyService.SourceID = SourceID
+    lobbyService.SourceSubID = SourceSubID
+    lobbyService.ObjType = CS.ProtoMsg.ServiceObjEnum.ObjNpc
+    CS.SGF.Network.NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby,
+        lobbyService, false)
+end
+
+----------------------------------------------------- 按钮点击事件 【END】 ------------------------------------------
+
+-- function TransJobWindow:PushDisplayGob()
+--     if self.m_ModelViewDisplay ~= nil then
+--         ResourceManager.Instance:PushGameObject("Roles/Template/Display_Model", self.m_ModelViewDisplay.gameObject);
+--         -- GameObject.Destroy(self.m_ModelViewDisplay.gameObject);
+--         self.m_ModelViewDisplay = nil;
+--     end
+-- end
+
+-- 关闭界面
+function TransJobWindow:CloseWindow()
+    self.IsOpen = false
+    -- UIManager.Instance:SetRawCamrea(false);
+    -- self:PushDisplayGob();
+end
+
+return TransJobWindow

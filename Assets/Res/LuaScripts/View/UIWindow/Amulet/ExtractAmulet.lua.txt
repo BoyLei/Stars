@@ -1,0 +1,129 @@
+--[[
+*文件名   :   ExtractAmulet
+*内  容   :   定轨主页面
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local ExtractAmulet = {}
+
+ExtractAmulet.__index = ExtractAmulet
+
+local ExtractAmuletEquip=require("View/Uiwindow/Amulet/ExtractAmuletEquip")
+local ExtractAmuletMenu=require("View/Uiwindow/Amulet/ExtractAmuletMenu")
+
+local ExtractAmuletSelectMenu=require("View/Uiwindow/Amulet/ExtractAmuletSelectMenu")
+
+
+
+function ExtractAmulet:New(_go) 
+    local self = {};    
+    setmetatable(self, ExtractAmulet); 
+    
+
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+	--关闭信息
+    --[[
+	local btnClose=self.transform:Find("BtnClose"):GetComponent(typeof(JButton));
+	btnClose.OnClick=(function()
+		self:Show(false);
+	end);
+    ]]
+
+
+	self.ExtractAmuletEquip=ExtractAmuletEquip:New(self.transform:Find("Equip").gameObject,self)
+	self.ExtractAmuletMenu=ExtractAmuletMenu:New(self.transform:Find("Menu").gameObject,self)
+
+	self.ExtractAmuletSelectMenu=ExtractAmuletSelectMenu:New(self.transform:Find("SelectMenu").gameObject,self)
+
+    self.go_NoInfo=self.transform:Find("NoInfo").gameObject;
+
+    self.gameObject:SetActive(false);
+
+	self.selectedData=nil;
+	self.selectedToExtractItemData=nil;
+
+    return self;    --返回自身
+end
+
+function ExtractAmulet:OpenSelectMenu(extractGroup)
+	
+end
+
+function ExtractAmulet:Show(b)
+    self.gameObject:SetActive(b);
+    if b then
+		self.ExtractAmuletMenu:OnMessage()
+        self:OnListener();
+		self.ExtractAmuletEquip:Show(true);--左侧的符文
+		self.ExtractAmuletMenu:Refesh(self.selectedData,self.selectedToExtractItemData);--消耗
+		self.go_NoInfo:SetActive(self.selectedData==nil);
+	else
+		self.ExtractAmuletMenu:OffMessage()
+		self:OffListener();
+    end
+end
+
+
+function ExtractAmulet:OnListener()
+    --属性同步回调
+	if self.M_EntityBase==nil then
+		self.M_EntityBase = GameManager.Instance.M_MainPlayerCtrlBase;
+		self.attrLuaKey = "ExtractAmulet_" .. GameManager.Instance.mainPlayerId;
+		
+		self.M_EntityBase.Data:AddAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.ExAmuletInfo, self.attrLuaKey ,function(key,value)
+			print("属性同步开始")
+			self:Refesh();
+		end)
+	end
+
+end
+
+function ExtractAmulet:OffListener()
+    --解绑属性同步回调
+	if self.M_EntityBase~= nil then
+		self.M_EntityBase.Data:DelAttributeChangeLuaAction(CS.StarProjectDef.AOIAttrDefine.ExAmuletInfo, self.attrLuaKey);
+		self.M_EntityBase=nil;
+	end
+end
+
+
+
+function ExtractAmulet:CleanselectedToExtractItemData()
+	self.selectedToExtractItemData=nil;
+end
+
+function ExtractAmulet:Refesh(needRefeshEquip)
+	if needRefeshEquip then
+		self.ExtractAmuletEquip:Refesh();--左侧已经装备的符文
+	end
+	self.ExtractAmuletMenu:Refesh(self.selectedData,self.selectedToExtractItemData,true);--消耗
+	self.ExtractAmuletSelectMenu:Refesh(self.selectedData);--选择纹章页面
+	self.go_NoInfo:SetActive(self.selectedData==nil);
+end
+
+function ExtractAmulet:ShowExtractAmuletSelectMenu(b)
+	self.ExtractAmuletSelectMenu:Show(b,self.selectedData);--选择纹章页面
+end
+
+function ExtractAmulet:SetSelectedItemData(data)
+
+	if self.selectedData~= data then
+		self.selectedData=data;
+		self.selectedToExtractItemData=nil;--将右边的置空
+		self:Refesh();
+	end
+
+end
+
+function ExtractAmulet:SetSelectedToExtractItemData(data)
+	self.selectedToExtractItemData=data;
+	self.ExtractAmuletMenu:Refesh(self.selectedData,self.selectedToExtractItemData,false);--消耗
+end
+
+
+return ExtractAmulet;

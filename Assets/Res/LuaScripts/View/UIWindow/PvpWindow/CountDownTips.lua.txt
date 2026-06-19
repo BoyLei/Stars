@@ -1,0 +1,145 @@
+CountDownTips = class("CountDownTips", UIPanel)
+
+function CountDownTips:Awake()
+
+end
+
+function CountDownTips:BindModule(m)
+    CountDownTips.module = m;
+end
+
+function CountDownTips:InitControls()
+    self.transform = self.prefab.transform;
+    self.gameObject = self.transform.gameObject;
+
+    self.lastCount = self.transform:Find("Root/CountDown/Num");
+    self.timeCount = self.transform:Find("Root/CountDown/TextNum");
+    self.allLastGo = {};
+    for i = 0, 3 do
+        self.allLastGo[i] = self.lastCount:Find(i).gameObject;
+    end
+    self.timeCountText = self.timeCount:Find("Text"):GetComponent(typeof(Text));
+
+    self.OnSecTimeUpdate = function()
+        self:OnSecTimeUpdateHandler()
+    end
+
+    self.countDownGo = self.transform:Find("Root/CountDown").gameObject;
+    self.statusGo = self.transform:Find("Root/Status").gameObject;
+    self.winGo = self.transform:Find("Root/Status/Win").gameObject;
+    self.loseGo = self.transform:Find("Root/Status/Lose").gameObject;
+    self.gsGo = self.transform:Find("Root/Status/GameStart").gameObject;
+    self.bossGo = self.transform:Find("Root/Status/Boss").gameObject;
+end
+
+function CountDownTips:OnSecTimeUpdateHandler()
+    self.curTime = self.curTime - 1;
+    if self.curTime <= 0 then
+        self.curTime = 0;
+    end
+
+    if self.ct == "last" then
+        for i = 0, 3 do
+            self.allLastGo[i]:SetActive(i == self.curTime);
+        end
+    elseif self.ct == "count" then
+        self.timeCountText.text = self.curTime .. LanguageHelp:GetLanguageByKey("Local_Str_Time_second");
+    end
+	
+	if self.curTime <= 0 then
+	    MonoHelper.RemoveSecTimeUpdateListener(self.OnSecTimeUpdate);
+	    self.gameObject:SetActive(false);
+	end
+end
+
+function CountDownTips:ShowCountDown(countType, t)
+	self.gameObject:SetActive(true);
+	
+    self.countDownGo:SetActive(false);
+    self.lastCount.gameObject:SetActive(false);
+    self.timeCount.gameObject:SetActive(false);
+    self.statusGo:SetActive(false);
+    self.winGo:SetActive(false);
+    self.loseGo:SetActive(false);
+    self.gsGo:SetActive(false);
+	
+	self.curTime = t;
+	self.ct = countType;
+
+    MonoHelper.RemoveSecTimeUpdateListener(self.OnSecTimeUpdate);
+	
+    if self.ct == "last" then
+        self.lastCount.gameObject:SetActive(true);
+        self.countDownGo:SetActive(true);
+        MonoHelper.AddSecTimeUpdateListener(self.OnSecTimeUpdate);
+    elseif self.ct == "count" then
+        self.timeCount.gameObject:SetActive(true);
+        self.countDownGo:SetActive(true);
+        MonoHelper.AddSecTimeUpdateListener(self.OnSecTimeUpdate);
+    elseif self.ct == "start" then
+        self.gsGo:SetActive(true);
+        self.statusGo:SetActive(true);
+
+        self:LateClose();
+    elseif self.ct == "win" then
+        self.winGo:SetActive(true);
+        self.statusGo:SetActive(true);
+
+        self:LateClose();
+    elseif self.ct == "lose" then
+        self.loseGo:SetActive(true);
+        self.statusGo:SetActive(true);
+        
+        self:LateClose();
+    elseif self.ct == "boss"  then
+        self.bossGo:SetActive(true);
+        self.countDownGo:SetActive(true);
+        self.statusGo:SetActive(true);
+        MonoHelper.AddSecTimeUpdateListener(self.OnSecTimeUpdate);
+    end
+end
+
+function CountDownTips:LateClose()
+    if self.tw ~= nil then
+        self.tw:Kill();
+        self.tw = nil;
+    end
+    self.tw = DOVirtual.DelayedCall(3, function()
+        --self.Close();
+		self.gameObject:SetActive(false);
+    end)
+end
+
+function CountDownTips:OnShow()
+end
+
+function CountDownTips:Start()
+
+end
+
+function CountDownTips:OnEnable()
+
+end
+
+function CountDownTips:OnDisable()
+
+end
+
+function CountDownTips:OnDestroy()
+    MonoHelper.RemoveSecTimeUpdateListener(self.OnSecTimeUpdate);
+end
+
+function CountDownTips:OnOpen(arg)
+    self.IsOpen = true;
+end
+
+function CountDownTips:OnClose(arg)
+    self:CloseWindow();
+    MonoHelper.RemoveSecTimeUpdateListener(self.OnSecTimeUpdate);
+end
+
+function CountDownTips:CloseWindow()
+    self.IsOpen = false;
+end
+
+return CountDownTips

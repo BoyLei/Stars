@@ -1,0 +1,137 @@
+--[[
+*文件名   :   EmblemMenu
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local EmblemMenu = {}
+
+EmblemMenu.__index = EmblemMenu
+
+local EmblemMenuCombine=require("View/Uiwindow/Amulet/EmblemMenuCombine")
+local EmblemMenuEquip=require("View/Uiwindow/Amulet/EmblemMenuEquip")
+local EmblemMenuRandHeraldry=require("View/Uiwindow/Amulet/EmblemMenuRandHeraldry")
+local EmblemMenuInfo=require("View/Uiwindow/Amulet/EmblemMenuInfo")
+local EmblemMenuAllEmblem=require("View/Uiwindow/Amulet/EmblemMenuAllEmblem")
+
+
+function EmblemMenu:New(_go,amuletWindow) 
+    local self = {};    
+    setmetatable(self, EmblemMenu); 
+    
+
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+
+	self.AmuletWindow=amuletWindow;
+
+	--关闭信息
+    --[[
+	local btnClose=self.transform:Find("BtnClose"):GetComponent(typeof(JButton));
+	btnClose.OnClick=(function()
+		self:Show(false);
+	end);
+    ]]
+
+	self.rect_Info=self.transform:Find("Info"):GetComponent(typeof(RectTransform));
+	
+	self.EmblemMenuCombine=EmblemMenuCombine:New(self.transform:Find("Combine").gameObject,self);
+	self.EmblemMenuEquip=EmblemMenuEquip:New(self.transform:Find("Equip").gameObject,self)
+	self.EmblemMenuRandHeraldry=EmblemMenuRandHeraldry:New(self.transform:Find("RandHeraldry").gameObject,self)
+	self.EmblemMenuInfo=EmblemMenuInfo:New(self.transform:Find("Info").gameObject,self)
+	self.EmblemMenuAllEmblem=EmblemMenuAllEmblem:New(self.transform:Find("AllEmblem").gameObject,self)
+
+    self.go_NoInfo=self.transform:Find("NoInfo").gameObject;
+
+    self.gameObject:SetActive(false);
+
+	self.selectedIdx=1;
+
+
+
+    return self;    --返回自身
+end
+
+function EmblemMenu:OnMessage()
+	self.EmblemMenuCombine:OnMessage();--宝石合成
+end
+
+function EmblemMenu:OffMessage()
+	self.EmblemMenuCombine:OffMessage();--宝石合成
+end
+
+function EmblemMenu:CheckIsHaveAmulet()
+	
+	local isHave=false;
+	for i =1,2 do
+		local itemData=BusinessManager.Instance:GetHeroEquipedAmulet(i);
+		if itemData~=nil then
+			isHave=true;
+		end
+	end
+	self.go_NoInfo:SetActive(not(isHave));
+end
+
+function EmblemMenu:Show(b)
+    self.gameObject:SetActive(b);
+    if b then
+        
+		self.EmblemMenuEquip:Show(true);--左侧已经装备的符文
+		self.EmblemMenuInfo:Show(true,self.selectedIdx);--中间的符文详细数值
+		self.EmblemMenuRandHeraldry:Show(true,self.selectedIdx);--重铸以及消耗
+		self:ChangeInfoPos(false);
+
+		self:CheckIsHaveAmulet();
+		--self.EmblemMenuCombine:Show(true);--宝石合成
+	else
+		self.EmblemMenuRandHeraldry:Show(false);--重铸以及消耗
+		self.EmblemMenuCombine:Show(false);--宝石合成
+    end
+end
+
+function EmblemMenu:ShowRandHeraldryAnim()
+	self.AmuletWindow:PlayEmblemMenuRandHeraldryAnim()
+end
+
+function EmblemMenu:ShowEmblemMenuCombineAnim()
+	self.AmuletWindow:PlayEmblemMenuCombineAnim()
+end
+
+function EmblemMenu:OnEmblemMenuItemClick(data)
+	self.selectedIdx=data.Idx;
+	
+	self.EmblemMenuInfo:Refesh(self.selectedIdx);--中间的符文详细数值
+	self.EmblemMenuRandHeraldry:Refesh(self.selectedIdx);--重铸以及消耗
+end
+
+function EmblemMenu:Refesh()
+	self.EmblemMenuEquip:Refesh();--左侧已经装备的符文
+	self.EmblemMenuCombine:Refesh();--宝石合成
+	self.EmblemMenuInfo:Refesh(self.selectedIdx);--中间的符文详细数值
+	self.EmblemMenuRandHeraldry:Refesh(self.selectedIdx);--重铸以及消耗
+
+	self:CheckIsHaveAmulet();
+end
+
+function EmblemMenu:ShowEmblemMenuCombine(slotIdx,slotIndex,isJumpFromDefAmulet)
+	self.EmblemMenuCombine:Show(true,self.selectedIdx,slotIdx,slotIndex,isJumpFromDefAmulet);--宝石合成
+end
+
+
+function EmblemMenu:ShowAllEmblem(baseID)
+	self.EmblemMenuAllEmblem:Show(true,baseID);
+end
+
+function EmblemMenu:ChangeInfoPos(isShowCombine)
+    if isShowCombine then
+        self.rect_Info.anchoredPosition=Vector2(254,0);
+    else
+		self.rect_Info.anchoredPosition=Vector2(612,0);
+    end
+end
+
+return EmblemMenu;

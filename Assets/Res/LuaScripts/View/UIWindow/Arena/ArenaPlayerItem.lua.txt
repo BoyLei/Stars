@@ -1,0 +1,105 @@
+--[[
+*文件名   :   ArenaPlayerItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2023/12/08 11:38:49"
+*创建人   :   "caojie"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+
+local ArenaPlayerItem = {}
+ArenaPlayerItem.__index = ArenaPlayerItem
+local ItemGrid=require("View/Item/ItemGrid");
+local UnchallengeBtnFunc=nil;
+
+function ArenaPlayerItem:New(_go) 
+    local self = {};    
+    setmetatable(self, ArenaPlayerItem); 
+    
+    self.gameObject=_go;
+    self.transform=_go.transform;
+
+    self.m_Top10Bg = self.transform:Find("Top10Bg").gameObject
+    self.m_NotTop10BgRoot = self.transform:Find("NotTop10BgRoot").gameObject
+    self.m_HigherBg = self.transform:Find("NotTop10BgRoot/HigherBg").gameObject
+    self.m_LowerBg = self.transform:Find("NotTop10BgRoot/LowerBg").gameObject
+    self.m_PlayerNameText = self.transform:Find("PlayerNameText"):GetComponent(typeof(Text))
+    self.m_PlayerLevelContentText = self.transform:Find("PlayerLevelContentText"):GetComponent(typeof(Text))
+    self.m_PlayerFightContentText = self.transform:Find("PlayerFightContentText"):GetComponent(typeof(Text))
+    self.m_PlayerOccupationBgImage = self.transform:Find("PlayerOccupationBgImage"):GetComponent(typeof(Image))
+    self.m_PlayerOccupationImage = self.transform:Find("PlayerOccupationBgImage/PlayerOccupationImage"):GetComponent(typeof(Image))
+    self.m_PlayerPictureImage = self.transform:Find("Mask/PlayerPictureImage"):GetComponent(typeof(Image))
+    self.m_PlayerRankContentText = self.transform:Find("PlayerRankContentText"):GetComponent(typeof(Text))
+    self.m_UnchallengeBtn = self.transform:Find("UnchallengeBtn"):GetComponent(typeof(JButton))
+    self.m_ChallengeBtn = self.transform:Find("ChallengeBtn"):GetComponent(typeof(JButton))
+
+    UnchallengeBtnFunc = function() self:OnClickUnchallengeBtn(); end;
+
+    return self;    --返回自身
+end
+
+function ArenaPlayerItem:OnClickUnchallengeBtn()
+    Util.ShowMessage(LanguageHelp:GetLanguageByKey("Local_Str_Auto_Tips_148"))
+end
+
+function ArenaPlayerItem:OnItemClick(ritem)
+	LuaModuleDispatcher:SendMessage(ModuleDef.ItemTipsModule, "OnOpenTips",{ ritem.BaseID,false ,0,ritem.transform,0});
+end
+
+function ArenaPlayerItem:SetItem(data)
+    self.m_Top10Bg:SetActive(data.IsTopTen)
+    self.m_NotTop10BgRoot:SetActive(not data.IsTopTen)
+    self.m_HigherBg:SetActive(data.IsHigherRank)
+    self.m_LowerBg:SetActive(not data.IsHigherRank)
+    self.m_PlayerNameText.text = data.PlayerName
+    self.m_PlayerLevelContentText.text = "Lv."..data.Level
+    self.m_PlayerFightContentText.text = GetTotalPowerRankLevel(data.FightPower) 
+
+    self.m_PlayerRankContentText.text = data.Rank
+    self.m_UnchallengeBtn.gameObject:SetActive(not data.CanChallenge)
+    self.m_ChallengeBtn.gameObject:SetActive(data.CanChallenge)
+    self:RenderJobImage(data.JobId, self.m_PlayerOccupationBgImage, self.m_PlayerOccupationImage,self.m_PlayerPictureImage)
+
+    self.m_ChallengeBtn.OnClick = function() self:ArenaChallengeTargetReq(data.RoleId, data.Rank) end
+end
+
+-- 开始挑战协议
+function ArenaPlayerItem:ArenaChallengeTargetReq(targetRoleId, targetRoleRankNum)
+    local message = CS.ProtoMsg.ArenaChallengeTargetReq()
+    message.TargetRoleId = targetRoleId
+    NetworkManager.Instance.gameSocket:SendRPCMsg(CS.SGF.Network.ServerType.ServerTypeLobby, message, false)
+end
+
+-- 职业图标&立绘显示
+function ArenaPlayerItem:RenderJobImage(jobId, imageBg, imgIcon, imageHead)
+    -- 职业类型icon设置
+    local jobshi = math.floor(jobId / 10)
+    if imageBg ~= nil then
+        local jobTypeBgName = "Icon_ArmBg" .. jobshi
+        ResourceHelper:LoadIconByAtlasAsync(imageBg, ResourceHelper.AtlasPathRole, jobTypeBgName, false)
+    end
+
+    if imgIcon ~= nil then
+        local jobTypeName = "Icon_Arm" .. jobshi
+        -- printError(jobTypeName)
+        ResourceHelper:LoadIconByAtlasAsync(imgIcon, ResourceHelper.AtlasPathRole, jobTypeName, false)
+    end
+
+    -- 职业立绘
+    if imageHead ~= nil then
+        local jobCfg = ConfigDataAccessor.Job[jobId]
+        if jobCfg ~= nil then
+            local avatarDataCell = ConfigDataAccessor.Avatar[jobCfg.AvatarID]
+            if avatarDataCell ~= nil then
+                local headCfg = ConfigDataAccessor.ModelHead[avatarDataCell.HeadID]
+                if headCfg ~= nil then
+                    -- ResourceHelper:LoadIconByAtlasAsync(imageHead, headCfg.HeadAtlasName, headCfg.MaxHead, false)
+                    ResourceHelper:LoadSpriteAtlasAsync(imageHead,  ResourceHelper.HeadAtlasPath .. headCfg.HalfDrawing , headCfg.HalfDrawing.."_Half" , false)
+                end
+            end
+        end
+    end
+
+end
+
+return ArenaPlayerItem;

@@ -1,0 +1,123 @@
+--[[
+*文件名   :   CurrencyMenuJumpItem
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/11/24 11:17:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local CurrencyMenuJumpItem = {}
+
+CurrencyMenuJumpItem.__index = CurrencyMenuJumpItem
+
+function CurrencyMenuJumpItem:New(_go)
+    local self = {}
+    setmetatable(self, CurrencyMenuJumpItem)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.go_bg = self.transform:Find("bg").gameObject
+
+    self.Num = self.transform:Find("num"):GetComponent(typeof(Text))
+    self.Name = self.transform:Find("name"):GetComponent(typeof(Text))
+
+    self.Icon = self.transform:Find("icon"):GetComponent(typeof(Image))
+
+    self.go_GoBtn = self.transform:Find("GoBtn").gameObject
+
+    self.tipsTr = self.Icon.transform
+
+    --点击前往
+    self.btnGoClick = self.go_GoBtn:GetComponent(typeof(JButton))
+    self.btnGoClick.OnClick = (function()
+        self:OnGoBtnClick()
+    end)
+
+    --点击事件
+    self.btnClick = self.transform:GetComponent(typeof(JButton))
+    self.btnClick.OnClick = (function()
+        if self.OnItemClick ~= nil then
+            self.OnItemClick(self)
+        end
+    end)
+
+    self:SetUse(false)
+
+    return self --返回自身
+end
+
+function CurrencyMenuJumpItem:OnGoBtnClick()
+    JumpBySystemJumpEnum(self.JumpEnum, nil, nil, 0)
+end
+
+--初始化Item
+function CurrencyMenuJumpItem:InitItem(OnItemClick)
+    self.OnItemClick = OnItemClick
+    self:SetUse(false)
+end
+
+function CurrencyMenuJumpItem:SetUse(b)
+    self.IsUsed = b
+
+    self.gameObject:SetActive(b)
+end
+
+--设置Item
+function CurrencyMenuJumpItem:SetItem(baseID, isShowBg)
+    self.BaseID = baseID
+
+    self.go_bg:SetActive(isShowBg)
+    self:RefeshItem()
+end
+
+function CurrencyMenuJumpItem:RefeshItem()
+    if self.BaseID == 0 then
+        self:SetUse(false)
+    else
+        self:SetUse(true)
+
+        local cfg = ConfigDataAccessor.Item[self.BaseID]
+
+        --道具图标
+        --LoadIcon(self.Icon,cfg.Icon);
+        ResourceHelper:LoadIconAsync(self.Icon, "", cfg.Icon, false)
+
+        --货币
+        if self.BaseID <= 4 or self.BaseID == 116 then
+            self.Num.text = "" .. BusinessManager.Instance:GetCurrencyNum(self.BaseID)
+        elseif self.BaseID == 112 then
+            --技能点
+            self.Num.text = "" .. GameManager.Instance:GetSkillPoint()
+        elseif self.BaseID == 113 then
+            --星灵碎晶（天赋点）
+            local HeroMD = GameManager.Instance.HeroMD
+            self.Num.text = "" .. HeroMD.TalentPoint
+        else
+            self.Num.text = "" .. BusinessManager.Instance:GetCurrencyNum(self.BaseID)
+        end
+
+        self.Name.text = cfg.Name
+
+        --付费钻
+        --判断是商店是否开启
+
+        --跳转
+        if #cfg.UseJump > 0 then
+            local cfgJump = ConfigDataAccessor.SystemJump[cfg.UseJump[1]]
+            self.JumpEnum = cfgJump.WayString
+
+            self.go_GoBtn:SetActive(true)
+        else
+            self.go_GoBtn:SetActive(false)
+        end
+
+        if BusinessManager.Instance:SystemIsOpen(CS.StarProjectDef.SystemOpenType.FirstTopUp) then
+            --self.go_Add:SetActive(self.BaseID==3);
+        else
+            --self.go_Add:SetActive(false);
+        end
+    end
+end
+
+return CurrencyMenuJumpItem

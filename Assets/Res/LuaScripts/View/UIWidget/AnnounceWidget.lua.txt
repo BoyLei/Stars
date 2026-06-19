@@ -1,0 +1,107 @@
+--[[
+*文件名   :   AnnounceWidget
+*内  容   :
+*说  明   :
+*创建日期 :   "2022/12/5 14:08:37"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+AnnounceWidget=class("AnnounceWidget",UIPanel)
+AnnounceWidget.Items={};
+
+
+
+local ObjectPool =require("Common/Helper/ObjectPool");
+
+
+function AnnounceWidget:Awake()
+    self.transform =self.prefab.transform;
+	self.gameObject =self.prefab;
+	
+    self.CanPlayNext=true;
+
+    self.PlayNum=0;
+    self.go_show=self.transform:Find("Tips").gameObject;
+    self.go_show:SetActive(false);
+
+    local _go=self.transform:Find("Tips/Mask/DropInfoListItem").gameObject;
+    self.messagePool=ObjectPool:New(2,"View/Item/AnnounceItem",_go,_go.transform.parent,
+    function ()
+        
+    end,
+    function()
+        
+    end);
+
+
+end
+
+
+
+function AnnounceWidget:BindModule(m)
+	print("AnnounceWidget:BindModule")
+	self.module=m;
+
+    MonoHelper.AddUpdateListener(function ()
+        self:PopCheck();
+    end);
+end
+
+function AnnounceWidget:PopCheck()
+    self:Pop();
+end
+
+function AnnounceWidget:Pop()
+
+    if self.CanPlayNext then
+        local data=self.module:PopFront();
+        if data~= nil then
+            local it=self.messagePool:Spawn();
+            self.transform:SetAsLastSibling();
+            self.CanPlayNext=false;
+            self.PlayNum=self.PlayNum+1;
+            self.go_show:SetActive(true);
+            it:SetItem(data,function ()
+                self.CanPlayNext=true;
+            end,function ()
+                self.PlayNum=self.PlayNum-1;
+
+                if self.PlayNum<=0 then
+                    self.go_show:SetActive(false);
+                end
+            end);
+
+        end
+    end
+
+end
+
+
+
+function AnnounceWidget:Start()
+
+end
+
+function AnnounceWidget:OnEnable()
+	
+end
+
+function AnnounceWidget:OnDisable()
+	
+end
+
+function AnnounceWidget:OnDestroy()
+
+end
+
+function AnnounceWidget:OnOpen(arg)
+
+end
+
+function AnnounceWidget:OnClose(arg)
+
+end
+
+
+
+return  AnnounceWidget

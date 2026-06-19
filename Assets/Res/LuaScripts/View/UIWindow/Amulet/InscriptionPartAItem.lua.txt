@@ -1,0 +1,110 @@
+--[[
+*文件名   :   InscriptionPartAItem
+*内  容   :   战技item
+*说  明   :
+*创建日期 :   "2022/11/21 11:15:49"
+*创建人   :   "huqinwen"
+*版权所有 :   游卡网络科技技术有限公司
+]]
+local InscriptionPartAItem = {}
+
+InscriptionPartAItem.__index = InscriptionPartAItem
+
+function InscriptionPartAItem:New(_go)
+    local self = {}
+    setmetatable(self, InscriptionPartAItem)
+
+    self.gameObject = _go
+    self.transform = _go.transform
+
+    self.skillIcon = self.transform:Find("Root/Icon"):GetComponent(typeof(Image))
+
+    self.ItemIcon1 = self.transform:Find("Root/ItemIcon1"):GetComponent(typeof(Image))
+    self.ItemIcon2 = self.transform:Find("Root/ItemIcon2"):GetComponent(typeof(Image))
+
+    self.title = self.transform:Find("Root/title"):GetComponent(typeof(Text))
+
+    self.num = self.transform:Find("Root/Num"):GetComponent(typeof(Text))
+
+    self.lv = self.transform:Find("Root/lv"):GetComponent(typeof(Text))
+
+    self.go_selected = self.transform:Find("Root/Selected").gameObject
+
+    --self:MakeSelected(false);
+
+    --点击自己
+    local btnClick = self.transform:GetComponent(typeof(JButton))
+    if btnClick ~= nil then
+        btnClick.OnClick = (function()
+            if self.OnClick ~= nil then
+                self.OnClick(self)
+            end
+        end)
+    end
+
+    return self --返回自身
+end
+
+function InscriptionPartAItem:InitItem(onClick)
+    self.OnClick = onClick
+end
+
+function InscriptionPartAItem:MakeSelected(b)
+    self.IsSelceted = b
+    self.go_selected:SetActive(b)
+
+    self.Data.IsSelected = self.IsSelceted
+end
+
+function InscriptionPartAItem:SetItem(data)
+    if data ~= nil then
+        self.Data = data
+
+        --显示图标
+        local WarSkillId = data.WarSkillId --技能id
+
+        if WarSkillId > 0 then
+            local Points = data.Points
+            local lv = data.Lv
+
+            if lv == 0 then
+                lv = 1
+                self.lv.text = LanguageHelp:GetLanguageByKey("Local_Str_nonactivated")
+            else
+                --self.lv.text=data.Lv .. "级"
+                self.lv.text = StringFormat(LanguageHelp:GetLanguageByKey("Local_Str_LvLimit3"), {data.Lv})
+            end
+
+            self.skillIcon.gameObject:SetActive(true)
+            local pd = ConfigDataAccessor.GetPassiveDesc(WarSkillId, lv)
+            ResourceHelper:LoadIconByAtlasAsync(self.skillIcon, ResourceHelper.AtlasPathEtchSkill, pd.IconPath, false)
+
+            self.title.text = pd.SkillName
+
+            self.num.text = Points
+
+            self.WarSkillId = WarSkillId
+            self.SkillName = self.title.text
+
+            self.ItemIcon1.gameObject:SetActive(data.EquipAmuletID > 0)
+            if data.EquipAmuletID > 0 then
+                local cfg = ConfigDataAccessor.Item[data.EquipAmuletID]
+                if cfg ~= nil then
+                    ResourceHelper:LoadIconAsync(self.ItemIcon1, "", cfg.Icon, false)
+                end
+            end
+
+            self.ItemIcon2.gameObject:SetActive(data.IsEquip)
+            if data.IsEquip then
+                local cfg = ConfigDataAccessor.Etch[data.EtchId]
+                if cfg ~= nil then
+                    ResourceHelper:LoadIconAsync(self.ItemIcon2, ResourceHelper.AtlasPathEtchSkill, cfg.EtchIcon, false)
+                end
+            end
+        end
+
+        self:MakeSelected(self.Data.IsSelected)
+    end
+end
+
+return InscriptionPartAItem
