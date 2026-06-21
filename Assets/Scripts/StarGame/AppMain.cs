@@ -1,4 +1,4 @@
-﻿using ClientNpc;
+using ClientNpc;
 using DG.Tweening;
 using SGF.Module.Framework;
 using SGF.Network;
@@ -56,6 +56,18 @@ public enum ModelQualityLevel
     Low = 0,//低模
     Middle = 1,//仅自己高模
     High = 2,
+}
+
+/// <summary>
+/// TODO: DELETE
+/// 临时加的 防止代码报错
+/// </summary>
+public static class CustomShadowPerformanceAdepter
+{
+    public static void SetDynamicLayer(bool isDynamic)
+    {
+
+    }
 }
 public class AppMain : MonoSingletonEx<AppMain>
 {
@@ -1085,7 +1097,7 @@ public class AppMain : MonoSingletonEx<AppMain>
         ModuleManager.Instance.CreateModule(ModuleDef.Name.BeginnerTargetModule); //新手目标
         ModuleManager.Instance.CreateModule(ModuleDef.Name.SkillUnlockTipsModule);    //技能解锁表现
         ModuleManager.Instance.CreateModule(ModuleDef.Name.MindRepairModule);    //心灵修复小游戏
-  //      ModuleManager.Instance.CreateModule(ModuleDef.Name.DownLoadModule);//dlc下载模块
+                                                                                 //      ModuleManager.Instance.CreateModule(ModuleDef.Name.DownLoadModule);//dlc下载模块
     }
     public void TravelToScene(E_SceneType e_SceneType, bool isFirst = false)
     {

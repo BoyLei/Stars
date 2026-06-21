@@ -1,0 +1,7 @@
+#ifndef SGAME_CARTOONCHARACTER_FROZENVFX
+#define SGAME_CARTOONCHARACTER_FROZENVFX
+//SGAME 卡通角色冰冻特效相关实现代码
+
+
+
+#endif
