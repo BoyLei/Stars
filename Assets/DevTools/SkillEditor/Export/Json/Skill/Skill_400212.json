@@ -1,0 +1,325 @@
+{
+    "config": {
+        "ID": 400212,
+        "Priority": 1000,
+        "RuntimePriority": 0,
+        "SkillDesc": "牧夜.技能二.天赋一.强化",
+        "SkillTag": 2,
+        "SkillTurnAroundTime": 100,
+        "GlobalShows": [],
+        "CD": 10000,
+        "SkillCDKey": 400201,
+        "IsNotShowCD": false,
+        "ButtonCD": 500,
+        "Consume": [],
+        "IsHidden": false,
+        "Conditions": [
+            {
+                "ConditionParams": {
+                    "ConditionType": 2,
+                    "Cond_Attr": {
+                        "ID": 3453,
+                        "Min": 3,
+                        "Max": 10
+                    }
+                }
+            },
+            {
+                "ConditionParams": {
+                    "ConditionType": 6,
+                    "Cond_TargetFaction": {
+                        "TargetSelect": 2
+                    }
+                }
+            }
+        ],
+        "MinCastDistance": 0,
+        "AICastDistance": 550,
+        "CastMethod": 2,
+        "IsCDCloseTouch": true,
+        "SkillInputType": 2,
+        "DynamicRangeType": 1,
+        "WheelCfg": {
+            "Shape": {
+                "ShapeType": 1,
+                "Round": {
+                    "Radius": 300
+                }
+            }
+        },
+        "WheelRange": {
+            "MinRadius": 0,
+            "MaxRadius": 600,
+            "Angle": 0
+        },
+        "IsAutoTurnToTarget": true,
+        "SkillLabels": [],
+        "skillIconDesc": "范围",
+        "SkillIconDesc_Key": "SkillIconDesc_400212",
+        "SkillIconDesc": "范围"
+    },
+    "Normals": [
+        {
+            "Start": 0,
+            "End": 1666,
+            "Duration": 1666,
+            "StageID": 1001,
+            "StageType": 0,
+            "StageNormal": {
+                "Active": true,
+                "LoopCount": 1,
+                "IsEntryCD": true,
+                "States": [
+                    2
+                ],
+                "Interrupt": 1,
+                "BattleProp": [],
+                "BattleGroupID": 0,
+                "IsMsgClient": false
+            },
+            "Effects": [
+                {
+                    "data": [
+                        {
+                            "EffectType": 34,
+                            "BaseEffect": {
+                                "Spectral": 2,
+                                "SpectralChangeType": 3,
+                                "ChangeValue": 0,
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 1001,
+                            "Desc": "",
+                            "Next": [
+                                1002
+                            ],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [],
+                            "OutputKeys": []
+                        },
+                        {
+                            "EffectType": 31,
+                            "BaseEffect": {
+                                "EffectTargetArray": {
+                                    "Result": "Builder"
+                                },
+                                "BuffID": 4099012,
+                                "BUFFTime": 0,
+                                "Pile": 1,
+                                "BuffCopyData": [],
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 1002,
+                            "Desc": "",
+                            "Next": [],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "Builder"
+                            ],
+                            "OutputKeys": []
+                        }
+                    ]
+                },
+                {
+                    "data": [
+                        {
+                            "EffectType": 41,
+                            "BaseEffect": {
+                                "CenterPosArray": {
+                                    "TargetKey": {
+                                        "Result": ""
+                                    },
+                                    "TransTargetIsHit": "All",
+                                    "PosKey": {
+                                        "Result": "InputCoord"
+                                    },
+                                    "Angle": 0,
+                                    "Distance": 0
+                                },
+                                "TowardArray": {
+                                    "TargetKey": {
+                                        "Result": "Builder"
+                                    },
+                                    "TransTargetIsHit": "All",
+                                    "TowardKey": {
+                                        "Result": ""
+                                    },
+                                    "TowardOffset": 0
+                                },
+                                "BulletID": 4002121,
+                                "BulletCopyData": [],
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "CreateBullet"
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 2001,
+                            "Desc": "",
+                            "Next": [],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "InputCoord",
+                                "Builder"
+                            ],
+                            "OutputKeys": [
+                                "CreateBullet"
+                            ]
+                        }
+                    ]
+                }
+            ],
+            "Fxs": [
+                {
+                    "EffectName": "Fx_MuY_F_Skill10_faqiu01",
+                    "EffectPath": "Fx_MuY_F_Skill10_faqiu01",
+                    "FxDuration": 1500,
+                    "IsCameraImpulse": false,
+                    "IsCamaeraOffset": false,
+                    "ControlActivation": true,
+                    "postPlayback": 2,
+                    "ControlPlayableDirectors": true,
+                    "ControlParticleSystems": true,
+                    "ControlTimeControl": true,
+                    "ControlChildren": false,
+                    "RandomSpeed": 6823,
+                    "config": {
+                        "HangPoint": "WeaponHurt_D_R",
+                        "IsAll": true,
+                        "IsSyncBreak": true,
+                        "IsChangeCancel": false,
+                        "IsFaceToBuilder": false,
+                        "IsFaceToCamera": false,
+                        "IsFollowMove": true,
+                        "IsFollowRot": true,
+                        "IsFollowLoop": false,
+                        "IsFollowOwnerHide": false,
+                        "IsFollowOwnerScale": 0,
+                        "IsLoop": false,
+                        "XOffset": 0,
+                        "YOffset": 0,
+                        "ZOffset": 0,
+                        "XOffsetTowards": 0,
+                        "YOffsetTowards": 0,
+                        "ZOffsetTowards": 0,
+                        "XScale": 100,
+                        "YScale": 100,
+                        "ZScale": 100
+                    },
+                    "Start": 0,
+                    "End": 1700,
+                    "Duration": 1700,
+                    "ClipIn": 0,
+                    "clipCaps": 0,
+                    "Index": 1,
+                    "SpeedMultiplier": 1.0
+                },
+                {
+                    "EffectName": "Fx_MuY_F_Skill10_TF0_01",
+                    "EffectPath": "Fx_MuY_F_Skill10_TF0_01",
+                    "FxDuration": 2032,
+                    "IsCameraImpulse": false,
+                    "IsCamaeraOffset": false,
+                    "ControlActivation": true,
+                    "postPlayback": 2,
+                    "ControlPlayableDirectors": true,
+                    "ControlParticleSystems": true,
+                    "ControlTimeControl": true,
+                    "ControlChildren": false,
+                    "RandomSpeed": 8450,
+                    "config": {
+                        "HangPoint": "Root",
+                        "IsAll": true,
+                        "IsSyncBreak": true,
+                        "IsChangeCancel": false,
+                        "IsFaceToBuilder": false,
+                        "IsFaceToCamera": false,
+                        "IsFollowMove": true,
+                        "IsFollowRot": false,
+                        "IsFollowLoop": false,
+                        "IsFollowOwnerHide": false,
+                        "IsFollowOwnerScale": 0,
+                        "IsLoop": false,
+                        "XOffset": 0,
+                        "YOffset": 0,
+                        "ZOffset": 0,
+                        "XOffsetTowards": 0,
+                        "YOffsetTowards": 0,
+                        "ZOffsetTowards": 0,
+                        "XScale": 100,
+                        "YScale": 100,
+                        "ZScale": 100
+                    },
+                    "Start": 0,
+                    "End": 5000,
+                    "Duration": 5000,
+                    "ClipIn": 0,
+                    "clipCaps": 0,
+                    "Index": 2,
+                    "SpeedMultiplier": 1.0
+                }
+            ],
+            "Sounds": [
+                {
+                    "EventName": "MuY_F_Skill_02_0_A",
+                    "SoundEventID": 3906323183,
+                    "Start": 0,
+                    "End": 0,
+                    "Duration": 0,
+                    "ClipIn": 0,
+                    "clipCaps": 0,
+                    "Index": 3,
+                    "SpeedMultiplier": 1.0
+                }
+            ],
+            "Cameras": [],
+            "ShakeCameras": [],
+            "Animations": [
+                {
+                    "ClipName": "Skill10_01",
+                    "ClipPath": "Skill10_01",
+                    "FootIK": true,
+                    "Loop": 0,
+                    "AnimatorCustomData": {
+                        "AnimatorName": "",
+                        "FadeDuration": 100,
+                        "AnimatorSp": []
+                    },
+                    "Start": 0,
+                    "End": 1700,
+                    "Duration": 1700,
+                    "ClipIn": 0,
+                    "clipCaps": 0,
+                    "Index": 0,
+                    "SpeedMultiplier": 1.0
+                }
+            ]
+        }
+    ],
+    "Others": [],
+    "Bullets": []
+}

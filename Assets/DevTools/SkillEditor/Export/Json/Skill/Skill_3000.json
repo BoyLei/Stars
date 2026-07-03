@@ -1,0 +1,340 @@
+{
+    "config": {
+        "ID": 3000,
+        "Priority": 0,
+        "RuntimePriority": 0,
+        "SkillDesc": "枪舞.普攻.无天赋",
+        "SkillTag": 1,
+        "SkillTurnAroundTime": 100,
+        "GlobalShows": [],
+        "CD": 650,
+        "SkillCDKey": 300001,
+        "IsNotShowCD": true,
+        "ButtonCD": 100,
+        "Consume": [],
+        "IsHidden": false,
+        "Conditions": [],
+        "MinCastDistance": 0,
+        "AICastDistance": 700,
+        "CastMethod": 0,
+        "IsCDCloseTouch": true,
+        "SkillInputType": 1,
+        "DynamicRangeType": 1,
+        "WheelCfg": {
+            "Shape": {
+                "ShapeType": 0
+            }
+        },
+        "WheelRange": {
+            "MinRadius": 0,
+            "MaxRadius": 800,
+            "Angle": 0
+        },
+        "IsAutoTurnToTarget": true,
+        "SkillLabels": [],
+        "skillIconDesc": "",
+        "SkillIconDesc_Key": "",
+        "SkillIconDesc": ""
+    },
+    "Normals": [
+        {
+            "Start": 0,
+            "End": 512,
+            "Duration": 512,
+            "StageID": 1002,
+            "StageType": 0,
+            "StageNormal": {
+                "Active": true,
+                "LoopCount": 1,
+                "IsEntryCD": true,
+                "States": [
+                    1,
+                    2
+                ],
+                "Interrupt": 2,
+                "BattleProp": [],
+                "BattleGroupID": 0,
+                "IsMsgClient": false
+            },
+            "Effects": [
+                {
+                    "data": [
+                        {
+                            "EffectType": 110,
+                            "BaseEffect": {
+                                "CheckKey": {
+                                    "Result": "InputTarget"
+                                },
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "IsEmpty"
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 1001,
+                            "Desc": "",
+                            "Next": [
+                                1002,
+                                1003
+                            ],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 300,
+                            "EffectEndTime": 300,
+                            "ServerExecuteTime": 300,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "InputTarget"
+                            ],
+                            "OutputKeys": [
+                                "IsEmpty"
+                            ]
+                        },
+                        {
+                            "EffectType": 41,
+                            "BaseEffect": {
+                                "CenterPosArray": {
+                                    "TargetKey": {
+                                        "Result": "Builder"
+                                    },
+                                    "TransTargetIsHit": "All",
+                                    "PosKey": {
+                                        "Result": ""
+                                    },
+                                    "Angle": -3,
+                                    "Distance": 108
+                                },
+                                "TowardArray": {
+                                    "TargetKey": {
+                                        "Result": "Builder"
+                                    },
+                                    "TransTargetIsHit": "All",
+                                    "TowardKey": {
+                                        "Result": ""
+                                    },
+                                    "TowardOffset": 0
+                                },
+                                "BulletID": 30001,
+                                "BulletCopyData": [
+                                    {
+                                        "FromKey": {
+                                            "Result": "InputTarget"
+                                        },
+                                        "ToKey": {
+                                            "SaveSkill": true,
+                                            "Result": "BulletTarget"
+                                        }
+                                    }
+                                ],
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "CreateBullet"
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 1002,
+                            "Desc": "",
+                            "Next": [],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "Builder"
+                            ],
+                            "OutputKeys": [
+                                "CreateBullet"
+                            ]
+                        },
+                        {
+                            "EffectType": 41,
+                            "BaseEffect": {
+                                "CenterPosArray": {
+                                    "TargetKey": {
+                                        "Result": "Builder"
+                                    },
+                                    "TransTargetIsHit": "All",
+                                    "PosKey": {
+                                        "Result": ""
+                                    },
+                                    "Angle": -3,
+                                    "Distance": 108
+                                },
+                                "TowardArray": {
+                                    "TargetKey": {
+                                        "Result": "Builder"
+                                    },
+                                    "TransTargetIsHit": "All",
+                                    "TowardKey": {
+                                        "Result": ""
+                                    },
+                                    "TowardOffset": 0
+                                },
+                                "BulletID": 30002,
+                                "BulletCopyData": [],
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "CreateBullet2"
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 1003,
+                            "Desc": "",
+                            "Next": [],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "Builder"
+                            ],
+                            "OutputKeys": [
+                                "CreateBullet2"
+                            ]
+                        }
+                    ]
+                }
+            ],
+            "Fxs": [
+                {
+                    "EffectName": "FX_QP_weapon_01",
+                    "EffectPath": "FX_QP_weapon_01",
+                    "FxDuration": 1000,
+                    "IsCameraImpulse": false,
+                    "IsCamaeraOffset": false,
+                    "ControlActivation": true,
+                    "postPlayback": 2,
+                    "ControlPlayableDirectors": true,
+                    "ControlParticleSystems": true,
+                    "ControlTimeControl": true,
+                    "ControlChildren": false,
+                    "RandomSpeed": 3778,
+                    "config": {
+                        "HangPoint": "WeaponHurt_D_R",
+                        "IsAll": true,
+                        "IsSyncBreak": true,
+                        "IsChangeCancel": false,
+                        "IsFaceToBuilder": false,
+                        "IsFaceToCamera": false,
+                        "IsFollowMove": true,
+                        "IsFollowRot": true,
+                        "IsFollowLoop": false,
+                        "IsFollowOwnerHide": false,
+                        "IsFollowOwnerScale": 0,
+                        "IsLoop": false,
+                        "XOffset": 0,
+                        "YOffset": 0,
+                        "ZOffset": 0,
+                        "XOffsetTowards": 0,
+                        "YOffsetTowards": 0,
+                        "ZOffsetTowards": 0,
+                        "XScale": 100,
+                        "YScale": 100,
+                        "ZScale": 100
+                    },
+                    "Start": 12,
+                    "End": 1012,
+                    "Duration": 1000,
+                    "ClipIn": 0,
+                    "clipCaps": 0,
+                    "Index": 1,
+                    "SpeedMultiplier": 1.0
+                },
+                {
+                    "EffectName": "FX_QP_Atk01_OP",
+                    "EffectPath": "FX_QP_Atk01_OP",
+                    "FxDuration": 600,
+                    "IsCameraImpulse": false,
+                    "IsCamaeraOffset": false,
+                    "ControlActivation": true,
+                    "postPlayback": 2,
+                    "ControlPlayableDirectors": true,
+                    "ControlParticleSystems": true,
+                    "ControlTimeControl": true,
+                    "ControlChildren": false,
+                    "RandomSpeed": 4072,
+                    "config": {
+                        "HangPoint": "WeaponHurt_D_R",
+                        "IsAll": true,
+                        "IsSyncBreak": true,
+                        "IsChangeCancel": false,
+                        "IsFaceToBuilder": false,
+                        "IsFaceToCamera": false,
+                        "IsFollowMove": false,
+                        "IsFollowRot": false,
+                        "IsFollowLoop": false,
+                        "IsFollowOwnerHide": false,
+                        "IsFollowOwnerScale": 0,
+                        "IsLoop": false,
+                        "XOffset": 0,
+                        "YOffset": 0,
+                        "ZOffset": 0,
+                        "XOffsetTowards": 0,
+                        "YOffsetTowards": 0,
+                        "ZOffsetTowards": 0,
+                        "XScale": 100,
+                        "YScale": 100,
+                        "ZScale": 100
+                    },
+                    "Start": 300,
+                    "End": 666,
+                    "Duration": 366,
+                    "ClipIn": 0,
+                    "clipCaps": 0,
+                    "Index": 2,
+                    "SpeedMultiplier": 1.0
+                }
+            ],
+            "Sounds": [
+                {
+                    "EventName": "QiangP_F_Attack_01_A",
+                    "SoundEventID": 1434100395,
+                    "Start": 300,
+                    "End": 300,
+                    "Duration": 0,
+                    "ClipIn": 0,
+                    "clipCaps": 0,
+                    "Index": 3,
+                    "SpeedMultiplier": 1.0
+                }
+            ],
+            "Cameras": [],
+            "ShakeCameras": [],
+            "Animations": [
+                {
+                    "ClipName": "Attack_01",
+                    "ClipPath": "Attack_01",
+                    "FootIK": true,
+                    "Loop": 0,
+                    "AnimatorCustomData": {
+                        "AnimatorName": "",
+                        "FadeDuration": 100,
+                        "AnimatorSp": []
+                    },
+                    "Start": 0,
+                    "End": 666,
+                    "Duration": 666,
+                    "ClipIn": 0,
+                    "clipCaps": 0,
+                    "Index": 0,
+                    "SpeedMultiplier": 1.0
+                }
+            ]
+        }
+    ],
+    "Others": [],
+    "Bullets": []
+}

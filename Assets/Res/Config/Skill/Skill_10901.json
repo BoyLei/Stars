@@ -1,0 +1,439 @@
+{
+    "config": {
+        "ID": 10901,
+        "Priority": 0,
+        "RuntimePriority": 0,
+        "SkillDesc": "食指.普攻",
+        "SkillTag": 2,
+        "SkillTurnAroundTime": 200,
+        "GlobalShows": [],
+        "CD": 3500,
+        "SkillCDKey": 10901,
+        "IsNotShowCD": false,
+        "ButtonCD": 0,
+        "Consume": [],
+        "IsHidden": false,
+        "Conditions": [],
+        "MinCastDistance": 0,
+        "AICastDistance": 250,
+        "CastMethod": 0,
+        "IsCDCloseTouch": true,
+        "SkillInputType": 1,
+        "DynamicRangeType": 1,
+        "WheelCfg": {
+            "Shape": {
+                "ShapeType": 0
+            }
+        },
+        "WheelRange": {
+            "MinRadius": 0,
+            "MaxRadius": 350,
+            "Angle": 0
+        },
+        "IsAutoTurnToTarget": true,
+        "SkillLabels": [],
+        "skillIconDesc": "",
+        "SkillIconDesc_Key": "",
+        "SkillIconDesc": ""
+    },
+    "Normals": [
+        {
+            "Start": 0,
+            "End": 2100,
+            "Duration": 2100,
+            "StageID": 1001,
+            "StageType": 0,
+            "StageNormal": {
+                "Active": true,
+                "LoopCount": 1,
+                "IsEntryCD": true,
+                "States": [
+                    1,
+                    2
+                ],
+                "Interrupt": 1,
+                "BattleProp": [],
+                "BattleGroupID": 0,
+                "IsMsgClient": false
+            },
+            "Effects": [
+                {
+                    "data": [
+                        {
+                            "EffectType": 2,
+                            "BaseEffect": {
+                                "CenterPosArray": {
+                                    "TargetKey": {
+                                        "Result": "Builder"
+                                    },
+                                    "TransTargetIsHit": "All",
+                                    "PosKey": {
+                                        "Result": ""
+                                    },
+                                    "Angle": 0,
+                                    "Distance": 250
+                                },
+                                "TowardArray": {
+                                    "TargetKey": {
+                                        "Result": "Builder"
+                                    },
+                                    "TransTargetIsHit": "All",
+                                    "TowardKey": {
+                                        "Result": ""
+                                    },
+                                    "TowardOffset": 0
+                                },
+                                "Shape": {
+                                    "ShapeType": 5,
+                                    "Rect": {
+                                        "Length": 500,
+                                        "Width": 200
+                                    }
+                                },
+                                "CollisionTarget": 2,
+                                "MaxTar": 10,
+                                "IsSettleHit": false,
+                                "IsNotCheckTargetRadius": false,
+                                "IngoreForbidSelect": false,
+                                "IngoreForbidDead": false,
+                                "IsForewarn": false,
+                                "IsPosWithTarget": false,
+                                "IsRotWithTarget": false,
+                                "ForewarnTime": 0,
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "Enemy"
+                                },
+                                "IsNoDuplicationKey": {
+                                    "SaveSkill": true,
+                                    "Result": ""
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 1001,
+                            "Desc": "",
+                            "Next": [
+                                1002
+                            ],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 550,
+                            "EffectEndTime": 550,
+                            "ServerExecuteTime": 550,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "Builder"
+                            ],
+                            "OutputKeys": [
+                                "Enemy"
+                            ]
+                        },
+                        {
+                            "EffectType": 3,
+                            "BaseEffect": {
+                                "Tar1": {
+                                    "Result": "InputTarget"
+                                },
+                                "TransTargetIsHit1": "All",
+                                "Tar2": {
+                                    "Result": "Enemy"
+                                },
+                                "TransTargetIsHit2": "All",
+                                "Operation": 3,
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "AllEnemy"
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 1002,
+                            "Desc": "",
+                            "Next": [
+                                1003
+                            ],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "InputTarget",
+                                "Enemy"
+                            ],
+                            "OutputKeys": [
+                                "AllEnemy"
+                            ]
+                        },
+                        {
+                            "EffectType": 111,
+                            "BaseEffect": {
+                                "InputKey": {
+                                    "Result": "AllEnemy"
+                                },
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "RealEnemy"
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 1003,
+                            "Desc": "",
+                            "Next": [
+                                1004
+                            ],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "AllEnemy"
+                            ],
+                            "OutputKeys": [
+                                "RealEnemy"
+                            ]
+                        },
+                        {
+                            "EffectType": 22,
+                            "BaseEffect": {
+                                "EffectTargetArray": {
+                                    "Result": "RealEnemy"
+                                },
+                                "GroupID": 1090101,
+                                "GroupIDKey": [],
+                                "FlutteringWordsID": 0,
+                                "isActor": true,
+                                "HitEffect": [
+                                    {
+                                        "PrefabPathInEditor": "Assets/Res/Effects/Roles/Monster/PersonMonster/JieLZ_SZ_Boss/Cm/Fx_JieLZ_SZ_Boss_Hit_common.prefab",
+                                        "HangPoint": "Root",
+                                        "IsFaceToBuilder": false,
+                                        "IsFollowMove": false,
+                                        "IsFollowRot": false,
+                                        "IsFollowOwnerHide": false,
+                                        "IsFollowOwnerScale": 0,
+                                        "IsLoop": false,
+                                        "XOffset": 0,
+                                        "YOffset": 0,
+                                        "ZOffset": 0,
+                                        "XOffsetTowards": 0,
+                                        "YOffsetTowards": 0,
+                                        "ZOffsetTowards": 0,
+                                        "fxJson": {
+                                            "EffectName": "Fx_JieLZ_SZ_Boss_Hit_common",
+                                            "EffectPath": "Fx_JieLZ_SZ_Boss_Hit_common",
+                                            "FxDuration": 0,
+                                            "IsCameraImpulse": false,
+                                            "IsCamaeraOffset": false,
+                                            "ControlActivation": false,
+                                            "postPlayback": 0,
+                                            "ControlPlayableDirectors": false,
+                                            "ControlParticleSystems": false,
+                                            "ControlTimeControl": false,
+                                            "ControlChildren": false,
+                                            "RandomSpeed": 0,
+                                            "config": {
+                                                "HangPoint": "Root",
+                                                "IsAll": true,
+                                                "IsSyncBreak": true,
+                                                "IsChangeCancel": false,
+                                                "IsFaceToBuilder": false,
+                                                "IsFaceToCamera": false,
+                                                "IsFollowMove": false,
+                                                "IsFollowRot": false,
+                                                "IsFollowLoop": false,
+                                                "IsFollowOwnerHide": false,
+                                                "IsFollowOwnerScale": 0,
+                                                "IsLoop": false,
+                                                "XOffset": 0,
+                                                "YOffset": 0,
+                                                "ZOffset": 0,
+                                                "XOffsetTowards": 0,
+                                                "YOffsetTowards": 0,
+                                                "ZOffsetTowards": 0,
+                                                "XScale": 100,
+                                                "YScale": 100,
+                                                "ZScale": 100
+                                            },
+                                            "Start": 0,
+                                            "End": 0,
+                                            "Duration": 0,
+                                            "ClipIn": 0,
+                                            "clipCaps": 0,
+                                            "Index": 0,
+                                            "SpeedMultiplier": 1.0
+                                        }
+                                    }
+                                ],
+                                "IsSpecial": false,
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "HitEnemy"
+                                },
+                                "EventName": "",
+                                "EventID": 0,
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 1004,
+                            "Desc": "",
+                            "Next": [],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "RealEnemy"
+                            ],
+                            "OutputKeys": [
+                                "HitEnemy"
+                            ]
+                        }
+                    ]
+                }
+            ],
+            "Fxs": [
+                {
+                    "EffectName": "Fx_JieLZ_SZ_Boss_Attack_01_ci",
+                    "EffectPath": "Fx_JieLZ_SZ_Boss_Attack_01_ci",
+                    "FxDuration": 750,
+                    "IsCameraImpulse": false,
+                    "IsCamaeraOffset": false,
+                    "ControlActivation": true,
+                    "postPlayback": 2,
+                    "ControlPlayableDirectors": true,
+                    "ControlParticleSystems": true,
+                    "ControlTimeControl": true,
+                    "ControlChildren": false,
+                    "RandomSpeed": 5067,
+                    "config": {
+                        "HangPoint": "Root",
+                        "IsAll": true,
+                        "IsSyncBreak": true,
+                        "IsChangeCancel": false,
+                        "IsFaceToBuilder": false,
+                        "IsFaceToCamera": false,
+                        "IsFollowMove": false,
+                        "IsFollowRot": false,
+                        "IsFollowLoop": false,
+                        "IsFollowOwnerHide": false,
+                        "IsFollowOwnerScale": 0,
+                        "IsLoop": false,
+                        "XOffset": 0,
+                        "YOffset": 0,
+                        "ZOffset": 0,
+                        "XOffsetTowards": 0,
+                        "YOffsetTowards": 0,
+                        "ZOffsetTowards": 0,
+                        "XScale": 100,
+                        "YScale": 100,
+                        "ZScale": 100
+                    },
+                    "Start": 550,
+                    "End": 2100,
+                    "Duration": 1550,
+                    "ClipIn": 0,
+                    "clipCaps": 0,
+                    "Index": 1,
+                    "SpeedMultiplier": 1.0
+                },
+                {
+                    "EffectName": "Fx_JieLZ_SZ_Boss_Attack_01_xuli",
+                    "EffectPath": "Fx_JieLZ_SZ_Boss_Attack_01_xuli",
+                    "FxDuration": 1100,
+                    "IsCameraImpulse": false,
+                    "IsCamaeraOffset": false,
+                    "ControlActivation": true,
+                    "postPlayback": 2,
+                    "ControlPlayableDirectors": true,
+                    "ControlParticleSystems": true,
+                    "ControlTimeControl": true,
+                    "ControlChildren": false,
+                    "RandomSpeed": 1971,
+                    "config": {
+                        "HangPoint": "WeaponHurt_D_R",
+                        "IsAll": true,
+                        "IsSyncBreak": true,
+                        "IsChangeCancel": false,
+                        "IsFaceToBuilder": false,
+                        "IsFaceToCamera": false,
+                        "IsFollowMove": true,
+                        "IsFollowRot": true,
+                        "IsFollowLoop": false,
+                        "IsFollowOwnerHide": false,
+                        "IsFollowOwnerScale": 0,
+                        "IsLoop": false,
+                        "XOffset": 0,
+                        "YOffset": 0,
+                        "ZOffset": 0,
+                        "XOffsetTowards": 0,
+                        "YOffsetTowards": 0,
+                        "ZOffsetTowards": 0,
+                        "XScale": 100,
+                        "YScale": 100,
+                        "ZScale": 100
+                    },
+                    "Start": 0,
+                    "End": 2100,
+                    "Duration": 2100,
+                    "ClipIn": 0,
+                    "clipCaps": 0,
+                    "Index": 2,
+                    "SpeedMultiplier": 1.0
+                }
+            ],
+            "Sounds": [
+                {
+                    "EventName": "Enemy_LangR_Attack_01",
+                    "SoundEventID": 1070171795,
+                    "Start": 0,
+                    "End": 0,
+                    "Duration": 0,
+                    "ClipIn": 0,
+                    "clipCaps": 0,
+                    "Index": 3,
+                    "SpeedMultiplier": 1.0
+                }
+            ],
+            "Cameras": [],
+            "ShakeCameras": [],
+            "Animations": [
+                {
+                    "ClipName": "Attack_01",
+                    "ClipPath": "Attack_01",
+                    "FootIK": true,
+                    "Loop": 0,
+                    "AnimatorCustomData": {
+                        "AnimatorName": "",
+                        "FadeDuration": 100,
+                        "AnimatorSp": []
+                    },
+                    "Start": 0,
+                    "End": 2100,
+                    "Duration": 2100,
+                    "ClipIn": 0,
+                    "clipCaps": 0,
+                    "Index": 0,
+                    "SpeedMultiplier": 1.0
+                }
+            ]
+        }
+    ],
+    "Others": [],
+    "Bullets": []
+}

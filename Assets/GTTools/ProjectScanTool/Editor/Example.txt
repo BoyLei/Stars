@@ -1,0 +1,45 @@
+//在ProjectScanDef.cs中添加新的模块类型 (如果需要添加新模块的话，否则直接添加检查项即可)
+//扫描类型唯一标识
+public enum EnumScanModes
+{
+	通用设置 = 0,
+	基本资源检查,
+	贴图资源检查,
+	音频资源检查,
+	动效资源检查,
+	场景检查,
+	eExampleCheck
+}
+
+//自定义某个检测项
+namespace CasualEngine.ProjectScanTool
+{
+    [Serializable]
+    public class CustomExampleCheckDetail : CustomCheckDetail
+    {
+        //添加检查细节参数
+    }
+
+    [Serializable]
+    //注册特性，并绑定对应模块类型
+    [CustomScanType(EnumScanModes.eExampleCheck)]
+    public class CustomExampleCheck : CustomRule
+    {
+        void OnEnable()
+        {
+            ruleTitle = "自定义规则";
+            ruleDescription = "[说 明]: 自定义规则。";
+        }
+        
+        //定义检查规则列表
+        [ListDrawerSettings(Expanded = true), LabelText("检查规则")]
+        public List<CustomExampleCheckDetail> checkDetailList = new List<CustomExampleCheckDetail>() { new CustomExampleCheckDetail() };
+
+        //注册扫描的执行逻辑
+        [CustomScanAction]
+        public void Do_CustomExampleCheck()
+        {
+            //添加逻辑
+        }
+    }
+}

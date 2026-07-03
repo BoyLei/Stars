@@ -1,0 +1,315 @@
+{
+    "name": "Item",
+    "startIndex": 11000,
+    "isgenerateTypeIndexMap": false,
+    "isgeneratePropIndexMap": false,
+    "BaseType": "PlayerSubBase",
+    "typemap": {
+        "int8": 1,
+        "int16": 2,
+        "int32": 3,
+        "int64": 4,
+        "uint8": 5,
+        "uint16": 6,
+        "uint32": 7,
+        "uint64": 8,
+        "float32": 9,
+        "float64": 10,
+        "bool": 11,
+        "string": 12,
+        "protoMsg": 13
+    },
+    "props": {
+        "BaseID": {
+            "index": 1,
+            "type": "int64",
+            "save": "11",
+            "desc": "表格ID"
+        },
+        "DBID": {
+            "index": 2,
+            "type": "uint64",
+            "save": "11",
+            "desc": "数据库ID"
+        },
+        "Num": {
+            "index": 3,
+            "type": "int64",
+            "save": "11",
+            "desc": "堆叠"
+        },
+        "SpaceId": {
+            "index": 4,
+            "type": "int32",
+            "save": "11",
+            "desc": "所属背包ID"
+        },
+        "Level": {
+            "index": 6,
+            "type": "uint32",
+            "save": "11",
+            "desc": "加成等级"
+        },
+        "Quality": {
+            "index": 7,
+            "type": "uint32",
+            "save": "11",
+            "desc": "品阶"
+        },
+        "UpdatePoint": {
+            "index": 8,
+            "type": "int32",
+            "save": "11",
+            "desc": "强化点数"
+        },
+        "CDTime": {
+            "index": 9,
+            "type": "int64",
+            "save": "11",
+            "desc": "使用CD"
+        },
+        "GetTime": {
+            "index": 10,
+            "type": "int64",
+            "save": "11",
+            "desc": "获得道具时间"
+        },
+        "EquipProps": {
+            "index": 11,
+            "type": "*protoMsg.EquipPropList",
+            "save": "11",
+            "desc": "装备属性"
+        },
+        "IsBind": {
+            "index": 12,
+            "type": "bool",
+            "save": "12",
+            "desc": "道具是否绑定"
+        },
+        "Durability": {
+            "index": 15,
+            "type": "int32",
+            "save": "11",
+            "desc": "耐久度"
+        },
+        "Heroid": {
+            "index": 16,
+            "type": "uint64",
+            "save": "11",
+            "desc": "当前使用该武器的英雄"
+        },
+        "CombatSkills": {
+            "index": 17,
+            "type": "*protoMsg.CombatSkillList",
+            "save": "11",
+            "desc": "护符战技"
+        },
+        "GemSlots": {
+            "index": 18,
+            "type": "*protoMsg.GemSlotList",
+            "save": "11",
+            "desc": "护符纹章槽"
+        },
+        "BelongEquipID": {
+            "index": 19,
+            "type": "uint64",
+            "save": "11",
+            "desc": "归属于的装备ID"
+        },
+        "ExtractNum": {
+            "index": 20,
+            "type": "int32",
+            "save": "11",
+            "desc": "萃取次数"
+        },
+        "TreasureMapID": {
+            "index": 21,
+            "type": "int32",
+            "save": "11",
+            "desc": "宝藏所在地图"
+        },
+        "TreasureInterID": {
+            "index": 22,
+            "type": "int32",
+            "save": "11",
+            "desc": "宝藏关联交互物"
+        },
+        "TreasurePos": {
+            "index": 23,
+            "type": "int32",
+            "save": "0",
+            "desc": "宝藏中心坐标"
+        }
+    },
+    "subType": {
+        "1": {
+            "desc": "normal",
+            "props": [
+                "BaseID",
+                "DBID",
+                "Num",
+                "SpaceId",
+                "Level",
+                "GetTime",
+                "IsBind"
+            ]
+        },
+        "2": {
+            "desc": "equip",
+            "props": [
+                "BaseID",
+                "DBID",
+                "Num",
+                "SpaceId",
+                "EquipProps",
+                "GetTime",
+                "Heroid",
+                "IsBind"
+            ]
+        },
+        "3": {
+            "desc": "use",
+            "props": [
+                "BaseID",
+                "DBID",
+                "Num",
+                "SpaceId",
+                "Level",
+                "CDTime",
+                "GetTime",
+                "IsBind"
+            ]
+        },
+        "4": {
+            "desc": "parEquip",
+            "props": [
+                "BaseID",
+                "DBID",
+                "Num",
+                "SpaceId",
+                "GetTime",
+                "Heroid",
+                "IsBind"
+            ]
+        },
+        "5": {
+            "desc": "amuletEquip",
+            "props": [
+                "BaseID",
+                "DBID",
+                "Num",
+                "SpaceId",
+                "GetTime",
+                "Heroid",
+                "IsBind",
+                "CombatSkills",
+                "GemSlots",
+                "ExtractNum"
+            ]
+        },
+        "6": {
+            "desc": "纹章",
+            "props": [
+                "BaseID",
+                "DBID",
+                "Num",
+                "SpaceId",
+                "GetTime",
+                "Heroid",
+                "IsBind",
+                "BelongEquipID"
+            ]
+        },
+        "20": {
+            "desc": "藏宝图",
+            "props": [
+                "BaseID",
+                "DBID",
+                "Num",
+                "SpaceId",
+                "IsBind",
+                "TreasureMapID",
+                "TreasureInterID"
+            ]
+        },
+        "101": {
+            "desc": "虚拟道具",
+            "props": [
+                "BaseID",
+                "DBID",
+                "Num",
+                "SpaceId",
+                "Level",
+                "GetTime",
+                "IsBind"
+            ]
+        },
+        "102": {
+            "desc": "travel",
+            "props": [
+                "BaseID",
+                "DBID",
+                "Num",
+                "SpaceId",
+                "Level",
+                "GetTime"
+            ]
+        }
+    },
+    "server": {
+        "11": {
+            "desc": "Lobby",
+            "props": [
+                "BaseID",
+                "DBID",
+                "Num",
+                "SpaceId",
+                "Level",
+                "Quality",
+                "Baseprop",
+                "Exprop",
+                "Specialprop",
+                "StarLev",
+                "CDTime",
+                "GetTime",
+                "Updatebaseprop",
+                "Durability",
+                "Heroid",
+                "EquipProps",
+                "IsBind",
+                "CombatSkills",
+                "GemSlots",
+                "ExtractNum",
+                "BelongEquipID",
+                "TreasureMapID",
+                "TreasureInterID"
+            ]
+        }
+    },
+    "mrole": {
+        "desc": "主角自己关注的属性",
+        "props": [
+            "BaseID",
+            "DBID",
+            "Num",
+            "SpaceId",
+            "Level",
+            "Quality",
+            "Baseprop",
+            "Exprop",
+            "Specialprop",
+            "StarLev",
+            "CDTime",
+            "GetTime",
+            "Updatebaseprop",
+            "Durability",
+            "Heroid",
+            "EquipProps",
+            "IsBind",
+            "CombatSkills",
+            "GemSlots",
+            "ExtractNum",
+            "BelongEquipID"
+        ]
+    }
+}

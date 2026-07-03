@@ -1,0 +1,646 @@
+{
+    "config": {
+        "ID": 210601,
+        "Priority": 0,
+        "RuntimePriority": 0,
+        "SkillDesc": "昧光.技能六.无天赋",
+        "SkillTag": 2,
+        "SkillTurnAroundTime": 200,
+        "GlobalShows": [],
+        "CD": 8000,
+        "SkillCDKey": 200601,
+        "IsNotShowCD": false,
+        "ButtonCD": 200,
+        "Consume": [],
+        "IsHidden": false,
+        "Conditions": [
+            {
+                "ConditionParams": {
+                    "ConditionType": 6,
+                    "Cond_TargetFaction": {
+                        "TargetSelect": 2
+                    }
+                }
+            }
+        ],
+        "MinCastDistance": 0,
+        "AICastDistance": 300,
+        "CastMethod": 0,
+        "IsCDCloseTouch": true,
+        "SkillInputType": 1,
+        "DynamicRangeType": 1,
+        "WheelCfg": {
+            "Shape": {
+                "ShapeType": 0
+            }
+        },
+        "WheelRange": {
+            "MinRadius": 0,
+            "MaxRadius": 300,
+            "Angle": 0
+        },
+        "IsAutoTurnToTarget": true,
+        "SkillLabels": [],
+        "skillIconDesc": "范围",
+        "SkillIconDesc_Key": "SkillIconDesc_210601",
+        "SkillIconDesc": "范围"
+    },
+    "Normals": [
+        {
+            "Start": 0,
+            "End": 633,
+            "Duration": 633,
+            "StageID": 1002,
+            "StageType": 0,
+            "StageNormal": {
+                "Active": true,
+                "LoopCount": 1,
+                "IsEntryCD": true,
+                "States": [
+                    1,
+                    2
+                ],
+                "Interrupt": 2,
+                "BattleProp": [],
+                "BattleGroupID": 0,
+                "IsMsgClient": false
+            },
+            "Effects": [
+                {
+                    "data": [
+                        {
+                            "EffectType": 2,
+                            "BaseEffect": {
+                                "CenterPosArray": {
+                                    "TargetKey": {
+                                        "Result": "Builder"
+                                    },
+                                    "TransTargetIsHit": "All",
+                                    "PosKey": {
+                                        "Result": ""
+                                    },
+                                    "Angle": 0,
+                                    "Distance": 0
+                                },
+                                "TowardArray": {
+                                    "TargetKey": {
+                                        "Result": "Builder"
+                                    },
+                                    "TransTargetIsHit": "All",
+                                    "TowardKey": {
+                                        "Result": ""
+                                    },
+                                    "TowardOffset": 0
+                                },
+                                "Shape": {
+                                    "ShapeType": 1,
+                                    "Round": {
+                                        "Radius": 200
+                                    }
+                                },
+                                "CollisionTarget": 2,
+                                "MaxTar": 10,
+                                "IsSettleHit": false,
+                                "IsNotCheckTargetRadius": false,
+                                "IngoreForbidSelect": false,
+                                "IngoreForbidDead": false,
+                                "IsForewarn": false,
+                                "IsPosWithTarget": false,
+                                "IsRotWithTarget": false,
+                                "ForewarnTime": 0,
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "Select"
+                                },
+                                "IsNoDuplicationKey": {
+                                    "SaveSkill": true,
+                                    "Result": ""
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 2001,
+                            "Desc": "",
+                            "Next": [
+                                2002
+                            ],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 100,
+                            "EffectEndTime": 100,
+                            "ServerExecuteTime": 100,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "Builder"
+                            ],
+                            "OutputKeys": [
+                                "Select"
+                            ]
+                        },
+                        {
+                            "EffectType": 110,
+                            "BaseEffect": {
+                                "CheckKey": {
+                                    "Result": "Select"
+                                },
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "IsEmpty"
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 2002,
+                            "Desc": "",
+                            "Next": [
+                                2003
+                            ],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "Select"
+                            ],
+                            "OutputKeys": [
+                                "IsEmpty"
+                            ]
+                        },
+                        {
+                            "EffectType": 5,
+                            "BaseEffect": {
+                                "InputKey": {
+                                    "Result": "Select"
+                                },
+                                "TargetType": 1,
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "NearlyTarget"
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 2003,
+                            "Desc": "",
+                            "Next": [
+                                2004
+                            ],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "Select"
+                            ],
+                            "OutputKeys": [
+                                "NearlyTarget"
+                            ]
+                        },
+                        {
+                            "EffectType": 23,
+                            "BaseEffect": {
+                                "EffectTargetArray": {
+                                    "Result": "Builder"
+                                },
+                                "SingleCenterPos": {
+                                    "TargetKey": {
+                                        "Result": "NearlyTarget"
+                                    },
+                                    "PosKey": {
+                                        "Result": ""
+                                    },
+                                    "Angle": 0,
+                                    "Distance": 0
+                                },
+                                "BuilderOrPos": 2,
+                                "MoveLabel": 1,
+                                "MoveType": 2,
+                                "LockState": [],
+                                "DurningTime": 250,
+                                "Distance": -150,
+                                "IsIgnoreTarget": 1,
+                                "MaxMove": -1,
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "Back"
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 2004,
+                            "Desc": "",
+                            "Next": [
+                                2005
+                            ],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "Builder",
+                                "NearlyTarget"
+                            ],
+                            "OutputKeys": [
+                                "Back"
+                            ]
+                        },
+                        {
+                            "EffectType": 95,
+                            "BaseEffect": {
+                                "StartCenterPos": {
+                                    "TargetKey": {
+                                        "Result": "Builder"
+                                    },
+                                    "PosKey": {
+                                        "Result": ""
+                                    },
+                                    "Angle": 0,
+                                    "Distance": 0
+                                },
+                                "TargetCenterPos": {
+                                    "TargetKey": {
+                                        "Result": "NearlyTarget"
+                                    },
+                                    "PosKey": {
+                                        "Result": ""
+                                    },
+                                    "Angle": 0,
+                                    "Distance": 0
+                                },
+                                "Count": 1,
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "SymmetricPoint"
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 2005,
+                            "Desc": "",
+                            "Next": [
+                                2006
+                            ],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "Builder",
+                                "NearlyTarget"
+                            ],
+                            "OutputKeys": [
+                                "SymmetricPoint"
+                            ]
+                        },
+                        {
+                            "EffectType": 41,
+                            "BaseEffect": {
+                                "CenterPosArray": {
+                                    "TargetKey": {
+                                        "Result": ""
+                                    },
+                                    "TransTargetIsHit": "All",
+                                    "PosKey": {
+                                        "Result": "SymmetricPoint"
+                                    },
+                                    "Angle": 0,
+                                    "Distance": 0
+                                },
+                                "TowardArray": {
+                                    "TargetKey": {
+                                        "Result": "Builder"
+                                    },
+                                    "TransTargetIsHit": "All",
+                                    "TowardKey": {
+                                        "Result": ""
+                                    },
+                                    "TowardOffset": 180
+                                },
+                                "BulletID": 2106011,
+                                "BulletCopyData": [],
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "CreateBullet"
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 2006,
+                            "Desc": "",
+                            "Next": [],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "SymmetricPoint",
+                                "Builder"
+                            ],
+                            "OutputKeys": [
+                                "CreateBullet"
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "data": [
+                        {
+                            "EffectType": 2,
+                            "BaseEffect": {
+                                "CenterPosArray": {
+                                    "TargetKey": {
+                                        "Result": "Builder"
+                                    },
+                                    "TransTargetIsHit": "All",
+                                    "PosKey": {
+                                        "Result": ""
+                                    },
+                                    "Angle": 0,
+                                    "Distance": 0
+                                },
+                                "TowardArray": {
+                                    "TargetKey": {
+                                        "Result": "Builder"
+                                    },
+                                    "TransTargetIsHit": "All",
+                                    "TowardKey": {
+                                        "Result": ""
+                                    },
+                                    "TowardOffset": 0
+                                },
+                                "Shape": {
+                                    "ShapeType": 1,
+                                    "Round": {
+                                        "Radius": 200
+                                    }
+                                },
+                                "CollisionTarget": 2,
+                                "MaxTar": 10,
+                                "IsSettleHit": true,
+                                "IsNotCheckTargetRadius": false,
+                                "IngoreForbidSelect": false,
+                                "IngoreForbidDead": false,
+                                "IsForewarn": false,
+                                "IsPosWithTarget": false,
+                                "IsRotWithTarget": false,
+                                "ForewarnTime": 0,
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "Enemy1"
+                                },
+                                "IsNoDuplicationKey": {
+                                    "SaveSkill": true,
+                                    "Result": ""
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 1001,
+                            "Desc": "",
+                            "Next": [
+                                1002
+                            ],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 350,
+                            "EffectEndTime": 350,
+                            "ServerExecuteTime": 350,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "Builder"
+                            ],
+                            "OutputKeys": [
+                                "Enemy1"
+                            ]
+                        },
+                        {
+                            "EffectType": 22,
+                            "BaseEffect": {
+                                "EffectTargetArray": {
+                                    "Result": "Enemy1"
+                                },
+                                "GroupID": 21060101,
+                                "GroupIDKey": [],
+                                "FlutteringWordsID": 0,
+                                "isActor": true,
+                                "HitEffect": [
+                                    {
+                                        "PrefabPathInEditor": "Assets/Res/Effects/Roles/Character/CiK_M/cm/Fx_MeiG_M_skill01_hit.prefab",
+                                        "HangPoint": "Root",
+                                        "IsFaceToBuilder": false,
+                                        "IsFollowMove": false,
+                                        "IsFollowRot": false,
+                                        "IsFollowOwnerHide": false,
+                                        "IsFollowOwnerScale": 1,
+                                        "IsLoop": false,
+                                        "XOffset": 0,
+                                        "YOffset": 0,
+                                        "ZOffset": 0,
+                                        "XOffsetTowards": 0,
+                                        "YOffsetTowards": 0,
+                                        "ZOffsetTowards": 0,
+                                        "fxJson": {
+                                            "EffectName": "Fx_MeiG_M_skill01_hit",
+                                            "EffectPath": "Fx_MeiG_M_skill01_hit",
+                                            "FxDuration": 0,
+                                            "IsCameraImpulse": false,
+                                            "IsCamaeraOffset": false,
+                                            "ControlActivation": false,
+                                            "postPlayback": 0,
+                                            "ControlPlayableDirectors": false,
+                                            "ControlParticleSystems": false,
+                                            "ControlTimeControl": false,
+                                            "ControlChildren": false,
+                                            "RandomSpeed": 0,
+                                            "config": {
+                                                "HangPoint": "Root",
+                                                "IsAll": true,
+                                                "IsSyncBreak": true,
+                                                "IsChangeCancel": false,
+                                                "IsFaceToBuilder": false,
+                                                "IsFaceToCamera": false,
+                                                "IsFollowMove": false,
+                                                "IsFollowRot": false,
+                                                "IsFollowLoop": false,
+                                                "IsFollowOwnerHide": false,
+                                                "IsFollowOwnerScale": 1,
+                                                "IsLoop": false,
+                                                "XOffset": 0,
+                                                "YOffset": 0,
+                                                "ZOffset": 0,
+                                                "XOffsetTowards": 0,
+                                                "YOffsetTowards": 0,
+                                                "ZOffsetTowards": 0,
+                                                "XScale": 100,
+                                                "YScale": 100,
+                                                "ZScale": 100
+                                            },
+                                            "Start": 0,
+                                            "End": 0,
+                                            "Duration": 0,
+                                            "ClipIn": 0,
+                                            "clipCaps": 0,
+                                            "Index": 0,
+                                            "SpeedMultiplier": 1.0
+                                        }
+                                    }
+                                ],
+                                "IsSpecial": false,
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "HitEnemy1"
+                                },
+                                "EventName": "",
+                                "EventID": 0,
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 1002,
+                            "Desc": "",
+                            "Next": [],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "Enemy1"
+                            ],
+                            "OutputKeys": [
+                                "HitEnemy1"
+                            ]
+                        }
+                    ]
+                }
+            ],
+            "Fxs": [
+                {
+                    "EffectName": "Fx_MeiG_M_skill01_04",
+                    "EffectPath": "Fx_MeiG_M_skill01_04",
+                    "FxDuration": 850,
+                    "IsCameraImpulse": false,
+                    "IsCamaeraOffset": false,
+                    "ControlActivation": true,
+                    "postPlayback": 2,
+                    "ControlPlayableDirectors": true,
+                    "ControlParticleSystems": true,
+                    "ControlTimeControl": true,
+                    "ControlChildren": false,
+                    "RandomSpeed": 698,
+                    "config": {
+                        "HangPoint": "Root",
+                        "IsAll": true,
+                        "IsSyncBreak": true,
+                        "IsChangeCancel": false,
+                        "IsFaceToBuilder": false,
+                        "IsFaceToCamera": false,
+                        "IsFollowMove": true,
+                        "IsFollowRot": true,
+                        "IsFollowLoop": false,
+                        "IsFollowOwnerHide": false,
+                        "IsFollowOwnerScale": 0,
+                        "IsLoop": false,
+                        "XOffset": 0,
+                        "YOffset": 0,
+                        "ZOffset": 0,
+                        "XOffsetTowards": 0,
+                        "YOffsetTowards": 0,
+                        "ZOffsetTowards": 0,
+                        "XScale": 100,
+                        "YScale": 100,
+                        "ZScale": 100
+                    },
+                    "Start": 216,
+                    "End": 633,
+                    "Duration": 416,
+                    "ClipIn": 0,
+                    "clipCaps": 0,
+                    "Index": 2,
+                    "SpeedMultiplier": 1.0
+                }
+            ],
+            "Sounds": [
+                {
+                    "EventName": "MeiG_M_Skill_06",
+                    "SoundEventID": 3570726474,
+                    "Start": 100,
+                    "End": 100,
+                    "Duration": 0,
+                    "ClipIn": 0,
+                    "clipCaps": 0,
+                    "Index": 3,
+                    "SpeedMultiplier": 1.0
+                }
+            ],
+            "Cameras": [],
+            "ShakeCameras": [],
+            "Animations": [
+                {
+                    "ClipName": "Skill_01_1",
+                    "ClipPath": "Skill_01_1",
+                    "FootIK": true,
+                    "Loop": 0,
+                    "AnimatorCustomData": {
+                        "AnimatorName": "",
+                        "FadeDuration": 100,
+                        "AnimatorSp": []
+                    },
+                    "Start": 0,
+                    "End": 100,
+                    "Duration": 100,
+                    "ClipIn": 0,
+                    "clipCaps": 0,
+                    "Index": 0,
+                    "SpeedMultiplier": 1.0
+                },
+                {
+                    "ClipName": "Skill_01_2",
+                    "ClipPath": "Skill_01_2",
+                    "FootIK": true,
+                    "Loop": 0,
+                    "AnimatorCustomData": {
+                        "AnimatorName": "",
+                        "FadeDuration": 100,
+                        "AnimatorSp": []
+                    },
+                    "Start": 100,
+                    "End": 633,
+                    "Duration": 533,
+                    "ClipIn": 0,
+                    "clipCaps": 0,
+                    "Index": 1,
+                    "SpeedMultiplier": 1.0
+                }
+            ]
+        }
+    ],
+    "Others": [],
+    "Bullets": []
+}

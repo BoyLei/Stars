@@ -1,0 +1,201 @@
+{
+    "config": {
+        "ID": 10421,
+        "BuffDesc": "护符.下次伤害额外伤害",
+        "RuntimePriority": 0,
+        "IsDebuff": false,
+        "BuffTags": 0,
+        "GlobalShows": [
+            {
+                "GlobalShowType": 0,
+                "BUFF_SpecialBUFFUI": {
+                    "BUFFUIShowDetailsList": [
+                        {
+                            "BUFFUIPos": 2,
+                            "BuffUIShowDetails": 5
+                        },
+                        {
+                            "BUFFUIPos": 1,
+                            "BuffUIShowDetails": 5
+                        }
+                    ]
+                }
+            }
+        ],
+        "Time": -1,
+        "IsTimeShow": true,
+        "LoopEffectInEditors": [],
+        "BattleProp": [],
+        "BattleGroupID": 10421,
+        "States": [],
+        "IsLeaveSave": false,
+        "Replace": 2,
+        "GroupID": 10421,
+        "IsCretDiffer": false,
+        "MaxFloor": 1,
+        "AddEffectFlys": [],
+        "BuffCopyData": [],
+        "BuffLabels": []
+    },
+    "Normals": [],
+    "Others": [
+        {
+            "Start": 0,
+            "End": 1000,
+            "Duration": 1000,
+            "StageID": 2001,
+            "StageType": 1,
+            "StageTrigger": {
+                "TriggerCount": 1,
+                "StageEnum": 128,
+                "IsMsgClient": true,
+                "ConditionGroup": [
+                    {
+                        "TriggerTypeEnum": 302,
+                        "TriggerArg": {
+                            "CurrEffectType": {
+                                "CompOperator": 1,
+                                "EffectType": 22
+                            }
+                        }
+                    },
+                    {
+                        "TriggerTypeEnum": 303,
+                        "TriggerArg": {
+                            "CurrEffectTag": {
+                                "CompOperator": 9,
+                                "EffectTag": 1
+                            }
+                        }
+                    },
+                    {
+                        "TriggerTypeEnum": 201,
+                        "TriggerArg": {
+                            "BlackHit": {
+                                "Tar": {
+                                    "Result": "AllVictims"
+                                },
+                                "CompOperator": 3,
+                                "Value": 0
+                            }
+                        }
+                    }
+                ]
+            },
+            "Effects": [
+                {
+                    "data": [
+                        {
+                            "EffectType": 22,
+                            "BaseEffect": {
+                                "EffectTargetArray": {
+                                    "Result": "AllVictims"
+                                },
+                                "GroupID": 104201,
+                                "GroupIDKey": [],
+                                "FlutteringWordsID": 0,
+                                "isActor": true,
+                                "HitEffect": [],
+                                "IsSpecial": false,
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "DamageVictim"
+                                },
+                                "EventName": "",
+                                "EventID": 0,
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 1001,
+                            "Desc": "",
+                            "Next": [
+                                1002
+                            ],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [
+                                1
+                            ],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "AllVictims"
+                            ],
+                            "OutputKeys": [
+                                "DamageVictim"
+                            ]
+                        },
+                        {
+                            "EffectType": 114,
+                            "BaseEffect": {
+                                "InputKey": {
+                                    "Result": ""
+                                },
+                                "Type": 1,
+                                "Value": 0,
+                                "InputKeyList": [],
+                                "GroupID": -1,
+                                "GroupIDKey": [],
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 1002,
+                            "Desc": "",
+                            "Next": [
+                                1003
+                            ],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [],
+                            "OutputKeys": []
+                        },
+                        {
+                            "EffectType": 31,
+                            "BaseEffect": {
+                                "EffectTargetArray": {
+                                    "Result": "Owner"
+                                },
+                                "BuffID": 10422,
+                                "BUFFTime": 0,
+                                "Pile": 1,
+                                "BuffCopyData": [],
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 1003,
+                            "Desc": "",
+                            "Next": [],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "Owner"
+                            ],
+                            "OutputKeys": []
+                        }
+                    ]
+                }
+            ],
+            "Fxs": [],
+            "Sounds": [],
+            "Cameras": [],
+            "ShakeCameras": [],
+            "Animations": []
+        }
+    ],
+    "Bullets": []
+}

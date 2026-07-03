@@ -8,6 +8,35 @@
 [Mm]emoryCaptures/
 [Uu]ser[Ss]ettings/
 
+# Art resources (large binary files, excluded from code mirror)
+Assets/ArtWorkSpace/
+
+# StreamingAssets (large binary files, excluded from code mirror)
+Assets/StreamingAssets/Android/
+Assets/StreamingAssets/Audio/
+Assets/StreamingAssets/AVProVideoSamples/
+
+# 3rd-party plugins Android
+Assets/Plugins/Android/audio360-exo28/
+Assets/Plugins/Android/GSSDK/
+Assets/Plugins/Android/libs/
+
+# 3rd-party plugins
+LocalPackages/
+
+Assets/ThirdParts/Sirenix/
+Assets/Wwise/
+
+Tools/mali_offline_compiler/
+ServerData/
+
+
+*.aar
+*.arr
+*.jar
+
+
+
 # SVN metadata must never be committed to Git
 .svn/
 
@@ -45,58 +74,102 @@
 *.aab
 *.rar
 *.zip
+*.zip.[0-9]*
 *.7z
+*.7z.[0-9]*
 *.bak
 *.backup
 
-# Code-only Git mirror policy:
-# ignore everything by default, then re-include source files for local search.
-/*
+# === General text/config files: all scripts, configs, docs are tracked by default ===
+# (Only binary Unity assets and build artifacts are excluded below)
 
-# Repository metadata and minimal Unity restore hints
-!/.gitignore
-!/Packages/
-/Packages/*
-!/Packages/manifest.json
-!/Packages/packages-lock.json
-!/ProjectSettings/
-/ProjectSettings/*
-!/ProjectSettings/ProjectVersion.txt
-# Source files should stay visible to Codex/Git file search.
-!/Assets/
-/Assets/**
-!/Assets/**/
-!/LocalPackages/
-/LocalPackages/**
-!/LocalPackages/**/
-!/Packages/
-/Packages/**
-!/Packages/**/
-!/Packages/manifest.json
-!/Packages/packages-lock.json
+# Unity scenes, prefabs, and assets (binary)
+*.unity
+*.prefab
+*.asset
+*.mat
+*.controller
+*.anim
+*.overrideController
+*.physicMaterial
+*.physicsMaterial2D
+*.renderTexture
+*.cubemap
+*.flare
+*.guiskin
+*.fontsettings
+*.spriteatlas
+*.mixer
+*.playable
+*.signal
+*.lighting
+*.preset
+*.shadergraph
+*.shadersubgraph
+*.shadervariants
 
-!/Assets/**/*.cs
-!/Assets/**/*.asmdef
-!/Assets/**/*.asmref
-!/Assets/**/*.rsp
-!/Assets/**/*.shader
-!/Assets/**/*.hlsl
-!/Assets/**/*.cginc
-!/Assets/**/*.compute
-!/LocalPackages/**/*.cs
-!/LocalPackages/**/*.asmdef
-!/LocalPackages/**/*.asmref
-!/LocalPackages/**/*.rsp
-!/LocalPackages/**/*.shader
-!/LocalPackages/**/*.hlsl
-!/LocalPackages/**/*.cginc
-!/LocalPackages/**/*.compute
-!/Packages/**/*.cs
-!/Packages/**/*.asmdef
-!/Packages/**/*.asmref
-!/Packages/**/*.rsp
-!/Packages/**/*.shader
-!/Packages/**/*.hlsl
-!/Packages/**/*.cginc
-!/Packages/**/*.compute
+
+# 3D models (note: *.obj here is Wavefront 3D model, not build artifact)
+*.fbx
+*.obj
+*.blend
+*.3ds
+*.dae
+*.ma
+*.mb
+*.max
+
+# Textures / images
+*.png
+*.jpg
+*.jpeg
+*.psd
+*.tga
+*.tif
+*.tiff
+*.bmp
+*.gif
+*.exr
+*.hdr
+
+# Audio
+*.wav
+*.mp3
+*.ogg
+*.aiff
+*.flac
+*.m4a
+*.wma
+
+# Video
+*.mp4
+*.mov
+*.avi
+*.webm
+
+# Fonts
+*.ttf
+*.otf
+
+# Wwise audio banks
+*.bnk
+*.wem
+
+# Other binary (SPIR-V shader bytecode, unity packages, snapshots, asset bundles)
+*.spv
+*.unitypackage
+*.snap
+*.bundle
+*.bytes
+*.bin
+*.terrainlayer
+
+# OS generated files
+.DS_Store
+._*
+Thumbs.db
+
+# Log files
+*.log
+
 

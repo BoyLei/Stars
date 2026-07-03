@@ -1,0 +1,357 @@
+{
+    "config": {
+        "ID": 9999,
+        "PassiveSkillDesc": "战斗测试.回满血",
+        "OutBattleFreshTimes": false,
+        "RuntimePriority": 0,
+        "Time": 500,
+        "LoopEffectInEditors": [],
+        "GlobalShows": [],
+        "BattleProp": [],
+        "BattleGroupID": 0,
+        "States": [],
+        "PassiveCopyData": []
+    },
+    "Normals": [
+        {
+            "Start": 0,
+            "End": 500,
+            "Duration": 500,
+            "StageID": 1001,
+            "StageType": 0,
+            "StageNormal": {
+                "Active": true,
+                "LoopCount": -1,
+                "IsEntryCD": true,
+                "States": [],
+                "Interrupt": 1,
+                "BattleProp": [],
+                "BattleGroupID": 0,
+                "IsMsgClient": true
+            },
+            "Effects": [
+                {
+                    "data": [
+                        {
+                            "EffectType": 2,
+                            "BaseEffect": {
+                                "CenterPosArray": {
+                                    "TargetKey": {
+                                        "Result": "Owner"
+                                    },
+                                    "TransTargetIsHit": "All",
+                                    "PosKey": {
+                                        "Result": ""
+                                    },
+                                    "Angle": 0,
+                                    "Distance": 0
+                                },
+                                "TowardArray": {
+                                    "TargetKey": {
+                                        "Result": "Owner"
+                                    },
+                                    "TransTargetIsHit": "All",
+                                    "TowardKey": {
+                                        "Result": ""
+                                    },
+                                    "TowardOffset": 0
+                                },
+                                "Shape": {
+                                    "ShapeType": 1,
+                                    "Round": {
+                                        "Radius": 200
+                                    }
+                                },
+                                "CollisionTarget": 4,
+                                "MaxTar": 10,
+                                "IsSettleHit": false,
+                                "IsNotCheckTargetRadius": false,
+                                "IngoreForbidSelect": false,
+                                "IngoreForbidDead": false,
+                                "IsForewarn": false,
+                                "IsPosWithTarget": false,
+                                "IsRotWithTarget": false,
+                                "ForewarnTime": 0,
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "Enemy"
+                                },
+                                "IsNoDuplicationKey": {
+                                    "SaveSkill": true,
+                                    "Result": ""
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 1001,
+                            "Desc": "",
+                            "Next": [
+                                1002
+                            ],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "Owner"
+                            ],
+                            "OutputKeys": [
+                                "Enemy"
+                            ]
+                        },
+                        {
+                            "EffectType": 110,
+                            "BaseEffect": {
+                                "CheckKey": {
+                                    "Result": "Enemy"
+                                },
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "IsNotEmpty"
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 1002,
+                            "Desc": "",
+                            "Next": [
+                                1003
+                            ],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "Enemy"
+                            ],
+                            "OutputKeys": [
+                                "IsNotEmpty"
+                            ]
+                        },
+                        {
+                            "EffectType": 5,
+                            "BaseEffect": {
+                                "InputKey": {
+                                    "Result": "Enemy"
+                                },
+                                "TargetType": 1,
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "CurEnemy"
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 1003,
+                            "Desc": "",
+                            "Next": [
+                                1004
+                            ],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "Enemy"
+                            ],
+                            "OutputKeys": [
+                                "CurEnemy"
+                            ]
+                        },
+                        {
+                            "EffectType": 95,
+                            "BaseEffect": {
+                                "StartCenterPos": {
+                                    "TargetKey": {
+                                        "Result": "CurEnemy"
+                                    },
+                                    "PosKey": {
+                                        "Result": ""
+                                    },
+                                    "Angle": 0,
+                                    "Distance": 0
+                                },
+                                "TargetCenterPos": {
+                                    "TargetKey": {
+                                        "Result": "Owner"
+                                    },
+                                    "PosKey": {
+                                        "Result": ""
+                                    },
+                                    "Angle": 0,
+                                    "Distance": 0
+                                },
+                                "Count": 1,
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "OtherPoint"
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 1004,
+                            "Desc": "",
+                            "Next": [
+                                1005
+                            ],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "CurEnemy",
+                                "Owner"
+                            ],
+                            "OutputKeys": [
+                                "OtherPoint"
+                            ]
+                        },
+                        {
+                            "EffectType": 93,
+                            "BaseEffect": {
+                                "SingleCenterPos": {
+                                    "TargetKey": {
+                                        "Result": ""
+                                    },
+                                    "PosKey": {
+                                        "Result": "OtherPoint"
+                                    },
+                                    "Angle": 0,
+                                    "Distance": 0
+                                },
+                                "MinDistance": 0,
+                                "MaxDistance": 200,
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "RandomPoint"
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 1005,
+                            "Desc": "",
+                            "Next": [
+                                1006
+                            ],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "OtherPoint"
+                            ],
+                            "OutputKeys": [
+                                "RandomPoint"
+                            ]
+                        },
+                        {
+                            "EffectType": 31,
+                            "BaseEffect": {
+                                "EffectTargetArray": {
+                                    "Result": "Owner"
+                                },
+                                "BuffID": 100001,
+                                "BUFFTime": 0,
+                                "Pile": 1,
+                                "BuffCopyData": [
+                                    {
+                                        "FromKey": {
+                                            "Result": "RandomPoint"
+                                        },
+                                        "ToKey": {
+                                            "SaveSkill": true,
+                                            "Result": "MoveTarget"
+                                        }
+                                    }
+                                ],
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 1006,
+                            "Desc": "",
+                            "Next": [],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "Owner"
+                            ],
+                            "OutputKeys": []
+                        }
+                    ]
+                },
+                {
+                    "data": [
+                        {
+                            "EffectType": 21,
+                            "BaseEffect": {
+                                "EffectTargetArray": {
+                                    "Result": "Owner"
+                                },
+                                "GroupID": 1000401,
+                                "GroupIDKey": [],
+                                "FlutteringWordsID": 0,
+                                "HitEffect": [],
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "Treat"
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 2001,
+                            "Desc": "",
+                            "Next": [],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "Owner"
+                            ],
+                            "OutputKeys": [
+                                "Treat"
+                            ]
+                        }
+                    ]
+                }
+            ],
+            "Fxs": [],
+            "Sounds": [],
+            "Cameras": [],
+            "ShakeCameras": [],
+            "Animations": []
+        }
+    ],
+    "Others": [],
+    "Bullets": []
+}

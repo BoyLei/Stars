@@ -1,0 +1,172 @@
+{
+    "config": {
+        "ID": 912211,
+        "BuffDesc": "哈森特.记层BUFF",
+        "RuntimePriority": 0,
+        "IsDebuff": true,
+        "BuffTags": 0,
+        "GlobalShows": [
+            {
+                "GlobalShowType": 0,
+                "BUFF_SpecialBUFFUI": {
+                    "BUFFUIShowDetailsList": [
+                        {
+                            "BUFFUIPos": 1,
+                            "BuffUIShowDetails": 7
+                        },
+                        {
+                            "BUFFUIPos": 2,
+                            "BuffUIShowDetails": 7
+                        }
+                    ]
+                }
+            }
+        ],
+        "Time": 20000,
+        "IsTimeShow": true,
+        "LoopEffectInEditors": [],
+        "BattleProp": [],
+        "BattleGroupID": 0,
+        "States": [],
+        "IsLeaveSave": false,
+        "Replace": 6,
+        "GroupID": 912211,
+        "IsCretDiffer": false,
+        "MaxFloor": 10,
+        "AddEffectFlys": [],
+        "BuffCopyData": [],
+        "BuffLabels": []
+    },
+    "Normals": [],
+    "Others": [
+        {
+            "Start": 0,
+            "End": 5000,
+            "Duration": 5000,
+            "StageID": 2001,
+            "StageType": 1,
+            "StageTrigger": {
+                "TriggerCount": -1,
+                "StageEnum": 110,
+                "IsMsgClient": true,
+                "ConditionGroup": [
+                    {
+                        "TriggerTypeEnum": 7,
+                        "TriggerArg": {
+                            "DataBuffID": {
+                                "CompOperator": 1,
+                                "Value": 912211
+                            }
+                        }
+                    }
+                ]
+            },
+            "Effects": [
+                {
+                    "data": [
+                        {
+                            "EffectType": 113,
+                            "BaseEffect": {
+                                "InputKey": {
+                                    "Result": "StackCount"
+                                },
+                                "Value": 5,
+                                "Type": 5,
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "damagetime"
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 1001,
+                            "Desc": "",
+                            "Next": [
+                                1002
+                            ],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "StackCount"
+                            ],
+                            "OutputKeys": [
+                                "damagetime"
+                            ]
+                        },
+                        {
+                            "EffectType": 31,
+                            "BaseEffect": {
+                                "EffectTargetArray": {
+                                    "Result": "Owner"
+                                },
+                                "BuffID": 912212,
+                                "BUFFTime": 0,
+                                "Pile": 1,
+                                "BuffCopyData": [],
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 1002,
+                            "Desc": "",
+                            "Next": [
+                                1003
+                            ],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "Owner"
+                            ],
+                            "OutputKeys": []
+                        },
+                        {
+                            "EffectType": 114,
+                            "BaseEffect": {
+                                "InputKey": {
+                                    "Result": ""
+                                },
+                                "Type": 1,
+                                "Value": 0,
+                                "InputKeyList": [],
+                                "GroupID": -1,
+                                "GroupIDKey": [],
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 1003,
+                            "Desc": "",
+                            "Next": [],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [],
+                            "OutputKeys": []
+                        }
+                    ]
+                }
+            ],
+            "Fxs": [],
+            "Sounds": [],
+            "Cameras": [],
+            "ShakeCameras": [],
+            "Animations": []
+        }
+    ],
+    "Bullets": []
+}

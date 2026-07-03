@@ -1,0 +1,892 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config>
+    <enum name="Boolean" desc="布尔值">
+        <item name="TRUE" key="是" value="1" />
+        <item name="FALSE" key="否" value="0" />
+    </enum>
+
+    <enum name="EffFormula" desc="公式枚举">
+        <item name="EF_Damage_Phy" key="物理伤害公式" value="1" />
+        <item name="EF_Damage_Earth" key="大地伤害" value="11" />
+        <item name="EF_Damage_Fire" key="烈焰伤害" value="12" />
+        <item name="EF_Damage_Natura" key="自然伤害" value="13" />
+        <item name="EF_Damage_Toxic" key="剧毒伤害" value="14" />
+        <item name="EF_Damage_Light" key="光明伤害" value="15" />
+        <item name="EF_Damage_Dark" key="黑暗伤害" value="16" />
+        <item name="EF_Damage_TrueOne" key="真实伤害1" value="17" />
+        <item name="EF_Damage_TrueTwo" key="真实伤害2" value="18" />
+        <item name="EF_Damage_PerAttack" key="攻击力的百分比" value="101" />
+        <item name="EF_FixedValue" key="固定数值" value="102" />
+    </enum>
+    <enum name="CompOperator" desc="比较符">
+        <item name="CO_Equal" key="等于" value="1" />
+        <item name="CO_NotEqual" key="不等于" value="2" />
+        <item name="CO_Greater" key="大于" value="3" />
+        <item name="CO_Less" key="小于" value="4" />
+        <item name="CO_EqualGreater" key="大于等于" value="5" />
+        <item name="CO_EqualLess" key="小于等于" value="6" />
+        <item name="CO_SET_SAME" key="集合相同" value="7" />
+        <item name="CO_SET_INCLUDE" key="集合包含" value="8" />
+        <item name="CO_SET_UNINCLUDE" key="集合不包含" value="9" />
+        <item name="CO_SET_HAVE" key="在arr1中找arr2的成员，只要找到一个就成功" value="10" />
+    </enum>
+
+    <enum name="CastMethodType" desc="技能施法方式">
+        <item name="DirectCast" key="按下释放，松开无事" value="0" />
+        <item name="DirectCastOnLoosen" key="按下无事，松开释放" value="1" />
+        <item name="WheelCast" key="按下选择，松开释放" value="2" />
+        <item name="GatherWheelCast" key="蓄力释放，蓄力期间有轮盘" value="3" />
+        <item name="GatherWheelCastNoIndicator" key="蓄力释放，蓄力期间无轮盘" value="4" />
+    </enum>
+
+    <enum name="AnimState" desc="动作状态">
+        <item name="Idle" key="休闲待机" value="1" />
+        <item name="BattleIdle" key="战斗待机" value="2" />
+        <item name="WanderMoving" key="漫步移动" value="3" />
+        <item name="SingleMoving" key="休闲移动" value="4" />
+        <item name="BattleMoving" key="战斗移动" value="5" />
+        <item name="Hurt" key="受击" value="6" />
+        <item name="Deading" key="死亡" value="7" />
+        <item name="WeaponRetractionIdle" key="待机收刀" value="8" />
+        <item name="WeaponRetractionMoving" key="移动收刀" value="9" />
+    </enum>
+
+    <enum name="SkillInputType" desc="技能输入类型">
+        <item name="DirInput" key="朝向输入" value="1" />
+        <item name="PosInput" key="坐标输入" value="2" />
+        <item name="ObjInput" key="对象输入" value="3" />
+    </enum>
+
+    <enum name="SpecEffectScale" desc="特效放缩枚举">
+        <item name="Origin" key="永不跟随" value="0" />
+        <item name="NoFollow" key="创建跟随" value="1" />
+        <item name="Follow" key="永远跟随" value="2" />
+    </enum>
+
+    
+    <enum name="BulletHeightType" desc="子弹高度跟随类型">
+        <item name="BornWithRole" key="出生跟随主角" value="0" />
+        <item name="FollowRole" key="永远跟随主角" value="1" />
+        <item name="BornCheckSpace" key="出生紧贴地面" value="2" />
+    </enum>
+
+    <enum name="ConditionType" desc="技能条件">
+        <item name="Cond_Buff" key="BUFF层数" value="1" />
+        <item name="Cond_Attr" key="属性值" value="2" />
+        <item name="Cond_SkillTime" key="前置技能时间" value="3" />
+        <item name="Cond_HpPercent" key="血量万分比" value="4" />
+        <item name="Condition_CurSpectralElem" key="末位量谱值" value="5" />
+        <item name="Cond_TargetFaction" key="敌人阵营" value="6" />
+    </enum>
+
+    <enum name="DynamicRangeType" desc="碰撞盒修改方式">
+        <item name="NoChange" key="无动态增长" value="1" />
+        <item name="ChargeTime" key="根据蓄力时间" value="2" />
+        <item name="ChargeNum" key="根据蓄力层数" value="3" />
+    </enum>
+
+    <enum name="BattleState" desc="原子状态">
+        <item name="ForbidMove" key="禁止主动移动" value="1" />
+        <item name="ForbidDir" key="禁止转向" value="2" />
+        <item name="ForbidHurt" key="禁止被伤害" value="3" />
+        <item name="ForbidCure" key="禁止被治疗" value="4" />
+        <item name="ForbidAttack" key="禁止普攻" value="5" />
+        <item name="ForbidSkill" key="禁止技能" value="6" />
+        <item name="ForbidDisplacement" key="禁止位移" value="7" />
+        <item name="ForbidSelect" key="禁止被选择器选中" value="8" />
+        <item name="ForbidBreakSkill" key="禁止打断技能" value="9" />
+    </enum>
+    <enum name="Shape" desc="形状">
+        <item name="None" key="空" value="0" />
+        <item name="Round" key="圆形" value="1" />
+        <item name="HollowCircle" key="空心圆" value="2" />
+        <item name="Sector" key="扇形" value="3" />
+        <item name="RingFan" key="环扇形" value="4" />
+        <item name="Rect" key="矩形" value="5" />
+        <item name="RotRoute" key="朝向路径" value="6" />
+        <item name="InputTarget" key="技能选取目标" value="7" />
+        <item name="Arrow" key="箭头" value="8" />
+        <item name="PosRoute" key="点位路径" value="9" />
+    </enum>
+    <enum name="SelectType" desc="目标选择类型">
+        <item name="Friend" key="友方" value="1" />
+        <item name="Enemy" key="敌方" value="2" />
+        <item name="All" key="全体" value="3" />
+        <item name="FriendPlayer" key="敌方玩家" value="4" />
+        <item name="EnemyPlayer" key="友方玩家" value="5" />
+        <item name="AllPlayer" key="全体玩家" value="6" />
+        <item name="FriendBullet" key="敌方子弹" value="7" />
+        <item name="EnemyBullet" key="友方子弹" value="8" />
+        <item name="AllBullet" key="全体子弹" value="9" />
+        <item name="FriendlyTeam" key="友方队友" value="10" />
+    </enum>
+
+    <enum name="TargetType" desc="目标选择类型">
+        <item name="RecentPerson" key="最近的敌人" value="1" />
+        <item name="FarPerson" key="最远的敌人" value="2" />
+
+    </enum>
+
+    <enum name="LineTypeEnum" desc="Line绘制方式">
+        <item name="Tiling" key="平铺" value="0" />
+        <item name="Stretching" key="拉伸" value="1" />
+    </enum>
+
+    <enum name="LinkTypeEnum" desc="Line链接方式">
+        <item name="Sequence" key="连续" value="0" />
+        <item name="Distribution" key="分发" value="1" />
+        <item name="NoFromSequence" key="不带主人连续" value="2" />
+    </enum>
+    
+
+    <enum name="EffectType" IsTypeDictionary="true" desc="效果类型">
+        <item name="Empty" key="空效果" value="1" />
+        <item name="CollisionBox" key="碰撞盒" value="2" />
+        <item name="TarGroup" key="目标集合的操作" value="3" />
+        <item name="CollisionBoxBullet" key="子弹碰撞盒" value="4" />
+        <item name="SpSelectTarget" key="选择特殊目标" value="5" />
+        <item name="Treat" key="治疗" value="21" />
+        <item name="Damage" key="伤害" value="22" />
+        <item name="MoveWithPos" key="根据坐标位移" value="23" />
+        <item name="MoveWithRot" key="根据朝向位移" value="24" />
+        <item name="Register" key="黑洞效果" value="25" />
+        <item name="ChangeCD" key="修改CD" value="26" />
+        <item name="BreakCurRuntime" key="打断目标当前技能" value="27" />
+        <item name="ChangeProp" key="修改属性" value="28" />
+        <item name="ChangeToward" key="修改朝向" value="29" />
+        <item name="ChangeMana" key="修改蓝量" value="30" />
+        <item name="AddBuff" key="施加BUFF" value="31" />
+        <item name="RemoveBuff" key="移除BUFF" value="32" />
+        <item name="AddPassive" key="施加被动" value="33" />
+        <item name="ChangeSpectral" key="修改量谱值" value="34" />
+        <item name="SpChangeSpectral" key="昧光增加影能量" value="35" />
+        <item name="AppendValueToSpectral" key="特殊增加量谱值" value="36" />
+        <item name="RemoveValueFromSpectral" key="特殊移除量谱值" value="37" />
+        <item name="SpectralStackCheck" key="特殊判断量谱值" value="38" />
+        <item name="CreateBullet" key="创建子弹" value="41" />
+        <item name="DestoryBullet" key="销毁子弹" value="42" />
+        <item name="DestoryBulletOwner" key="销毁子弹自身" value="43" />
+        <item name="ThrowBullet" key="抛出子弹" value="44" />
+        <item name="LaunchBullet" key="发射子弹" value="45" />
+        <item name="BezierBullet" key="贝塞尔子弹" value="46" />
+        <item name="UserInput" key="用户输入" value="71" />
+        <item name="ChargeInput" key="蓄力输入" value="72" />
+        <item name="BreakCurRuntimeInBullet" key="打断指定类型阶段" value="73" />
+        <item name="TriggerStage" key="触发自定义阶段" value="74" />
+        <item name="SummonMonster" key="召唤物" value="81" />
+        <item name="RandomPoint" key="随机多个点位" value="91" />
+        <item name="SetBulletTargetPos" key="设置子弹目标点" value="92" />
+        <item name="SingleRandomPoint" key="随机单个点位" value="93" />
+        <item name="GetFootPoint" key="计算垂足点" value="94" />
+        <item name="GetMirrorPoint" key="计算对称点" value="95" />
+        <item name="GetPointWithBuffTime" key="随BUFF时间计算点位" value="96" />
+		<item name="ChangeBulletSpeed" key="设置子弹移动速率" value="97" />
+        <item name="GetPointWithAToB" key="从A指向B计算可达点" value="98" />
+        <item name="SetCDKeyNum" key="设置指定CDKey数值" value="101" />
+        <item name="ThisSkillEnterCD" key="当前技能进入CD" value="102" />
+        <item name="IsNotEmpty" key="判断目标Key是否不为空" value="110" />
+        <item name="SelectHitFromKey" key="对目标Key做命中处理" value="111" />
+        <item name="SetIntKey" key="设置int值到目标Key" value="112" />
+        <item name="CheckIntKey" key="检查目标Key的int值" value="113" />
+        <item name="SetBuffTime" key="重设BUFF剩余持续时间" value="114" />
+        <item name="GetSqualDis2Pos" key="获得两个点位间距离的平方" value="115" />
+        <item name="SubBUFFLayer" key="减去BUFF层数" value="116" />
+        <item name="CheckJobID" key="检查职业ID" value="151" />
+        <item name="CheckTargetMonsterType" key="检查目标怪物类型" value="152" />
+        <item name="BuffAddCancel" key="取消BUFF添加" value="201" />
+        <item name="DamageSecond" key="二次伤害" value="202" />
+        <item name="DamageChange" key="改变伤害" value="203" />
+        <item name="AddShields" key="增加护盾值" value="204" />
+        <item name="DecShields" key="减少护盾值" value="205" />
+        <item name="CancelOffest" key="取消移动" value="206" />
+        <item name="CancelRota" key="取消转向" value="207" />
+        <item name="ShieldEffect" key="护盾抵挡" value="208" />
+        <item name="ChangeJobMassage" key="转职消息" value="301" />
+        <item name="SendMapMassage" key="场景消息" value="302" />
+        <item name="PlayEffectAtPoint" key="在点位播放特效" value="1001" />
+        <item name="PlayEffectAtTarget" key="在目标播放特效" value="1002" />
+        <item name="Stealth" key="隐身" value="1003" />
+        <item name="PlayEffectBetweenPoints" key="在两点间播放特效" value="1004" />
+        <item name="PlayEffectLineRenderer" key="连线" value="1005" />
+        <item name="ClientSummonAnim" key="客户端召唤物播放动作" value="1101" />
+        <item name="ClientSummonEffect" key="客户端召唤物播放特效" value="1102" />
+        <item name="ClientSummonTurnTo" key="客户端召唤物朝向目标" value="1103" />
+        <item name="ClientSummonRemove" key="客户端召唤物移除" value="1104" />
+
+        <item name="SetValueToKey" key="绝对数值产生器" value="2001" />
+        <item name="GetGroupIDToKey" key="组数值产生器" value="2002" />
+        <item name="RamdonValueToKey" key="随机数值产生器" value="2003" />
+        <item name="GetLengthFromListToKey" key="集合成员数值产生器" value="2004" />
+        <item name="OperationValueToKey" key="数值运算产生器" value="2005" />
+        <item name="GetTargetPropToKey" key="目标属性数值产生器" value="2006" />
+        <item name="GetCDKeyCDToKey" key="冷却时间数值产生器" value="2007" />
+        <item name="GetConfigIDToKey" key="配置ID数值产生器" value="2008" />
+
+        <item name="GetTowardFromEntityToKey" key="单位朝向产生器" value="4001" />
+        <item name="GetTowardFromPosToKey" key="点位朝向产生器" value="4002" />
+
+        <item name="CheckToward" key="1是否在2的角度范围内检查器" value="7001" />
+        <item name="CheckPassive" key="目标是否有指定被动检查器" value="7101" />
+
+        <item name="ChangeToAbsoluteToward" key="目标集合修改至绝对朝向" value="8001" />
+        <item name="ChangeToInputSpectral" key="目标集合量谱值修改" value="8101" />
+        <item name="ChangeToCDKeyCD" key="目标集合冷却时间修改" value="8102" />
+
+        <item name="CreateInteract" key="创建交互物" value="11001" />
+    </enum>
+
+    <enum name="Source" desc="作用目标集合源">
+        <item name="InputPos" key="输入点位" value="1" />
+        <item name="Target" key="输入目标" value="2" />
+    </enum>
+    <enum name="EffectCondition" desc="效果条件">
+        <item name="Damage" key="伤害" value="1" />
+        <item name="Treat" key="治疗" value="2" />
+        <item name="Hit" key="命中" value="3" />
+        <item name="Range" key="随机" value="4" />
+        <item name="Dodge" key="闪避" value="5" />
+        <item name="Critical" key="暴击" value="6" />
+        <item name="BUFFID" key="BUFFID" value="7" />
+        <item name="BUFFTag" key="BUFFtag" value="8" />
+        <item name="TargetLife" key="目标血量" value="9" />
+        <item name="TargetMana" key="目标蓝量" value="10" />
+        <item name="TargetNum" key="命中人数" value="11" />
+        <item name="TargetBUFFID" key="目标BUFFTID" value="12" />
+        <item name="TargetBUFFTAG" key="目标BUFFTAG" value="13" />
+        <item name="TargetBUFFNum" key="目标BUFFF层数" value="14" />
+    </enum>
+    <enum name="CheckState" desc="生效阶段">
+        <item name="Stage_AttackPro" key="攻击前" value="1" />
+        <item name="Stage_Attacked" key="攻击后" value="2" />
+        <item name="Stage_OnHurtPro" key="受伤前" value="3" />
+        <item name="Stage_OnHurted" key="受伤后" value="4" />
+        <item name="Stage_KillPro" key="杀死目标前" value="5" />
+        <item name="Stage_Killed" key="杀死目标后" value="6" />
+        <item name="Stage_OnDeadPro" key="被杀前" value="7" />
+        <item name="Stage_OnDeaded" key="被杀后" value="8" />
+        <item name="Stage_OnBuffAddPro" key="buff添加前" value="9" />
+        <item name="Stage_OnBuffAdded" key="buff添加后" value="10" />
+        <item name="Stage_OnHited" key="命中后" value="11" />
+        <item name="Stage_OndodgePro" key="闪避前" value="12" />
+        <item name="Stage_CurePro" key="治疗前" value="13" />
+        <item name="Stage_Cured" key="治疗后" value="14" />
+        <item name="Stage_OnCurePro" key="被治疗前" value="15" />
+        <item name="Stage_OnCured" key="被治疗后" value="16" />
+        <item name="Stage_RemoveBuffed" key="移除buff后" value="17" />
+        <item name="Stage_OnBuffRemoveed" key="被移除buff后" value="18" />
+        <item name="Stage_OnOffsetPro" key="被位移前" value="19" />
+        <item name="Stage_OnOffseted" key="被位移后" value="20" />
+        <item name="Stage_OffsetPro" key="位移前" value="21" />
+        <item name="Stage_Offseted" key="位移后" value="22" />
+        <item name="Stage_SpectralChanged" key="量谱变化后" value="23" />
+    </enum>
+    <enum name="MoveLabel" desc="位移标签">
+        <item name="Normal" key="无特效" value="1" />
+        <item name="Sprint" key="残影" value="2" />
+        <item name="Flash" key="隐身" value="3" />
+    </enum>
+    <enum name="MoveType" desc="位移类型">
+        <item name="DefaultOffset" key="取消位移" value="0" />
+        <item name="Dash" key="冲撞(都不穿)" value="1" />
+        <item name="Rush" key="冲锋(不穿墙)" value="2" />
+        <item name="Flash" key="闪现(都穿)" value="3" />
+        <item name="BeFly" key="击飞" value="4" />
+        <item name="BeRush" key="击退" value="5" />
+        <item name="BeMove" key="被移动" value="6" />
+    </enum>
+    <enum name="MonsterType" desc="怪物类型">
+        <item name="Lackey" key="小怪" value="1" />
+        <item name="Elite" key="精英" value="2" />
+        <item name="BOSS" key="BOSS" value="3" />
+    </enum>
+    <enum name="DamageType" desc="伤害类型">
+        <item name="El1" key="元素伤害1" value="1" />
+        <item name="El2" key="元素伤害2" value="2" />
+        <item name="El3" key="元素伤害3" value="3" />
+    </enum>
+    <enum name="CDChangeType" desc="修改方式">
+        <item name="ChangeWithNum" key="按照绝对值修改技能剩余cd" value="1" />
+        <item name="ChangeWithPer" key="按照百分比修改技能剩余cd" value="2" />
+        <item name="ChangeAllWithNum" key="设置技能模块技能总cd时间" value="3" />
+        <item name="ChangeAlliWithPer" key="按照百分比设置技能模块技能总cd时间" value="4" />
+    </enum>
+    <enum name="CalcuType" desc="计算坐标方式">
+
+        <item name="ChangeWithPer" key="向坐标点方向移动" value="2" />
+        <item name="ChangeAllWithNum" key="角度移动" value="3" />
+
+    </enum>
+    <enum name="TarGroupOperType" desc="集合操作方式">
+        <item name="TarGroupOperType_1" key="返回集合1不在集合2里的成员" value="1" />
+        <item name="TarGroupOperType_2" key="返回集合1在集合2里的成员" value="2" />
+        <item name="TarGroupOperType_3" key="返回所有成员" value="3" />
+        <item name="TarGroupOperType_4" key="返回不重合的成员" value="4" />
+    </enum>
+    <enum name="InterruptEvent" desc="阶段打断事件">
+        <item name="KillStage" key="结束阶段" value="1" />
+        <item name="KillRunTime" key="结束运行时" value="2" />
+    </enum>
+    <enum name="HangPoint" desc="特效挂点">
+        <item name="Root" key="根节点" value="0" />
+        <item name="Hurt_D" key="胸部受击" value="1" />
+        <item name="BackWeapon_D" key="后背部武器" value="2" />
+        <item name="Wing_D" key="后背部翅膀" value="3" />
+        <item name="HandWeapon_D_L" key="左手武器手部" value="4" />
+        <item name="HandWeapon_D_R" key="右手武器手部" value="5" />
+        <item name="WeaponRoot_D_L" key="左手武器根部" value="6" />
+        <item name="WeaponRoot_D_R" key="右手武器根部" value="7" />
+        <item name="WeaponHurt_D_R" key="右手或者双手武器特效" value="8" />
+        <item name="WeaponHurt_D_L" key="左手武器特效" value="9" />
+        <item name="Top_D" key="头顶特效" value="10" />
+        <item name="Foot_D_R" key="右脚脚底特效" value="11" />
+        <item name="Foot_D_L" key="左脚脚底特效" value="12" />
+        <item name="UnitInfo_D" key="头顶信息（气泡，公会，名字等）" value="13" />
+        <item name="Root_D" key="脚下特效节点" value="14" />
+        <item name="Bip001" key="尾巴骨挂点" value="15" />
+        <item name="Mouth_D" key="嘴巴挂点" value="16" />
+        <item name="Mouth_D02" key="嘴巴2挂点" value="17" />
+        <item name="Mouth_D03" key="嘴巴3挂点" value="18" />
+    </enum>
+    <enum name="EffectTypeWaitInputRecordType" desc="记录类型">
+        <item name="RecordTime" key="记录时间" value="0" />
+        <item name="RecordLayer" key="记录层数" value="1" />
+    </enum>
+    <enum name="TargetKey" desc="目标">
+        <item name="TransObject" key="默认Key" value="1" />
+        <item name="TransPos" key="默认坐标" value="2" />
+        <item name="InputCoord" key="输入的坐标" value="3" />
+        <item name="InputRota" key="输入的朝向" value="4" />
+        <item name="InputTarget" key="输入的目标" value="5" />
+        <item name="BBEnergy" key="蓄力" value="6" />
+        <item name="BBEnergyTime" key="蓄力时间" value="7" />
+        <item name="Builder" key="施法者" value="8" />
+        <item name="Owner" key="拥有者" value="9" />
+        <item name="Victim" key="受击者" value="10" />
+        <item name="LiveTime" key="存活时间" value="11" />
+        <item name="StackCount" key="BUFF层数" value="12" />
+        <item name="ShieldVal" key="护盾值" value="13" />
+    </enum>
+    <enum name="TransTargetIsHit" desc="是否取命中">
+        <item name="IsHit" key="选择命中单位" value="1" />
+        <item name="IsMiss" key="选择未命中单位" value="2" />
+        <item name="All" key="选择所有单位" value="3" />
+    </enum>
+
+    <enum name="Spectral" desc="量谱值">
+        <item name="Spectral1" key="量谱值1" value="1" />
+        <item name="Spectral2" key="量谱值2" value="2" />
+        <item name="Spectral3" key="量谱值3" value="3" />
+    </enum>
+
+    <enum name="InputType" desc="输入类型">
+        <item name="Immediately" key="立即输入" value="1" />
+        <item name="Prepare" key="预输入" value="2" />
+    </enum>
+
+    <enum name="InputMode" desc="输入方式">
+        <item name="Press" key="长按" value="1" />
+        <item name="Tap" key="单击" value="2" />
+    </enum>
+
+    <enum name="StageEvent" desc="阶段事件">
+        <item name="None" key="什么都不做" value="0" />
+        <item name="JumpStage1" key="Tick结束跳转" value="1" />
+        <item name="JumpStage2" key="立即跳转" value="2" />
+        <item name="KillSkill" key="结束技能" value="3" />
+        <item name="KillStage" key="结束循环" value="4" />
+        <item name="ReSet" key="跳转下次循环" value="5" />
+        <item name="EndStageReSet" key="结束当前阶段跳转下次循环" value="6" />
+    </enum>
+
+
+    <enum name="BuilderOrPos" desc="根据自身或者根据坐标">
+        <item name="Builder" key="自身" value="1" />
+        <item name="Pos" key="坐标" value="2" />
+    </enum>
+
+    <enum name="TriggerTargetType" desc="根据自身或者根据坐标">
+        <item name="Onwer" key="拥有者" value="1" />
+        <item name="Builder" key="施法者" value="2" />
+        <item name="Victim" key="受击者" value="3" />
+    </enum>
+
+    <enum name="StageType" desc="阶段类型">
+        <item name="NormalStage" key="一般阶段" value="0" />
+        <item name="TriggerStage" key="触发阶段" value="1" />
+        <item name="AddBuffStage" key="Buff添加阶段" value="2" />
+        <item name="EndBuffStage" key="Buff结束阶段" value="3" />
+        <item name="BulletStage" key="子弹移动阶段" value="4" />
+		<item name="EndPassiveStage" key="被动结束阶段" value="5" />
+    </enum>
+
+    <enum name="TriggerStageEnum" desc="触发阶段枚举">
+        <item name="Stage_AttackPro" key="攻击前" value="101" />
+        <item name="Stage_Attacked" key="攻击后" value="102" />
+        <item name="Stage_OnHurtPro" key="受伤害前" value="103" />
+        <item name="Stage_OnHurted" key="受伤害后" value="104" />
+        <item name="Stage_KillPro" key="杀死目标前" value="105" />
+        <item name="Stage_Killed" key="杀死目标后" value="106" />
+        <item name="Stage_OnDeadPro" key="死亡前" value="107" />
+        <item name="Stage_OnDeaded" key="死亡后" value="108" />
+        <item name="Stage_OnBuffAddProed" key="buff被添加前" value="109" />
+        <item name="Stage_OnBuffAdded" key="buff被添加后" value="110" />
+        <item name="Stage_OnHited" key="命中后" value="111" />
+        <item name="Stage_OndodgePro" key="闪避前" value="112" />
+        <item name="Stage_CurePro" key="治疗前" value="113" />
+        <item name="Stage_Cured" key="治疗后" value="114" />
+        <item name="Stage_OnCurePro" key="被治疗前" value="115" />
+        <item name="Stage_OnCured" key="被治疗后" value="116" />
+        <item name="Stage_RemoveBuffed" key="移除buff后" value="117" />
+        <item name="Stage_OnBuffRemoveed" key="buff被移除后" value="118" />
+        <item name="Stage_OnOffsetPro" key="位移前" value="119" />
+        <item name="Stage_OnOffseted" key="位移后" value="120" />
+        <item name="Stage_OffsetPro" key="施加位移前" value="121" />
+        <item name="Stage_Offseted" key="施加位移后" value="122" />
+        <item name="Stage_SpectralChanged" key="量谱变化之后" value="123" />
+        <item name="Stage_AtTargetPos" key="移动到目标点时" value="124" />
+        <item name="Stage_SkillStart" key="任意技能运行时启动时" value="125" />
+        <item name="Stage_SkillFirstSelect" key="任意技能首次选择到目标后" value="126" />
+        <item name="Stage_Customize1" key="自定义触发阶段" value="127" />
+        <item name="Stage_HurtEffected" key="完全伤害结束阶段" value="128" />
+        <item name="Stage_OnRotaPro" key="转向前" value="129" />
+        <item name="Stage_OnRotaed" key="转向后" value="130" />
+        <item name="Stage_RotaPro" key="施加转向前" value="131" />
+        <item name="Stage_Rotaed" key="施加转向后" value="132" />
+        <item name="Stage_OnBuffAddPro" key="添加buff前" value="133" />
+        <item name="Stage_OnBuffAdd" key="添加buff后" value="134" />
+        <item name="Stage_CureEffected" key="完全治疗结束阶段" value="135" />
+    </enum>
+
+    <enum name="TriggerTypeEnum" desc="触发器枚举">
+        <!-- n  临时数据相关 -->
+        <item name="DataHurt" key="临时伤害数值" value="1" />
+        <item name="DataCure" key="临时治疗数值" value="2" />
+        <item name="DataHit" key="临时命中结果" value="3" />
+        <item name="Random" key="临时随机数值" value="4" />
+        <item name="DodgeAttack" key="临时闪避结果" value="5" />
+        <item name="CriticalHit" key="临时暴击结果" value="6" />
+        <item name="DataBuffID" key="临时数据是buff运行时，判断id" value="7" />
+        <item name="DataBuffTag" key="临时数据是buff运行时，判断tag" value="8" />
+        <item name="DataOffset" key="临时数据是位移节点，判断位移状态" value="9" />
+        <item name="DataBuffCount" key="临时数据是buff运行时，判断层数" value="10" />
+        <!-- 100+n  对象属性相关 -->
+        <item name="RemainBlood" key="对象当前生命值百分比" value="101" />
+        <item name="RemainManaPer" key="对象当前蓝量百分比" value="102" />
+        <item name="RemainMana" key="对象当前蓝量绝对值" value="103" />
+        <item name="PropValue" key="对象对应属性id的属性值" value="104" />
+
+        <!-- 200+n	 黑板数据相关 -->
+        <item name="BlackHit" key="伤害节点-命中集合人数" value="201" />
+        <item name="DamageType" key="伤害节点-包含伤害类型" value="202" />
+        <!-- 运行线相关 -->
+        <item name="CurrEffectID" key="当前效果id" value="301" />
+        <item name="CurrEffectType" key="当前效果类型" value="302" />
+        <item name="CurrEffectTag" key="当前效果标签" value="303" />
+        <item name="Backstab" key="是否触发背刺" value="304" />
+        <item name="IntNode" key="检测当前运行时黑板上的数值类节点数据" value="305" />
+        <item name="SkillTag" key="当前技能标签" value="306" />
+        <!-- 对象相关 -->
+        <item name="RuntimeRelationship" key="调用者与运行时对象关系" value="401" />
+        <item name="BuffID" key="对象的buffid" value="402" />
+        <item name="BuffTag" key="对象的bufftag" value="403" />
+        <item name="BuffFloor" key="对象的指定buff层数" value="404" />
+        <item name="CoolTime" key="对象的技能冷却" value="405" />
+        <item name="State" key="对象的原子状态" value="406" />
+        <item name="Stage" key="对象的阶段ID" value="407" />
+        <item name="Battle" key="Owner是否在战斗状态" value="408" />
+        <item name="CheckTargetMonsterType" key="检查目标怪物类型" value="409" />
+        <!-- 特例触发器 -->
+        <item name="CanGetSAPoint" key="是否能获得利箭点" value="501" />
+    </enum>
+
+    <enum name="BuffReplace" desc="Buff替换方式">
+        <item name="AddTime" key="时间累加" value="1" />
+        <item name="Refresh" key="刷新" value="2" />
+        <item name="AddLayer" key="层数和时间累加" value="3" />
+        <item name="NoEffect" key="互不影响" value="4" />
+        <item name="Only" key="旧的不去新的不来" value="5" />
+        <item name="JustLayer" key="层数叠加" value="6" />
+        <item name="TimeRefresh" key="仅刷新时间" value="7" />
+    </enum>
+
+    <enum name="BuffConfront" desc="Buff抵抗属性">
+        <item name="NoEffect" key="无类型" value="0" />
+        <item name="Vertigo" key="眩晕" value="1" />
+        <item name="Confusion" key="混乱" value="2" />
+        <item name="Decelerate" key="减速" value="3" />
+        <item name="Freeze" key="冰冻" value="4" />
+        <item name="Silent" key="沉默" value="5" />
+        <item name="Blinding" key="致盲" value="6" />
+        <item name="Fear" key="恐惧" value="7" />
+        <item name="Paralysis" key="麻痹" value="8" />
+    </enum>
+
+    <enum name="BattlePropEnum" desc="触发器枚举">
+        <item name="Atk" key="攻击" value="3001" />
+        <item name="Defence" key="防御" value="3002" />
+        <item name="MDefence" key="魔抗" value="3003" />
+        <item name="Hp" key="生命" value="3004" />
+        <item name="Mp" key="法力" value="3005" />
+        <item name="RecHp" key="生命恢复值" value="3006" />
+        <item name="RecMp" key="法力恢复值" value="3007" />
+        <item name="AtkRate" key="万分比攻击加成" value="3008" />
+        <item name="DefRate" key="万分比防御加成" value="3009" />
+        <item name="MDefRate" key="万分比魔抗加成" value="3010" />
+        <item name="HpRate" key="万分比生命加成" value="3011" />
+        <item name="HitLv" key="命中等级" value="3012" />
+        <item name="DodgeLv" key="闪避等级" value="3013" />
+        <item name="CriLv" key="暴击等级" value="3014" />
+        <item name="CriDefLv" key="抗暴击等级" value="3015" />
+        <item name="CriDamLv" key="爆伤等级" value="3016" />
+        <item name="ExHit" key="额外命中率" value="3017" />
+        <item name="ExDodge" key="额外闪避率" value="3018" />
+        <item name="ExCri" key="额外暴击率" value="3019" />
+        <item name="ExDefCri" key="额外抗暴击率" value="3020" />
+        <item name="ExCriDam" key="额外爆伤率" value="3021" />
+        <item name="Pierce" key="破甲" value="3022" />
+        <item name="PierceRate" key="百分比破甲" value="3023" />
+        <item name="MPierce" key="法穿" value="3024" />
+        <item name="MPierceRate" key="百分比法穿" value="3025" />
+        <item name="Speed" key="移动速度" value="3026" />
+        <item name="SpeedAdd" key="移动速度加成" value="3027" />
+        <item name="AttackSpeed" key="攻击速度" value="3028" />
+        <item name="EnergySpeed" key="蓄力速度" value="3029" />
+        <item name="Spectral1" key="量谱槽1值" value="3030" />
+        <item name="Spectral2" key="量谱槽2值" value="3031" />
+        <item name="Spectral3" key="量谱槽3值" value="3032" />
+        <item name="SpectralRate1" key="量谱槽1万分比加成" value="3033" />
+        <item name="SpectralRate2" key="量谱槽2万分比加成" value="3034" />
+        <item name="SpectralRate3" key="量谱槽3万分比加成" value="3035" />
+        <item name="PhyDamAdd" key="物理伤害加成" value="3051" />
+        <item name="PhyDamDec" key="物理伤害削弱" value="3052" />
+        <item name="ElemDamAdd" key="元素伤害加成" value="3053" />
+        <item name="ElemDamDec" key="元素伤害削弱" value="3054" />
+        <item name="FinDamAdd" key="最终伤害加成" value="3055" />
+        <item name="FinDamDec" key="最终伤害减免" value="3056" />
+        <item name="Suck" key="吸血" value="3057" />
+        <item name="Thorns" key="反伤-荆棘" value="3058" />
+        <item name="BuffAddDamage" key="buff增伤万分比" value="3059" />
+        <item name="BuffVulnerable" key="buff易伤万分比" value="3060" />
+        <item name="ElemEarth" key="大地元素" value="3200" />
+        <item name="ElemFire" key="烈焰元素" value="3201" />
+        <item name="ElemIce" key="寒冰元素" value="3202" />
+        <item name="ElemNatura" key="自然元素" value="3203" />
+        <item name="ElemToxic" key="剧毒元素" value="3204" />
+        <item name="ElemLight" key="光明元素" value="3205" />
+        <item name="ElemDark" key="黑暗元素" value="3206" />
+        <item name="ElemAll" key="全元素攻击" value="3220" />
+        <item name="ResiEarth" key="大地抗性" value="3221" />
+        <item name="ResiFire" key="烈焰抗性" value="3222" />
+        <item name="ResiIce" key="寒冰抗性" value="3223" />
+        <item name="ResiNatura" key="自然抗性" value="3224" />
+        <item name="ResiToxic" key="剧毒抗性" value="3225" />
+        <item name="ResiLight" key="光明抗性" value="3226" />
+        <item name="ResiDark" key="黑暗抗性" value="3227" />
+        <item name="ElemEarthRate" key="大地元素百分比" value="3241" />
+        <item name="ElemFireRate" key="烈焰元素百分比" value="3242" />
+        <item name="ElemIceRate" key="寒冰元素百分比" value="3243" />
+        <item name="ElemNaturaRate" key="自然元素百分比" value="3244" />
+        <item name="ElemToxicRate" key="剧毒元素百分比" value="3245" />
+        <item name="ElemLightRate" key="光明元素百分比" value="3246" />
+        <item name="ElemDarkRate" key="黑暗元素百分比" value="3247" />
+        <item name="ElemAllRate" key="全元素百分比" value="3260" />
+        <item name="ResiDizz" key="抵抗眩晕" value="3350" />
+        <item name="ResiChaos" key="抵抗混乱" value="3351" />
+        <item name="ResiRetard" key="抵抗减速" value="3352" />
+        <item name="ResiFreeze" key="抵抗冰冻" value="3353" />
+        <item name="ResiSlience" key="抵抗沉默" value="3354" />
+        <item name="ResiBlind" key="抵抗致盲" value="3355" />
+        <item name="ResiFear" key="抵抗恐惧" value="3356" />
+        <item name="ResiNumb" key="抵抗麻痹" value="3357" />
+        <item name="ResiSuppress" key="抵抗压制" value="3358" />
+        <item name="ResiTodeter" key="抵抗震慑" value="3359" />
+        <item name="ResiOverheat" key="抵抗过热" value="3360" />
+        <item name="ResiStiff" key="抵抗僵直" value="3361" />
+        <item name="ResiTwine" key="抵抗缠绕" value="3362" />
+        <item name="ResiAbsent" key="抵抗失神" value="3363" />
+        <item name="ResiControl" key="控制抵抗" value="3399" />
+        <item name="EnhDizz" key="增强眩晕" value="3300" />
+        <item name="EnhChaos" key="增强混乱" value="3301" />
+        <item name="EnhRetard" key="增强减速" value="3302" />
+        <item name="EnhFreeze" key="增强冰冻" value="3303" />
+        <item name="EnhSlience" key="增强冰冻" value="3304" />
+        <item name="EnhBlind" key="增强致盲" value="3305" />
+        <item name="EnhFear" key="增强恐惧" value="3306" />
+        <item name="EnhNumb" key="增强麻痹" value="3307" />
+        <item name="EnhSuppress" key="增强压制" value="3308" />
+        <item name="EnhTodeter" key="增强震慑" value="3309" />
+        <item name="EnhOverheat" key="增强过热" value="3310" />
+        <item name="EnhStiff" key="增强僵直" value="3311" />
+        <item name="EnhTwine" key="增强缠绕" value="3312" />
+        <item name="EnhAbsent" key="增强失神" value="3313" />
+        <item name="EnhControl" key="控制增强" value="3349" />
+        <item name="TruthAtk" key="实际攻击力" value="3400" />
+        <item name="TruthHp" key="实际生命" value="3401" />
+        <item name="TruthDef" key="实际防御" value="3402" />
+        <item name="TruthMDef" key="实际魔抗" value="3403" />
+        <item name="TruthElemEarthRate" key="实际大地元素百分比" value="3404" />
+        <item name="TruthElemFireRate" key="实际烈焰元素百分比" value="3405" />
+        <item name="TruthElemIceRate" key="实际寒冰元素百分比" value="3406" />
+        <item name="TruthElemNaturaRate" key="实际自然元素百分比" value="3407" />
+        <item name="TruthElemToxicRate" key="实际剧毒元素百分比" value="3408" />
+        <item name="TruthElemLightRate" key="实际光明元素百分比" value="3409" />
+        <item name="TruthElemDarkRate" key="实际黑暗元素百分比" value="3410" />
+        <item name="TruthElemEarth" key="实际大地元素" value="3411" />
+        <item name="TruthElemFire" key="实际烈焰元素" value="3412" />
+        <item name="TruthElemIce" key="实际寒冰元素" value="3413" />
+        <item name="TruthElemNatura" key="实际自然元素" value="3414" />
+        <item name="TruthElemToxic" key="实际剧毒元素" value="3415" />
+        <item name="TruthElemLight" key="实际光明元素" value="3416" />
+        <item name="TruthElemDark" key="实际黑暗元素" value="3417" />
+        <item name="TruthSpeed" key="实际移动速度" value="3418" />
+        <item name="TruthHitRate" key="实际命中率" value="3419" />
+        <item name="TruthDodgeRate" key="实际闪避率" value="3420" />
+        <item name="TruthCriRate" key="实际暴击率" value="3421" />
+        <item name="TruthDefCirRate" key="实际抗暴击率" value="3422" />
+        <item name="TruthCirDamRate" key="实际爆伤率" value="3423" />
+        <item name="TruthMP" key="实际法力" value="3424" />
+        <item name="TruthAttackSpeed" key="实际攻速" value="3425" />
+        <item name="TruthEnergySpeed" key="实际蓄力速度" value="3426" />
+        <item name="TruthSpectral1" key="实际量谱槽1" value="3427" />
+        <item name="TruthSpectral2" key="实际量谱槽2" value="3428" />
+        <item name="TruthSpectral3" key="实际量谱槽3" value="3429" />
+        <item name="curHp" key="当前生命" value="3450" />
+        <item name="curMp" key="当前法力" value="3451" />
+        <item name="curSpectral1" key="当前量谱槽1" value="3452" />
+        <item name="curSpectral2" key="当前量谱槽2" value="3453" />
+        <item name="curSpectral3" key="当前量谱槽3" value="3454" />
+        <item name="HeroId" key="战斗单位的表格ID" value="3501" />
+        <item name="TargetBattleEntityID" key="当前盯着目标的编号" value="3502" />
+        <item name="BattleSubState" key="战斗状态下随机子状态" value="3503" />
+        <item name="State" key="战斗状态" value="3901" />
+        <item name="Job" key="职业" value="3902" />
+        <item name="Faction" key="玩家阵营" value="3903" />
+        <item name="PathPoses" key="寻路的坐标集合" value="3904" />
+        <item name="CurrPathIndex" key="寻路的坐标点下标，无效时为-1" value="3905" />
+    </enum>
+    <enum name="PropChangeType" desc="属性修改方式">
+        <item name="ChangeWithValue" key="根据数值增减" value="1" />
+        <item name="ChangeWithPercent" key="根据百分比增减" value="2" />
+        <item name="ChangeToValue" key="修改为指定数值" value="3" />
+        <item name="ChangeToPercent" key="修改为指定百分比" value="4" />
+    </enum>
+    <enum name="SummonDeathCondition" desc="属性修改方式">
+        <item name="ChangeWithPercent" key="根据百分比修改" value="1" />
+        <item name="ChangeWithValue" key="根据数值增减" value="2" />
+        <item name="ChangeToValue" key="修改为指定数值" value="3" />
+    </enum>
+    <enum name="MotionEndCondition" desc="运动阶段结束条件">
+        <item name="NormalEnd" key="正常结束" value="0" />
+        <item name="MoveEnd" key="运动到终点时结束阶段" value="1" />
+    </enum>
+
+    <enum name="LayerShowType" desc="层数显示类型">
+        <item name="All" key="实际层数" value="1" />
+        <item name="Offset" key="减去最小层数显示" value="2" />
+    </enum>
+
+    <enum name="OPEnum" desc="算法枚举">
+        <item name="Set" key="设置值到Key" value="1" />
+        <item name="Add" key="增加值到Key" value="2" />
+        <item name="Sub" key="减少值到Key" value="3" />
+    </enum>
+
+    <enum name="IsIgnoreTarget" desc="技能消耗">
+        <item name="IgnoreTarget" key="忽略模型半径" value="0" />
+        <item name="CheckTargetWithStart" key="不忽略模型半径(根据起始点选择最近的交点)" value="1" />
+        <item name="CheckTargetWithTargetCenter" key="不忽略模型半径(根据BOSS原点选择最近的交点)" value="2" />
+    </enum>
+
+    <enum name="AnimConditionType" desc="动作播放条件">
+        <item name="Move" key="移动" value="1" />
+    </enum>
+
+    <enum name="TriRuntimeType" desc="触发运行时类型">
+        <item name="Other" key="触发者的运行时" value="0" />
+        <item name="Self" key="触发器的运行时" value="1" />
+    </enum>
+    <!-- 通用相关开始 -->
+    <enum name="GlobalShowType" desc="通用表现标签">
+        <item name="BUFF_SpecialBUFFUI" key="特殊BUFFUI显示" value="0" />
+        <item name="BUFF_ShaderChange" key="修改Shader" value="1" />
+        <item name="BUFF_ShadowFollow" key="附影" value="2" />
+        <item name="BUFF_ChangeAnim" key="状态动作修改" value="3" />
+        <item name="BUFF_Paralysis" key="动作暂停" value="4" />
+        <item name="BUFF_Knock" key="击倒" value="5" />
+        <item name="BUFF_Hide" key="隐身" value="6" />
+        <item name="BUFF_HideUI" key="隐藏UI" value="7" />
+        <item name="BUFF_ClickUseSkill" key="点击屏幕释放技能" value="9" />
+        <item name="BUFF_ChangeColorShader" key="修改整体颜色Shader" value="10" />
+        <item name="BUFF_PlayEffectLineRenderer" key="与主人连线" value="11" />
+        <item name="BUFF_SpTimeShow" key="特殊时间展示" value="12" />
+        <item name="BUFF_AvatarChange" key="修改化身" value="13" />
+        <item name="BUFF_SkillSlotHide" key="技能槽隐藏" value="14" />
+        <item name="BUFF_SpectralChange" key="量谱显示方式修改" value="15" />
+        <item name="BUFF_TransChange" key="透明改变" value="16" />
+        <item name="BUFF_JobSkillChange" key="新增职业技能" value="101" />
+        <item name="BUFF_JobSkillCancel" key="基础职业技能失效" value="102" />
+        <item name="BUFF_ChangeFaction" key="改变阵营" value="103" />
+        <item name="BUFF_AutoDestroy" key="移动摇杆自动删除" value="104" />
+        <item name="Skill_SkillSlotSpShow" key="技能槽特殊表现" value="201" />
+        <item name="Global_CameraMove" key="摄像机移动" value="1001" />
+        <item name="Global_SpectralSkill" key="量谱图切换" value="1002" />
+        <item name="Global_AddClientSummon" key="召唤客户端召唤物" value="1003" />
+    </enum>
+
+    <enum name="CameraMoveType" desc="摄像机移动方式">
+        <item name="MoveWithCha" key="根据角色朝向平移" value="0" />
+        <item name="MoveWithVal" key="根据绝对朝向平移" value="1" />
+        <item name="Zoom" key="放缩（0向前、180向后）" value="2" />
+    </enum>
+
+    <enum name="EnumSkillSlotSpShow" desc="技能槽特殊表现">
+        <item name="BlueRing" key="蓝色环绕" value="1" />
+    </enum>
+
+    <enum name="UILabel" desc="UI标签">
+        <item name="Hide" key="全屏技能隐藏" value="0" />
+    </enum>
+    <!-- 通用相关结束 -->
+    <!-- 技能相关开始 -->
+    <enum name="SkillTag" desc="技能基础类型">
+        <item name="Attack" key="普通攻击" value="1" />
+        <item name="Skill" key="普通技能" value="2" />
+        <item name="Aided" key="辅助技能" value="3" />
+        <item name="Ultimate" key="终极技能" value="4" />
+        <item name="Sprint" key="冲刺技能" value="5" />
+        <item name="PetSkill" key="宠物技能" value="6" />
+        <item name="Cleanse" key="净化技能" value="7" />
+    </enum>
+
+    <enum name="SkillType" desc="技能表现类型">
+    </enum>
+
+    <enum name="SkillLabel" desc="技能标签">
+        <item name="SpectralSkill" key="量谱消耗技能" value="1" />
+        <item name="NormalAttack" key="普攻" value="2" />
+        <item name="MuYTreat" key="牧夜治疗" value="4000001" />
+        <item name="MuYAttack" key="牧夜强效" value="4000002" />
+		<item name="QuanSOneA" key="拳师耗1点A" value="509901" />
+		<item name="QuanSTwoA" key="拳师耗2点A" value="509902" />
+		<item name="QuanSThrA" key="拳师耗3点A" value="509903" />        
+        <item name="QuanSA" key="拳师A技能" value="509904" />
+		<item name="QuanSOneB" key="拳师耗1点B" value="509911" />
+		<item name="QuanSTwoB" key="拳师耗2点B" value="509912" />
+        <item name="QuanSThrB" key="拳师耗3点B" value="509913" />
+        <item name="QuanSB" key="拳师B技能" value="509914" />
+    </enum>
+
+    <enum name="ConsumeType" desc="技能消耗">
+        <item name="Con_Hp" key="生命值" value="1" />
+        <item name="Con_Mp" key="法力值" value="2" />
+    </enum>
+    <!-- 技能相关结束 -->
+    <!-- BUFF相关开始 -->
+    <enum name="BuffTag" desc="Buff基础类型">
+        <item name="NoEffect" key="无类型" value="0" />
+        <item name="Vertigo" key="眩晕" value="1" />
+        <item name="Confusion" key="混乱" value="2" />
+        <item name="Decelerate" key="减速" value="3" />
+        <item name="Freeze" key="冰冻" value="4" />
+        <item name="Silent" key="沉默" value="5" />
+        <item name="Blinding" key="致盲" value="6" />
+        <item name="Fear" key="恐惧" value="7" />
+        <item name="Paralysis" key="麻痹" value="8" />
+    </enum>
+
+    <enum name="ShaderEnum" desc="Shader枚举">
+        <item name="Freeze" key="冰冻" value="1" />
+        <item name="RedPatches" key="GVE红色侵蚀" value="2" />
+        <item name="Drench" key="浸湿" value="3" />
+        <item name="Crazy" key="狂暴" value="4" />
+    </enum>
+
+    <enum name="SpTimeShowTypeEnum" desc="特殊展示类型">
+        <item name="OverheadClock" key="头顶时钟" value="1" />
+        <item name="ProgressBelowHead" key="头顶血条下方读条" value="2" />
+        <item name="MuYTreat" key="牧夜治疗" value="11" />
+        <item name="MuYAttack" key="牧夜强攻" value="12" />
+    </enum>
+
+    <enum name="BuffLabel" desc="Buff标签">
+        <item name="Debuffs" key="减益" value="1" />
+        <item name="Bleed" key="流血" value="2" />
+        <item name="Shield" key="护盾" value="3" />
+        <item name="Decelerate" key="减速" value="4" />
+        <item name="Freeze" key="冰冻" value="5" />
+        <item name="KnockDown" key="击倒" value="6" />
+        <item name="ShadowFollow" key="附影" value="7" />
+        <item name="ChangeAnim" key="状态动作修改" value="8" />
+        <item name="invisible" key="隐身" value="9" />
+        <item name="Paralysis" key="麻痹" value="10" />
+        <item name="NoTimeDisplay" key="不显示时间" value="11" />
+        <item name="Drench" key="浸湿" value="12" />
+        <item name="DeadWithMap" key="地图让死就死BUFF " value="10000" />
+    </enum>
+
+    <enum name="BUFFUIShowPosEnum" desc="BUFFUI显示位置标签">
+        <item name="HUDHpUp" key="HUD血条上方 " value="1" />
+        <item name="ThreeDHPUp" key="3D血条上方 " value="2" />
+
+        <item name="SecretBUFF" key="秘境BUFF" value="11" />
+    </enum>
+
+    <!-- BUFF相关结束 -->
+    <!-- 子弹相关开始 -->
+    <enum name="BulletLabel" desc="子弹标签">
+        <item name="Shadow" key="影子" value="1" />
+        <item name="BackShadow" key="返回影子" value="2" />
+        <item name="LinStreatball" key="琳赛治疗球" value="910011" />
+        <item name="MuYTreatRing" key="牧夜治疗圈" value="4099011" />
+        <item name="MuYHurtRing" key="牧夜伤害圈" value="4099012" />
+        <item name="DeadWithMap" key="地图让死就死子弹" value="10000" />
+    </enum>
+    <!-- 子弹相关结束 -->
+    <!-- 效果相关开始 -->
+    <enum name="EffectLabel" desc="效果标签">
+        <item name="NoTriggerDamage" key="不会触发伤害" value="1" />
+        <item name="SpBullet1Skill" key="特殊子弹1" value="2" />
+        <item name="SpBullet2Skill" key="特殊子弹2" value="3" />
+        <item name="SpBullet3Skill" key="特殊子弹3" value="4" />
+        <item name="Backstab" key="背刺" value="5" />
+        <item name="NoBackstab" key="不会背刺" value="6" />
+        <item name="AddBackstabPoint" key="增加背刺点" value="7" />
+        <item name="Catch201" key="抓捕201" value="2011" />
+        <item name="DailyDungeonFireDamage" key="日常副本火焰伤害" value="30561" />
+        <item name="ShiRomRush" key="噬子弹伤害" value="103062" />
+        <item name="ShiLighting" key="噬吼叫阶段" value="103071" />
+        <item name="ShiLoopHit" key="噬持续伤害" value="103511" />
+        <item name="ZZHitAddBuff" key="中指击中施加BUFF" value="110511" />
+        <item name="ZZHitWithBuff" key="中指根据BUFF判断攻击" value="110511" />
+        <item name="LinSHitAddBullet" key="琳赛普攻概率召唤子弹" value="910011" />
+        <item name="LinSHitAddBuff" key="琳赛血球增加攻击力" value="910211" />
+        <item name="HuoLCreateBullet" key="霍莉召唤子弹" value="922011" />
+        <item name="HaSTCreateBullet" key="哈森特召唤子弹" value="912011" />
+        <item name="KnifeManAttack" key="刺客普通攻击" value="2000011" />
+        <item name="ShadowTime" key="刺客影子操作" value="200001" />
+        <item name="CiKBoomPassive" key="刺客被动爆炸" value="2099011" />
+        <item name="ShadowDamage" key="刺客影子伤害" value="2002111" />
+        <item name="ChargeShadowDamage" key="刺客蓄影伤害" value="2002112" />
+        <item name="ShadowMoreDamage" key="刺客有影增伤" value="2004111" />
+        <item name="ShadowToBall" key="刺客附影换球" value="2107011" />
+        <item name="ShadowToBoom" key="刺客附影额外爆炸" value="2108111" />
+        <item name="ShadowToLoopBoom" key="刺客附影额外放波" value="2109111" />
+        <item name="KnifeFly" key="刺客发射匕首" value="2110111" />
+        <item name="ShadowToShadow" key="刺客附影额外放雾" value="2111211" />
+        <item name="GunGirlAttack" key="女枪普通攻击" value="3000011" />
+        <item name="GunGirlBoom" key="女枪技能引爆点燃" value="3000001" />
+        <item name="CriticalHitElectricShock" key="女枪暴击感电" value="3106211" />
+        <item name="GunGirlBigBoom" key="女枪大招引爆点燃" value="3111111" />
+        <item name="BreakDADADA" key="结束交叉射击" value="3105011" />
+        <item name="ElectricShockAgain" key="重复感电" value="3105211" />
+        <item name="FireFire" key="引爆易燃" value="3107011" />
+        <item name="MuY_Treat" key="牧夜治疗" value="4000001" />
+        <item name="MuY_SpHit" key="牧夜强效" value="4000002" />
+        <item name="MuY_TreatTrigger" key="牧夜治疗通用触发" value="4000003" />
+        <item name="MuY_SpHitTrigger" key="牧夜强效通用触发" value="4000004" />
+        <item name="QuanSSkill4Charge" key="拳师技能四伤害" value="500401" />
+        <item name="QuanSSkill6Charge" key="拳师技能六伤害" value="500801" />
+		<item name="QuanSOneA" key="拳师耗1点A" value="509901" />
+    </enum>
+    <!-- 效果相关结束 -->
+</config>

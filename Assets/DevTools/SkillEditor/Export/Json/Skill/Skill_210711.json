@@ -1,0 +1,1043 @@
+{
+    "config": {
+        "ID": 210711,
+        "Priority": 1000,
+        "RuntimePriority": 0,
+        "SkillDesc": "昧光.技能七.天赋一",
+        "SkillTag": 2,
+        "SkillTurnAroundTime": 100,
+        "GlobalShows": [],
+        "CD": 25000,
+        "SkillCDKey": 210701,
+        "IsNotShowCD": false,
+        "ButtonCD": 500,
+        "Consume": [],
+        "IsHidden": false,
+        "Conditions": [
+            {
+                "ConditionParams": {
+                    "ConditionType": 6,
+                    "Cond_TargetFaction": {
+                        "TargetSelect": 2
+                    }
+                }
+            }
+        ],
+        "MinCastDistance": 0,
+        "AICastDistance": 800,
+        "CastMethod": 3,
+        "IsCDCloseTouch": false,
+        "SkillInputType": 2,
+        "DynamicRangeType": 1,
+        "WheelCfg": {
+            "Shape": {
+                "ShapeType": 1,
+                "Round": {
+                    "Radius": 300
+                }
+            }
+        },
+        "WheelRange": {
+            "MinRadius": 0,
+            "MaxRadius": 800,
+            "Angle": 0
+        },
+        "IsAutoTurnToTarget": true,
+        "SkillLabels": [],
+        "skillIconDesc": "蓄力",
+        "SkillIconDesc_Key": "SkillIconDesc_210711",
+        "SkillIconDesc": "蓄力"
+    },
+    "Normals": [
+        {
+            "Start": 0,
+            "End": 5000,
+            "Duration": 5000,
+            "StageID": 1001,
+            "StageType": 0,
+            "StageNormal": {
+                "Active": true,
+                "LoopCount": 1,
+                "IsEntryCD": true,
+                "States": [
+                    1
+                ],
+                "Interrupt": 2,
+                "BattleProp": [
+                    {
+                        "Prop": 3027,
+                        "PropVaule": -3000
+                    }
+                ],
+                "BattleGroupID": 0,
+                "IsMsgClient": false
+            },
+            "Effects": [
+                {
+                    "data": [
+                        {
+                            "EffectType": 4,
+                            "BaseEffect": {
+                                "CenterPosArray": {
+                                    "TargetKey": {
+                                        "Result": "Builder"
+                                    },
+                                    "TransTargetIsHit": "All",
+                                    "PosKey": {
+                                        "Result": ""
+                                    },
+                                    "Angle": 0,
+                                    "Distance": 0
+                                },
+                                "TowardArray": {
+                                    "TargetKey": {
+                                        "Result": "Builder"
+                                    },
+                                    "TransTargetIsHit": "All",
+                                    "TowardKey": {
+                                        "Result": ""
+                                    },
+                                    "TowardOffset": 0
+                                },
+                                "Shape": {
+                                    "ShapeType": 1,
+                                    "Round": {
+                                        "Radius": 30000
+                                    }
+                                },
+                                "CollisionTarget": 9,
+                                "MaxTar": 10,
+                                "BulletLabels": [
+                                    1
+                                ],
+                                "IsSettleHit": false,
+                                "IsForewarn": false,
+                                "ForewarnTime": 0,
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "AllShadowBullet"
+                                },
+                                "IsNoDuplicationKey": {
+                                    "SaveSkill": true,
+                                    "Result": ""
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 1001,
+                            "Desc": "",
+                            "Next": [
+                                1002
+                            ],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "Builder"
+                            ],
+                            "OutputKeys": [
+                                "AllShadowBullet"
+                            ]
+                        },
+                        {
+                            "EffectType": 41,
+                            "BaseEffect": {
+                                "CenterPosArray": {
+                                    "TargetKey": {
+                                        "Result": "AllShadowBullet"
+                                    },
+                                    "TransTargetIsHit": "All",
+                                    "PosKey": {
+                                        "Result": ""
+                                    },
+                                    "Angle": 0,
+                                    "Distance": 0
+                                },
+                                "TowardArray": {
+                                    "TargetKey": {
+                                        "Result": "Builder"
+                                    },
+                                    "TransTargetIsHit": "All",
+                                    "TowardKey": {
+                                        "Result": ""
+                                    },
+                                    "TowardOffset": 0
+                                },
+                                "BulletID": 2107011,
+                                "BulletCopyData": [],
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "CreateBackShadow"
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 1002,
+                            "Desc": "",
+                            "Next": [
+                                1003
+                            ],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "AllShadowBullet",
+                                "Builder"
+                            ],
+                            "OutputKeys": [
+                                "CreateBackShadow"
+                            ]
+                        },
+                        {
+                            "EffectType": 42,
+                            "BaseEffect": {
+                                "EffectTargetArray": {
+                                    "Result": "AllShadowBullet"
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 1003,
+                            "Desc": "",
+                            "Next": [
+                                1004
+                            ],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "AllShadowBullet"
+                            ],
+                            "OutputKeys": []
+                        },
+                        {
+                            "EffectType": 74,
+                            "BaseEffect": {
+                                "InputKey": {
+                                    "Result": ""
+                                },
+                                "TargetType": 1,
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "Trigger"
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 1004,
+                            "Desc": "",
+                            "Next": [],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [
+                                2107011
+                            ],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [],
+                            "OutputKeys": [
+                                "Trigger"
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "data": [
+                        {
+                            "EffectType": 72,
+                            "BaseEffect": {
+                                "OpenInput": true,
+                                "OnTimeLogic": 4,
+                                "LayerTime": 500,
+                                "MinTime": 1000,
+                                "MaxTime": 4800,
+                                "WheelCfg": {
+                                    "Shape": {
+                                        "ShapeType": 1,
+                                        "Round": {
+                                            "Radius": 300
+                                        }
+                                    }
+                                },
+                                "WheelRange": {
+                                    "MinRadius": 0,
+                                    "MaxRadius": 800,
+                                    "Angle": 0
+                                },
+                                "MinLayer": 1,
+                                "MaxLayer": 5,
+                                "LayerShowType": 2,
+                                "OutputKey": {
+                                    "SaveSkill": true,
+                                    "Result": "Charge"
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 8000,
+                            "Desc": "",
+                            "Next": [],
+                            "SaveSkill": true,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 5000,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 5000,
+                            "ServerPreTime": 0,
+                            "InputKeys": [],
+                            "OutputKeys": [
+                                "Charge"
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "data": [
+                        {
+                            "EffectType": 41,
+                            "BaseEffect": {
+                                "CenterPosArray": {
+                                    "TargetKey": {
+                                        "Result": "Builder"
+                                    },
+                                    "TransTargetIsHit": "All",
+                                    "PosKey": {
+                                        "Result": ""
+                                    },
+                                    "Angle": 0,
+                                    "Distance": 0
+                                },
+                                "TowardArray": {
+                                    "TargetKey": {
+                                        "Result": "Builder"
+                                    },
+                                    "TransTargetIsHit": "All",
+                                    "TowardKey": {
+                                        "Result": ""
+                                    },
+                                    "TowardOffset": 0
+                                },
+                                "BulletID": 2107011,
+                                "BulletCopyData": [],
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "CreateBackShadow1"
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 3001,
+                            "Desc": "",
+                            "Next": [],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 1000,
+                            "EffectEndTime": 1000,
+                            "ServerExecuteTime": 1000,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "Builder"
+                            ],
+                            "OutputKeys": [
+                                "CreateBackShadow1"
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "data": [
+                        {
+                            "EffectType": 41,
+                            "BaseEffect": {
+                                "CenterPosArray": {
+                                    "TargetKey": {
+                                        "Result": "Builder"
+                                    },
+                                    "TransTargetIsHit": "All",
+                                    "PosKey": {
+                                        "Result": ""
+                                    },
+                                    "Angle": 0,
+                                    "Distance": 0
+                                },
+                                "TowardArray": {
+                                    "TargetKey": {
+                                        "Result": "Builder"
+                                    },
+                                    "TransTargetIsHit": "All",
+                                    "TowardKey": {
+                                        "Result": ""
+                                    },
+                                    "TowardOffset": 0
+                                },
+                                "BulletID": 2107011,
+                                "BulletCopyData": [],
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "CreateBackShadow4"
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 6001,
+                            "Desc": "",
+                            "Next": [],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 1666,
+                            "EffectEndTime": 1666,
+                            "ServerExecuteTime": 1666,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "Builder"
+                            ],
+                            "OutputKeys": [
+                                "CreateBackShadow4"
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "data": [
+                        {
+                            "EffectType": 41,
+                            "BaseEffect": {
+                                "CenterPosArray": {
+                                    "TargetKey": {
+                                        "Result": "Builder"
+                                    },
+                                    "TransTargetIsHit": "All",
+                                    "PosKey": {
+                                        "Result": ""
+                                    },
+                                    "Angle": 0,
+                                    "Distance": 0
+                                },
+                                "TowardArray": {
+                                    "TargetKey": {
+                                        "Result": "Builder"
+                                    },
+                                    "TransTargetIsHit": "All",
+                                    "TowardKey": {
+                                        "Result": ""
+                                    },
+                                    "TowardOffset": 0
+                                },
+                                "BulletID": 2107011,
+                                "BulletCopyData": [],
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "CreateBackShadow2"
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 4001,
+                            "Desc": "",
+                            "Next": [],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 2000,
+                            "EffectEndTime": 2000,
+                            "ServerExecuteTime": 2000,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "Builder"
+                            ],
+                            "OutputKeys": [
+                                "CreateBackShadow2"
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "data": [
+                        {
+                            "EffectType": 41,
+                            "BaseEffect": {
+                                "CenterPosArray": {
+                                    "TargetKey": {
+                                        "Result": "Builder"
+                                    },
+                                    "TransTargetIsHit": "All",
+                                    "PosKey": {
+                                        "Result": ""
+                                    },
+                                    "Angle": 0,
+                                    "Distance": 0
+                                },
+                                "TowardArray": {
+                                    "TargetKey": {
+                                        "Result": "Builder"
+                                    },
+                                    "TransTargetIsHit": "All",
+                                    "TowardKey": {
+                                        "Result": ""
+                                    },
+                                    "TowardOffset": 0
+                                },
+                                "BulletID": 2107011,
+                                "BulletCopyData": [],
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "CreateBackShadow5"
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 7001,
+                            "Desc": "",
+                            "Next": [],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 2666,
+                            "EffectEndTime": 2666,
+                            "ServerExecuteTime": 2666,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "Builder"
+                            ],
+                            "OutputKeys": [
+                                "CreateBackShadow5"
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "data": [
+                        {
+                            "EffectType": 41,
+                            "BaseEffect": {
+                                "CenterPosArray": {
+                                    "TargetKey": {
+                                        "Result": "Builder"
+                                    },
+                                    "TransTargetIsHit": "All",
+                                    "PosKey": {
+                                        "Result": ""
+                                    },
+                                    "Angle": 0,
+                                    "Distance": 0
+                                },
+                                "TowardArray": {
+                                    "TargetKey": {
+                                        "Result": "Builder"
+                                    },
+                                    "TransTargetIsHit": "All",
+                                    "TowardKey": {
+                                        "Result": ""
+                                    },
+                                    "TowardOffset": 0
+                                },
+                                "BulletID": 2107011,
+                                "BulletCopyData": [],
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "CreateBackShadow3"
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 5001,
+                            "Desc": "",
+                            "Next": [],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 3000,
+                            "EffectEndTime": 3000,
+                            "ServerExecuteTime": 3000,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "Builder"
+                            ],
+                            "OutputKeys": [
+                                "CreateBackShadow3"
+                            ]
+                        }
+                    ]
+                }
+            ],
+            "Fxs": [],
+            "Sounds": [
+                {
+                    "EventName": "MeiG_M_Skill_07_1",
+                    "SoundEventID": 340730619,
+                    "Start": 0,
+                    "End": 0,
+                    "Duration": 0,
+                    "ClipIn": 0,
+                    "clipCaps": 0,
+                    "Index": 8,
+                    "SpeedMultiplier": 1.0
+                }
+            ],
+            "Cameras": [],
+            "ShakeCameras": [],
+            "Animations": [
+                {
+                    "ClipName": "Skill_09_01",
+                    "ClipPath": "Skill_09_01",
+                    "FootIK": true,
+                    "Loop": 0,
+                    "AnimatorCustomData": {
+                        "AnimatorName": "",
+                        "FadeDuration": 100,
+                        "AnimatorSp": []
+                    },
+                    "Start": 0,
+                    "End": 1000,
+                    "Duration": 1000,
+                    "ClipIn": 0,
+                    "clipCaps": 0,
+                    "Index": 0,
+                    "SpeedMultiplier": 1.0
+                },
+                {
+                    "ClipName": "Skill_09_02",
+                    "ClipPath": "Skill_09_02",
+                    "FootIK": true,
+                    "Loop": 0,
+                    "AnimatorCustomData": {
+                        "AnimatorName": "",
+                        "FadeDuration": 100,
+                        "AnimatorSp": []
+                    },
+                    "Start": 1000,
+                    "End": 1666,
+                    "Duration": 666,
+                    "ClipIn": 0,
+                    "clipCaps": 0,
+                    "Index": 1,
+                    "SpeedMultiplier": 0.1999999
+                },
+                {
+                    "ClipName": "Skill_09_02",
+                    "ClipPath": "Skill_09_02",
+                    "FootIK": true,
+                    "Loop": 0,
+                    "AnimatorCustomData": {
+                        "AnimatorName": "",
+                        "FadeDuration": 100,
+                        "AnimatorSp": []
+                    },
+                    "Start": 1666,
+                    "End": 2333,
+                    "Duration": 666,
+                    "ClipIn": 0,
+                    "clipCaps": 0,
+                    "Index": 2,
+                    "SpeedMultiplier": 0.1999999
+                },
+                {
+                    "ClipName": "Skill_09_02",
+                    "ClipPath": "Skill_09_02",
+                    "FootIK": true,
+                    "Loop": 0,
+                    "AnimatorCustomData": {
+                        "AnimatorName": "",
+                        "FadeDuration": 100,
+                        "AnimatorSp": []
+                    },
+                    "Start": 2333,
+                    "End": 3000,
+                    "Duration": 666,
+                    "ClipIn": 0,
+                    "clipCaps": 0,
+                    "Index": 3,
+                    "SpeedMultiplier": 0.1999999
+                },
+                {
+                    "ClipName": "Skill_09_02",
+                    "ClipPath": "Skill_09_02",
+                    "FootIK": true,
+                    "Loop": 0,
+                    "AnimatorCustomData": {
+                        "AnimatorName": "",
+                        "FadeDuration": 100,
+                        "AnimatorSp": []
+                    },
+                    "Start": 3000,
+                    "End": 3666,
+                    "Duration": 666,
+                    "ClipIn": 0,
+                    "clipCaps": 0,
+                    "Index": 4,
+                    "SpeedMultiplier": 0.1999999
+                },
+                {
+                    "ClipName": "Skill_09_02",
+                    "ClipPath": "Skill_09_02",
+                    "FootIK": true,
+                    "Loop": 0,
+                    "AnimatorCustomData": {
+                        "AnimatorName": "",
+                        "FadeDuration": 100,
+                        "AnimatorSp": []
+                    },
+                    "Start": 3666,
+                    "End": 4333,
+                    "Duration": 666,
+                    "ClipIn": 0,
+                    "clipCaps": 0,
+                    "Index": 5,
+                    "SpeedMultiplier": 0.1999999
+                },
+                {
+                    "ClipName": "Skill_09_02",
+                    "ClipPath": "Skill_09_02",
+                    "FootIK": true,
+                    "Loop": 0,
+                    "AnimatorCustomData": {
+                        "AnimatorName": "",
+                        "FadeDuration": 100,
+                        "AnimatorSp": []
+                    },
+                    "Start": 4333,
+                    "End": 5000,
+                    "Duration": 666,
+                    "ClipIn": 0,
+                    "clipCaps": 0,
+                    "Index": 6,
+                    "SpeedMultiplier": 0.1999999
+                }
+            ]
+        },
+        {
+            "Start": 5000,
+            "End": 5333,
+            "Duration": 333,
+            "StageID": 1002,
+            "StageType": 0,
+            "StageNormal": {
+                "Active": true,
+                "LoopCount": 1,
+                "IsEntryCD": false,
+                "States": [
+                    1,
+                    2
+                ],
+                "Interrupt": 2,
+                "BattleProp": [],
+                "BattleGroupID": 0,
+                "IsMsgClient": false
+            },
+            "Effects": [
+                {
+                    "data": [
+                        {
+                            "EffectType": 4,
+                            "BaseEffect": {
+                                "CenterPosArray": {
+                                    "TargetKey": {
+                                        "Result": "Builder"
+                                    },
+                                    "TransTargetIsHit": "All",
+                                    "PosKey": {
+                                        "Result": ""
+                                    },
+                                    "Angle": 0,
+                                    "Distance": 0
+                                },
+                                "TowardArray": {
+                                    "TargetKey": {
+                                        "Result": "Builder"
+                                    },
+                                    "TransTargetIsHit": "All",
+                                    "TowardKey": {
+                                        "Result": ""
+                                    },
+                                    "TowardOffset": 0
+                                },
+                                "Shape": {
+                                    "ShapeType": 1,
+                                    "Round": {
+                                        "Radius": 300
+                                    }
+                                },
+                                "CollisionTarget": 9,
+                                "MaxTar": 10,
+                                "BulletLabels": [
+                                    2
+                                ],
+                                "IsSettleHit": false,
+                                "IsForewarn": false,
+                                "ForewarnTime": 0,
+                                "OutputKey": {
+                                    "SaveSkill": true,
+                                    "Result": "AllBackShadowBullet"
+                                },
+                                "IsNoDuplicationKey": {
+                                    "SaveSkill": true,
+                                    "Result": ""
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 2001,
+                            "Desc": "",
+                            "Next": [
+                                2002
+                            ],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 200,
+                            "EffectEndTime": 200,
+                            "ServerExecuteTime": 200,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "Builder"
+                            ],
+                            "OutputKeys": [
+                                "AllBackShadowBullet"
+                            ]
+                        },
+                        {
+                            "EffectType": 31,
+                            "BaseEffect": {
+                                "EffectTargetArray": {
+                                    "Result": "Builder"
+                                },
+                                "BuffID": 2107011,
+                                "BUFFTime": 0,
+                                "Pile": 1,
+                                "BuffCopyData": [
+                                    {
+                                        "FromKey": {
+                                            "Result": "AllBackShadowBullet"
+                                        },
+                                        "ToKey": {
+                                            "SaveSkill": true,
+                                            "Result": "AllBackShadowBullet"
+                                        }
+                                    },
+                                    {
+                                        "FromKey": {
+                                            "Result": "InputCoord"
+                                        },
+                                        "ToKey": {
+                                            "SaveSkill": true,
+                                            "Result": "BulletTarget"
+                                        }
+                                    }
+                                ],
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 2002,
+                            "Desc": "",
+                            "Next": [],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "Builder"
+                            ],
+                            "OutputKeys": []
+                        }
+                    ]
+                }
+            ],
+            "Fxs": [],
+            "Sounds": [],
+            "Cameras": [],
+            "ShakeCameras": [],
+            "Animations": [
+                {
+                    "ClipName": "Skill_04_1",
+                    "ClipPath": "Skill_04_1",
+                    "FootIK": true,
+                    "Loop": 0,
+                    "AnimatorCustomData": {
+                        "AnimatorName": "",
+                        "FadeDuration": 100,
+                        "AnimatorSp": []
+                    },
+                    "Start": 0,
+                    "End": 333,
+                    "Duration": 333,
+                    "ClipIn": 0,
+                    "clipCaps": 0,
+                    "Index": 7,
+                    "SpeedMultiplier": 1.0
+                }
+            ]
+        }
+    ],
+    "Others": [
+        {
+            "Start": 0,
+            "End": 1000,
+            "Duration": 1000,
+            "StageID": 2001,
+            "StageType": 1,
+            "StageTrigger": {
+                "TriggerCount": 1,
+                "StageEnum": 127,
+                "IsMsgClient": true,
+                "ConditionGroup": [
+                    {
+                        "TriggerTypeEnum": 303,
+                        "TriggerArg": {
+                            "CurrEffectTag": {
+                                "CompOperator": 8,
+                                "EffectTag": 2107011
+                            }
+                        }
+                    },
+                    {
+                        "TriggerTypeEnum": 402,
+                        "TriggerArg": {
+                            "BuffID": {
+                                "Tar": {
+                                    "Result": "Builder"
+                                },
+                                "CompOperator": 8,
+                                "IsGroup": true,
+                                "Value": 200001
+                            }
+                        }
+                    }
+                ]
+            },
+            "Effects": [
+                {
+                    "data": [
+                        {
+                            "EffectType": 32,
+                            "BaseEffect": {
+                                "EffectTargetArray": {
+                                    "Result": "Builder"
+                                },
+                                "BuffIDs": [
+                                    2000001,
+                                    2000002
+                                ],
+                                "BuffTags": [],
+                                "BuffConfronts": [],
+                                "AlwaysSuccess": true,
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "RemoveBuff"
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 9001,
+                            "Desc": "",
+                            "Next": [
+                                9002
+                            ],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "Builder"
+                            ],
+                            "OutputKeys": [
+                                "RemoveBuff"
+                            ]
+                        },
+                        {
+                            "EffectType": 41,
+                            "BaseEffect": {
+                                "CenterPosArray": {
+                                    "TargetKey": {
+                                        "Result": "Builder"
+                                    },
+                                    "TransTargetIsHit": "All",
+                                    "PosKey": {
+                                        "Result": ""
+                                    },
+                                    "Angle": 0,
+                                    "Distance": 0
+                                },
+                                "TowardArray": {
+                                    "TargetKey": {
+                                        "Result": "Builder"
+                                    },
+                                    "TransTargetIsHit": "All",
+                                    "TowardKey": {
+                                        "Result": ""
+                                    },
+                                    "TowardOffset": 0
+                                },
+                                "BulletID": 2107011,
+                                "BulletCopyData": [],
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "CreateBackShadow1"
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 9002,
+                            "Desc": "",
+                            "Next": [],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "Builder"
+                            ],
+                            "OutputKeys": [
+                                "CreateBackShadow1"
+                            ]
+                        }
+                    ]
+                }
+            ],
+            "Fxs": [],
+            "Sounds": [],
+            "Cameras": [],
+            "ShakeCameras": [],
+            "Animations": []
+        }
+    ],
+    "Bullets": []
+}

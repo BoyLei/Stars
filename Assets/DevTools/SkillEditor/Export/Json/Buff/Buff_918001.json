@@ -1,0 +1,180 @@
+{
+    "config": {
+        "ID": 918001,
+        "BuffDesc": "丝塔.3层后触发伤害",
+        "RuntimePriority": 0,
+        "IsDebuff": false,
+        "BuffTags": 0,
+        "GlobalShows": [
+            {
+                "GlobalShowType": 0,
+                "BUFF_SpecialBUFFUI": {
+                    "BUFFUIShowDetailsList": [
+                        {
+                            "BUFFUIPos": 1,
+                            "BuffUIShowDetails": 7
+                        }
+                    ]
+                }
+            }
+        ],
+        "Time": 5000,
+        "IsTimeShow": true,
+        "LoopEffectInEditors": [],
+        "BattleProp": [],
+        "BattleGroupID": 0,
+        "States": [],
+        "IsLeaveSave": false,
+        "Replace": 3,
+        "GroupID": 918001,
+        "IsCretDiffer": true,
+        "MaxFloor": 10,
+        "AddEffectFlys": [],
+        "BuffCopyData": [],
+        "BuffLabels": []
+    },
+    "Normals": [],
+    "Others": [
+        {
+            "Start": 0,
+            "End": 5000,
+            "Duration": 5000,
+            "StageID": 2001,
+            "StageType": 1,
+            "StageTrigger": {
+                "TriggerCount": -1,
+                "StageEnum": 110,
+                "IsMsgClient": true,
+                "ConditionGroup": [
+                    {
+                        "TriggerTypeEnum": 7,
+                        "TriggerArg": {
+                            "DataBuffID": {
+                                "CompOperator": 1,
+                                "Value": 918001
+                            }
+                        }
+                    }
+                ]
+            },
+            "Effects": [
+                {
+                    "data": [
+                        {
+                            "EffectType": 113,
+                            "BaseEffect": {
+                                "InputKey": {
+                                    "Result": "StackCount"
+                                },
+                                "Value": 3,
+                                "Type": 5,
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "damagetime"
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 1001,
+                            "Desc": "",
+                            "Next": [
+                                1002
+                            ],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "StackCount"
+                            ],
+                            "OutputKeys": [
+                                "damagetime"
+                            ]
+                        },
+                        {
+                            "EffectType": 22,
+                            "BaseEffect": {
+                                "EffectTargetArray": {
+                                    "Result": "Owner"
+                                },
+                                "GroupID": 9180001,
+                                "GroupIDKey": [],
+                                "FlutteringWordsID": 0,
+                                "isActor": false,
+                                "HitEffect": [],
+                                "IsSpecial": false,
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "damage"
+                                },
+                                "EventName": "",
+                                "EventID": 0,
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 1002,
+                            "Desc": "",
+                            "Next": [
+                                1003
+                            ],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [
+                                1
+                            ],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "Owner"
+                            ],
+                            "OutputKeys": [
+                                "damage"
+                            ]
+                        },
+                        {
+                            "EffectType": 114,
+                            "BaseEffect": {
+                                "InputKey": {
+                                    "Result": ""
+                                },
+                                "Type": 1,
+                                "Value": 0,
+                                "InputKeyList": [],
+                                "GroupID": -1,
+                                "GroupIDKey": [],
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 1003,
+                            "Desc": "",
+                            "Next": [],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [],
+                            "OutputKeys": []
+                        }
+                    ]
+                }
+            ],
+            "Fxs": [],
+            "Sounds": [],
+            "Cameras": [],
+            "ShakeCameras": [],
+            "Animations": []
+        }
+    ],
+    "Bullets": []
+}

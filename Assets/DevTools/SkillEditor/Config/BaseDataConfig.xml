@@ -1,0 +1,1202 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<!--Class desc:类名-->
+<!--Class desc:描述-->
+<!--Class modifiers:修饰符 如 abstract ，partial-->
+<!--Class super:父类名-->
+<!--Member name:成员名-->
+<!--Member desc:描述-->
+<!--Member isEnum:是不是枚举-->
+<!--Member type:成员类型-->
+<!--Member ignore:是否忽略（忽略的字段不会生成代码，会通过partial 手动重写）-->
+<!--Member SpecialLabel:特殊的标签 如 [ReadOnly][MessagePack.Key(0)] [Newtonsoft.Json.JsonIgnore][MessagePack.IgnoreMember]-->
+<!--Member IsProperty:是不是属性-->
+<!--Member PropertyContent:属性内容-->
+<!--Member default:默认值-->
+<!--Member [JsonConverter(typeof(StringEnumConverter))]:导出枚举的字符串-->
+<config>
+  <enum name="SkillConfig" modifiers="partial" desc="技能配置" super="BaseConfig">
+    <item name="ID" SpecialbLabel="[ReadOnly]" desc="技能ID" type="int" />
+    <item name="Priority" desc="主动打断优先级" type="int" />
+    <item name="RuntimePriority" desc="运行时优先级" type="int" />
+    <item name="SkillDesc" desc="技能备注" type="string"/>
+    <item name="SkillTag" desc="技能类型" isEnum="True" type="SkillTag" default="SkillTag.Skill" />
+    <item name="SkillTurnAroundTime" desc="技能最大转身时间" type="int" />
+    <item name="GlobalShows" desc="表现标签" type="List&lt;GlobalShowSerialize&gt;" />
+    <item name="CD" desc="技能CD" type="int" />
+    <item name="SkillCDKey" desc="技能CDKey" type="int" />
+    <item name="IsNotShowCD" desc="是否不显示技能CD" type="bool" />
+    <item name="ButtonCD" desc="技能按钮CD" type="int" />
+    <item name="Consume" desc="技能消耗" type="List&lt;ConsumeConfig&gt;" />
+    <item name="IsHidden" desc="不显示在技能框中" type="bool" />
+    <item name="Conditions" desc="技能施法条件" type="List&lt;SkillCondition&gt;" />
+    <item name="MinCastDistance" desc="最小释放距离(怪物)" type="int" />
+    <item name="AICastDistance" desc="最大释放距离(怪物)" type="int" />
+    <item name="CastMethod" desc="施法方式" isEnum="True" type="CastMethodType" default="CastMethodType.DirectCast" />
+    <item name="IsCDCloseTouch" desc="进入CD是否抬起按钮" type="bool" default="true" />
+    <item name="SkillInputType" desc="技能输入类型" isEnum="True" type="SkillInputType" default="SkillInputType.DirInput" />
+    <item name="DynamicRangeType" desc="指示器修改方式" isEnum="True" type="DynamicRangeType" default="DynamicRangeType.NoChange" />
+    <item name="WheelCfg" desc="轮盘配置" type="WheelConfig" />
+    <item name="WheelRange" desc="轮盘可选范围" type="ShapeRingFan" />
+    <item name="IsAutoTurnToTarget" desc="释放自动转向" type="bool" />
+    <item name="SkillLabels" desc="技能标签" isEnum="True" type="List&lt;SkillLabel&gt;" />
+    <item name="SkillIconDesc" SpecialbLabel="[ShowInInspector]" desc="技能图标文字" type="string" IsProperty="True" PropertyContent="get{return OnSkillIconDescGet();}set{OnSkillIconDescSet(value);}" />
+    <item name="skillIconDesc" SpecialbLabel="[HideInInspector]" desc="技能图标文字" type="string" />
+    <item name="SkillIconDesc_Key" SpecialbLabel="[HideInInspector]" desc="技能图标文字" type="string" />
+  </enum>
+  <enum name="ConsumeConfig" modifiers="" desc="技能消耗">
+    <item name="CostType" desc="消耗类型" isEnum="True" type="ConsumeType" />
+    <item name="Cost" desc="消耗" type="int" />
+  </enum>
+  <enum name="AddEffectFly" modifiers="partial" desc="BUFF飘字">
+    <item name="Type" desc="类型" type="int" />
+    <item name="Value" SpecialbLabel="[ShowInInspector]" desc="飘字" type="string" IsProperty="True" PropertyContent="get{return OnValueGet();}set{OnValueSet(value);}" />
+    <item name="val" SpecialbLabel="[HideInInspector]" desc="飘字" type="string" />
+    <item name="Value_Key" SpecialbLabel="[HideInInspector]" desc="飘字" type="string" />
+  </enum>
+  <enum name="SkillCondition" modifiers="" desc="技能条件">
+    <item name="ConditionParams" desc="条件" type="ConditionTypeSerialize" />
+  </enum>
+  <enum name="BaseSkillCondition" modifiers="" desc="技能条件抽象类" />
+  <enum name="ConditionBuff" modifiers="" desc="技能条件Buff层数" super="BaseSkillCondition">
+    <item name="ID" desc="BuffID" type="int" />
+    <item name="Min" desc="最小值" type="int" />
+    <item name="Max" desc="最大值" type="int" />
+  </enum>
+  <enum name="ConditionAttr" modifiers="" desc="技能条件属性值" super="BaseSkillCondition">
+    <item name="ID" desc="属性ID" isEnum="True" type="BattlePropEnum" />
+    <item name="Min" desc="最小值" type="int" />
+    <item name="Max" desc="最大值" type="int" />
+  </enum>
+  <enum name="ConditionHpPercent" modifiers="" desc="技能条件血量万分比" super="BaseSkillCondition">
+    <item name="Min" desc="最小万分比" type="int" />
+    <item name="Max" desc="最大万分比" type="int" />
+  </enum>
+  <enum name="ConditionSkill" modifiers="" desc="技能条件技能时间" super="BaseSkillCondition">
+    <item name="ID" desc="技能ID" type="int" />
+    <item name="Min" desc="最小时间" type="int" />
+    <item name="Max" desc="最大时间" type="int" />
+  </enum>
+  <enum name="ConditionCurSpectralElem" modifiers="" desc="技能条件末位量谱" super="BaseSkillCondition">
+    <item name="Spectral" desc="量谱值" type="Spectral" />
+    <item name="CheckValue" desc="检查值" type="int" />
+  </enum>
+  <enum name="Cond_TargetFaction" modifiers="" desc="技能条件敌人阵营" super="BaseSkillCondition">
+    <item name="TargetSelect" desc="阵营" isEnum="True" type="SelectType" />
+  </enum>
+  <enum name="WheelConfig" modifiers="" desc="轮盘参数" super="BaseShap">
+    <item name="Shape" SpecialbLabel="[HideReferenceObjectPicker]" desc="形状" type="ShapeSerialize" />
+  </enum>
+  <enum name="BaseShap" modifiers="" desc="形状抽象类" />
+  <enum name="ShapeRound" modifiers="" desc="圆形" super="BaseShap">
+    <item name="Radius" desc="半径" type="int" />
+  </enum>
+  <enum name="ShapeHollowCircle" modifiers="" desc="空心圆" super="BaseShap">
+    <item name="MinRadius" desc="最小半径" type="int" />
+    <item name="MaxRadius" desc="最大半径" type="int" />
+  </enum>
+  <enum name="ShapeSector" modifiers="" desc="扇形" super="BaseShap">
+    <item name="Radius" desc="半径" type="int" />
+    <item name="Angle" desc="半角(左右对称的角度)" type="int" />
+  </enum>
+  <enum name="ShapeRingFan" modifiers="" desc="环扇形" super="BaseShap">
+    <item name="MinRadius" desc="最小半径" type="int" />
+    <item name="MaxRadius" desc="最大半径" type="int" />
+    <item name="Angle" desc="半角(左右对称的角度)" type="int" />
+  </enum>
+  <enum name="ShapeRect" modifiers="" desc="矩形" super="BaseShap">
+    <item name="Length" desc="长度" type="int" />
+    <item name="Width" desc="宽度" type="int" />
+  </enum>
+  <enum name="ShapeRotRoute" modifiers="" desc="朝向路径" super="BaseShap">
+    <item name="Width" desc="宽度" type="int" />
+  </enum>
+  <enum name="ShapePosRoute" modifiers="" desc="点位路径" super="BaseShap">
+    <item name="Width" desc="宽度" type="int" />
+  </enum>
+  <enum name="ShapeArrow" modifiers="" desc="箭头" super="BaseShap">
+    <item name="Length" desc="长度" type="int" />
+    <item name="Width" desc="宽度" type="int" />
+  </enum>
+  <enum name="BaseEffectType" modifiers="" desc="效果抽象">
+    <item name="GetOutputKey" desc="获取输出Key" type="OutputKey" modifiers="virtual" IsProperty="True" PropertyContent="get{return null;}" />
+  </enum>
+  <enum name="EffectTypeEmpty" modifiers="" desc="空效果" super="BaseEffectType" />
+  <enum name="EffectTypeSetBuffTime" modifiers="" desc="重设BUFF剩余持续时间" super="BaseEffectType">
+    <item name="InputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输入Key" type="InputKey" />
+    <item name="Type" desc="设置方式" isEnum="True" type="OPEnum" />
+    <item name="Value" desc="值" type="int" />
+    <item name="InputKeyList" SpecialbLabel="[HideReferenceObjectPicker]" desc="输入Key列表" type="InputKey[]" />
+    <item name="GroupID" desc="数值组ID" type="int" />
+    <item name="GroupIDKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="数值组Key" type="InputKey[]" />
+  </enum>
+  <enum name="EffectTypeCollisionBox" modifiers="partial" desc="碰撞盒" super="BaseEffectType">
+    <item name="CenterPosArray" SpecialbLabel="[HideReferenceObjectPicker]" desc="中心点" type="CenterPosArray" />
+    <item name="TowardArray" SpecialbLabel="[HideReferenceObjectPicker]" desc="朝向" type="TowardArray" />
+    <item name="Shape" SpecialbLabel="[HideReferenceObjectPicker]" desc="形状" type="ShapeSerialize" />
+    <item name="CollisionTarget" desc="目标类型" isEnum="True" type="SelectType" default="SelectType.Enemy" />
+    <item name="MaxTar" desc="最大目标数量" type="int" default="10" />
+    <item name="IsSettleHit" desc="是否结算命中" type="bool" />
+    <item name="IsNotCheckTargetRadius" desc="是否不计算目标半径" type="bool" />
+    <item name="IsNoDuplication" SpecialbLabel="[Newtonsoft.Json.JsonIgnore][MessagePack.IgnoreMember]" desc="是否不重复命中" type="bool" />
+    <item name="IngoreForbidSelect" desc="是否可以选中不可选中" type="bool" />
+    <item name="IngoreForbidDead" desc="是否可以选中尸体" type="bool" />
+    <item name="IsForewarn" desc="是否预警" type="bool" />
+    <item name="IsPosWithTarget" desc="是否跟随目标移动" type="bool" />
+    <item name="IsRotWithTarget" desc="是否跟随目标旋转" type="bool" />
+    <item name="ForewarnTime" desc="预警时间" type="int" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+    <item name="IsNoDuplicationKey" SpecialbLabel="[HideInInspector]" desc="重复攻击Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeCollisionBoxBullet" modifiers="partial" desc="子弹碰撞盒" super="BaseEffectType">
+    <item name="CenterPosArray" SpecialbLabel="[HideReferenceObjectPicker]" desc="中心点" type="CenterPosArray" />
+    <item name="TowardArray" SpecialbLabel="[HideReferenceObjectPicker]" desc="朝向" type="TowardArray" />
+    <item name="Shape" desc="形状" type="ShapeSerialize" />
+    <item name="CollisionTarget" SpecialbLabel="[HideReferenceObjectPicker]" desc="目标类型" isEnum="True" type="SelectType" default="SelectType.AllBullet" />
+    <item name="MaxTar" desc="最大目标数量" type="int" default="10" />
+    <item name="BulletLabels" desc="子弹标签" isEnum="True" type="List&lt;BulletLabel&gt;" />
+    <item name="IsSettleHit" desc="是否结算命中" type="bool" />
+    <item name="IsNoDuplication" SpecialbLabel="[Newtonsoft.Json.JsonIgnore][MessagePack.IgnoreMember]" desc="是否不重复命中" type="bool" />
+    <item name="IsForewarn" SpecialbLabel="[HideInInspector]" desc="是否预警" type="bool" />
+    <item name="ForewarnTime" SpecialbLabel="[HideInInspector]" desc="预警时间" type="int" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+    <item name="IsNoDuplicationKey" SpecialbLabel="[HideInInspector]" desc="重复攻击Key" type="OutputKey" />
+  </enum>
+  <enum name="OutputKey" modifiers="partial" desc="输出KEY">
+    <item name="Guid" SpecialbLabel="[HideInInspector][Newtonsoft.Json.JsonIgnore][MessagePack.IgnoreMember]" desc="Guid" type="string" />
+    <item name="SaveSkill" desc="是否保存在技能中" type="bool" />
+    <item name="Result" SpecialbLabel="[OnValueChanged(&quot;OnResultChange&quot;)]" desc="输出值" type="string" default="&quot;&quot;" />
+  </enum>
+  <enum name="InputKey" modifiers="partial" desc="输入KEY">
+    <item name="Result" SpecialbLabel="[ValueDropdown(&quot;GetOutputKey&quot;,SortDropdownItems =true)]" desc="输入值" type="string" default="&quot;&quot;" />
+  </enum>
+  <enum name="EffectTypeMoveWithPos" modifiers="" desc="根据坐标位移" super="BaseEffectType">
+    <item name="EffectTargetArray" SpecialbLabel="[HideReferenceObjectPicker]" desc="位移者Key" type="InputKey" />
+    <item name="SingleCenterPos" SpecialbLabel="[HideReferenceObjectPicker]" desc="位移终点" type="SingleCenterPos" />
+    <item name="BuilderOrPos" desc="根据自身或者根据坐标" isEnum="True" type="BuilderOrPos" />
+    <item name="MoveLabel" desc="位移标签" isEnum="True" type="MoveLabel" default="MoveLabel.Normal" />
+    <item name="MoveType" desc="位移类型" isEnum="True" type="MoveType" default="MoveType.Rush" />
+    <item name="LockState" desc="位移期间原子状态" isEnum="True" type="BattleState[]" />
+    <item name="DurningTime" desc="持续时间" type="int" />
+    <item name="Distance" desc="距离" type="int" />
+    <item name="IsIgnoreTarget" desc="是否忽略目标模型" isEnum="True" type="IsIgnoreTarget" default="IsIgnoreTarget.CheckTargetWithStart" />
+    <item name="MaxMove" desc="移动最大距离" type="int" default="-1" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeMoveWithRot" modifiers="" desc="根据朝向位移" super="BaseEffectType">
+    <item name="EffectTargetArray" SpecialbLabel="[HideReferenceObjectPicker]" desc="位移者Key" type="InputKey" />
+    <item name="SingleToward" SpecialbLabel="[HideReferenceObjectPicker]" desc="位移朝向" type="SingleToward" />
+    <item name="MoveLabel" desc="位移标签" isEnum="True" type="MoveLabel" default="MoveLabel.Normal" />
+    <item name="MoveType" desc="位移类型" isEnum="True" type="MoveType" default="MoveType.Rush" />
+    <item name="LockState" desc="位移期间原子状态" isEnum="True" type="BattleState[]" />
+    <item name="DurningTime" desc="持续时间" type="int" />
+    <item name="Distance" desc="距离" type="int" />
+    <item name="IsIgnoreTarget" desc="是否忽略目标模型" isEnum="True" type="IsIgnoreTarget" default="IsIgnoreTarget.CheckTargetWithStart" />
+    <item name="MaxMove" desc="移动最大距离" type="int" default="-1" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeChangeCD" modifiers="" desc="修改CD" super="BaseEffectType">
+    <item name="EffectTargetArray" desc="修改CD目标Key" type="InputKey" />
+    <item name="ChangeType" desc="修改方式" isEnum="True" type="CDChangeType" />
+    <item name="GroupID" desc="数值组ID" type="int" />
+    <item name="GroupIDKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="数值组Key" type="InputKey[]" />
+    <item name="HitEffect" SpecialbLabel="[HideReferenceObjectPicker]" desc="减CD特效" type="List&lt;EffectTypeHitEffect&gt;" />
+  </enum>
+  <enum name="EffectTypeTarGroup" modifiers="" desc="目标集合的操作" super="BaseEffectType">
+    <item name="Tar1" SpecialbLabel="[HideReferenceObjectPicker]" desc="集合1" type="InputKey" />
+    <item name="TransTargetIsHit1" SpecialbLabel="[JsonConverter(typeof(StringEnumConverter))]" desc="是否取命中" isEnum="True" type="TransTargetIsHit" default="TransTargetIsHit.All" />
+    <item name="Tar2" SpecialbLabel="[HideReferenceObjectPicker]" desc="集合2" type="InputKey" />
+    <item name="TransTargetIsHit2" SpecialbLabel="[JsonConverter(typeof(StringEnumConverter))]" desc="是否取命中" isEnum="True" type="TransTargetIsHit" default="TransTargetIsHit.All" />
+    <item name="Operation" desc="操作枚举" isEnum="True" type="TarGroupOperType" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeDamage" modifiers="partial" desc="伤害" super="BaseEffectType">
+    <item name="EffectTargetArray" SpecialbLabel="[HideReferenceObjectPicker]" desc="伤害目标Key" type="InputKey" />
+    <item name="GroupID" desc="数值组ID" type="int" />
+    <item name="GroupIDKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="数值组Key" type="InputKey[]" />
+    <item name="FlutteringWordsID" desc="飘字类型（DamageText）" type="int" />
+    <item name="isActor" desc="是否播放受击动作" type="bool" default="true" />
+    <item name="HitEffect" SpecialbLabel="[HideReferenceObjectPicker]" desc="受击特效" type="List&lt;EffectTypeHitEffect&gt;" />
+    <item name="IsSpecial" SpecialbLabel="[PropertyTooltip(&quot;如果该攻击为特殊攻击则不会受到流血、反伤等效果的影响&quot;)]" desc="是否是特殊攻击" type="bool" default="false" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+    <item name="EventPath" SpecialbLabel="[ValueDropdown(&quot;GetPaths&quot;)][JsonIgnore][MessagePack.IgnoreMember]" desc="音效路径" type="string" default=""/>
+    <item name="EventName" SpecialbLabel="[HideInInspector]" desc="音效路径" type="string" />
+    <item name="EventID" SpecialbLabel="[HideInInspector]" desc="音效路径" type="uint" default="0" />
+  </enum>
+  <enum name="EffectTypeTreat" modifiers="" desc="治疗" super="BaseEffectType">
+    <item name="EffectTargetArray" SpecialbLabel="[HideReferenceObjectPicker]" desc="治疗目标Key" type="InputKey" />
+    <item name="GroupID" desc="数值组ID" type="int" />
+    <item name="GroupIDKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="数值组Key" type="InputKey[]" />
+    <item name="FlutteringWordsID" desc="飘字类型（DamageText）" type="int" />
+    <item name="HitEffect" SpecialbLabel="[HideReferenceObjectPicker]" desc="治疗特效" type="List&lt;EffectTypeHitEffect&gt;" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeChangeMana" modifiers="" desc="修改蓝量" super="BaseEffectType">
+    <item name="EffectTargetArray" SpecialbLabel="[HideReferenceObjectPicker]" desc="效果目标Key" type="InputKey" />
+    <item name="GroupID" desc="数值组ID" type="int" />
+    <item name="GroupIDKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="数值组Key" type="InputKey[]" />
+    <item name="DamageTextID" desc="飘字类型（DamageText）" type="int" />
+    <item name="HitEffect" SpecialbLabel="[HideReferenceObjectPicker]" desc="回蓝特效" type="List&lt;EffectTypeHitEffect&gt;" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeUserInput" modifiers="" desc="用户输入" super="BaseEffectType">
+    <item name="OpenInput" SpecialbLabel="[HideInInspector]" desc="是否开启输入" type="bool" />
+    <item name="InputType" desc="输入类型" isEnum="True" type="InputType" default="InputType.Prepare" />
+    <item name="StopInputBeforeEnd" desc="提前禁止用户输入时间" type="int" />
+    <item name="PassiveStageDuringTime" desc="非活跃阶段效果持续时间" type="int" />
+    <item name="OnTimeLogic" desc="输入逻辑" isEnum="True" type="StageEvent" default="StageEvent.KillStage" />
+    <item name="CanMarkInvalid" desc="移动时禁止预输入" type="bool" />
+    <item name="OutTimeLogic" desc="超时逻辑" isEnum="True" type="StageEvent" default="StageEvent.KillStage" />
+    <item name="CastMethod" desc="施法方式" isEnum="True" type="CastMethodType" />
+    <item name="SkillInputType" desc="技能输入类型" isEnum="True" type="SkillInputType" />
+    <item name="Conditions" desc="技能施法条件" type="List&lt;SkillCondition&gt;" />
+    <item name="DynamicRangeType" desc="指示器修改方式" isEnum="True" type="DynamicRangeType" default="DynamicRangeType.NoChange" />
+    <item name="WheelCfg" desc="轮盘配置" type="WheelConfig" />
+    <item name="WheelRange" desc="轮盘可选范围" type="ShapeRingFan" />
+    <item name="SkillTurnAroundTime" desc="技能最大转身时间" type="int" />
+    <item name="IsAutoTurnToTarget" desc="释放自动转向" type="bool" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeChargeInput" modifiers="" desc="蓄力输入" super="BaseEffectType">
+    <item name="OpenInput" SpecialbLabel="[HideInInspector]" desc="是否开启输入" type="bool" />
+    <item name="OnTimeLogic" desc="输入逻辑" isEnum="True" type="StageEvent" default="StageEvent.KillStage" />
+    <item name="LayerTime" desc="每层时间" type="int" />
+    <item name="MinTime" desc="蓄力最小时间" type="int" />
+    <item name="MaxTime" desc="蓄力最大时间" type="int" />
+    <item name="SegmentationTime" desc="分段时间" type="List&lt;int&gt;" />
+    <item name="WheelCfg" SpecialbLabel="[HideReferenceObjectPicker]" desc="轮盘配置" type="WheelConfig" />
+    <item name="WheelRange" SpecialbLabel="[HideReferenceObjectPicker]" desc="轮盘可选范围" type="ShapeRingFan" />
+    <item name="MinLayer" desc="最小层数" type="int" />
+    <item name="MaxLayer" desc="最大层数" type="int" />
+    <item name="LayerShowType" desc="层数显示方式" isEnum="True" type="LayerShowType" default="LayerShowType.Offset" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeAddBuff" modifiers="" desc="添加BUFF" super="BaseEffectType">
+    <item name="EffectTargetArray" SpecialbLabel="[HideReferenceObjectPicker]" desc="添加对象Key" type="InputKey" />
+    <item name="BuffID" desc="BUFFID" type="int" />
+    <item name="BUFFTime" desc="BUFF时间" type="int" />
+    <item name="Pile" desc="BUFF层数" type="int" default="1" />
+    <item name="BuffCopyData" SpecialbLabel="[HideReferenceObjectPicker]" desc="Buff拷贝数据" type="List&lt;CustomDictionary&gt;" />
+  </enum>
+  <enum name="EffectTypeRemoveBuff" modifiers="" desc="移除BUFF" super="BaseEffectType">
+    <item name="EffectTargetArray" SpecialbLabel="[HideReferenceObjectPicker]" desc="移除对象Key" type="InputKey" />
+    <item name="BuffIDs" desc="BUFFID" type="int[]" />
+    <item name="BuffTags" desc="BUFF标签" type="int[]" />
+    <item name="BuffConfronts" desc="控制BUFF类型" isEnum="True" type="BuffConfront[]" />
+    <item name="AlwaysSuccess" desc="总是成功" type="bool" default="true" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeBreakCurRuntime" modifiers="" desc="打断目标当前技能" super="BaseEffectType">
+    <item name="EffectTargetArray" SpecialbLabel="[HideReferenceObjectPicker]" desc="效果目标" type="InputKey" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeChangeProp" modifiers="" desc="修改属性" super="BaseEffectType">
+    <item name="EffectTargetArray" SpecialbLabel="[HideReferenceObjectPicker]" desc="效果目标" type="InputKey" />
+    <item name="PropChangeType" desc="修改方式" isEnum="True" type="PropChangeType" />
+    <item name="ChangeProp" desc="修改属性" type="BattleProp[]" />
+  </enum>
+  <enum name="EffectTypeCreateBullet" modifiers="" desc="创造子弹" super="BaseEffectType">
+    <item name="CenterPosArray" SpecialbLabel="[HideReferenceObjectPicker]" desc="中心点" type="CenterPosArray" />
+    <item name="TowardArray" SpecialbLabel="[HideReferenceObjectPicker]" desc="朝向" type="TowardArray" />
+    <item name="BulletID" desc="子弹ID" type="int" />
+    <item name="BulletCopyData" SpecialbLabel="[HideReferenceObjectPicker]" desc="BulletUseKey" type="List&lt;CustomDictionary&gt;" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeDestoryBullet" modifiers="" desc="销毁子弹" super="BaseEffectType">
+    <item name="EffectTargetArray" SpecialbLabel="[HideReferenceObjectPicker]" desc="效果目标" type="InputKey" />
+  </enum>
+  <enum name="EffectTypeSummonMonster" modifiers="" desc="召唤怪物" super="BaseEffectType">
+    <item name="CenterPosArray" SpecialbLabel="[HideReferenceObjectPicker]" desc="中心点" type="CenterPosArray" />
+    <item name="FactionRelation" desc="阵营" type="int" default="-1" />
+    <item name="SummonID" desc="召唤ID" type="int" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeChangeToward" modifiers="" desc="修改朝向" super="BaseEffectType">
+    <item name="EffectTargetArray" SpecialbLabel="[HideReferenceObjectPicker]" desc="修改者Key" type="InputKey" />
+    <item name="SingleCenterPos" SpecialbLabel="[HideReferenceObjectPicker]" desc="朝向点" type="SingleCenterPos" />
+    <item name="TowardOffset" desc="朝向偏移" type="int" />
+    <item name="DurningTime" desc="持续时间" type="int" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeRandomPoint" modifiers="" desc="随机多个点位" super="BaseEffectType">
+    <item name="CenterPosArray" SpecialbLabel="[HideReferenceObjectPicker]" desc="中心点" type="CenterPosArray" />
+    <item name="MinDistance" desc="距离中心点最小距离" type="int" />
+    <item name="MaxDistance" desc="距离中心点最大距离" type="int" />
+    <item name="PointCount" desc="每个中心点附近点位数量" type="int" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeSingleRandomPoint" modifiers="" desc="随机单个点位" super="BaseEffectType">
+    <item name="SingleCenterPos" SpecialbLabel="[HideReferenceObjectPicker]" desc="中心点" type="SingleCenterPos" />
+    <item name="MinDistance" desc="距离中心点最小距离" type="int" />
+    <item name="MaxDistance" desc="距离中心点最大距离" type="int" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeGetPointWithBuffTime" modifiers="" desc="随BUFF时间计算点位" super="BaseEffectType">
+    <item name="StartRot" desc="初始角度" type="int" />
+    <item name="RotSpeed" desc="随时间旋转速度(度/秒)" type="int" />
+    <item name="Distance" desc="与中心点距离" type="int" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeGetPointWithAToB" modifiers="" desc="从A指向B计算可达点" super="BaseEffectType">
+    <item name="StartCenterPos" desc="中心点" type="SingleCenterPos" />
+    <item name="EndCenterPos" desc="中点" type="SingleCenterPos" />
+    <item name="OutputKey" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeSetBulletTargetPos" modifiers="" desc="设置子弹目标点" super="BaseEffectType">
+    <item name="SingleCenterPos" SpecialbLabel="[HideReferenceObjectPicker]" desc="中心点" type="SingleCenterPos" />
+    <item name="BuilderOrPos" SpecialbLabel="[HideReferenceObjectPicker]" desc="根据自身或者根据坐标" isEnum="True" type="BuilderOrPos" />
+    <item name="Distance" desc="距离" type="int" />
+    <item name="MaxMove" desc="移动最大距离" type="int" default="-1" />
+    <item name="TimeToTarget" desc="到目标点时间" type="int" default="-1" />
+  </enum>
+  <enum name="EffectTypeDestoryBulletOwner" modifiers="" desc="销毁子弹自身" super="BaseEffectType" />
+  <enum name="EffectTypeSetCDKeyNum" modifiers="" desc="设置指定CDKey数值" super="BaseEffectType">
+    <item name="SetNum" desc="设置数值" type="int" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeAddPassive" modifiers="" desc="添加被动" super="BaseEffectType">
+    <item name="InputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="添加对象Key" type="InputKey" />
+    <item name="PassiveID" desc="被动ID" type="int" />
+    <item name="PassiveTime" desc="被动时间" type="int" />
+    <item name="PassiveCopyData" desc="Passive拷贝数据" type="List&lt;CustomDictionary&gt;" />
+  </enum>
+  <enum name="EffectTypeThisSkillEnterCD" modifiers="" desc="当前技能进入CD" super="BaseEffectType" />
+  <enum name="EffectTypeIsNotEmpty" modifiers="" desc="判断目标Key是否不为空" super="BaseEffectType">
+    <item name="CheckKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="目标Key" type="InputKey" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeBreakCurRuntimeInBullet" modifiers="" desc="打断指定类型阶段" super="BaseEffectType">
+    <item name="StageType" desc="阶段类型" isEnum="True" type="StageType" />
+    <item name="OnTimeLogic" desc="打断方式" isEnum="True" type="StageEvent" />
+  </enum>
+  <enum name="EffectTypePlayEffectAtPoint" modifiers="partial" desc="在点位播放特效" super="BaseEffectType">
+    <item name="CenterPosArray" SpecialbLabel="[HideReferenceObjectPicker]" desc="中心点" type="CenterPosArray" />
+    <item name="TowardArray" SpecialbLabel="[HideReferenceObjectPicker]" desc="朝向" type="TowardArray" />
+    <item name="PrefabPathInEditor" SpecialbLabel="[HideReferenceObjectPicker]" desc="特效" type="EffectTypeHitEffect" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypePlayEffectBetweenPoints" modifiers="partial" desc="在两点间播放特效" super="BaseEffectType">
+    <item name="FromCenterPosArray" SpecialbLabel="[HideReferenceObjectPicker]" desc="发射中心点" type="CenterPosArray" />
+    <item name="ToCenterPosArray" SpecialbLabel="[HideReferenceObjectPicker]" desc="接收中心点" type="CenterPosArray" />
+    <item name="UnitLength" desc="单位长度" type="int" />
+    <item name="IsChangeX" desc="是否修改X" type="bool" />
+    <item name="IsChangeY" desc="是否修改Y" type="bool" />
+    <item name="IsChangeZ" desc="是否修改Z" type="bool" />
+    <item name="PrefabPathInEditor" SpecialbLabel="[HideReferenceObjectPicker]" desc="特效" type="EffectTypeHitEffect" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypePlayEffectLineRenderer" modifiers="" desc="连线" super="BaseEffectType">
+    <item name="LineRendererConfig" SpecialbLabel="[HideReferenceObjectPicker]" desc="连线配置" type="LineRendererConfig" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypePlayEffectAtTarget" modifiers="" desc="在目标播放特效" super="BaseEffectType">
+    <item name="CheckKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="目标Key" type="InputKey" />
+    <item name="HitEffect" SpecialbLabel="[HideReferenceObjectPicker]" desc="特效" type="EffectTypeHitEffect[]" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeStealth" modifiers="" desc="隐身" super="BaseEffectType">
+    <item name="DurningTime" desc="持续时间" type="int" />
+    <item name="IsChangeCancel" desc="技能状态切换是否同步取消播放配置" type="bool" default="true" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeSelectHitFromKey" modifiers="" desc="对目标Key做命中处理" super="BaseEffectType">
+    <item name="InputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="目标Key" type="InputKey" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeChangeSpectral" modifiers="" desc="修改量谱值" super="BaseEffectType">
+    <item name="Spectral" desc="量谱值" isEnum="True" type="Spectral" />
+    <item name="SpectralChangeType" desc="修改方式" isEnum="True" type="PropChangeType" />
+    <item name="ChangeValue" desc="修改值" type="int" />
+  </enum>
+  <enum name="EffectTypeChangeBulletSpeed" modifiers="" desc="修改子弹移动速率" super="BaseEffectType">
+    <item name="PropChangeType" desc="修改方式" isEnum="True" type="PropChangeType" />
+    <item name="ChangeValue" desc="修改值" type="int" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeSpChangeSpectral" modifiers="" desc="昧光增加影能量" super="BaseEffectType">
+    <item name="CheckKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="判断碰撞盒" type="InputKey" />
+    <item name="CheckBuff" desc="判断BUFF" type="List&lt;int&gt;" />
+    <item name="AddValue" desc="增加值" type="int" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeDamageSecond" modifiers="" desc="二次伤害" super="BaseEffectType">
+    <item name="FlutteringWordsID" desc="飘字类型（DamageText）" type="int" />
+    <item name="GroupID" desc="数值组ID" type="int" />
+    <item name="GroupIDKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="数值组Key" type="InputKey[]" />
+    <item name="IsSpecial" SpecialbLabel="[PropertyTooltip(&quot;如果该攻击为特殊攻击则不会受到流血、反伤等效果的影响&quot;)]" desc="是否是特殊攻击" type="bool" default="false" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeAddShields" modifiers="" desc="增加护盾值" super="BaseEffectType">
+    <item name="InputKeyList" SpecialbLabel="[HideReferenceObjectPicker]" desc="输入Key列表" type="InputKey[]" />
+    <item name="Value" desc="固定值" type="int" />
+    <item name="GroupID" desc="数值组ID" type="int" />
+    <item name="GroupIDKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="数值组Key" type="InputKey[]" />
+  </enum>
+  <enum name="EffectTypeDecShields" modifiers="" desc="减少护盾值" super="BaseEffectType">
+    <item name="InputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输入Key" type="InputKey" />
+  </enum>
+  <enum name="EffectTypeSetIntKey" modifiers="" desc="设置int值到目标Key" super="BaseEffectType">
+    <item name="InputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输入Key" type="InputKey" />
+    <item name="Type" desc="设置方式" type="OPEnum" />
+    <item name="Value" desc="值" type="int" />
+    <item name="InputKeyList" SpecialbLabel="[HideReferenceObjectPicker]" desc="输入Key列表" type="InputKey[]" />
+    <item name="GroupID" desc="数值组ID" type="int" />
+    <item name="GroupIDKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="数值组Key" type="InputKey[]" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeSubBUFFLayer" modifiers="" desc="减去BUFF层数" super="BaseEffectType">
+    <item name="InputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输入Key" type="InputKey" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeCheckIntKey" modifiers="" desc="检查目标Key的int值" super="BaseEffectType">
+    <item name="InputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="目标Key" type="InputKey" />
+    <item name="Value" desc="值" type="int" />
+    <item name="Type" desc="比较方式" isEnum="True" type="CompOperator" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeGetFootPoint" modifiers="" desc="获得垂足点" super="BaseEffectType">
+    <item name="StartCenterPos" SpecialbLabel="[HideReferenceObjectPicker]" desc="起点" type="SingleCenterPos" />
+    <item name="TargetCenterPos" SpecialbLabel="[HideReferenceObjectPicker]" desc="目标点" type="SingleCenterPos" />
+    <item name="SingleToward" SpecialbLabel="[HideReferenceObjectPicker]" desc="朝向" type="SingleToward" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeGetSqualDis2Pos" modifiers="" desc="获得两个点位间距离的平方" super="BaseEffectType">
+    <item name="APos" SpecialbLabel="[HideReferenceObjectPicker]" desc="A点" type="SingleCenterPos" />
+    <item name="BPos" SpecialbLabel="[HideReferenceObjectPicker]" desc="B点" type="SingleCenterPos" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeGetMirrorPoint" modifiers="" desc="获得镜像点" super="BaseEffectType">
+    <item name="StartCenterPos" SpecialbLabel="[HideReferenceObjectPicker]" desc="起点" type="SingleCenterPos" />
+    <item name="TargetCenterPos" SpecialbLabel="[HideReferenceObjectPicker]" desc="目标点" type="SingleCenterPos" />
+    <item name="Count" desc="数量" type="int" default="1" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeSpSelectTarget" modifiers="" desc="选择特殊目标" super="BaseEffectType">
+    <item name="InputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="目标组" type="InputKey" />
+    <item name="TargetType" desc="选择方式" isEnum="True" type="TargetType" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeBuffAddCancel" modifiers="" desc="取消添加BUFF" super="BaseEffectType" />
+  <enum name="EffectTypeCancelOffest" modifiers="" desc="取消位移" super="BaseEffectType" />
+  <enum name="EffectTypeCancelRota" modifiers="" desc="取消转向" super="BaseEffectType" />
+  <enum name="EffectTypeShieldEffect" modifiers="" desc="护盾抵挡" super="BaseEffectType" />
+  <enum name="EffectTypeDamageChange" modifiers="" desc="改变伤害" super="BaseEffectType">
+    <item name="GroupID" desc="数值组ID" type="int" />
+    <item name="Type" desc="设置方式" type="OPEnum" />
+    <item name="GroupIDKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="数值组Key" type="InputKey[]" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeAppendValueToSpectral" modifiers="" desc="特殊增加量谱值" super="BaseEffectType">
+    <item name="Spectral" desc="量谱值" isEnum="True" type="Spectral" />
+    <item name="InsertVal" desc="新增量谱值" type="int" />
+    <item name="CombineVal" desc="复合量谱值" type="int" />
+  </enum>
+  <enum name="EffectTypeRemoveValueFromSpectral" modifiers="" desc="特殊移除量谱值" super="BaseEffectType">
+    <item name="Spectral" desc="量谱值" isEnum="True" type="Spectral" />
+  </enum>
+  <enum name="EffectTypeSpectralStackCheck" modifiers="" desc="特殊判断量谱值" super="BaseEffectType">
+    <item name="Spectral" desc="量谱值" isEnum="True" type="Spectral" />
+    <item name="CheckValue" desc="检查值" type="int" />
+    <item name="CompOperator" desc="比较符" isEnum="True" type="CompOperator" />
+    <item name="OutputKey" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeTriggerStage" modifiers="" desc="触发自定义阶段" super="BaseEffectType">
+    <item name="InputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输入Key" type="InputKey" />
+    <item name="TargetType" SpecialbLabel="[HideReferenceObjectPicker]" desc="触发目标" isEnum="True" type="TriggerTargetType" default="TriggerTargetType.Onwer" />
+    <item name="OutputKey" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeThrowBullet" modifiers="" desc="抛出子弹" super="BaseEffectType">
+    <item name="TargetPoint" SpecialbLabel="[HideReferenceObjectPicker]" desc="目标点" type="InputKey" />
+    <item name="MaxHight" desc="最大高度" type="int" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeLaunchBullet" modifiers="" desc="发射子弹" super="BaseEffectType">
+    <item name="ToTarget" SpecialbLabel="[HideReferenceObjectPicker]" desc="接收者" type="InputKey" />
+    <item name="ToTargetHangPoint" SpecialbLabel="[JsonConverter(typeof(StringEnumConverter))]" desc="接收者挂点" isEnum="True" type="HangPoint" default="HangPoint.Root" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeRegister" modifiers="" desc="黑洞效果" super="BaseEffectType">
+    <item name="InputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输入Key" type="InputKey" />
+    <item name="SingleCenterPos" SpecialbLabel="[HideReferenceObjectPicker]" desc="中心点" type="SingleCenterPos" />
+    <item name="Distance" desc="每帧距离" type="int" />
+    <item name="Radius" desc="半径" type="int" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+
+  <enum name="EffectTypeSetValueToKey" modifiers="" desc="绝对数值产生器" super="BaseEffectType">
+    <item name="Value" SpecialbLabel="[HideReferenceObjectPicker]" desc="数值" type="int" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+
+  <enum name="EffectTypeGetGroupIDToKey" modifiers="" desc="组数值产生器" super="BaseEffectType">
+    <item name="GroupID" SpecialbLabel="[HideReferenceObjectPicker]" desc="数值组" type="InputKey" />
+    <item name="GroupIDKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="数值组Key" type="InputKey[]" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+
+  <enum name="EffectTypeRamdonValueToKey" modifiers="" desc="随机数值产生器" super="BaseEffectType">
+    <item name="MinValue" SpecialbLabel="[HideReferenceObjectPicker]" desc="下限值" type="InputKey" />
+    <item name="MaxValue" SpecialbLabel="[HideReferenceObjectPicker]" desc="上限值" type="InputKey" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+
+  <enum name="EffectTypeGetLengthFromListToKey" modifiers="" desc="集合成员数值产生器" super="BaseEffectType">
+    <item name="TargetList" SpecialbLabel="[HideReferenceObjectPicker]" desc="集合" type="InputKey" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+
+  <enum name="EffectTypeOperationValueToKey" modifiers="" desc="数值运算产生器" super="BaseEffectType">
+    <item name="ValueList" SpecialbLabel="[HideReferenceObjectPicker]" desc="数值Key列表" type="List&lt;InputKey&gt;" />
+    <item name="OperationProcess" SpecialbLabel="[HideReferenceObjectPicker]" desc="运算过程（a+b-c*d/e）" type="string" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+
+  <enum name="EffectTypeGetTargetPropToKey" modifiers="" desc="目标属性数值产生器" super="BaseEffectType">
+    <item name="Target" SpecialbLabel="[HideReferenceObjectPicker]" desc="目标" type="InputKey" />
+    <item name="PropIndex" SpecialbLabel="[HideReferenceObjectPicker]" desc="属性类型" isEnum="True" type="BattlePropEnum" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+
+  <enum name="EffectTypeGetCDKeyCDToKey" modifiers="" desc="冷却时间数值产生器" super="BaseEffectType">
+    <item name="Target" SpecialbLabel="[HideReferenceObjectPicker]" desc="目标" type="InputKey" />
+    <item name="CDKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="CDKey" type="InputKey" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+
+  <enum name="EffectTypeGetConfigIDToKey" modifiers="" desc="配置ID数值产生器" super="BaseEffectType">
+    <item name="Target" SpecialbLabel="[HideReferenceObjectPicker]" desc="目标" type="InputKey" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+
+  <enum name="EffectTypeGetTowardFromEntityToKey" modifiers="" desc="单位朝向产生器" super="BaseEffectType">
+    <item name="MainTarget" SpecialbLabel="[HideReferenceObjectPicker]" desc="单位" type="InputKey" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  
+  <enum name="EffectTypeGetTowardFromPosToKey" modifiers="" desc="坐标朝向产生器" super="BaseEffectType">
+    <item name="SourcePos" SpecialbLabel="[HideReferenceObjectPicker]" desc="源坐标" type="InputKey" />
+    <item name="TargetPos" SpecialbLabel="[HideReferenceObjectPicker]" desc="目标坐标" type="InputKey" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+
+  <enum name="EffectTypeCheckToward" modifiers="" desc="1是否在2的角度范围内检查器" super="BaseEffectType">
+    <item name="Toward1" SpecialbLabel="[HideReferenceObjectPicker]" desc="朝向1" type="InputKey" />
+    <item name="Toward2" SpecialbLabel="[HideReferenceObjectPicker]" desc="朝向2" type="InputKey" />
+    <item name="CheckRange" SpecialbLabel="[HideReferenceObjectPicker]" desc="角度范围" type="InputKey" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+
+  <enum name="EffectTypeCheckPassive" modifiers="" desc="目标是否有指定被动检查器" super="BaseEffectType">
+    <item name="Target" SpecialbLabel="[HideReferenceObjectPicker]" desc="目标" type="InputKey" />
+    <item name="PassiveConfigID" SpecialbLabel="[HideReferenceObjectPicker]" desc="被动配置ID" type="InputKey" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+
+  <enum name="EffectTypeChangeToAbsoluteToward" modifiers="" desc="目标集合修改至绝对朝向" super="BaseEffectType">
+    <item name="Target" SpecialbLabel="[HideReferenceObjectPicker]" desc="被修改者" type="InputKey" />
+    <item name="ChangeTime" SpecialbLabel="[HideReferenceObjectPicker]" desc="转向时间" type="InputKey" />
+    <item name="MaxAngle" SpecialbLabel="[HideReferenceObjectPicker]" desc="最大转向角度" type="InputKey" />
+    <item name="TargetToward" SpecialbLabel="[HideReferenceObjectPicker]" desc="目标朝向" type="InputKey" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+
+  <enum name="EffectTypeChangeToInputSpectral" modifiers="" desc="目标集合量谱值修改" super="BaseEffectType">
+    <item name="Target" SpecialbLabel="[HideReferenceObjectPicker]" desc="被修改者" type="InputKey" />
+    <item name="Spectral" SpecialbLabel="[HideReferenceObjectPicker]" desc="量谱值" isEnum="True" type="Spectral" />
+    <item name="TargetValue" SpecialbLabel="[HideReferenceObjectPicker]" desc="目标值" type="InputKey" />
+  </enum>
+
+  <enum name="EffectTypeChangeToCDKeyCD" modifiers="" desc="目标集合冷却时间修改修改" super="BaseEffectType">
+    <item name="Target" SpecialbLabel="[HideReferenceObjectPicker]" desc="被修改者" type="InputKey" />
+    <item name="CDKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="CDKey" type="InputKey" />
+    <item name="TargetValue" SpecialbLabel="[HideReferenceObjectPicker]" desc="目标值" type="InputKey" />
+  </enum>
+
+  <enum name="EffectTypeCreateInteract" modifiers="" desc="创建交互物" super="BaseEffectType">
+    <item name="BornPos" SpecialbLabel="[HideReferenceObjectPicker]" desc="创建坐标" type="InputKey" />
+    <item name="BornToward" SpecialbLabel="[HideReferenceObjectPicker]" desc="创建朝向" type="InputKey" />
+    <item name="InteractConfigID" SpecialbLabel="[HideReferenceObjectPicker]" desc="交互物配置ID" type="InputKey" />
+  </enum>
+
+  <enum name="EffectTypeBezierBullet" modifiers="" desc="贝塞尔子弹" super="BaseEffectType">
+    <item name="InputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输入Key" type="InputKey" />
+    <item name="ToTargetHangPoint" SpecialbLabel="[JsonConverter(typeof(StringEnumConverter))]" desc="接收者挂点" isEnum="True" type="HangPoint" default="HangPoint.Hurt_D " />
+    <item name="SingleCenterPos" SpecialbLabel="[HideReferenceObjectPicker]" desc="中心点" type="SingleCenterPos" />
+    <item name="SingleCenterPosHight" SpecialbLabel="[HideReferenceObjectPicker]" desc="目标点高度" type="int" />
+    <item name="RandomPoint1" SpecialbLabel="[HideReferenceObjectPicker]" desc="随机点1" type="RandomVector2" />
+    <item name="RandomPoint2" SpecialbLabel="[HideReferenceObjectPicker]" desc="随机点2" type="RandomVector2" />
+    <item name="RandomAngle" SpecialbLabel="[HideReferenceObjectPicker]" desc="随机角度1" type="RandomVector2" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeCheckJobID" modifiers="" desc="检查职业ID" super="BaseEffectType">
+    <item name="InputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="检查对象" type="InputKey" />
+    <item name="JobID" desc="检查ID" type="int" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeCheckTargetMonsterType" modifiers="" desc="检查怪物类型" super="BaseEffectType">
+    <item name="InputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="检查对象" type="InputKey" />
+    <item name="TypeList" desc="检查类型" type="List&lt;MonsterType&gt;" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeClientSummonAnim" modifiers="" desc="客户端召唤物播放动作" super="BaseEffectType">
+    <item name="Index" SpecialbLabel="[HideReferenceObjectPicker]" desc="召唤物索引" type="List&lt;int&gt;" />
+    <item name="Anim" SpecialbLabel="[FilePath] [HideReferenceObjectPicker]" desc="动作路径" type="string" />
+  </enum>
+  <enum name="EffectTypeClientSummonEffect" modifiers="" desc="客户端召唤物播放特效" super="BaseEffectType">
+    <item name="Index" SpecialbLabel="[HideReferenceObjectPicker]" desc="召唤物索引" type="List&lt;int&gt;" />
+    <item name="HitEffect" SpecialbLabel="[HideReferenceObjectPicker]" desc="受击特效" type="List&lt;EffectTypeHitEffect&gt;" />
+  </enum>
+  <enum name="EffectTypeClientSummonTurnTo" modifiers="" desc="客户端召唤物锁定目标" super="BaseEffectType">
+    <item name="InputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="朝向目标" type="InputKey" />
+    <item name="Index" SpecialbLabel="[HideReferenceObjectPicker]" desc="召唤物索引" type="List&lt;int&gt;" />
+    <item name="TurnTime" desc="多久内朝向目标" type="int" />
+    <item name="LookTime" desc="朝向目标时间" type="int" />
+    <item name="OutputKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="输出Key" type="OutputKey" />
+  </enum>
+  <enum name="EffectTypeClientSummonRemove" modifiers="" desc="客户端召唤物移除" super="BaseEffectType">
+    <item name="Index" SpecialbLabel="[HideReferenceObjectPicker]" desc="召唤物索引" type="List&lt;int&gt;" />
+  </enum>
+  <enum name="EffectTypeChangeJobMassage" modifiers="" desc="转职消息" super="BaseEffectType" />
+  <enum name="EffectTypeSendMapMassage" modifiers="" desc="触发场景消息" super="BaseEffectType">
+    <item name="EventKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="场景事件名" type="string" />
+  </enum>
+  <enum name="BaseAnimConditionType" modifiers="" desc="动作条件抽象" />
+  <enum name="AnimConditionTypeMove" modifiers="" desc="移动" super="BaseAnimConditionType">
+    <item name="IsMove" desc="是否移动" type="bool" default="true" />
+  </enum>
+  <enum name="GlobalShowBUFF_BUFFUIDateils" modifiers="partial" desc="BUFFUI显示详情" super="GlobalShowTypeSerialize">
+    <item name="BUFFUIShowDetailsList" SpecialbLabel="[HideReferenceObjectPicker]" desc="BUFFUI显示详情" type="List&lt;BUFFUIShow&gt;" />
+  </enum>
+  <enum name="GlobalShowBUFF_ShaderChange" modifiers="" desc="修改Shader" super="GlobalShowTypeSerialize">
+    <item name="ShaderEnum" desc="Shader枚举" isEnum="True" type="ShaderEnum" />
+  </enum>
+  <enum name="GlobalShowBUFF_ShadowFollow" modifiers="" desc="附影" super="GlobalShowTypeSerialize">
+    <item name="ShadowPath" SpecialbLabel="[FilePath]" desc="影子路径" type="string" />
+  </enum>
+  <enum name="GlobalShowBUFF_ChangeAnim" modifiers="" desc="修改状态动作" super="GlobalShowTypeSerialize">
+    <item name="ChangeAnims" desc="动作修改" type="List&lt;ChangeAnim&gt;" />
+  </enum>
+  <enum name="GlobalShowBUFF_Paralysis" modifiers="" desc="动作暂停" super="GlobalShowTypeSerialize" />
+  <enum name="GlobalShowBUFF_Knock" modifiers="" desc="击倒" super="GlobalShowTypeSerialize" />
+  <enum name="GlobalShowBUFF_Hide" modifiers="" desc="隐身" super="GlobalShowTypeSerialize" />
+  <enum name="GlobalShowBUFF_ChangeColorShader" modifiers="partial" desc="修改整体颜色Shader" super="GlobalShowTypeSerialize">
+    <item name="MainColor" SpecialbLabel="[Newtonsoft.Json.JsonIgnore][MessagePack.IgnoreMember]" desc="主色调" type="Color" />
+    <item name="MainColorR" SpecialbLabel="[HideInInspector]" desc="主色调红" type="int" />
+    <item name="MainColorG" SpecialbLabel="[HideInInspector]" desc="主色调绿" type="int" />
+    <item name="MainColorB" SpecialbLabel="[HideInInspector]" desc="主色调蓝" type="int" />
+    <item name="MainColorA" SpecialbLabel="[HideInInspector]" desc="主色调透" type="int" />
+    <item name="EdgeColor" SpecialbLabel="[Newtonsoft.Json.JsonIgnore][MessagePack.IgnoreMember]" desc="边缘色" type="Color" />
+    <item name="EdgeColorR" SpecialbLabel="[HideInInspector]" desc="边缘色红" type="int" />
+    <item name="EdgeColorG" SpecialbLabel="[HideInInspector]" desc="边缘色绿" type="int" />
+    <item name="EdgeColorB" SpecialbLabel="[HideInInspector]" desc="边缘色蓝" type="int" />
+    <item name="EdgeColorA" SpecialbLabel="[HideInInspector]" desc="边缘色透" type="int" />
+    <item name="mainColor" SpecialbLabel="[JsonIgnore][HideInInspector][MessagePack.IgnoreMember]" desc="主色调" type="Color" default="Color.clear" />
+    <item name="edgeColor" SpecialbLabel="[JsonIgnore][HideInInspector][MessagePack.IgnoreMember]" desc="边缘色" type="Color" default="Color.clear" />
+    <item name="EdgePer" desc="边缘比例" type="int" />
+  </enum>
+  <enum name="GlobalShowBUFF_HideUI" modifiers="" desc="隐藏UI" super="GlobalShowTypeSerialize">
+    <item name="CompOperator" desc="比较符" isEnum="True" type="CompOperator" />
+    <item name="HideLabels" desc="隐藏标签" isEnum="True" type="List&lt;UILabel&gt;" />
+  </enum>
+  <enum name="GlobalShowGlobal_CameraMove" modifiers="" desc="摄像机移动" super="GlobalShowTypeSerialize">
+    <item name="CameraMoveType" desc="移动方式" isEnum="True" type="CameraMoveType" />
+    <item name="Value" desc="偏移角度" type="int" />
+    <item name="Distance" desc="偏移距离" type="int" />
+    <item name="EnterTime" desc="进入时间" type="int" />
+    <item name="LoopTime" desc="持续时间" type="int" />
+    <item name="EndTime" desc="退出时间" type="int" />
+  </enum>
+  <enum name="GlobalShowBUFF_ClickUseSkill" modifiers="" desc="点击屏幕释放技能" super="GlobalShowTypeSerialize">
+    <item name="UseSkill" desc="指定技能ID" type="int" />
+  </enum>
+  <enum name="GlobalShowGlobal_SpectralSkill" modifiers="" desc="量谱图切换" super="GlobalShowTypeSerialize" />
+  <enum name="GlobalShowBUFF_PlayEffectLineRenderer" modifiers="" desc="与主人连线" super="GlobalShowTypeSerialize">
+    <item name="LineRendererConfig" desc="连线配置" type="LineRendererConfig" />
+  </enum>
+  <enum name="GlobalShowBUFF_SpTimeShow" modifiers="" desc="特殊时间展示" super="GlobalShowTypeSerialize">
+    <item name="SpTimeShowType" desc="时间展示方式" isEnum="True" type="List&lt;SpTimeShowTypeEnum&gt;" />
+  </enum>
+  <enum name="GlobalShowBUFF_AvatarChange" modifiers="" desc="修改化身" super="GlobalShowTypeSerialize">
+    <item name="AvatarID" desc="化身ID" type="int" />
+  </enum>
+  <enum name="GlobalShowBUFF_ChangeFaction" modifiers="" desc="修改阵营" super="GlobalShowTypeSerialize">
+    <item name="FactionID" desc="阵营ID" type="int" />
+  </enum>
+  <enum name="GlobalShowBUFF_SkillSlotHide" modifiers="" desc="技能槽隐藏" super="GlobalShowTypeSerialize">
+    <item name="HideIndex" desc="隐藏槽位ID" type="List&lt;int&gt;" />
+  </enum>
+  <enum name="GlobalShowBUFF_SpectralChange" modifiers="" desc="量谱显示方式修改" super="GlobalShowTypeSerialize">
+    <item name="SpectralType" desc="量谱显示类型" type="int" />
+  </enum>
+  <enum name="GlobalShowBUFF_TransChange" modifiers="" desc="透明度修改" super="GlobalShowTypeSerialize">
+    <item name="StartTrans" desc="初始透明度" type="int" />
+    <item name="EndTrans" desc="目标透明度" type="int" />
+    <item name="ChangeTime" desc="完全透明时间" type="int" />
+  </enum>
+  <enum name="GlobalShowBUFF_JobSkillChange" modifiers="" desc="新增职业技能" super="GlobalShowTypeSerialize">
+    <item name="TalentAndSlot" desc="槽位切换技能" type="List&lt;TalentAndSlot&gt;" />
+  </enum>
+  <enum name="GlobalShowBUFF_JobSkillCancel" modifiers="" desc="基础职业技能失效" super="GlobalShowTypeSerialize" />
+  <enum name="GlobalShowSkill_SkillSlotSpShow" modifiers="" desc="技能槽特殊表现" super="GlobalShowTypeSerialize" >
+    <item name="SpShow" desc="技能槽特殊表现" isEnum="true" type="List&lt;EnumSkillSlotSpShow&gt;" />
+  </enum>
+  <enum name="Global_AddClientSummon" modifiers="" desc="召唤客户端召唤物" super="GlobalShowTypeSerialize">
+    <item name="AvatarID" desc="化身ID" type="int" />
+    <item name="LoopEffectInEditors" desc="循环特效" type="List&lt;EffectTypeHitEffect&gt;" />
+    <item name="MinRot" desc="起始角度" type="int" />
+    <item name="MaxRot" desc="结束角度" type="int" />
+    <item name="Num" desc="数量" type="int" />
+    <item name="Distance" desc="半径" type="int" />
+    <item name="IsTurn" desc="缓慢旋转角度" type="int" />
+    <item name="IsFollowPlayerTurn" desc="是否跟随玩家旋转" type="bool" />
+  </enum>
+  <enum name="EffectData" modifiers="partial" desc="效果数据">
+    <item name="EffectID" SpecialbLabel="[FoldoutGroup(&quot;$TileName&quot;)]" desc="效果ID" type="int" />
+    <item name="Desc" SpecialbLabel="[FoldoutGroup(&quot;$TileName&quot;)]" desc="效果描述" type="string" default="string.Empty" />
+    <item name="EffectArgs" SpecialbLabel="[FoldoutGroup(&quot;$TileName&quot;)] [JsonIgnore][MessagePack.IgnoreMember]" desc="效果参数" type="EffectTypeSerialize" />
+    <item name="Next" SpecialbLabel="[FoldoutGroup(&quot;$TileName&quot;)]" desc="后续效果" type="int[]" />
+    <item name="ServerPreTime" SpecialbLabel="[FoldoutGroup(&quot;$TileName&quot;)] " desc="服务器提前时间(ms)" type="int" />
+    <item name="ClientDelayTime" SpecialbLabel="[FoldoutGroup(&quot;$TileName&quot;)]" desc="客户端延迟时间(ms)" type="int" />
+    <item name="ServerNextDelayTime" SpecialbLabel="[FoldoutGroup(&quot;$TileName&quot;)]" desc="客户端效果持续时间" type="int" />
+    <item name="SaveSkill" SpecialbLabel="[FoldoutGroup(&quot;$TileName&quot;)]" desc="效果是否在技能中运行" type="bool" />
+    <item name="IsStageCancel" SpecialbLabel="[FoldoutGroup(&quot;$TileName&quot;)]" desc="效果是否跟随阶段结束" type="bool" />
+    <item name="EffectLabels" SpecialbLabel="[FoldoutGroup(&quot;$TileName&quot;)]" desc="效果标签" isEnum="True" type="EffectLabel[]" />
+    <item name="EffectType" SpecialbLabel="[HideInInspector]" desc="效果类型" isEnum="True" type="EffectType" />
+    <item name="BaseEffect" SpecialbLabel="[HideReferenceObjectPicker][HideInInspector][SerializeReference]" desc="效果参数" type="BaseEffectType" />
+    <item name="InputKeys" SpecialbLabel="[HideInInspector]" desc="输入Key集合" type="List&lt;string&gt;" />
+    <item name="OutputKeys" SpecialbLabel="[HideInInspector]" desc="输出Key集合" type="List&lt;string&gt;" />
+    <item name="ServerExecuteTime" SpecialbLabel="[FoldoutGroup(&quot;$TileName&quot;)]  [HideInInspector]" desc="服务器执行时间(ms)   客户端执行时间-服务器提前时间" type="int" />
+    <item name="ClinetExecuteTime" SpecialbLabel="[FoldoutGroup(&quot;$TileName&quot;)]  [HideInInspector]" desc="客户端执行时间   Start+客户端延迟时间" type="int" />
+    <item name="EffectEndTime" SpecialbLabel="[FoldoutGroup(&quot;$TileName&quot;)]  [HideInInspector]" desc="效果结束时间   客户端执行时间+延迟下一个时间" type="int" />
+  </enum>
+  <enum name="CenterPosArray" modifiers="" desc="中心点">
+    <item name="TargetKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="中心目标Key" type="InputKey" />
+    <item name="TransTargetIsHit" SpecialbLabel="[JsonConverter(typeof(StringEnumConverter))]" desc="是否取命中" isEnum="True" type="TransTargetIsHit" default="TransTargetIsHit.All" />
+    <item name="PosKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="坐标Key" type="InputKey" />
+    <item name="Angle" desc="角度" type="int" default="0" />
+    <item name="Distance" desc="距离" type="int" default="0" />
+  </enum>
+  <enum name="LineRendererConfig" modifiers="" desc="连线">
+    <item name="FromTarget" SpecialbLabel="[HideReferenceObjectPicker]" desc="发射者" type="InputKey" />
+    <item name="FromTargetHangPoint" SpecialbLabel="[JsonConverter(typeof(StringEnumConverter))]" desc="发射者挂点" isEnum="True" type="HangPoint" default="HangPoint.Root" />
+    <item name="ToTarget" SpecialbLabel="[HideReferenceObjectPicker]" desc="接收者" type="InputKey" />
+    <item name="ToTargetHangPoint" SpecialbLabel="[JsonConverter(typeof(StringEnumConverter))]" desc="接收者挂点" isEnum="True" type="HangPoint" default="HangPoint.Root" />
+    <item name="LinkType" desc="连续/分发" isEnum="True" type="LinkTypeEnum" />
+    <item name="LinePrefab" SpecialbLabel="[FilePath]" desc="连线预制体" type="string" />
+    <item name="IsChangeWithTime" desc="随时间变化" type="bool" />
+    <item name="LerpTime" desc="Lerp时间" type="int" />
+    <item name="EndTime" desc="结束时间" type="int" />
+  </enum>
+  <enum name="TowardArray" modifiers="" desc="朝向">
+    <item name="TargetKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="朝向目标Key" type="InputKey" />
+    <item name="TransTargetIsHit" SpecialbLabel="[JsonConverter(typeof(StringEnumConverter))]" desc="是否取命中" isEnum="True" type="TransTargetIsHit" default="TransTargetIsHit.All" />
+    <item name="TowardKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="朝向Key" type="InputKey" />
+    <item name="TowardOffset" desc="朝向偏移" type="int" />
+  </enum>
+  <enum name="SingleCenterPos" modifiers="" desc="中心点">
+    <item name="TargetKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="中心目标Key" type="InputKey" />
+    <item name="PosKey" SpecialbLabel="[HideReferenceObjectPicker]" desc="坐标Key" type="InputKey" />
+    <item name="Angle" desc="角度" type="int" />
+    <item name="Distance" desc="距离" type="int" />
+  </enum>
+  <enum name="RandomVector2" modifiers="" desc="随机二维点位">
+    <item name="MinX" SpecialbLabel="[HideReferenceObjectPicker]" desc="X最小值" type="int" />
+    <item name="MaxX" SpecialbLabel="[HideReferenceObjectPicker]" desc="X最大值" type="int" />
+    <item name="MinY" SpecialbLabel="[HideReferenceObjectPicker]" desc="Y最小值" type="int" />
+    <item name="MaxY" SpecialbLabel="[HideReferenceObjectPicker]" desc="Y最大值" type="int" />
+  </enum>
+  <enum name="RandomAngle" modifiers="" desc="随机角度">
+    <item name="MinAngle" SpecialbLabel="[HideReferenceObjectPicker]" desc="最小角度" type="int" />
+    <item name="MaxAngle" SpecialbLabel="[HideReferenceObjectPicker]" desc="最大角度" type="int" />
+  </enum>
+  <enum name="SingleToward" modifiers="" desc="朝向">
+    <item name="TargetKey" desc="朝向目标Key" type="InputKey" />
+    <item name="TowardKey" desc="朝向Key" type="InputKey" />
+    <item name="TowardOffset" desc="朝向偏移" type="int" />
+  </enum>
+  <enum name="SkillParams" modifiers="" desc="技能数据">
+    <item name="GroupID" desc="数值组ID" type="int" />
+    <item name="ParamKeys" desc="公式所需Key" type="InputKey[]" />
+  </enum>
+  <enum name="ChangeAnim" modifiers="" desc="动作修改">
+    <item name="AnimState" desc="动作状态" isEnum="True" type="AnimState" />
+    <item name="Anim" SpecialbLabel="[FilePath]" desc="动作路径" type="string" />
+  </enum>
+  <enum name="AnimAndCondition" modifiers="" desc="动作及条件">
+    <item name="Anim" SpecialbLabel="[FilePath]" desc="动作路径" type="string" />
+    <item name="Condition" desc="动作条件" type="List&lt;AnimConditionTypeSerialize&gt;" />
+  </enum>
+  <enum name="Materials" modifiers="" desc="材质球列表" super="BaseCustomData">
+    <item name="ChangeMaterials" SpecialbLabel="[FilePath]" desc="材质球" type="List&lt;string&gt;" />
+  </enum>
+  <enum name="BaseConfig" modifiers="" desc="配置" />
+  <enum name="BulletConfig" modifiers="" desc="子弹配置" super="BaseConfig">
+    <item name="ID" SpecialbLabel="[ReadOnly]" desc="子弹ID" type="int" />
+    <item name="BulletDesc" desc="子弹说明" type="string" />
+    <item name="Time" desc="子弹时间" type="int" />
+    <item name="Hight" desc="子弹高度" type="int" />
+    <item name="BulletHeightType" desc="子弹高度跟随类型" isEnum="True" type="BulletHeightType" />
+    <item name="AvatarID" desc="模型ID" type="int" default="0" />
+    <item name="LoopEffectInEditors" desc="循环特效" type="List&lt;EffectTypeHitEffect&gt;" />
+    <item name="GlobalShows" desc="表现标签" type="List&lt;GlobalShowSerialize&gt;" />
+    <item name="IsThrough" desc="是否穿墙" type="bool" />
+    <item name="IsClientMove" desc="是否完全由客户端模拟" type="bool" />
+    <item name="MoveSpeed" desc="移动速度" type="int" />
+    <item name="BulletCopyData" desc="Bullet拷贝数据" type="List&lt;OutputKey&gt;" />
+    <item name="BulletLabels" desc="子弹标签" isEnum="True" type="List&lt;BulletLabel&gt;" />
+  </enum>
+  <enum name="BuffConfig" modifiers="partial" desc="Buff配置" super="BaseConfig">
+    <item name="ID" SpecialbLabel="[ReadOnly]" desc="BUFFID" type="int" />
+    <item name="BuffDesc" desc="Buff备注" type="string" />
+    <item name="RuntimePriority" desc="运行时优先级" type="int" />
+    <item name="IsDebuff" desc="是否是减益" type="bool" default="true" />
+    <item name="BuffTags" desc="BUFF基础类型" isEnum="True" type="BuffTag" />
+    <item name="GlobalShows" desc="表现标签" type="List&lt;GlobalShowSerialize&gt;" />
+    <item name="Time" desc="BUFF时间" type="int" />
+    <item name="IsTimeShow" desc="是否显示持续时间" type="bool" default="true" />
+    <item name="LoopEffectInEditors" desc="循环特效" type="List&lt;EffectTypeHitEffect&gt;" />
+    <item name="BattleProp" desc="属性修改" type="List&lt;BattleProp&gt;" />
+    <item name="BattleGroupID" SpecialbLabel="[PropertyTooltip(&quot;如果有这个值就覆盖上面的属性修改数组&quot;)]" desc="属性组ID" type="int" />
+    <item name="States" SpecialbLabel="[ValueDropdown(&quot;_battlestate&quot;)]" desc="原子状态" type="List&lt;BattleState&gt;" />
+    <item name="IsLeaveSave" desc="离线是否计时生效" type="bool" />
+    <item name="Replace" desc="同buff替换方式" isEnum="True" type="BuffReplace" default="BuffReplace.Refresh" />
+    <item name="GroupID" desc="BUFF组ID" type="int" />
+    <item name="IsCretDiffer" desc="是否分对象计算替换规则" type="bool" />
+    <item name="MaxFloor" desc="最大层数" type="int" default="1" />
+    <item name="AddEffectFlys" desc="添加BUFF时飘字" type="List&lt;AddEffectFly&gt;" />
+    <item name="BuffCopyData" desc="Buff拷贝数据" type="List&lt;OutputKey&gt;" />
+    <item name="BuffLabels" desc="Buff标签" isEnum="True" type="List&lt;BuffLabel&gt;" />
+  </enum>
+  <enum name="SpecEffect" modifiers="" desc="SpecEffect">
+    <item name="HangPoint" SpecialbLabel="[JsonConverter(typeof(StringEnumConverter))]" desc="挂点" isEnum="True" type="HangPoint" default="HangPoint.Root" />
+    <item name="IsAll" desc="是否全局可见" type="bool" default="true" />
+    <item name="IsSyncBreak" desc="是否跟随技能结束" type="bool" default="true" />
+    <item name="IsChangeCancel" desc="是否跟随阶段结束" type="bool" />
+    <item name="IsFaceToBuilder" desc="是否面向施法者" type="bool" />
+    <item name="IsFaceToCamera" desc="是否面向摄像机" type="bool" />
+    <item name="IsFollowMove" desc="是否跟随位置" type="bool" />
+    <item name="IsFollowRot" desc="是否跟随旋转" type="bool" />
+    <item name="IsFollowLoop" desc="是否跟随循环" type="bool" />
+    <item name="IsFollowOwnerHide" desc="是否跟随主人隐藏" type="bool" />
+    <item name="IsFollowOwnerScale" desc="是否跟随主人放缩" isEnum="True" type="SpecEffectScale" />
+    <item name="IsLoop" desc="是否自身循环" type="bool" />
+    <item name="XOffset" SpecialbLabel="[HorizontalGroup(&quot;offset&quot;, 0.1f)][LabelWidth(70f)]" desc="Position: X" type="int" />
+    <item name="YOffset" SpecialbLabel="[HorizontalGroup(&quot;offset&quot;, 0.1f)][LabelWidth(20f)]" desc="Y" type="int" />
+    <item name="ZOffset" SpecialbLabel="[HorizontalGroup(&quot;offset&quot;, 0.1f)][LabelWidth(20f)]" desc="Z" type="int" />
+    <item name="XOffsetTowards" SpecialbLabel="[HorizontalGroup(&quot;offsetToward&quot;, 0.1f)][LabelWidth(70f)]" desc="Rotation: X" type="int" />
+    <item name="YOffsetTowards" SpecialbLabel="[HorizontalGroup(&quot;offsetToward&quot;, 0.1f)][LabelWidth(20f)]" desc="Y" type="int" />
+    <item name="ZOffsetTowards" SpecialbLabel="[HorizontalGroup(&quot;offsetToward&quot;, 0.1f)][LabelWidth(20f)]" desc="Z" type="int" />
+    <item name="XScale" SpecialbLabel="[HorizontalGroup(&quot;scale&quot;, 0.1f)][LabelWidth(70f)]" desc="Scale: X" type="int" default="100" />
+    <item name="YScale" SpecialbLabel="[HorizontalGroup(&quot;scale&quot;, 0.1f)][LabelWidth(20f)]" desc="Y" type="int" default="100" />
+    <item name="ZScale" SpecialbLabel="[HorizontalGroup(&quot;scale&quot;, 0.1f)][LabelWidth(20f)]" desc="Z" type="int" default="100" />
+  </enum>
+  <enum name="EffectTypeHitEffect" modifiers="partial" desc="受击特效">
+    <item name="PrefabPathInEditor" SpecialbLabel="[FilePath]" desc="特效路径" type="string" />
+    <item name="HangPoint" SpecialbLabel="[JsonConverter(typeof(StringEnumConverter))]" desc="挂点" isEnum="True" type="HangPoint" default="HangPoint.Root" />
+    <item name="IsFaceToBuilder" desc="是否朝向施法者" type="bool" />
+    <item name="IsFollowMove" desc="是否跟随位置" type="bool" />
+    <item name="IsFollowRot" desc="是否跟随旋转" type="bool" />
+    <item name="IsFollowOwnerHide" desc="是否跟随主人隐藏" type="bool" />
+    <item name="IsFollowOwnerScale" desc="是否跟随主人放缩" isEnum="True" type="SpecEffectScale" />
+    <item name="IsLoop" desc="是否循环" type="bool" />
+    <item name="XOffset" SpecialbLabel="[HorizontalGroup(&quot;offset&quot;, 0.1f)][LabelWidth(70f)]" desc="Position: X" type="int" />
+    <item name="YOffset" SpecialbLabel="[HorizontalGroup(&quot;offset&quot;, 0.1f)][LabelWidth(20f)]" desc="Y" type="int" />
+    <item name="ZOffset" SpecialbLabel="[HorizontalGroup(&quot;offset&quot;, 0.1f)][LabelWidth(20f)]" desc="Z" type="int" />
+    <item name="XOffsetTowards" SpecialbLabel="[HorizontalGroup(&quot;offsetToward&quot;, 0.1f)][LabelWidth(70f)]" desc="Rotation: X" type="int" />
+    <item name="YOffsetTowards" SpecialbLabel="[HorizontalGroup(&quot;offsetToward&quot;, 0.1f)][LabelWidth(20f)]" desc="Y" type="int" />
+    <item name="ZOffsetTowards" SpecialbLabel="[HorizontalGroup(&quot;offsetToward&quot;, 0.1f)][LabelWidth(20f)]" desc="Z" type="int" />
+    <item name="fxJson" SpecialbLabel="[HideInInspector]" desc="特效参数" type="FXJson" />
+  </enum>
+  <enum name="TriggerTypeEnumBaseData" modifiers="" desc="触发器抽象类" />
+  <enum name="TriggerTypeEnumDataHurt" modifiers="" desc="临时伤害数值" super="TriggerTypeEnumBaseData">
+    <item name="CompOperator" desc="比较符" isEnum="True" type="CompOperator" />
+    <item name="Value" desc="值" type="int" />
+  </enum>
+  <enum name="TriggerTypeEnumDataCure" modifiers="" desc="临时治疗数值" super="TriggerTypeEnumBaseData">
+    <item name="CompOperator" desc="比较符" isEnum="True" type="CompOperator" />
+    <item name="Value" desc="值" type="int" />
+  </enum>
+  <enum name="TriggerTypeEnumDataHit" modifiers="" desc="临时命中结果" super="TriggerTypeEnumBaseData">
+    <item name="Value" desc="是否命中" type="bool" />
+  </enum>
+  <enum name="TriggerTypeEnumRandom" modifiers="" desc="临时随机数值" super="TriggerTypeEnumBaseData">
+    <item name="Value" desc="随机值最大10000" type="int" />
+  </enum>
+  <enum name="TriggerTypeEnumDodgeAttack" modifiers="" desc="临时闪避结果" super="TriggerTypeEnumBaseData">
+    <item name="CompOperator" desc="比较符" isEnum="True" type="CompOperator" />
+    <item name="Value" desc="是否闪避" type="bool" />
+  </enum>
+  <enum name="TriggerTypeEnumCriticalHit" modifiers="" desc="临时暴击结果" super="TriggerTypeEnumBaseData">
+    <item name="CompOperator" desc="比较符" isEnum="True" type="CompOperator" />
+    <item name="Value" desc="是否爆击" type="bool" />
+  </enum>
+  <enum name="TriggerTypeEnumDataBuffID" modifiers="" desc="临时数据是buff运行时，判断id" super="TriggerTypeEnumBaseData">
+    <item name="CompOperator" desc="比较符" isEnum="True" type="CompOperator" />
+    <item name="Value" desc="BuffID" type="int" />
+  </enum>
+  <enum name="TriggerTypeEnumDataBuffTag" modifiers="" desc="临时数据是buff运行时，判断tag" super="TriggerTypeEnumBaseData">
+    <item name="CompOperator" desc="比较符" isEnum="True" type="CompOperator" />
+    <item name="Value" desc="BuffTag" type="int" />
+  </enum>
+  <enum name="TriggerTypeEnumDataBuffCount" modifiers="" desc="临时数据是buff运行时，判断层数" super="TriggerTypeEnumBaseData">
+    <item name="CompOperator" desc="比较符" isEnum="True" type="CompOperator" />
+    <item name="Floor" desc="Buff层数" type="int" />
+  </enum>
+  <enum name="TriggerTypeEnumRemainBlood" modifiers="" desc="对象当前生命值百分比" super="TriggerTypeEnumBaseData">
+    <item name="Tar" desc="检查对象" type="InputKey" />
+    <item name="CompOperator" desc="比较符" isEnum="True" type="CompOperator" />
+    <item name="Value" desc="血量百分比" type="int" />
+  </enum>
+  <enum name="TriggerTypeEnumRemainManaPer" modifiers="" desc="对象当前蓝量百分比" super="TriggerTypeEnumBaseData">
+    <item name="Tar" desc="检查对象" type="InputKey" />
+    <item name="CompOperator" desc="比较符" isEnum="True" type="CompOperator" />
+    <item name="Value" desc="蓝量百分比" type="int" />
+  </enum>
+  <enum name="TriggerTypeEnumRemainMana" modifiers="" desc="对象当前蓝量绝对值" super="TriggerTypeEnumBaseData">
+    <item name="Tar" desc="检查对象" type="InputKey" />
+    <item name="CompOperator" desc="比较符" isEnum="True" type="CompOperator" />
+    <item name="Value" desc="蓝量绝对值" type="int" />
+  </enum>
+  <enum name="TriggerTypeEnumPropValue" modifiers="" desc="对象对应属性id的属性值" super="TriggerTypeEnumBaseData">
+    <item name="Tar" desc="检查对象" type="InputKey" />
+    <item name="PropIndex" desc="属性id" isEnum="True" type="BattlePropEnum" />
+    <item name="CompOperator" desc="比较符" isEnum="True" type="CompOperator" />
+    <item name="Value" desc="属性值" type="int" />
+  </enum>
+  <enum name="TriggerTypeEnumCheckTargetMonsterType" modifiers="" desc="检查怪物类型" super="TriggerTypeEnumBaseData">
+    <item name="Tar" SpecialbLabel="[HideReferenceObjectPicker]" desc="检查对象" type="InputKey" />
+    <item name="TypeList" desc="检查类型" type="List&lt;MonsterType&gt;" />
+  </enum>
+  <enum name="TriggerTypeEnumBlackHit" modifiers="" desc="伤害节点-命中集合人数" super="TriggerTypeEnumBaseData">
+    <item name="Tar" desc="检查对象" type="InputKey" />
+    <item name="CompOperator" desc="比较符" isEnum="True" type="CompOperator" />
+    <item name="Value" desc="人数" type="int" />
+  </enum>
+  <enum name="TriggerTypeEnumDamageType" modifiers="" desc="伤害节点-检查伤害类型" super="TriggerTypeEnumBaseData">
+    <item name="TypeList" desc="检查类型" type="List&lt;DamageType&gt;" />
+  </enum>
+  <enum name="TriggerTypeEnumCurrEffectID" modifiers="" desc="当前效果id" super="TriggerTypeEnumBaseData">
+    <item name="EffectID" desc="要检查的效果ID" type="int" />
+  </enum>
+  <enum name="TriggerTypeEnumCurrEffectType" modifiers="" desc="当前效果类型" super="TriggerTypeEnumBaseData">
+    <item name="CompOperator" desc="比较符" isEnum="True" type="CompOperator" />
+    <item name="EffectType" desc="要检查的效果类型" isEnum="True" type="EffectType" />
+  </enum>
+  <enum name="TriggerTypeEnumCurrEffectTag" modifiers="" desc="当前效果标签" super="TriggerTypeEnumBaseData">
+    <item name="CompOperator" desc="比较符" isEnum="True" type="CompOperator" />
+    <item name="EffectTag" desc="效果标签" isEnum="True" type="EffectLabel" />
+  </enum>
+  <enum name="TriggerTypeEnumBackstab" modifiers="" desc="是否触发背刺" super="TriggerTypeEnumBaseData">
+    <item name="Value" desc="获取我和目标的相对朝向差" type="int" />
+  </enum>
+  <enum name="TriggerTypeEnumIntNode" modifiers="" desc="检测指定运行时黑板上的数据" super="TriggerTypeEnumBaseData">
+    <item name="RuntimeType" desc="黑板上的KEY" isEnum="True" type="TriRuntimeType" />
+    <item name="InputKey" desc="黑板上的KEY" type="InputKey" />
+    <item name="CompOperator" desc="比较符" isEnum="True" type="CompOperator" />
+    <item name="Val" desc="值" type="int" />
+  </enum>
+  <enum name="TriggerTypeEnumSkill" modifiers="" desc="当前技能标签" super="TriggerTypeEnumBaseData">
+    <item name="SkillLabel" desc="要检查的技能标签" isEnum="True" type="SkillLabel" />
+  </enum>
+  <enum name="TriggerTypeEnumRuntimeRelationship" modifiers="" desc="调用者与运行时对象关系" super="TriggerTypeEnumBaseData">
+    <item name="Tar1" desc="比较对象1" type="InputKey" />
+    <item name="Tar" desc="比较对象2" type="InputKey" />
+    <item name="CompOperator" desc="比较符" isEnum="True" type="CompOperator" />
+  </enum>
+  <enum name="TriggerTypeEnumBuffID" modifiers="" desc="对象的buffid" super="TriggerTypeEnumBaseData">
+    <item name="Tar" desc="检查对象" type="InputKey" />
+    <item name="CompOperator" desc="比较符" isEnum="True" type="CompOperator" />
+    <item name="IsGroup" desc="是否是组ID" type="bool" />
+    <item name="Value" desc="BuffID" type="int" />
+  </enum>
+  <enum name="TriggerTypeEnumBuffTag" modifiers="" desc="对象的bufftag" super="TriggerTypeEnumBaseData">
+    <item name="Tar" desc="检查对象" type="InputKey" />
+    <item name="CompOperator" desc="比较符" isEnum="True" type="CompOperator" />
+    <item name="Value" desc="BuffTag" isEnum="True" type="BuffLabel" />
+  </enum>
+  <enum name="TriggerTypeEnumBuffFloor" modifiers="" desc="对象的指定buff层数" super="TriggerTypeEnumBaseData">
+    <item name="Tar" desc="检查对象" type="InputKey" />
+    <item name="CompOperator" desc="比较符" isEnum="True" type="CompOperator" />
+    <item name="Value" desc="BuffID" type="int" />
+    <item name="Floor" desc="Buff层数" type="int" />
+  </enum>
+  <enum name="TriggerTypeEnumCoolTime" modifiers="" desc="对象的技能冷却" super="TriggerTypeEnumBaseData">
+    <item name="Tar" desc="检查对象" type="InputKey" />
+    <item name="Value" desc="CDKey" type="InputKey" />
+  </enum>
+  <enum name="TriggerTypeEnumState" modifiers="" desc="对象的原子状态" super="TriggerTypeEnumBaseData">
+    <item name="Tar" desc="检查对象" type="InputKey" />
+    <item name="Value" desc="State" isEnum="True" type="BattleState" />
+  </enum>
+  <enum name="TriggerTypeEnumStage" modifiers="" desc="对象的阶段ID" super="TriggerTypeEnumBaseData">
+    <item name="CheckID" desc="判断ID" type="int" />
+  </enum>
+  <enum name="TriggerTypeEnumBattle" modifiers="" desc="Owner的战斗状态" super="TriggerTypeEnumBaseData">
+    <item name="Negate" desc="是否在战斗" type="bool" />
+  </enum>
+  <enum name="TriggerTypeEnumCanGetSAPoint" modifiers="" desc="自身是否能获得利箭点" super="TriggerTypeEnumBaseData" />
+  <enum name="BattleProp" modifiers="" desc="战斗属性">
+    <item name="Prop" desc="属性" isEnum="True" type="BattlePropEnum" />
+    <item name="PropVaule" desc="属性值" type="int" />
+  </enum>
+  <enum name="TalentAndSlot" modifiers="" desc="槽位技能">
+    <item name="SlotID" desc="槽位" type="int" />
+    <item name="TalentID" desc="职业技能" type="int" />
+  </enum>
+  <enum name="BaseCustomData" modifiers="" desc="自定义数据" />
+  <enum name="AnimatorCustomData" modifiers="" desc="动画自定义数据" super="BaseCustomData">
+    <item name="AnimatorName" desc="动画名称" type="string" />
+    <item name="FadeDuration" desc="融合时间" type="int" default="100" />
+    <item name="AnimatorSp" desc="特殊条件动画" type="List&lt;AnimAndCondition&gt;" />
+  </enum>
+  <enum name="CameraCustomData" modifiers="" desc="相机自定义数据" super="BaseCustomData">
+    <item name="CameraType" desc="相机类型" type="int" />
+    <item name="CameraName" desc="相机ID" type="int" />
+  </enum>
+  <enum name="WWiseCustomData" modifiers="" desc="WWise自定义数据" super="BaseCustomData">
+    <item name="WWiseName" desc="WWise" type="string" />
+  </enum>
+  <enum name="CustomDictionary" modifiers="" desc="自定义字典">
+    <item name="FromKey" desc="Vaule" type="InputKey" />
+    <item name="ToKey" SpecialbLabel="[ReadOnly]" desc="Key" type="OutputKey" />
+  </enum>
+  <enum name="PassiveSkillConfig" modifiers="partial" desc="被动配置" super="BaseConfig">
+    <item name="ID" SpecialbLabel="[ReadOnly]" desc="被动技能ID" type="int" />
+    <item name="PassiveSkillDesc" desc="被动备注" type="string" />
+    <item name="OutBattleFreshTimes" desc="脱战是否刷新被动内触发器次数" type="bool" />
+    <item name="RuntimePriority" desc="运行时优先级" type="int" />
+    <item name="Time" desc="被动时间" type="int" />
+    <item name="LoopEffectInEditors" desc="循环特效" type="List&lt;EffectTypeHitEffect&gt;" />
+    <item name="GlobalShows" desc="表现标签" type="List&lt;GlobalShowSerialize&gt;" />
+    <item name="BattleProp" desc="属性修改" type="List&lt;BattleProp&gt;" />
+    <item name="BattleGroupID" SpecialbLabel="[PropertyTooltip(&quot;如果有这个值就覆盖上面的属性修改数组&quot;)]" desc="属性组ID" type="int" />
+    <item name="States" SpecialbLabel="[ValueDropdown(&quot;_battlestate&quot;)]" desc="原子状态" type="List&lt;BattleState&gt;" />
+    <item name="PassiveCopyData" desc="Passive拷贝数据" type="List&lt;OutputKey&gt;" />
+  </enum>
+  <enum name="StageNormal" modifiers="partial" desc="普通阶段参数">
+    <item name="StageID" SpecialbLabel="[Newtonsoft.Json.JsonIgnore][MessagePack.IgnoreMember]" desc="阶段ID" type="int" />
+    <item name="StageType" SpecialbLabel="[HideInInspector]   [Newtonsoft.Json.JsonIgnore][MessagePack.IgnoreMember]" desc="阶段类型" type="int" default="0" />
+    <item name="Active" desc="激活" type="bool" default="true" />
+    <item name="LoopCount" desc="循环阶段" type="int" default="1" />
+    <item name="IsEntryCD" desc="进入阶段是否进入CD" type="bool" default="true" />
+    <item name="States" SpecialbLabel="[ValueDropdown(&quot;_battlestate&quot;)]" desc="原子状态" type="List&lt;BattleState&gt;" />
+    <item name="Interrupt" desc="打断技能时" isEnum="True" type="InterruptEvent" default="InterruptEvent.KillStage" />
+    <item name="BattleProp" desc="属性修改" type="List&lt;BattleProp&gt;" />
+    <item name="BattleGroupID" SpecialbLabel="[PropertyTooltip(&quot;如果有这个值就覆盖上面的属性修改数组&quot;)]" desc="属性组ID" type="int" />
+    <item name="IsMsgClient" SpecialbLabel="[HideInInspector]" desc="是否不通知客户端" type="bool" />
+  </enum>
+  <enum name="StageBulletMotion" modifiers="" desc="子弹阶段参数">
+    <item name="StageID" SpecialbLabel="[Newtonsoft.Json.JsonIgnore][MessagePack.IgnoreMember]" desc="阶段ID" type="int" />
+    <item name="StageType" SpecialbLabel="[HideInInspector]   [Newtonsoft.Json.JsonIgnore][MessagePack.IgnoreMember]" desc="阶段类型" type="int" default="4" />
+    <item name="LoopCount" desc="循环次数" type="int" />
+    <item name="IsMsgClient" SpecialbLabel="[HideInInspector]" desc="是否不通知客户端" type="bool" />
+  </enum>
+  <enum name="StageTrigger" modifiers="partial" desc="触发阶段参数">
+    <item name="StageID" SpecialbLabel="[Newtonsoft.Json.JsonIgnore][MessagePack.IgnoreMember]" desc="阶段ID" type="int" />
+    <item name="StageType" SpecialbLabel="[HideInInspector]   [Newtonsoft.Json.JsonIgnore][MessagePack.IgnoreMember]" desc="阶段类型" type="int" default="1" />
+    <item name="TriggerCount" desc="触发次数" type="int" />
+    <item name="StageEnum" desc="触发阶段" isEnum="True" type="TriggerStageEnum" />
+    <item name="ConditionGroupInEditor" SpecialbLabel="[Newtonsoft.Json.JsonIgnore][MessagePack.IgnoreMember]" desc="触发条件组" type="List&lt;TriggerTypeEnumSerialize&gt;" />
+    <item name="IsMsgClient" SpecialbLabel="[HideInInspector]" desc="是否不通知客户端" type="bool" />
+    <item name="ConditionGroup" SpecialbLabel="[HideInInspector]" desc="触发条件组" type="List&lt;TriggerCondition&gt;" />
+  </enum>
+  <enum name="StageBUFFStart" modifiers="" desc="BUFF开始阶段参数">
+    <item name="StageID" SpecialbLabel="[Newtonsoft.Json.JsonIgnore][MessagePack.IgnoreMember]" desc="阶段ID" type="int" />
+    <item name="StageType" SpecialbLabel="[HideInInspector]   [Newtonsoft.Json.JsonIgnore][MessagePack.IgnoreMember]" desc="阶段类型" type="int" default="2" />
+    <item name="IsMsgClient" SpecialbLabel="[HideInInspector]" desc="是否不通知客户端" type="bool" />
+  </enum>
+  <enum name="StageBUFFEnd" modifiers="" desc="BUFF结束阶段参数">
+    <item name="StageID" SpecialbLabel="[Newtonsoft.Json.JsonIgnore][MessagePack.IgnoreMember]" desc="阶段ID" type="int" />
+    <item name="StageType" SpecialbLabel="[HideInInspector]   [Newtonsoft.Json.JsonIgnore][MessagePack.IgnoreMember]" desc="阶段类型" type="int" default="3" />
+    <item name="IsMsgClient" SpecialbLabel="[HideInInspector]" desc="是否不通知客户端" type="bool" />
+  </enum>
+  <enum name="StagePassiveEnd" modifiers="" desc="被动结束阶段参数">
+    <item name="StageID" SpecialbLabel="[Newtonsoft.Json.JsonIgnore][MessagePack.IgnoreMember]" desc="阶段ID" type="int" />
+    <item name="StageType" SpecialbLabel="[HideInInspector]   [Newtonsoft.Json.JsonIgnore][MessagePack.IgnoreMember]" desc="阶段类型" type="int" default="5" />
+    <item name="IsMsgClient" SpecialbLabel="[HideInInspector]" desc="是否不通知客户端" type="bool" />
+  </enum>
+  <enum name="GlobalShowTypeSerialize" modifiers="" desc="表现标签抽象" />
+  <enum name="ShapeSerialize" modifiers="" desc="形状序列化">
+    <item name="ShapeType" SpecialbLabel="[HideReferenceObjectPicker]" desc="形状类型" isEnum="True" type="Shape" />
+    <item name="Round" SpecialbLabel="[HideReferenceObjectPicker]" desc="圆形参数" type="ShapeRound" />
+    <item name="HollowCircle" SpecialbLabel="[HideReferenceObjectPicker]" desc="空心圆参数" type="ShapeHollowCircle" />
+    <item name="Sector" SpecialbLabel="[HideReferenceObjectPicker]" desc="扇形参数" type="ShapeSector" />
+    <item name="RingFan" SpecialbLabel="[HideReferenceObjectPicker]" desc="环扇形参数" type="ShapeRingFan" />
+    <item name="Arrow" SpecialbLabel="[HideReferenceObjectPicker]" desc="箭头参数" type="ShapeArrow" />
+    <item name="Rect" SpecialbLabel="[HideReferenceObjectPicker]" desc="矩形参数" type="ShapeRect" />
+    <item name="RotRoute" SpecialbLabel="[HideReferenceObjectPicker]" desc="朝向路径参数" type="ShapeRotRoute" />
+    <item name="PosRoute" SpecialbLabel="[HideReferenceObjectPicker]" desc="点位路径参数" type="ShapePosRoute" />
+  </enum>
+  <enum name="ConditionTypeSerialize" modifiers="" desc="条件序列化">
+    <item name="ConditionType" SpecialbLabel="[HideReferenceObjectPicker]" desc="条件类型" isEnum="True" type="ConditionType" />
+    <item name="Cond_Buff" SpecialbLabel="[HideReferenceObjectPicker]" desc="BUFF层数参数" type="ConditionBuff" />
+    <item name="Cond_Attr" SpecialbLabel="[HideReferenceObjectPicker]" desc="属性值参数" type="ConditionAttr" />
+    <item name="Cond_SkillTime" SpecialbLabel="[HideReferenceObjectPicker]" desc="前置技能时间参数" type="ConditionSkill" />
+    <item name="Cond_HpPercent" SpecialbLabel="[HideReferenceObjectPicker]" desc="血量万分比" type="ConditionHpPercent" />
+    <item name="Condition_CurSpectralElem" SpecialbLabel="[HideReferenceObjectPicker]" desc="末位量谱值" type="ConditionCurSpectralElem" />
+    <item name="Cond_TargetFaction" SpecialbLabel="[HideReferenceObjectPicker]" desc="敌人阵营" type="Cond_TargetFaction" />
+  </enum>
+  <enum name="AnimConditionTypeSerialize" modifiers="" desc="动作条件序列化">
+    <item name="AnimConditionType" SpecialbLabel="[HideReferenceObjectPicker]" desc="条件类型" isEnum="True" type="AnimConditionType" />
+    <item name="Move" SpecialbLabel="[HideReferenceObjectPicker]" desc="移动" type="AnimConditionTypeMove" />
+  </enum>
+  <enum name="GlobalShowSerialize" modifiers="" desc="表现标签序列化">
+    <item name="GlobalShowType" SpecialbLabel="[HideReferenceObjectPicker]" desc="表现标签" isEnum="True" type="GlobalShowType" />
+    <item name="BUFF_SpecialBUFFUI" SpecialbLabel="[HideReferenceObjectPicker]" desc="BUFFUI显示详情" type="GlobalShowBUFF_BUFFUIDateils" />
+    <item name="BUFF_ShaderChange" SpecialbLabel="[HideReferenceObjectPicker]" desc="修改Shader" type="GlobalShowBUFF_ShaderChange" />
+    <item name="BUFF_ShadowFollow" SpecialbLabel="[HideReferenceObjectPicker]" desc="附影" type="GlobalShowBUFF_ShadowFollow" />
+    <item name="BUFF_ChangeAnim" SpecialbLabel="[HideReferenceObjectPicker]" desc="状态动作修改" type="GlobalShowBUFF_ChangeAnim" />
+    <item name="BUFF_Paralysis" SpecialbLabel="[HideReferenceObjectPicker]" desc="动作暂停" type="GlobalShowBUFF_Paralysis" />
+    <item name="BUFF_Knock" SpecialbLabel="[HideReferenceObjectPicker]" desc="击倒" type="GlobalShowBUFF_Knock" />
+    <item name="BUFF_Hide" SpecialbLabel="[HideReferenceObjectPicker]" desc="隐身" type="GlobalShowBUFF_Hide" />
+    <item name="BUFF_HideUI" SpecialbLabel="[HideReferenceObjectPicker]" desc="隐藏UI" type="GlobalShowBUFF_HideUI" />
+    <item name="BUFF_ClickUseSkill" SpecialbLabel="[HideReferenceObjectPicker]" desc="点击屏幕释放技能" type="GlobalShowBUFF_ClickUseSkill" />
+    <item name="BUFF_ChangeColorShader" SpecialbLabel="[HideReferenceObjectPicker]" desc="修改颜色Shader" type="GlobalShowBUFF_ChangeColorShader" />
+    <item name="Global_CameraMove" SpecialbLabel="[HideReferenceObjectPicker]" desc="摄像机移动" type="GlobalShowGlobal_CameraMove" />
+    <item name="Global_SpectralSkill" SpecialbLabel="[HideReferenceObjectPicker]" desc="量谱图切换" type="GlobalShowGlobal_SpectralSkill" />
+    <item name="BUFF_PlayEffectLineRenderer" SpecialbLabel="[HideReferenceObjectPicker]" desc="与主人连线" type="GlobalShowBUFF_PlayEffectLineRenderer" />
+    <item name="BUFF_SpTimeShow" SpecialbLabel="[HideReferenceObjectPicker]" desc="特殊时间展示" type="GlobalShowBUFF_SpTimeShow" />
+    <item name="BUFF_AvatarChange" SpecialbLabel="[HideReferenceObjectPicker]" desc="修改化身" type="GlobalShowBUFF_AvatarChange" />
+    <item name="BUFF_SkillSlotHide" SpecialbLabel="[HideReferenceObjectPicker]" desc="技能槽隐藏" type="GlobalShowBUFF_SkillSlotHide" />
+    <item name="BUFF_SpectralChange" SpecialbLabel="[HideReferenceObjectPicker]" desc="量谱显示方式修改" type="GlobalShowBUFF_SpectralChange" />
+    <item name="BUFF_TransChange" SpecialbLabel="[HideReferenceObjectPicker]" desc="透明度修改" type="GlobalShowBUFF_TransChange" />
+    <item name="BUFF_JobSkillChange" SpecialbLabel="[HideReferenceObjectPicker]" desc="新增职业技能" type="GlobalShowBUFF_JobSkillChange" />
+    <item name="BUFF_JobSkillCancel" SpecialbLabel="[HideReferenceObjectPicker]" desc="基础职业技能失效" type="GlobalShowBUFF_JobSkillCancel" />
+    <item name="BUFF_ChangeFaction" SpecialbLabel="[HideReferenceObjectPicker]" desc="改变阵营" type="GlobalShowBUFF_ChangeFaction" />
+    <item name="Global_AddClientSummon" SpecialbLabel="[HideReferenceObjectPicker]" desc="召唤客户端召唤物" type="Global_AddClientSummon" />
+    <item name="Skill_SkillSlotSpShow" SpecialbLabel="[HideReferenceObjectPicker]" desc="技能槽特殊表现" type="GlobalShowSkill_SkillSlotSpShow" />
+  </enum>
+  <enum name="TriggerTypeEnumSerialize" modifiers="" desc="触发器序列化">
+    <item name="TriggerTypeEnum" SpecialbLabel="[Newtonsoft.Json.JsonIgnore][MessagePack.IgnoreMember]" desc="触发条件类型" isEnum="True" type="TriggerTypeEnum" />
+    <item name="DataHurt" desc="临时伤害数值" type="TriggerTypeEnumDataHurt" />
+    <item name="DataCure" desc="临时治疗数值" type="TriggerTypeEnumDataCure" />
+    <item name="DataHit" desc="临时命中结果" type="TriggerTypeEnumDataHit" />
+    <item name="Random" desc="临时随机数值" type="TriggerTypeEnumRandom" />
+    <item name="DodgeAttack" desc="临时闪避结果" type="TriggerTypeEnumDodgeAttack" />
+    <item name="CriticalHit" desc="临时暴击结果" type="TriggerTypeEnumCriticalHit" />
+    <item name="DataBuffID" desc="临时数据是buff运行时，判断id" type="TriggerTypeEnumDataBuffID" />
+    <item name="DataBuffTag" desc="临时数据是buff运行时，判断tag" type="TriggerTypeEnumDataBuffTag" />
+    <item name="DataBuffCount" desc="临时数据是buff运行时，判断层数" type="TriggerTypeEnumDataBuffCount" />
+    <item name="RemainBlood" desc="对象当前生命值百分比" type="TriggerTypeEnumRemainBlood" />
+    <item name="RemainManaPer" desc="对象当前蓝量百分比" type="TriggerTypeEnumRemainManaPer" />
+    <item name="RemainMana" desc="对象当前蓝量绝对值" type="TriggerTypeEnumRemainMana" />
+    <item name="PropValue" desc="对象对应属性id的属性值" type="TriggerTypeEnumPropValue" />
+    <item name="CheckTargetMonsterType" desc="对象的怪物类型" type="TriggerTypeEnumPCheckTargetMonsterType" />
+    <item name="BlackHit" desc="伤害节点-命中集合人数" type="TriggerTypeEnumBlackHit" />
+    <item name="DamageType" desc="伤害节点-判断伤害类型" type="TriggerTypeEnumDamageType" />
+    <item name="CurrEffectID" desc="当前效果id" type="TriggerTypeEnumCurrEffectID" />
+    <item name="CurrEffectType" desc="当前效果类型" type="TriggerTypeEnumCurrEffectType" />
+    <item name="CurrEffectTag" desc="当前效果标签" type="TriggerTypeEnumCurrEffectTag" />
+    <item name="Backstab" desc="是否触发背刺" type="TriggerTypeEnumBackstab" />
+    <item name="IntNode" desc="检测指定运行时黑板上的数据" type="TriggerTypeEnumIntNode" />
+    <item name="SkillTag" desc="当前技能标签" type="TriggerTypeEnumSkill" />
+    <item name="RuntimeRelationship" desc="调用者与运行时对象关系" type="TriggerTypeEnumRuntimeRelationship" />
+    <item name="BuffID" desc="对象的buffid" type="TriggerTypeEnumBuffID" />
+    <item name="BuffTag" desc="对象的bufftag" type="TriggerTypeEnumBuffTag" />
+    <item name="BuffFloor" desc="对象的指定buff层数" type="TriggerTypeEnumBuffFloor" />
+    <item name="CoolTime" desc="对象的技能冷却" type="TriggerTypeEnumCoolTime" />
+    <item name="State" desc="对象的原子状态" type="TriggerTypeEnumState" />
+    <item name="Stage" desc="对象的阶段ID" type="TriggerTypeEnumStage" />
+    <item name="Battle" desc="Onwer的战斗状态" type="TriggerTypeEnumBattle" />
+    <item name="CanGetSAPoint" desc="是否能获得利箭点" type="TriggerTypeEnumCanGetSAPoint" />
+  </enum>
+</config>

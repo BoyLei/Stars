@@ -1,0 +1,23 @@
+{
+	"keepSuffix": "ZG_",
+	"keywordWipeOffPattern":[
+		"ZG_(.+)_OFF",
+		"ZG_SHOW_(.+)",
+		"ZG_ANISO_(.+)",
+		"ZG_PARALLAXMAP(.+)",
+		"ZG_ANISO_BLEND(.+)",
+		"ZG_DETAILAMP(.+)",
+		"ZG_INV_NORMAL_Y_ON"
+	],
+	"combinationPattern": {
+		"shaderNames": ["game/gameobject-blend", "game/gameobject", "game/standard"],
+		"fixedCombination": [
+			{"keywords": ["ZG_ROUGHNESS_SRC_NORMAL_B", "ZG_ROUGHNESS_SRC_VALUE", "ZG_ROUGHNESS_SRC_ALBEDO_A"]},
+			{"keywords": ["ZG_METALLIC_SRC_NORMAL_A", "ZG_METALLIC_SRC_VALUE", "ZG_METALLIC_SRC_ALBEDO_A", "ZG_METALLIC_SRC_ALBEDO"]}
+		],
+		"fixedCombinationIndexLimit": 2,
+		"flexibleCombination": [
+			{"keywords": ["ZG_RENDERMODE_OPAQUE", "ZG_RENDERMODE_CUTOUT", "ZG_RENDERMODE_TRANSPARENT"]}
+		]
+	}
+}

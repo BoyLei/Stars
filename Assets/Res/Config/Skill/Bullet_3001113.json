@@ -1,0 +1,543 @@
+{
+    "config": {
+        "ID": 3001113,
+        "BulletDesc": "枪舞.跟踪敌人贝塞尔子弹",
+        "Time": 5000,
+        "Hight": 98,
+        "BulletHeightType": 0,
+        "AvatarID": 0,
+        "LoopEffectInEditors": [
+            {
+                "PrefabPathInEditor": "Assets/Res/Effects/Roles/Character/QiangP_F/cm/FX_QP_skill01_DD.prefab",
+                "HangPoint": "Root",
+                "IsFaceToBuilder": false,
+                "IsFollowMove": true,
+                "IsFollowRot": true,
+                "IsFollowOwnerHide": true,
+                "IsFollowOwnerScale": 0,
+                "IsLoop": true,
+                "XOffset": 0,
+                "YOffset": 0,
+                "ZOffset": 0,
+                "XOffsetTowards": 0,
+                "YOffsetTowards": 0,
+                "ZOffsetTowards": 0,
+                "fxJson": {
+                    "EffectName": "FX_QP_skill01_DD",
+                    "EffectPath": "FX_QP_skill01_DD",
+                    "FxDuration": 0,
+                    "IsCameraImpulse": false,
+                    "IsCamaeraOffset": false,
+                    "ControlActivation": false,
+                    "postPlayback": 0,
+                    "ControlPlayableDirectors": false,
+                    "ControlParticleSystems": false,
+                    "ControlTimeControl": false,
+                    "ControlChildren": false,
+                    "RandomSpeed": 0,
+                    "config": {
+                        "HangPoint": "Root",
+                        "IsAll": true,
+                        "IsSyncBreak": true,
+                        "IsChangeCancel": false,
+                        "IsFaceToBuilder": false,
+                        "IsFaceToCamera": false,
+                        "IsFollowMove": true,
+                        "IsFollowRot": true,
+                        "IsFollowLoop": false,
+                        "IsFollowOwnerHide": true,
+                        "IsFollowOwnerScale": 0,
+                        "IsLoop": true,
+                        "XOffset": 0,
+                        "YOffset": 0,
+                        "ZOffset": 0,
+                        "XOffsetTowards": 0,
+                        "YOffsetTowards": 0,
+                        "ZOffsetTowards": 0,
+                        "XScale": 100,
+                        "YScale": 100,
+                        "ZScale": 100
+                    },
+                    "Start": 0,
+                    "End": 0,
+                    "Duration": 0,
+                    "ClipIn": 0,
+                    "clipCaps": 0,
+                    "Index": 0,
+                    "SpeedMultiplier": 1.0
+                }
+            }
+        ],
+        "GlobalShows": [],
+        "IsThrough": true,
+        "IsClientMove": true,
+        "MoveSpeed": 700,
+        "BulletCopyData": [
+            {
+                "SaveSkill": true,
+                "Result": "BulletTarget"
+            }
+        ],
+        "BulletLabels": []
+    },
+    "Normals": [],
+    "Others": [
+        {
+            "Start": 0,
+            "End": 1000,
+            "Duration": 1000,
+            "StageID": 2001,
+            "StageType": 1,
+            "StageTrigger": {
+                "TriggerCount": 1,
+                "StageEnum": 124,
+                "IsMsgClient": false,
+                "ConditionGroup": []
+            },
+            "Effects": [
+                {
+                    "data": [
+                        {
+                            "EffectType": 111,
+                            "BaseEffect": {
+                                "InputKey": {
+                                    "Result": "BulletTarget"
+                                },
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "BulletTargetRehit"
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 3001,
+                            "Desc": "",
+                            "Next": [
+                                3002
+                            ],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "BulletTarget"
+                            ],
+                            "OutputKeys": [
+                                "BulletTargetRehit"
+                            ]
+                        },
+                        {
+                            "EffectType": 22,
+                            "BaseEffect": {
+                                "EffectTargetArray": {
+                                    "Result": "BulletTargetRehit"
+                                },
+                                "GroupID": 30011101,
+                                "GroupIDKey": [],
+                                "FlutteringWordsID": 0,
+                                "isActor": true,
+                                "HitEffect": [],
+                                "IsSpecial": false,
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "HitBulletTarget"
+                                },
+                                "EventName": "",
+                                "EventID": 0,
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 3002,
+                            "Desc": "",
+                            "Next": [
+                                3003
+                            ],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "BulletTargetRehit"
+                            ],
+                            "OutputKeys": [
+                                "HitBulletTarget"
+                            ]
+                        },
+                        {
+                            "EffectType": 32,
+                            "BaseEffect": {
+                                "EffectTargetArray": {
+                                    "Result": "BulletTarget"
+                                },
+                                "BuffIDs": [
+                                    3001112
+                                ],
+                                "BuffTags": [],
+                                "BuffConfronts": [],
+                                "AlwaysSuccess": true,
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "RemoveBuff"
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 3003,
+                            "Desc": "",
+                            "Next": [
+                                3004
+                            ],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "BulletTarget"
+                            ],
+                            "OutputKeys": [
+                                "RemoveBuff"
+                            ]
+                        },
+                        {
+                            "EffectType": 1003,
+                            "BaseEffect": {
+                                "DurningTime": 10000,
+                                "IsChangeCancel": false,
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "Hide"
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 3004,
+                            "Desc": "",
+                            "Next": [
+                                3005
+                            ],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 900,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 900,
+                            "ServerPreTime": 0,
+                            "InputKeys": [],
+                            "OutputKeys": [
+                                "Hide"
+                            ]
+                        },
+                        {
+                            "EffectType": 43,
+                            "BaseEffect": {
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 3005,
+                            "Desc": "",
+                            "Next": [],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [],
+                            "OutputKeys": []
+                        }
+                    ]
+                }
+            ],
+            "Fxs": [
+                {
+                    "EffectName": "FX_QP_Atk01_hit",
+                    "EffectPath": "FX_QP_Atk01_hit",
+                    "FxDuration": 800,
+                    "IsCameraImpulse": false,
+                    "IsCamaeraOffset": false,
+                    "ControlActivation": true,
+                    "postPlayback": 2,
+                    "ControlPlayableDirectors": true,
+                    "ControlParticleSystems": true,
+                    "ControlTimeControl": true,
+                    "ControlChildren": false,
+                    "RandomSpeed": 3356,
+                    "config": {
+                        "HangPoint": "Root",
+                        "IsAll": true,
+                        "IsSyncBreak": true,
+                        "IsChangeCancel": false,
+                        "IsFaceToBuilder": false,
+                        "IsFaceToCamera": false,
+                        "IsFollowMove": false,
+                        "IsFollowRot": false,
+                        "IsFollowLoop": false,
+                        "IsFollowOwnerHide": false,
+                        "IsFollowOwnerScale": 0,
+                        "IsLoop": false,
+                        "XOffset": 0,
+                        "YOffset": 0,
+                        "ZOffset": 0,
+                        "XOffsetTowards": 0,
+                        "YOffsetTowards": 0,
+                        "ZOffsetTowards": 0,
+                        "XScale": 100,
+                        "YScale": 100,
+                        "ZScale": 100
+                    },
+                    "Start": 0,
+                    "End": 800,
+                    "Duration": 800,
+                    "ClipIn": 0,
+                    "clipCaps": 0,
+                    "Index": 0,
+                    "SpeedMultiplier": 1.0
+                },
+                {
+                    "EffectName": "Impulse_skill_300001",
+                    "EffectPath": "Impulse_skill_300001",
+                    "FxDuration": 0,
+                    "IsCameraImpulse": true,
+                    "IsCamaeraOffset": false,
+                    "ControlActivation": true,
+                    "postPlayback": 2,
+                    "ControlPlayableDirectors": true,
+                    "ControlParticleSystems": true,
+                    "ControlTimeControl": true,
+                    "ControlChildren": false,
+                    "RandomSpeed": 3608,
+                    "config": {
+                        "HangPoint": "Root",
+                        "IsAll": true,
+                        "IsSyncBreak": true,
+                        "IsChangeCancel": false,
+                        "IsFaceToBuilder": false,
+                        "IsFaceToCamera": false,
+                        "IsFollowMove": false,
+                        "IsFollowRot": false,
+                        "IsFollowLoop": false,
+                        "IsFollowOwnerHide": false,
+                        "IsFollowOwnerScale": 0,
+                        "IsLoop": false,
+                        "XOffset": 0,
+                        "YOffset": 0,
+                        "ZOffset": 0,
+                        "XOffsetTowards": 0,
+                        "YOffsetTowards": 0,
+                        "ZOffsetTowards": 0,
+                        "XScale": 100,
+                        "YScale": 100,
+                        "ZScale": 100
+                    },
+                    "Start": 0,
+                    "End": 2000,
+                    "Duration": 2000,
+                    "ClipIn": 0,
+                    "clipCaps": 0,
+                    "Index": 1,
+                    "SpeedMultiplier": 1.0
+                }
+            ],
+            "Sounds": [],
+            "Cameras": [],
+            "ShakeCameras": [],
+            "Animations": []
+        }
+    ],
+    "Bullets": [
+        {
+            "Start": 0,
+            "End": 500,
+            "Duration": 500,
+            "StageID": 5001,
+            "StageType": 4,
+            "StageBulletMotion": {
+                "LoopCount": 1,
+                "IsMsgClient": true
+            },
+            "Effects": [
+                {
+                    "data": [
+                        {
+                            "EffectType": 92,
+                            "BaseEffect": {
+                                "SingleCenterPos": {
+                                    "TargetKey": {
+                                        "Result": "BulletTarget"
+                                    },
+                                    "PosKey": {
+                                        "Result": ""
+                                    },
+                                    "Angle": 0,
+                                    "Distance": 0
+                                },
+                                "BuilderOrPos": 2,
+                                "Distance": 0,
+                                "MaxMove": -1,
+                                "TimeToTarget": -1,
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 1001,
+                            "Desc": "",
+                            "Next": [
+                                1002
+                            ],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "BulletTarget"
+                            ],
+                            "OutputKeys": []
+                        },
+                        {
+                            "EffectType": 46,
+                            "BaseEffect": {
+                                "InputKey": {
+                                    "Result": "BulletTarget"
+                                },
+                                "ToTargetHangPoint": "Hurt_D",
+                                "SingleCenterPos": {
+                                    "TargetKey": {
+                                        "Result": ""
+                                    },
+                                    "PosKey": {
+                                        "Result": ""
+                                    },
+                                    "Angle": 0,
+                                    "Distance": 0
+                                },
+                                "SingleCenterPosHight": 0,
+                                "RandomPoint1": {
+                                    "MinX": 250,
+                                    "MaxX": 600,
+                                    "MinY": 60,
+                                    "MaxY": 250
+                                },
+                                "RandomPoint2": {
+                                    "MinX": -100,
+                                    "MaxX": 100,
+                                    "MinY": 300,
+                                    "MaxY": 300
+                                },
+                                "RandomAngle": {
+                                    "MinX": 120,
+                                    "MaxX": 165,
+                                    "MinY": 0,
+                                    "MaxY": 0
+                                },
+                                "OutputKey": {
+                                    "SaveSkill": false,
+                                    "Result": "BezierBullet"
+                                },
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 1002,
+                            "Desc": "",
+                            "Next": [],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "BulletTarget"
+                            ],
+                            "OutputKeys": [
+                                "BezierBullet"
+                            ]
+                        }
+                    ]
+                }
+            ],
+            "Fxs": [],
+            "Sounds": [],
+            "Cameras": [],
+            "ShakeCameras": [],
+            "Animations": []
+        },
+        {
+            "Start": 500,
+            "End": 1000,
+            "Duration": 500,
+            "StageID": 5002,
+            "StageType": 4,
+            "StageBulletMotion": {
+                "LoopCount": -1,
+                "IsMsgClient": true
+            },
+            "Effects": [
+                {
+                    "data": [
+                        {
+                            "EffectType": 92,
+                            "BaseEffect": {
+                                "SingleCenterPos": {
+                                    "TargetKey": {
+                                        "Result": "BulletTarget"
+                                    },
+                                    "PosKey": {
+                                        "Result": ""
+                                    },
+                                    "Angle": 0,
+                                    "Distance": 0
+                                },
+                                "BuilderOrPos": 2,
+                                "Distance": 0,
+                                "MaxMove": -1,
+                                "TimeToTarget": -1,
+                                "GetOutputKey": null
+                            },
+                            "EffectID": 2001,
+                            "Desc": "",
+                            "Next": [],
+                            "SaveSkill": false,
+                            "IsStageCancel": false,
+                            "EffectLabels": [],
+                            "ClientDelayTime": 0,
+                            "ClinetExecuteTime": 0,
+                            "EffectEndTime": 0,
+                            "ServerExecuteTime": 0,
+                            "ServerNextDelayTime": 0,
+                            "ServerPreTime": 0,
+                            "InputKeys": [
+                                "BulletTarget"
+                            ],
+                            "OutputKeys": []
+                        }
+                    ]
+                }
+            ],
+            "Fxs": [],
+            "Sounds": [],
+            "Cameras": [],
+            "ShakeCameras": [],
+            "Animations": []
+        }
+    ]
+}

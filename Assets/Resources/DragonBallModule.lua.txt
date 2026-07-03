@@ -1,0 +1,40 @@
+DragonBallModule = {}
+
+--function DragonBallModule:Main(args)
+--print(DragonBallModuleEvtTable)
+
+--我没有WrappedLuaModule
+--DragonBallModule.OnShowDelegate = DragonBallModuleEvtTable:GetEvent("OnShow")
+DragonBallModule.LocOnLogin = CS.StarProject.GlobalEvent.onLuaUIShow
+DragonBallModule.LocOnLogin:AddListener(OnShow);
+
+
+print("evt11"..type(DragonBallModule.LocOnLogin))
+
+function  DragonBallModule:OnShow(aaa) 
+print("??? -- :"..aaa)
+end
+
+
+
+
+function  DragonBallModule:OnCreateModule(_DragonBallModuleCreateArgs) 
+print("In The Module Create Para is -- :".._DragonBallModuleCreateArgs)
+end
+
+
+DragonBallModule:OnCreateModule(DragonBallModuleCreateArgs)
+
+
+
+
+
+
+
+
+
+
+
+
+--返回是lua包的要求
+return DragonBallModule

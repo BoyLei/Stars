@@ -1,0 +1,42 @@
+DragonBallModule = {}
+
+--function DragonBallModule:Main(args)
+--print("DragonBallModule Sign Module Init")
+
+
+DragonBallModule.LuaEventTable = DragonBallModuleEvtTable --我Module的事件
+DragonBallModule.LuaEventTable:GetEvent("OnShow"):AddListener(OnShow);
+
+
+function SevenDaysSignModule:OnShow(arg)
+		print("arg:"..arg)
+		end
+
+
+
+
+
+
+
+
+
+
+function  DragonBallModule:OnCreateModule(_DragonBallModuleCreateArgs) 
+print("In The Module Create Para is -- :".._DragonBallModuleCreateArgs)
+end
+
+
+DragonBallModule:OnCreateModule(DragonBallModuleCreateArgs)
+
+
+
+
+
+
+
+
+
+
+
+--返回是lua包的要求
+return DragonBallModule

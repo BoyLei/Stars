@@ -1,0 +1,542 @@
+{
+    "name": "Player",
+    "startIndex": 1000,
+    "isgenerateTypeIndexMap": false,
+    "isgeneratePropIndexMap": false,
+    "BaseType": "PlayerBase",
+    "typemap": {
+        "int8": 1,
+        "int16": 2,
+        "int32": 3,
+        "int64": 4,
+        "uint8": 5,
+        "uint16": 6,
+        "uint32": 7,
+        "uint64": 8,
+        "float32": 9,
+        "float64": 10,
+        "bool": 11,
+        "string": 12,
+        "protoMsg": 13
+    },
+    "props": {
+        "Name": {
+            "index": 1,
+            "type": "string",
+            "save": "6",
+            "desc": "名称"
+        },
+        "RoleModel": {
+            "index": 2,
+            "type": "uint32",
+            "save": "6",
+            "desc": "角色头像id"
+        },
+        "LoginTime": {
+            "index": 4,
+            "type": "int64",
+            "save": "6",
+            "desc": "登录时间"
+        },
+        "LogoutTime": {
+            "index": 5,
+            "type": "int64",
+            "save": "6",
+            "desc": "登出时间"
+        },
+        "TodayOnlineTime": {
+            "index": 6,
+            "type": "int64",
+            "save": "6",
+            "desc": "今天在线时长"
+        },
+        "OnlineTime": {
+            "index": 7,
+            "type": "int64",
+            "save": "6",
+            "desc": "总在线时长"
+        },
+        "AccessToken": {
+            "index": 8,
+            "type": "string",
+            "save": "6",
+            "desc": "accessToken"
+        },
+        "RoleModelFrame": {
+            "index": 9,
+            "type": "int32",
+            "save": "6",
+            "desc": "头像框"
+        },
+        "Coin": {
+            "index": 10,
+            "type": "int64",
+            "save": "6",
+            "desc": "金币"
+        },
+        "Silver": {
+            "index": 11,
+            "type": "int64",
+            "save": "6",
+            "desc": "银币"
+        },
+        "ChargeDiamond": {
+            "index": 12,
+            "type": "int64",
+            "save": "6",
+            "desc": "钻石：充值获得"
+        },
+        "BindDiamond": {
+            "index": 13,
+            "type": "int64",
+            "save": "6",
+            "desc": "绑钻：游戏内获得"
+        },
+        "SceneFlag": {
+            "index": 49,
+            "type": "uint64",
+            "save": "3",
+            "desc": "按照位运算,第0位为1表示进入过scene服"
+        },
+        "Position": {
+            "index": 50,
+            "type": "*linmath.Vector3",
+            "save": "0",
+            "main": "3",
+            "desc": "坐标"
+        },
+        "Rot": {
+            "index": 51,
+            "type": "int32",
+            "save": "0",
+            "main": "3",
+            "desc": "旋转角度"
+        },
+        "MoveState": {
+            "index": 52,
+            "type": "int64",
+            "save": "0",
+            "main": "3",
+            "desc": "在黑洞状态下最后一次客户端发来的移动消息的时间（毫秒）"
+        },
+        "RobotState": {
+            "index": 53,
+            "type": "bool",
+            "save": "0",
+            "main": "3",
+            "desc": "是否是机器人"
+        },
+        "Rocker": {
+            "index": 54,
+            "type": "int32",
+            "save": "0",
+            "main": "3",
+            "desc": "摇杆角度"
+        },
+        "RiderState": {
+            "index": 55,
+            "type": "bool",
+            "save": "6",
+            "desc": "骑马的状态"
+        },
+        "RegionID": {
+            "index": 56,
+            "type": "uint64",
+            "save": "6",
+            "desc": "当前的SpaceID,是当前场景的EntityID"
+        },
+        "OfflineMapID": {
+            "index": 57,
+            "type": "int32",
+            "save": "6",
+            "desc": "上次进入过的大场景地图ID"
+        },
+        "OfflinePosition": {
+            "index": 58,
+            "type": "*linmath.Vector3",
+            "save": "3",
+            "desc": "上下线的Space坐标"
+        },
+        "CurrParIndex": {
+            "index": 59,
+            "type": "int32",
+            "save": "3",
+            "desc": "当前伙伴Index,默认0"
+        },
+        "StorageHP": {
+            "index": 60,
+            "type": "int64",
+            "save": "3",
+            "desc": "存储的血量"
+        },
+        "StorageMP": {
+            "index": 61,
+            "type": "int64",
+            "save": "3",
+            "desc": "存储的蓝量"
+        },
+        "ReplyHpPre": {
+            "index": 62,
+            "type": "int32",
+            "save": "6",
+            "desc": "战斗状态低于百分多少自动回复"
+        },
+        "StorageDrugs": {
+            "index": 63,
+            "type": "*protoMsg.StorageDrugsMd",
+            "save": "6",
+            "desc": "战斗状态存储的药品"
+        },
+        "ReviveMapID": {
+            "index": 70,
+            "type": "int32",
+            "save": "3",
+            "desc": "出生/复活点Space MapID,目前只有大场景有效"
+        },
+        "RevivePosition": {
+            "index": 71,
+            "type": "*linmath.Vector3",
+            "save": "3",
+            "desc": "出生/复活的Space坐标"
+        },
+        "CurMapID": {
+            "index": 72,
+            "type": "uint64",
+            "save": "3",
+            "desc": "当前地图ID，仅在进入地图时由scene更新到lobby 仅仅是配置ID"
+        },
+        "OfflineRot": {
+            "index": 73,
+            "type": "int32",
+            "save": "3",
+            "desc": "上下线的Space角度"
+        },
+        "TeamID": {
+            "index": 74,
+            "type": "uint64",
+            "save": "0",
+            "main": "3",
+            "desc": "队伍ID,为0则未组队"
+        },
+        "ExAmuletInfo": {
+            "index": 75,
+            "type": "*protoMsg.ExtractaAmuletMD",
+            "save": "6",
+            "desc": "最后一次护符萃取信息"
+        },
+        "OutGuildTime": {
+            "index": 77,
+            "type": "int64",
+            "save": "0",
+            "main": "6",
+            "desc": "退出公会时间"
+        },
+        "PlayerGuildInfo": {
+            "index": 79,
+            "type": "*protoMsg.PlayerGuildInfo",
+            "save": "0",
+            "main": "6",
+            "sync": "1",
+            "desc": "玩家的公会信息"
+        },
+        "CreateTime": {
+            "index": 102,
+            "type": "int64",
+            "save": "6",
+            "desc": "实体创建时间（只在战斗服使用）"
+        },
+        "PlayerLevel": {
+            "index": 103,
+            "type": "int32",
+            "save": "6",
+            "desc": "等级"
+        },
+        "PlayerExp": {
+            "index": 104,
+            "type": "int32",
+            "save": "6",
+            "desc": "队伍经验值"
+        },
+        "RiskInfo": {
+            "index": 105,
+            "type": "*protoMsg.RiskLevelMD",
+            "save": "6",
+            "desc": "冒险等级相关"
+        },
+        "WantTaskInfo": {
+            "index": 106,
+            "type": "*protoMsg.WantTaskMD",
+            "save": "6",
+            "desc": "通缉任务"
+        },
+        "ReceMaxGlobalMailID": {
+            "index": 200,
+            "type": "int64",
+            "save": "6",
+            "desc": "已经收取的全服邮件编号"
+        },
+        "RecoverTime": {
+            "index": 201,
+            "type": "int64",
+            "save": "6",
+            "desc": "一些活动的恢复时间"
+        },
+        "InteractID": {
+            "index": 203,
+            "type": "uint64",
+            "save": "0",
+            "main": "3",
+            "desc": "交互物件ID"
+        },
+        "SkillPoint": {
+            "index": 204,
+            "type": "int32",
+            "save": "6",
+            "desc": "技能点"
+        },
+        "DialogID": {
+            "index": 205,
+            "type": "int32",
+            "save": "0",
+            "main": "3",
+            "desc": "对话ID"
+        },
+        "CurState": {
+            "index": 206,
+            "type": "uint8",
+            "save": "0",
+            "main": "3",
+            "desc": "场景服传过来的状态,独占状态"
+        },
+        "UserID": {
+            "index": 207,
+            "type": "uint64",
+            "save": "0",
+            "main": "6",
+            "desc": "玩家数据库ID,客户端AOI用"
+        },
+        "SkillPointUsed": {
+            "index": 208,
+            "type": "int32",
+            "save": "6",
+            "desc": "已消耗的技能点"
+        },
+        "CurTreasure": {
+            "index": 209,
+            "type": "*protoMsg.TreasureData",
+            "save": "6",
+            "desc": "当前宝图的相关信息"
+        },
+        "GVEBonus": {
+            "index": 211,
+            "type": "*protoMsg.GVEBonus",
+            "save": "3",
+            "desc": "GVE个人积分"
+        },
+        "TreasureMonid": {
+            "index": 212,
+            "type": "*protoMsg.TreMonID",
+            "save": "0",
+            "main": "3",
+            "desc": "挖宝出来的专属怪ID集合"
+        },
+        "GNGData": {
+            "index": 213,
+            "type": "*protoMsg.GNGUserData",
+            "save": "6",
+            "desc": "GNG个人数据"
+        },
+        "Tweeter1": {
+            "index": 214,
+            "type": "int32",
+            "save": "6",
+            "desc": "当前已装备鸣器1"
+        },
+        "Tweeter2": {
+            "index": 215,
+            "type": "int32",
+            "save": "6",
+            "desc": "当前已装备鸣器2"
+        },
+        "PVPState": {
+            "index": 216,
+            "type": "int32",
+            "save": "0",
+            "main": "3",
+            "desc": "pvp连杀状态"
+        },
+        "PayData": {
+            "index": 217,
+            "type": "*protoMsg.UserPayData",
+            "save": "6",
+            "desc": "充值个人数据:充值次数,累充,首充签到"
+        },
+        "CollectEnergy": {
+            "index": 218,
+            "type": "int32",
+            "save": "6",
+            "desc": "采集活力值"
+        },
+        "CollectEnergyTime": {
+            "index": 219,
+            "type": "int64",
+            "save": "6",
+            "desc": "采集活力值上次恢复时间戳"
+        },
+        "LastParIndex": {
+            "index": 220,
+            "type": "int64",
+            "save": "6",
+            "desc": "上一个伙伴的配置ID"
+        },
+        "WorldLineRewardData":{
+            "index": 221,
+            "type": "*protoMsg.BaseData",
+            "save": "6",
+            "desc": "梦之境领奖数据"   
+        }
+    },
+    "server": {
+        "3": {
+            "desc": "Space",
+            "props": [
+                "Name",
+                "PlayerLevel",
+                "CreateTime",
+                "SceneFlag",
+                "Position",
+                "Rot",
+                "MoveState",
+                "OfflineMapID",
+                "OfflinePosition",
+                "OfflineRot",
+                "CurrParIndex",
+                "ReviveMapID",
+                "RevivePosition",
+                "HasEnterWorld",
+                "InteractID",
+                "SkillPoint",
+                "SkillPointUsed",
+                "DialogID",
+                "CurState",
+                "UserID",
+                "StorageHP",
+                "StorageMP",
+                "ReplyHpPre",
+                "StorageDrugs",
+                "CurMapID",
+                "TeamID",
+                "CurTreasure",
+                "PlayerGuildInfo",
+                "TreasureMonid",
+                "GVEBonus",
+                "WantTaskInfo",
+                "GNGData",
+                "PVPState",
+                "CollectEnergy",
+                "RiskInfo",
+                "LastParIndex",
+                "WorldLineRewardData"
+            ]
+        },
+        "6": {
+            "desc": "Lobby",
+            "props": [
+                "Name",
+                "RoleModel",
+                "Coin",
+                "Silver",
+                "ChargeDiamond",
+                "BindDiamond",
+                "LoginTime",
+                "LogoutTime",
+                "TodayOnlineTime",
+                "OnlineTime",
+                "AccessToken",
+                "RoleModelFrame",
+                "PlayerLevel",
+                "PlayerExp",
+                "RiskInfo",
+                "ReceMaxGlobalMailID",
+                "RecoverTime",
+                "OfflineMapID",
+                "SkillPoint",
+                "SkillPointUsed",
+                "CurState",
+                "UserID",
+                "StorageHP",
+                "StorageMP",
+                "ReplyHpPre",
+                "StorageDrugs",
+                "TeamID",
+                "ExAmuletInfo",
+                "PlayerGuildInfo",
+                "OutGuildTime",
+                "CurMapID",
+                "CurTreasure",
+                "GNGData",
+                "Tweeter1",
+                "Tweeter2",
+                "PayData",
+                "CollectEnergy",
+                "CollectEnergyTime",
+                "WantTaskInfo",
+                "LastParIndex",
+                "WorldLineRewardData"
+            ]
+        }
+    },
+    "client": {
+        "desc": "AOI关注的属性，需要包含在Space所在的服务器中",
+        "props": [
+            "Name",
+            "PlayerLevel",
+            "RiskInfo",
+            "Position",
+            "Rot",
+            "MoveState",
+            "UserID",
+            "RobotState",
+            "PVPState"
+        ]
+    },
+    "mrole": {
+        "desc": "主角自己关注的属性，在客户端登录的时候就会下发给客户端, 集合关系上mrole>=client",
+        "props": [
+            "Name",
+            "PlayerLevel",
+            "PlayerExp",
+            "RiskInfo",
+            "Silver",
+            "Coin",
+            "ChargeDiamond",
+            "BindDiamond",
+            "CreateTime",
+            "Position",
+            "Rot",
+            "MoveState",
+            "UserID",
+            "StorageHP",
+            "StorageMP",
+            "ReplyHpPre",
+            "StorageDrugs",
+            "SkillPoint",
+            "SkillPointUsed",
+            "SceneFlag",
+            "InteractID",
+            "ExAmuletInfo",
+            "PlayerGuildInfo",
+            "OutGuildTime",
+            "CurTreasure",
+            "TreasureMonid",
+            "GVEBonus",
+            "WantTaskInfo",
+            "GNGData",
+            "Tweeter1",
+            "Tweeter2",
+            "CollectEnergy",
+            "PVPState",
+            "WorldLineRewardData"
+        ]
+    }
+}

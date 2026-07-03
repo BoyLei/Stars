@@ -1,0 +1,12 @@
+local GameObject=CS.UnityEngine.GameObject
+local deltime=CS.UnityEngine.Time.deltime
+local cube=GameObject.Find('Cube')--Xlua默认的Warp类型
+--CS脚本，方法反射注入，作为表的Key。匿名方法作为Value
+xlua.hotfix(CS.Test, 'PrintString', function(self)
+print(cube.name)--lua调Mono的CS-完成功能调用编写，GameObject.name=dll=cs=c++
+cube.transform.rotation=cube.transform.rotation*CS.UnityEngine.Quaternion.Euler(0,1,0)
+print(cube.transform.rotation)
+print('lua-----123456')
+end)
+--要用''不能用‘’看起来就不对
+--Xlua，在lua端——和Cs——unity编辑器--注入端都有代码
