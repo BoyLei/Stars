@@ -1,0 +1,9 @@
+sequenceDiagram
+    participant UI as AutoBattleBtn
+    participant Mgr as BattleMgr
+    participant Passive as PassiveInfo
+    UI->>Mgr: SetAutoBattle(true)
+    Mgr->>Mgr: 启用自动选敌/释放
+    Mgr->>Passive: 触发被动决策
+    UI->>Mgr: SetAutoBattle(false)
+    Mgr->>Mgr: 切回手动

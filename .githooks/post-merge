@@ -1,0 +1,16 @@
+#!/bin/sh
+#
+# post-merge hook — git pull (merge 方式) 完成后触发
+# 将本次拉取变更的文件列表写出，供后续 AI 分析更新 MD
+#
+
+REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+REPORT_DIR="$HOME/.star_md_sync"
+mkdir -p "$REPORT_DIR"
+
+# 获取本次拉取变更的文件列表（含重命名检测）
+git -C "$REPO_DIR" diff HEAD@{1} HEAD --name-status --find-renames > "$REPORT_DIR/diff_files.txt"
+git -C "$REPO_DIR" diff HEAD@{1} HEAD --stat > "$REPORT_DIR/diff_stat.txt"
+
+echo "[post-merge] 模块变更检测报告已保存至: $REPORT_DIR"
+echo "[post-merge] 运行 detect_md_changes.py 或联系 AI 分析更新 MD"

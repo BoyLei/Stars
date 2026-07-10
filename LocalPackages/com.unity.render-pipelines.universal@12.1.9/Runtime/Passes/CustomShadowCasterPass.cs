@@ -931,6 +931,23 @@ namespace UnityEngine.Rendering.Universal.Internal
             }
             return fovBias;
         }
+
+        public enum ShadowType
+        {
+            SSM,
+        }
+
+        public ShadowType staticShadowType = ShadowType.SSM;
+        public int esmConst = 80;
+        public float esmBlurDelta = 0.035f;
+
+        public void RemoveRendererData(List<RendererData> datas)
+        {
+            foreach (var data in datas)
+            {
+                m_RendererDataList.Remove(data);
+            }
+        }
     }
 
     /// <summary>

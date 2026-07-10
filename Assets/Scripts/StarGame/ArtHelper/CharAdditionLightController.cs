@@ -68,7 +68,7 @@ public class CharAdditionLightController : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        IsEnable =  (UniversalAdditionalCameraData.ActiveCameraCount <= 1);
+        IsEnable =  (Camera.allCamerasCount <= 1);
         Shader.EnableKeyword("_GLOBAL_CHAR_DARKENVIROMENT");
         if (!IsEnable)
         {

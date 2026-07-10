@@ -146,7 +146,7 @@ namespace SkillEditor
                     break;
             }
 
-            if (!skillConfig.SkillIconDesc.IsNullOrEmpty() || (buffConfig.AddEffectFlys != null && buffConfig.AddEffectFlys.Count > 0) )
+            if (!string.IsNullOrEmpty(skillConfig.SkillIconDesc) || (buffConfig.AddEffectFlys != null && buffConfig.AddEffectFlys.Count > 0) )
             {
                 ExportLanguageStrBySkillEditorSave();
             }
@@ -280,7 +280,7 @@ namespace SkillEditor
                 var textAsset = File.ReadAllText(item);
                 var skillConfig = Newtonsoft.Json.JsonConvert.DeserializeObject<SkillJson>(textAsset);
 
-                if (skillConfig != null && !skillConfig.config.SkillIconDesc.IsNullOrEmpty()  && !string.IsNullOrWhiteSpace(skillConfig.config.SkillIconDesc))
+                if (skillConfig != null && !string.IsNullOrEmpty(skillConfig.config.SkillIconDesc)  && !string.IsNullOrWhiteSpace(skillConfig.config.SkillIconDesc))
                 {
                     SkillExport taskExport = new();
                     // 基础信息

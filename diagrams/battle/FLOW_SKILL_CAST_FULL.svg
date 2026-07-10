@@ -1,0 +1,138 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1700" height="1180" viewBox="0 0 1700 1180">
+  <defs>
+    <style>
+      .bg { fill: #f8fafc; }
+      .title { font: 700 30px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #111827; }
+      .sub { font: 15px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #4b5563; }
+      .lane { fill: #ffffff; stroke: #cbd5e1; stroke-width: 1.2; rx: 12; }
+      .lane-title { font: 700 17px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #111827; }
+      .box { fill: #ffffff; stroke: #64748b; stroke-width: 1.5; rx: 10; }
+      .input { fill: #ecfeff; stroke: #06b6d4; stroke-width: 1.8; rx: 10; }
+      .req { fill: #eff6ff; stroke: #3b82f6; stroke-width: 1.8; rx: 10; }
+      .runtime { fill: #f0fdf4; stroke: #22c55e; stroke-width: 1.8; rx: 10; }
+      .stage { fill: #fff7ed; stroke: #f59e0b; stroke-width: 1.8; rx: 10; }
+      .effect { fill: #fdf2f8; stroke: #ec4899; stroke-width: 1.8; rx: 10; }
+      .text { font: 14px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #1f2937; }
+      .small { font: 12px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #475569; }
+      .arrow { stroke: #475569; stroke-width: 2.1; fill: none; marker-end: url(#arrow); }
+      .dash { stroke: #64748b; stroke-width: 1.8; stroke-dasharray: 6 5; fill: none; marker-end: url(#arrow); }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
+    </marker>
+  </defs>
+  <rect class="bg" width="1700" height="1180"/>
+  <text class="title" x="60" y="55">一个技能施法的全流程</text>
+  <text class="sub" x="60" y="84">UI 输入 -> SkillComponent 请求 -> GameManager/PlayerCtrlGroup 分发 -> SkillDispatcher -> SkillStage/StageHandle -> EffectUtils -> 目标实体</text>
+
+  <rect class="lane" x="50" y="120" width="280" height="900"/>
+  <text class="lane-title" x="75" y="155">1. UI 输入层</text>
+  <rect class="input" x="75" y="185" width="230" height="76"/>
+  <text class="text" x="97" y="216">技能按钮 / 摇杆</text>
+  <text class="small" x="97" y="238">UniversalButton / AnalogStick</text>
+  <rect class="input" x="75" y="305" width="230" height="76"/>
+  <text class="text" x="97" y="336">OnPointerDown()</text>
+  <text class="small" x="97" y="358">记录当前技能按钮</text>
+  <rect class="input" x="75" y="425" width="230" height="76"/>
+  <text class="text" x="97" y="456">OnSkillDirChange()</text>
+  <text class="small" x="97" y="478">方向 / 范围指示器</text>
+  <rect class="input" x="75" y="545" width="230" height="86"/>
+  <text class="text" x="97" y="576">OnPointerUp()</text>
+  <text class="small" x="97" y="598">Pressed 时调用</text>
+  <text class="small" x="97" y="618">SendUserSkillReq()</text>
+
+  <rect class="lane" x="370" y="120" width="300" height="900"/>
+  <text class="lane-title" x="395" y="155">2. SkillComponent 请求层</text>
+  <rect class="req" x="400" y="185" width="240" height="86"/>
+  <text class="text" x="422" y="216">SendUserSkillReq()</text>
+  <text class="small" x="422" y="238">方向 / 输入类型 / arg</text>
+  <text class="small" x="422" y="258">手动施法核心入口</text>
+  <rect class="req" x="400" y="315" width="240" height="96"/>
+  <text class="text" x="422" y="346">校验和组装</text>
+  <text class="small" x="422" y="368">当前按钮 / 配置 / 目标</text>
+  <text class="small" x="422" y="388">黑板 / 提示 / 协议参数</text>
+  <rect class="req" x="400" y="455" width="240" height="86"/>
+  <text class="text" x="422" y="486">ClientUseSkill()</text>
+  <text class="small" x="422" y="508">客户端预播 / 本地表现</text>
+  <rect class="req" x="400" y="585" width="240" height="86"/>
+  <text class="text" x="422" y="616">发送协议数据</text>
+  <text class="small" x="422" y="638">MoveMsg / RawMsg / Vector3</text>
+
+  <rect class="lane" x="710" y="120" width="300" height="900"/>
+  <text class="lane-title" x="735" y="155">3. 控制组分发层</text>
+  <rect class="runtime" x="740" y="185" width="240" height="86"/>
+  <text class="text" x="762" y="216">GameManager.InputVKey()</text>
+  <text class="small" x="762" y="238">按 playerId 找 PlayerCtrlGroup</text>
+  <rect class="runtime" x="740" y="315" width="240" height="86"/>
+  <text class="text" x="762" y="346">PlayerCtrlGroup.InputVKey()</text>
+  <text class="small" x="762" y="368">转入 DoVKey_Move()</text>
+  <rect class="runtime" x="740" y="455" width="240" height="86"/>
+  <text class="text" x="762" y="486">NPCEntityBase</text>
+  <text class="small" x="762" y="508">实体状态 / skillDispatcher</text>
+
+  <rect class="lane" x="1050" y="120" width="280" height="900"/>
+  <text class="lane-title" x="1075" y="155">4-5. 技能运行时和阶段</text>
+  <rect class="stage" x="1075" y="185" width="230" height="86"/>
+  <text class="text" x="1097" y="216">SkillDispatcher</text>
+  <text class="small" x="1097" y="238">EnterFrame 驱动两个 Controller</text>
+  <rect class="stage" x="1075" y="315" width="230" height="86"/>
+  <text class="text" x="1097" y="346">SkillController</text>
+  <text class="small" x="1097" y="368">技能状态机 / partial 扩展</text>
+  <rect class="stage" x="1075" y="455" width="230" height="86"/>
+  <text class="text" x="1097" y="486">SkillEntity</text>
+  <text class="small" x="1097" y="508">技能实例 / 预播 / 阶段切换</text>
+  <rect class="stage" x="1075" y="595" width="230" height="86"/>
+  <text class="text" x="1097" y="626">SkillStage</text>
+  <text class="small" x="1097" y="648">OnEnter / OnUpdate / OnExit</text>
+  <rect class="stage" x="1075" y="735" width="230" height="96"/>
+  <text class="text" x="1097" y="766">StageHandle</text>
+  <text class="small" x="1097" y="788">PlayStageEffect()</text>
+  <text class="small" x="1097" y="808">TryPlayEffect()</text>
+
+  <rect class="lane" x="1370" y="120" width="280" height="900"/>
+  <text class="lane-title" x="1395" y="155">6. 效果落地层</text>
+  <rect class="effect" x="1395" y="185" width="230" height="96"/>
+  <text class="text" x="1417" y="216">EffectParam</text>
+  <text class="small" x="1417" y="238">Builder / Owner / StageType</text>
+  <text class="small" x="1417" y="258">RuntimeID / EffectData</text>
+  <rect class="effect" x="1395" y="330" width="230" height="96"/>
+  <text class="text" x="1417" y="361">服务器/客户端效果</text>
+  <text class="small" x="1417" y="383">RegisterServerEffect()</text>
+  <text class="small" x="1417" y="403">FuncOnTryPlayClientEffect()</text>
+  <rect class="effect" x="1395" y="475" width="230" height="86"/>
+  <text class="text" x="1417" y="506">EffectUtils</text>
+  <text class="small" x="1417" y="528">按 EffectType 分发</text>
+  <rect class="effect" x="1395" y="615" width="230" height="106"/>
+  <text class="text" x="1417" y="646">Buff / Bullet / Passive</text>
+  <text class="small" x="1417" y="668">SkillBuff / SkillBullet</text>
+  <text class="small" x="1417" y="688">PassiveInfo</text>
+  <rect class="effect" x="1395" y="775" width="230" height="116"/>
+  <text class="text" x="1417" y="806">Damage / Target</text>
+  <text class="small" x="1417" y="828">HandleEffectDamage()</text>
+  <text class="small" x="1417" y="848">HandleHurtNodeMsg()</text>
+  <text class="small" x="1417" y="868">受击特效 / 动作 / 飘字</text>
+
+  <path class="arrow" d="M190 261 L190 305"/>
+  <path class="arrow" d="M190 381 L190 425"/>
+  <path class="arrow" d="M190 501 L190 545"/>
+  <path class="arrow" d="M305 588 C350 588, 355 228, 400 228"/>
+  <path class="arrow" d="M520 271 L520 315"/>
+  <path class="arrow" d="M520 411 L520 455"/>
+  <path class="arrow" d="M520 541 L520 585"/>
+  <path class="arrow" d="M640 628 C690 628, 700 228, 740 228"/>
+  <path class="arrow" d="M860 271 L860 315"/>
+  <path class="arrow" d="M860 401 L860 455"/>
+  <path class="arrow" d="M980 498 C1030 498, 1035 228, 1075 228"/>
+  <path class="arrow" d="M1190 271 L1190 315"/>
+  <path class="arrow" d="M1190 401 L1190 455"/>
+  <path class="arrow" d="M1190 541 L1190 595"/>
+  <path class="arrow" d="M1190 681 L1190 735"/>
+  <path class="arrow" d="M1305 783 C1350 783, 1355 233, 1395 233"/>
+  <path class="arrow" d="M1510 281 L1510 330"/>
+  <path class="arrow" d="M1510 426 L1510 475"/>
+  <path class="arrow" d="M1510 561 L1510 615"/>
+  <path class="arrow" d="M1510 721 L1510 775"/>
+
+  <path class="dash" d="M400 498 C340 760, 1070 1030, 1510 891"/>
+  <text class="small" x="520" y="1035">自动战斗也会复用 UseSkill 后半段技能管线</text>
+</svg>

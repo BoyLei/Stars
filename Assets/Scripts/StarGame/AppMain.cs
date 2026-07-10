@@ -58,17 +58,6 @@ public enum ModelQualityLevel
     High = 2,
 }
 
-/// <summary>
-/// TODO: DELETE
-/// 临时加的 防止代码报错
-/// </summary>
-public static class CustomShadowPerformanceAdepter
-{
-    public static void SetDynamicLayer(bool isDynamic)
-    {
-
-    }
-}
 public class AppMain : MonoSingletonEx<AppMain>
 {
     //记录游戏加载逻辑，static isInited ; MonoSingleton*
@@ -288,7 +277,7 @@ public class AppMain : MonoSingletonEx<AppMain>
 
                 break;
             default:
-                QualitySettings.masterTextureLimit = 0;//通过设置设置最大精度
+                QualitySettings.globalTextureMipmapLimit = 0;//通过设置设置最大精度
                 break;
         }
     }
@@ -302,7 +291,7 @@ public class AppMain : MonoSingletonEx<AppMain>
     public void UseHighHighHighLevelSetting()
     {
         GraphicsSettings.useScriptableRenderPipelineBatching = true;
-        QualitySettings.masterTextureLimit = 0;//降低分辨率但是不修改ui
+        QualitySettings.globalTextureMipmapLimit = 0;//降低分辨率但是不修改ui
         QualitySettings.maximumLODLevel = 0;//没问题：Lod草地分三级，物件分成2级不可想用降级策略；为了拓展需采用物件0~1都是1级物件渲染策略：共享等级
         QualitySettings.lodBias = 1f;//1是向上取整,他不是0~1他之所以不能0是因为0次幂没法拉伸lod横线
         GameConfig.QualityForCameraClipNeighbor = 2;//慢速裁切都表现
@@ -347,7 +336,7 @@ public class AppMain : MonoSingletonEx<AppMain>
 
         //shadow setting
         //DecalShadowMgr.instance.enable = false;
-        CustomShadowPerformanceAdepter.SetDynamicLayer(true);
+        //CustomShadowPerformanceAdepter.SetDynamicLayer(true);
 
 
         PRIQuality_Index = 0;
@@ -362,7 +351,7 @@ public class AppMain : MonoSingletonEx<AppMain>
         //最高级别可以还原   QualitySettings.resolutionScalingFixedDPIFactor = ScreenDPICache；
         //特效Lod√
         GraphicsSettings.useScriptableRenderPipelineBatching = true;
-        QualitySettings.masterTextureLimit = 0;//降低分辨率但是不修改ui
+        QualitySettings.globalTextureMipmapLimit = 0;//降低分辨率但是不修改ui
         QualitySettings.maximumLODLevel = 0;//没问题：Lod草地分三级，物件分成2级不可想用降级策略；为了拓展需采用物件0~1都是1级物件渲染策略：共享等级
         QualitySettings.lodBias = 1f;//1是向上取整,他不是0~1他之所以不能0是因为0次幂没法拉伸lod横线
         GameConfig.QualityForCameraClipNeighbor = 2;//慢速裁切都表现
@@ -401,7 +390,7 @@ public class AppMain : MonoSingletonEx<AppMain>
 
         //shadow setting
         //DecalShadowMgr.instance.enable = false;
-        CustomShadowPerformanceAdepter.SetDynamicLayer(true);
+        //CustomShadowPerformanceAdepter.SetDynamicLayer(true);
         PRIQuality_Index = 0;
         RefQualitySetting();
     }
@@ -410,7 +399,7 @@ public class AppMain : MonoSingletonEx<AppMain>
     public void UseMiddleLevelSetting()
     {
         GraphicsSettings.useScriptableRenderPipelineBatching = true;
-        QualitySettings.masterTextureLimit = 1;//通过设置设置最大精度
+        QualitySettings.globalTextureMipmapLimit = 1;//通过设置设置最大精度
         GameConfig.QualityForCameraClipNeighbor = 1;//快速裁切
         QualitySettings.maximumLODLevel = 1;//Lod草地分三级，物件分成2级不可想用降级策略；为了拓展需采用物件0~1都是1级物件渲染策略：共享等级
         QualitySettings.lodBias = 0.6f;//可不是只显示1级的0.6是概念距离的缩减；就算是按照0.6倍数拉动距离条，但是裁切的lod是固定距离的所以表现会很不同
@@ -449,7 +438,7 @@ public class AppMain : MonoSingletonEx<AppMain>
 
         //shadow setting
         //DecalShadowMgr.instance.enable = true;
-        CustomShadowPerformanceAdepter.SetDynamicLayer(true);
+        //CustomShadowPerformanceAdepter.SetDynamicLayer(true);
         PRIQuality_Index = 1;
         RefQualitySetting();
     }
@@ -458,7 +447,7 @@ public class AppMain : MonoSingletonEx<AppMain>
     public void UseLowLevelSetting()
     {
         GraphicsSettings.useScriptableRenderPipelineBatching = true;
-        QualitySettings.masterTextureLimit = 2;//通过设置设置最大精度
+        QualitySettings.globalTextureMipmapLimit = 2;//通过设置设置最大精度
         GameConfig.QualityForCameraClipNeighbor = 0;//快速裁切
         QualitySettings.maximumLODLevel = 1;//Lod草地分三级，物件分成2级不可想用降级策略；为了拓展需采用
         QualitySettings.lodBias = 0.5f;//0是向下取整  
@@ -498,7 +487,7 @@ public class AppMain : MonoSingletonEx<AppMain>
 
         //shadow setting
         //DecalShadowMgr.instance.enable = true;
-        CustomShadowPerformanceAdepter.SetDynamicLayer(false);
+        //CustomShadowPerformanceAdepter.SetDynamicLayer(false);
         PRIQuality_Index = 2;
         RefQualitySetting();
     }
@@ -507,7 +496,7 @@ public class AppMain : MonoSingletonEx<AppMain>
     public void UseLowestLevelSetting()
     {
         GraphicsSettings.useScriptableRenderPipelineBatching = true;
-        QualitySettings.masterTextureLimit = 3;//通过设置设置最大精度
+        QualitySettings.globalTextureMipmapLimit = 3;//通过设置设置最大精度
         GameConfig.QualityForCameraClipNeighbor = 0;//快速裁切
         QualitySettings.maximumLODLevel = 2;//Lod草地分三级，物件分成2级不可想用降级策略；为了拓展需采用
         QualitySettings.lodBias = 0.3f;//0是向下取整  
@@ -549,7 +538,7 @@ public class AppMain : MonoSingletonEx<AppMain>
 
         //shadow setting
         //DecalShadowMgr.instance.enable = true;
-        CustomShadowPerformanceAdepter.SetDynamicLayer(false);
+        //CustomShadowPerformanceAdepter.SetDynamicLayer(false);
         PRIQuality_Index = 2;
         RefQualitySetting();
     }

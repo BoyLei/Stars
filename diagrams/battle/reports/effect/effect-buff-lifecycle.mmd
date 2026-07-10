@@ -1,0 +1,15 @@
+sequenceDiagram
+    participant Src as Skill/Effect
+    participant SB as SkillBuff
+    participant BH as BuffStageHandle
+    participant BI as BuffInfo
+    Src->>SB: AddBuff(buffId,target)
+    SB->>BI: Init(buffCfg)
+    SB->>BH: EnterStage()
+    BH->>SB: 注册 OnBuffTick
+    loop 每帧/周期
+        SB->>BH: Tick()
+        BH->>BI: 应用属性/效果
+    end
+    SB->>SB: RemoveBuff()
+    SB->>BH: ExitStage()

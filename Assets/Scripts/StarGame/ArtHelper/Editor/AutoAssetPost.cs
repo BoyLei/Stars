@@ -206,7 +206,7 @@ public class AutoAssetPost : AssetPostprocessor
 
         }*/
 
-        #if ASSET_CHECKER
+#if ASSET_CHECKER
 
         TextureImporter textureImporter = assetImporter as TextureImporter;
         if (textureImporter == null)
@@ -356,7 +356,7 @@ public class AutoAssetPost : AssetPostprocessor
     // 在GameObject生成后调用，对GameObject的修改会影响生成结果，但引用不会保留
     void OnPostprocessModel(GameObject g)
     {
-//#if STAR_CHECK
+        //#if STAR_CHECK
         string fileNameEx = Path.GetFileName(assetPath);
         if (!string.IsNullOrEmpty(fileNameEx))
         {
@@ -411,7 +411,7 @@ public class AutoAssetPost : AssetPostprocessor
             }
             Debug.Log("模型" + g.name + "的平滑法线已经导入至uv2和uv3中.");
         }
-//#endif
+        //#endif
     }
 
     Dictionary<string, Mesh> GetMesh(GameObject go)
@@ -574,9 +574,9 @@ public class AutoAssetPost : AssetPostprocessor
                     importer.streamingMipmaps = true;
                     importer.mipmapEnabled = true;
                     importer.textureType = TextureImporterType.Default;
-    
-                
-    
+
+
+
                     importer.SetPlatformTextureSettings(platformSettings);
                     //alpha is transparency 不妨碍A通道读取 不管他
                     importer.SaveAndReimport();
@@ -602,38 +602,38 @@ public class AutoAssetPost : AssetPostprocessor
                     importer.streamingMipmaps = true;
                     importer.mipmapEnabled = true;
                     importer.textureType = TextureImporterType.Default;
-    
-                
-    
+
+
+
                     importer.SetPlatformTextureSettings(platformSettings);
                     //alpha is transparency 不妨碍A通道读取 不管他
                     importer.SaveAndReimport();
                 }
             }
-            
+
 
             TextureImporterPlatformSettings platformSettingsWin = importer.GetPlatformTextureSettings("Standalone");
 
             if (importer.assetPath.Contains("/La/")) //判断是否是地表贴图
             {
-                 if (!(platformSettingsWin.overridden == true &&
-                       platformSettingsWin.format == TextureImporterFormat.DXT5 &&
-                       platformSettingsWin.maxTextureSize == 512))
-                 {
+                if (!(platformSettingsWin.overridden == true &&
+                      platformSettingsWin.format == TextureImporterFormat.DXT5 &&
+                      platformSettingsWin.maxTextureSize == 512))
+                {
                     platformSettingsWin.overridden = true;
                     platformSettingsWin.format = TextureImporterFormat.DXT5;
                     //存在两个情况1，美术命名不规范；2角色可能也用_A没有区分开
                     platformSettingsWin.maxTextureSize = 512;
-    
+
                     importer.SetPlatformTextureSettings(platformSettingsWin);
                     //alpha is transparency 不妨碍A通道读取 不管他
                     importer.SaveAndReimport();
-                 }
+                }
             }
             else
             {
                 if (!(platformSettingsWin.overridden == true &&
-                      platformSettingsWin.format == TextureImporterFormat.DXT5 
+                      platformSettingsWin.format == TextureImporterFormat.DXT5
                       //&& platformSettingsWin.maxTextureSize == 512
                       ))
                 {
@@ -641,13 +641,13 @@ public class AutoAssetPost : AssetPostprocessor
                     platformSettingsWin.format = TextureImporterFormat.DXT5;
                     //存在两个情况1，美术命名不规范；2角色可能也用_A没有区分开
                     //platformSettingsWin.maxTextureSize = 512;
-                
+
                     importer.SetPlatformTextureSettings(platformSettingsWin);
                     //alpha is transparency 不妨碍A通道读取 不管他
                     importer.SaveAndReimport();
                 }
             }
-           
+
         }
         else
         {
@@ -677,11 +677,11 @@ public class AutoAssetPost : AssetPostprocessor
                 ))
             {
                 platformSettings.format = TextureImporterFormat.ASTC_6x6;
-                
+
                 importer.streamingMipmaps = true;
                 importer.mipmapEnabled = true;
                 importer.textureType = TextureImporterType.Default;
-    
+
                 if (IfContainTerr)
                 {
                     importer.sRGBTexture = true;
@@ -690,13 +690,13 @@ public class AutoAssetPost : AssetPostprocessor
                 {
                     importer.sRGBTexture = false;
                 }
-    
+
                 importer.SetPlatformTextureSettings(platformSettings);
                 //alpha is transparency 不妨碍A通道读取 不管他
                 importer.SaveAndReimport();
             }
-            
-            
+
+
         }
         else
         {
@@ -725,20 +725,20 @@ public class AutoAssetPost : AssetPostprocessor
             {
                 platformSettings.overridden = true;
                 platformSettings.format = TextureImporterFormat.ASTC_6x6;
-    
-        /*        if (importer.textureType == TextureImporterType.NormalMap)
-                {
-    
-                }
-                else if (importer.textureType == TextureImporterType.Default)
-                {
-                    importer.sRGBTexture = false;
-                }*/
+
+                /*        if (importer.textureType == TextureImporterType.NormalMap)
+                        {
+
+                        }
+                        else if (importer.textureType == TextureImporterType.Default)
+                        {
+                            importer.sRGBTexture = false;
+                        }*/
                 importer.sRGBTexture = false;
                 importer.streamingMipmaps = true;
                 importer.mipmapEnabled = true;
                 importer.textureType = TextureImporterType.NormalMap;
-                
+
                 importer.SetPlatformTextureSettings(platformSettings);
                 //alpha is transparency 不妨碍A通道读取 不管他
                 importer.SaveAndReimport();
@@ -770,7 +770,7 @@ public class AutoAssetPost : AssetPostprocessor
         if (importer != null)
         {
             ;
-        
+
             TextureImporterPlatformSettings platformSettings = importer.GetPlatformTextureSettings("Android");
 
             //仅有在配置不正确的时候 对配置进行修改
@@ -784,20 +784,20 @@ public class AutoAssetPost : AssetPostprocessor
             {
                 platformSettings.overridden = true;
                 platformSettings.format = TextureImporterFormat.ASTC_6x6;
-    
-    
+
+
                 importer.sRGBTexture = true;
                 importer.streamingMipmaps = true;
                 importer.mipmapEnabled = true;
                 importer.textureType = TextureImporterType.Default;
-    
-    
-    
+
+
+
                 importer.SetPlatformTextureSettings(platformSettings);
                 //alpha is transparency 不妨碍A通道读取 不管他
                 importer.SaveAndReimport();
             }
-            
+
 
         }
         else
@@ -815,10 +815,10 @@ public class AutoAssetPost : AssetPostprocessor
             ;
 
             TextureImporterPlatformSettings platformSettings = importer.GetPlatformTextureSettings("Android");
-            
+
             // 获取图片的名字
             string textureName = GetFileNameWithoutExtension(texturePath);
-            
+
             // 判断图片名字中是否包含 "Terrain"，如果包含则开启 sRGB，否则关闭
             bool IfContainTerr = textureName.Contains("Terr", System.StringComparison.Ordinal);
 
@@ -833,12 +833,12 @@ public class AutoAssetPost : AssetPostprocessor
             {
                 platformSettings.overridden = true;
                 platformSettings.format = TextureImporterFormat.ASTC_6x6;
-                
+
                 importer.sRGBTexture = false;
                 importer.streamingMipmaps = true;
                 importer.mipmapEnabled = true;
                 importer.textureType = TextureImporterType.Default;
-                
+
                 // 判断图片名字中是否包含 "Terrain"，如果包含则开启 sRGB，否则关闭
                 if (IfContainTerr)
                 {
@@ -848,11 +848,11 @@ public class AutoAssetPost : AssetPostprocessor
                 {
                     importer.sRGBTexture = true;
                 }
-    
+
                 /*importer.SetPlatformTextureSettings(platformSettings);
                 //alpha is transparency 不妨碍A通道读取 不管他
                 importer.SaveAndReimport();*/
-                
+
                 importer.SetPlatformTextureSettings(platformSettings);
                 //alpha is transparency 不妨碍A通道读取 不管他
                 importer.SaveAndReimport();
@@ -887,27 +887,27 @@ public class AutoAssetPost : AssetPostprocessor
             ;
 
             TextureImporterPlatformSettings platformSettings = importer.GetPlatformTextureSettings("Android");
-            
+
             //仅有在配置不正确的时候 对配置进行修改
-            if (!(platformSettings.overridden == true && 
-                platformSettings.format ==  TextureImporterFormat.ASTC_6x6&&
+            if (!(platformSettings.overridden == true &&
+                platformSettings.format == TextureImporterFormat.ASTC_6x6 &&
                 importer.sRGBTexture == false &&
-                importer.streamingMipmaps == true&&
-                importer.mipmapEnabled == true&&
+                importer.streamingMipmaps == true &&
+                importer.mipmapEnabled == true &&
                 importer.textureType == TextureImporterType.Default
                 ))
             {
                 platformSettings.overridden = true;
                 platformSettings.format = TextureImporterFormat.ASTC_6x6;
-    
-    
+
+
                 importer.sRGBTexture = false;
                 importer.streamingMipmaps = true;
                 importer.mipmapEnabled = true;
                 importer.textureType = TextureImporterType.Default;
-    
-    
-    
+
+
+
                 importer.SetPlatformTextureSettings(platformSettings);
                 //alpha is transparency 不妨碍A通道读取 不管他
                 importer.SaveAndReimport();
@@ -926,10 +926,10 @@ public class AutoAssetPost : AssetPostprocessor
         if (importer != null)
         {
             ;
-            
+
             TextureImporterPlatformSettings platformSettings = importer.GetPlatformTextureSettings("Android");
             //仅有在配置不正确的时候 对配置进行修改
-            if ((platformSettings.overridden == true &&
+            if (!(platformSettings.overridden == true &&
                 platformSettings.format == TextureImporterFormat.ASTC_6x6 &&
                 importer.sRGBTexture == true &&
                 importer.streamingMipmaps == true &&
@@ -939,19 +939,19 @@ public class AutoAssetPost : AssetPostprocessor
             {
                 platformSettings.overridden = true;
                 platformSettings.format = TextureImporterFormat.ASTC_6x6;
-    
-    
+
+
                 importer.sRGBTexture = true;
                 importer.streamingMipmaps = true;
                 importer.mipmapEnabled = true;
                 importer.textureType = TextureImporterType.Default;
-    
-                
+
+
                 importer.SetPlatformTextureSettings(platformSettings);
                 //alpha is transparency 不妨碍A通道读取 不管他
                 importer.SaveAndReimport();
             }
-            
+
         }
         else
         {
@@ -1096,20 +1096,28 @@ public class AutoAssetPost : AssetPostprocessor
         {
             if (texturePath.Contains("Atlas") || texturePath.Contains("/Texture"))//后面看 图集和散图是否要区分处理？
             {
-                if (texturePath.Contains("Atlas")) {
+                if (texturePath.Contains("Atlas"))
+                {
                     importer.textureType = TextureImporterType.Sprite;
                 }
                 importer.sRGBTexture = true;
                 importer.alphaIsTransparency = true;
+
+                // 仅有在配置不正确的时候才修改并重导入
                 TextureImporterPlatformSettings platformSettingsAndroid = importer.GetPlatformTextureSettings("Android");
-                platformSettingsAndroid.overridden = true;
-                platformSettingsAndroid.format = TextureImporterFormat.ASTC_6x6;
-                platformSettingsAndroid.maxTextureSize = 2048;
-                platformSettingsAndroid.androidETC2FallbackOverride = AndroidETC2FallbackOverride.UseBuildSettings;
-                importer.SetPlatformTextureSettings(platformSettingsAndroid);
-                importer.SaveAndReimport();
+                if (!(platformSettingsAndroid.overridden == true &&
+                      platformSettingsAndroid.format == TextureImporterFormat.ASTC_6x6 &&
+                      platformSettingsAndroid.maxTextureSize == 2048))
+                {
+                    platformSettingsAndroid.overridden = true;
+                    platformSettingsAndroid.format = TextureImporterFormat.ASTC_6x6;
+                    platformSettingsAndroid.maxTextureSize = 2048;
+                    platformSettingsAndroid.androidETC2FallbackOverride = AndroidETC2FallbackOverride.UseBuildSettings;
+                    importer.SetPlatformTextureSettings(platformSettingsAndroid);
+                    importer.SaveAndReimport();
+                }
             }
-            else 
+            else
             {
                 ProcessTexturesNormal(texturePath);
             }
@@ -1126,11 +1134,16 @@ public class AutoAssetPost : AssetPostprocessor
 
         if (importer != null)
         {
+            // 仅有在配置不正确的时候才修改并重导入
             TextureImporterPlatformSettings platformSettingsAndroid = importer.GetPlatformTextureSettings("Android");
-            platformSettingsAndroid.overridden = true;
-            platformSettingsAndroid.format = TextureImporterFormat.ASTC_5x5;
-            importer.SetPlatformTextureSettings(platformSettingsAndroid);
-            importer.SaveAndReimport();
+            if (!(platformSettingsAndroid.overridden == true &&
+                  platformSettingsAndroid.format == TextureImporterFormat.ASTC_5x5))
+            {
+                platformSettingsAndroid.overridden = true;
+                platformSettingsAndroid.format = TextureImporterFormat.ASTC_5x5;
+                importer.SetPlatformTextureSettings(platformSettingsAndroid);
+                importer.SaveAndReimport();
+            }
         }
         else
         {
@@ -1142,16 +1155,19 @@ public class AutoAssetPost : AssetPostprocessor
     {
         ModelImporter importer = (ModelImporter)AssetImporter.GetAtPath(fbxPath);
 
-        if (importer != null)
-        {
-            // 设置FBX模型的导入选项  
-            importer.materialImportMode =  ModelImporterMaterialImportMode.None;
-            importer.SaveAndReimport();
-        }
-        else
+        if (importer == null)
         {
             Debug.LogError("Failed to load FBX model at path: " + fbxPath);
+            return;
         }
+
+        // 设置FBX模型的导入选项  
+        if (importer.materialImportMode != ModelImporterMaterialImportMode.None)
+        {
+            importer.materialImportMode = ModelImporterMaterialImportMode.None;
+            importer.SaveAndReimport();
+        }
+
     }
     private static void ProcessTexturesEffect(string texturePath)
     {
@@ -1159,12 +1175,18 @@ public class AutoAssetPost : AssetPostprocessor
 
         if (importer != null)
         {
+            // 仅有在配置不正确的时候才修改并重导入
             TextureImporterPlatformSettings platformSettingsAndroid = importer.GetPlatformTextureSettings("Android");
-            platformSettingsAndroid.overridden = true;
-            platformSettingsAndroid.maxTextureSize = 256;
-            platformSettingsAndroid.format = TextureImporterFormat.ASTC_6x6;
-            importer.SetPlatformTextureSettings(platformSettingsAndroid);
-            importer.SaveAndReimport();
+            if (!(platformSettingsAndroid.overridden == true &&
+                  platformSettingsAndroid.maxTextureSize == 256 &&
+                  platformSettingsAndroid.format == TextureImporterFormat.ASTC_6x6))
+            {
+                platformSettingsAndroid.overridden = true;
+                platformSettingsAndroid.maxTextureSize = 256;
+                platformSettingsAndroid.format = TextureImporterFormat.ASTC_6x6;
+                importer.SetPlatformTextureSettings(platformSettingsAndroid);
+                importer.SaveAndReimport();
+            }
         }
         else
         {
@@ -1178,11 +1200,16 @@ public class AutoAssetPost : AssetPostprocessor
 
         if (importer != null)
         {
+            // 仅有在配置不正确的时候才修改并重导入
             TextureImporterPlatformSettings platformSettingsAndroid = importer.GetPlatformTextureSettings("Android");
-            platformSettingsAndroid.overridden = true;
-            platformSettingsAndroid.format = TextureImporterFormat.ASTC_6x6;
-            importer.SetPlatformTextureSettings(platformSettingsAndroid);
-            importer.SaveAndReimport();
+            if (!(platformSettingsAndroid.overridden == true &&
+                  platformSettingsAndroid.format == TextureImporterFormat.ASTC_6x6))
+            {
+                platformSettingsAndroid.overridden = true;
+                platformSettingsAndroid.format = TextureImporterFormat.ASTC_6x6;
+                importer.SetPlatformTextureSettings(platformSettingsAndroid);
+                importer.SaveAndReimport();
+            }
         }
         else
         {
@@ -1227,15 +1254,12 @@ public class AutoAssetPost : AssetPostprocessor
         ModelImporter modelImporter = assetImporter as ModelImporter;
         //modelImporter.materialImportMode = false;
         string modelName = GetFileNameWithoutExtension(assetImporter.assetPath);
-        if(modelName.Contains("$", System.StringComparison.Ordinal))
+        var targetCompression = modelName.Contains("$") ? ModelImporterMeshCompression.Low : ModelImporterMeshCompression.Medium;
+
+        if (modelImporter.meshCompression != targetCompression)
         {
-            modelImporter.meshCompression = ModelImporterMeshCompression.Low;
+            modelImporter.meshCompression = targetCompression;
         }
-        else
-        {
-            modelImporter.meshCompression = ModelImporterMeshCompression.Medium;
-        }
-        
 
         //modelImporter.importTangents = ModelImporterTangents.None;
     }

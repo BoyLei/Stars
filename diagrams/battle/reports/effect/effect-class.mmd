@@ -1,0 +1,51 @@
+classDiagram
+    class ServerControlStageEntityBase {
+        +OnEnterStage()
+        +OnExitStage()
+        +OnStageUpdate()
+    }
+    class EntityRemoteStatic {
+        +Init()
+        +Release()
+    }
+    class SkillBuff {
+        +buffInfo : BuffInfo
+        +buffStageHandle : BuffStageHandle
+        +AddBuff()
+        +RemoveBuff()
+        +OnBuffTick()
+    }
+    class SkillBullet {
+        +bulletInfo : BulletInfo
+        +bulletStageHandle : BulletStageHandle
+        +Fire()
+        +OnHit()
+        +OnFlyUpdate()
+    }
+    class PassiveInfo {
+        +passiveStageHandle : PassiveStageHandle
+        +TriggerPassive()
+        +InitPassive()
+    }
+    class BuffStageHandle {
+        +EnterStage()
+        +ExitStage()
+        +Tick()
+    }
+    class BulletStageHandle {
+        +EnterStage()
+        +ExitStage()
+        +OnHitTarget()
+    }
+    class PassiveStageHandle {
+        +EnterStage()
+        +ExitStage()
+        +OnEvent()
+    }
+
+    ServerControlStageEntityBase <|-- SkillBuff
+    EntityRemoteStatic <|-- SkillBullet
+    ServerControlStageEntityBase <|-- PassiveInfo
+    BuffStageHandle ..> SkillBuff : 驱动
+    BulletStageHandle ..> SkillBullet : 驱动
+    PassiveStageHandle ..> PassiveInfo : 驱动

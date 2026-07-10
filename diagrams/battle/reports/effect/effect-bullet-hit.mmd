@@ -1,0 +1,14 @@
+sequenceDiagram
+    participant SK as Skill层(Agent-4a)
+    participant BL as SkillBullet
+    participant BH as BulletStageHandle
+    participant BI as BulletInfo
+    SK->>BL: Fire(targetPos)
+    BL->>BI: Init(bulletCfg)
+    BL->>BH: EnterStage()
+    loop 飞行
+        BL->>BH: OnFlyUpdate()
+        BH->>BL: 位置/碰撞检测
+    end
+    BH->>BL: OnHitTarget()
+    BL->>SK: 回调命中效果(EffectUtils)

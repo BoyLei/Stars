@@ -597,7 +597,7 @@ namespace StarProject.Module
         /// </summary>
         public void AutoLogin()
         {
-            Debug.LogWarning($"[SDK] loginModel 开始自动登录， sdk IsInit: {SDKManager.Instance.IsInit},  has loginResult: {!SDKManager.Instance.LoginResult.IsNullOrEmpty()}");
+            Debug.LogWarning($"[SDK] loginModel 开始自动登录， sdk IsInit: {SDKManager.Instance.IsInit},  has loginResult: {!string.IsNullOrEmpty(SDKManager.Instance.LoginResult)}");
 
             /// 进入 loginPage 的显示流程. 
             /// 首先判断 是否是 star_dev 环境, 如果是 star_dev，需要选服, 所以啥都不用做

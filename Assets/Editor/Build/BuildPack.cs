@@ -715,7 +715,7 @@ public class BuildPack : Editor
         _stringBuilder.Append("summary.result" + builder.summary.result.ToString() + "\n");
         _stringBuilder.Append("summary.totalErrors" + builder.summary.totalErrors + "\n");
         _stringBuilder.Append("summary.totalWarnings" + builder.summary.totalWarnings + "\n");
-        foreach (var item in builder.files)
+        foreach (var item in builder.GetFiles())
         {
             _stringBuilder.Append(item.path + "\n");
         }

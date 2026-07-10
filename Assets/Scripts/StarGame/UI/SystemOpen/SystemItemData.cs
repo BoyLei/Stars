@@ -74,7 +74,7 @@ namespace StarProject.Service.SystemOpen
             isHaveOpenPic = cfg.GetIsHaveOpenPic();
 
             Icon = cfg.OpenIconRes;
-            if (!Icon.IsNullOrEmpty())
+            if (!string.IsNullOrEmpty(Icon))
             {
                 var path = Icon.Split("|");
                 AtlasPath = path[0];

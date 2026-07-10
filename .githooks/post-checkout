@@ -1,0 +1,32 @@
+#!/bin/sh
+#
+# post-checkout hook — git checkout / git pull (快进方式) 完成后触发
+# 将本次拉取变更的文件列表写出，供后续 AI 分析更新 MD
+#
+# 只处理拉取场景（3 个参数的情况：previous HEAD, new HEAD, 1=checkout）
+# 跳过普通 git checkout 分支切换
+#
+
+if [ "$3" != "1" ]; then
+    # 不是 checkout 操作，是分支切换等，跳过
+    exit 0
+fi
+
+REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+
+# 只在快进合并（pull 快进）时记录
+OLD_HEAD="$1"
+NEW_HEAD="$2"
+if [ "$OLD_HEAD" = "$NEW_HEAD" ]; then
+    exit 0
+fi
+
+# 检查是否有新提交（pull fast-forward）
+MERGE_BASE=$(git -C "$REPO_DIR" merge-base "$OLD_HEAD" "$NEW_HEAD" 2>/dev/null)
+if [ "$MERGE_BASE" = "$OLD_HEAD" ]; then
+    REPORT_DIR="$HOME/.star_md_sync"
+    mkdir -p "$REPORT_DIR"
+    git -C "$REPO_DIR" diff "$OLD_HEAD" "$NEW_HEAD" --name-status --find-renames > "$REPORT_DIR/diff_files.txt"
+    git -C "$REPO_DIR" diff "$OLD_HEAD" "$NEW_HEAD" --stat > "$REPORT_DIR/diff_stat.txt"
+    echo "[post-checkout] 模块变更检测报告已保存至: $REPORT_DIR"
+fi

@@ -421,7 +421,7 @@ namespace CasualEngine.ProjectScanTool
                     bool include = false;
                     foreach (var checkKey in customDetail.checkPath)
                     {
-                        if (!checkKey.IsNullOrEmpty()&& path.Contains(checkKey)) 
+                        if (!string.IsNullOrEmpty(checkKey)&& path.Contains(checkKey)) 
                         {
                             include = true;
                         }

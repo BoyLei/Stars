@@ -517,7 +517,7 @@ namespace StarProject.Service.SDK
 
         private void RefreshLoginStatus()
         {
-            if (!LoginResult.IsNullOrEmpty())
+            if (!string.IsNullOrEmpty(LoginResult))
             {
                 isLogined = true;
 

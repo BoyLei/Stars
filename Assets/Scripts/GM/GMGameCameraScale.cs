@@ -7,36 +7,36 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 
 /// <summary>
-/// Ëõ·ÅÉãÏñ»ú
+/// ç¼©æ”¾æ‘„åƒæœº
 /// </summary>
 public class GMGameCameraScale : MonoBehaviour
 {
     //private string LOG_TAG = "[GameCameraScale]";
 
     ///---------------------------------- 
-    [LabelText("ÊÇ·ñÊ¹ÓÃÊó±êËõ·Å")]
+    [LabelText("æ˜¯å¦ä½¿ç”¨é¼ æ ‡ç¼©æ”¾")]
     public bool IsUseMouseScale = false;
-    [LabelText("ÊÇ·ñÊ¹ÓÃË«Ö¸Ëõ·Å")]
+    [LabelText("æ˜¯å¦ä½¿ç”¨åŒæŒ‡ç¼©æ”¾")]
     public bool IsUseDoubleFingersScale = false;
-    [LabelText("Ëõ·ÅÏµÊı")]
+    [LabelText("ç¼©æ”¾ç³»æ•°")]
     public float ScaleFactor = 1f;
 
-    [LabelText("Ä¬ÈÏ¾àÀë")]
+    [LabelText("é»˜è®¤è·ç¦»")]
     [Range(GameConfig.MIN_DISTANCE, GameConfig.MAX_DISTANCE)]
     public float DefaultDistance = 10f;
-    [LabelText("×î´ó¾àÀë")]
+    [LabelText("æœ€å¤§è·ç¦»")]
     public float MaxDistance = 17f;
-    [LabelText("·§Öµ¾àÀë")]
+    [LabelText("é˜€å€¼è·ç¦»")]
     public float ThresholdDistance = 7f;
-    [LabelText("×îĞ¡¾àÀë")]
+    [LabelText("æœ€å°è·ç¦»")]
     public float MinDistance = 3f;
-    [LabelText("µ±Ç°¾àÀë")]
+    [LabelText("å½“å‰è·ç¦»")]
     [Range(GameConfig.MIN_DISTANCE, GameConfig.MAX_DISTANCE)]
     public float CurDistance = 10f;
 
-    [LabelText("×î´ó¸©ÊÓ½Ç")]
+    [LabelText("æœ€å¤§ä¿¯è§†è§’")]
     public float MaxAngleOfPitch = 43f;
-    [LabelText("×îĞ¡¸©ÊÓ½Ç")]
+    [LabelText("æœ€å°ä¿¯è§†è§’")]
     public float MinAngleOfPitch = 25f;
     ///---------------------------------- 
 
@@ -61,9 +61,9 @@ public class GMGameCameraScale : MonoBehaviour
 
     ///---------------------------------- 
 
-    // ÊÇ·ñÄ¬ÈÏÏà»úÀàĞÍ
-    // true:Ä¬ÈÏÊÓ½Ç ½Ç¶È 41
-    // false:¹Û²ìÕßÊÓ½Ç ½Ç¶È 41-25
+    // æ˜¯å¦é»˜è®¤ç›¸æœºç±»å‹
+    // true:é»˜è®¤è§†è§’ è§’åº¦ 41
+    // false:è§‚å¯Ÿè€…è§†è§’ è§’åº¦ 41-25
     private bool m_IsDefauleCameraType = true;
     private bool M_IsDefauleCameraType
     {
@@ -80,11 +80,11 @@ public class GMGameCameraScale : MonoBehaviour
         }
     }
 
-    // ½Ç¶È¡¢¾àÀë ÅäÖÃ²î
+    // è§’åº¦ã€è·ç¦» é…ç½®å·®
     private float distanceConfDiffer = 1f;
     private float angleConfDiffer = 1f;
 
-    //¼ÇÂ¼ÉÏÒ»´ÎÊÖ»ú´¥ÃşÎ»ÖÃÅĞ¶ÏÓÃ»§ÊÇÔÚ×ó·Å´ó»¹ÊÇËõĞ¡ÊÖÊÆ
+    //è®°å½•ä¸Šä¸€æ¬¡æ‰‹æœºè§¦æ‘¸ä½ç½®åˆ¤æ–­ç”¨æˆ·æ˜¯åœ¨å·¦æ”¾å¤§è¿˜æ˜¯ç¼©å°æ‰‹åŠ¿
     private Vector2 oldPosition1;
     private Vector2 oldPosition2;
 
@@ -160,7 +160,7 @@ public class GMGameCameraScale : MonoBehaviour
                 mHoldingTime = 0;
                 if (UnityEngine.Time.realtimeSinceStartup - mLastTapTime <= 0.5f)
                 {
-                    
+
                 }
                 mLastTapTime = UnityEngine.Time.realtimeSinceStartup;
             }
@@ -183,7 +183,7 @@ public class GMGameCameraScale : MonoBehaviour
             On_ScrollWheel(UnityEngine.Input.GetAxis("Mouse ScrollWheel"));
         }
 
-        // ¼àÌı--Êó±êÓÒ¼ü
+        // ç›‘å¬--é¼ æ ‡å³é”®
         if (UnityEngine.Input.GetMouseButtonUp(1))
         {
             isMouseRightDown = false;
@@ -228,7 +228,7 @@ if (EventSystem.current.IsPointerOverGameObject(UnityEngine.Input.GetTouch(0).fi
     {
         if (CurDistance < ThresholdDistance)
         {
-            // ½øÈë¹Û²ìÉãÏñ»ú²ÎÊı
+            // è¿›å…¥è§‚å¯Ÿæ‘„åƒæœºå‚æ•°
             M_IsDefauleCameraType = false;
 
             float ratio = 0f;
@@ -243,7 +243,7 @@ if (EventSystem.current.IsPointerOverGameObject(UnityEngine.Input.GetTouch(0).fi
         }
         else if (!M_IsDefauleCameraType)
         {
-            // ½øÈëÄ¬ÈÏÉãÏñ»ú²ÎÊı
+            // è¿›å…¥é»˜è®¤æ‘„åƒæœºå‚æ•°
             M_IsDefauleCameraType = true;
             SetPlayerCameraAngle(MaxAngleOfPitch);
         }
@@ -251,7 +251,7 @@ if (EventSystem.current.IsPointerOverGameObject(UnityEngine.Input.GetTouch(0).fi
     }
 
     /// <summary>
-    /// ÉèÖÃĞéÄâÏà»úµÄ¸©ÊÓ½Ç¡¾XÖá¡¿
+    /// è®¾ç½®è™šæ‹Ÿç›¸æœºçš„ä¿¯è§†è§’ã€Xè½´ã€‘
     /// </summary>
     /// <param name="distance"></param>
     public void SetPlayerCameraAngle(float angle)
@@ -266,7 +266,7 @@ if (EventSystem.current.IsPointerOverGameObject(UnityEngine.Input.GetTouch(0).fi
     }
 
     /// <summary>
-    /// ÉèÖÃĞéÄâÏà»úµÄ¾àÀë¡¾¸ß¶È¡¿
+    /// è®¾ç½®è™šæ‹Ÿç›¸æœºçš„è·ç¦»ã€é«˜åº¦ã€‘
     /// </summary>
     /// <param name="distance"></param>
     public void SetPlayerCameraDistance(float distance)
@@ -280,7 +280,7 @@ if (EventSystem.current.IsPointerOverGameObject(UnityEngine.Input.GetTouch(0).fi
     }
 
     /// <summary>
-    /// ÉèÖÃĞéÄâÏà»úµÄÖĞĞÄµãÆ«ÒÆÁ¿¡¾YÖá¡¿
+    /// è®¾ç½®è™šæ‹Ÿç›¸æœºçš„ä¸­å¿ƒç‚¹åç§»é‡ã€Yè½´ã€‘
     /// </summary>
     /// <param name="offsetPos"></param>
     public void SetPlayerCameraOffect(Vector3 offsetPos)
@@ -290,7 +290,7 @@ if (EventSystem.current.IsPointerOverGameObject(UnityEngine.Input.GetTouch(0).fi
     }
 
     /// <summary>
-    /// ¸üĞÂ µ±Ç° ĞéÄâÏà»úµÄ Æ«ÒÆ
+    /// æ›´æ–° å½“å‰ è™šæ‹Ÿç›¸æœºçš„ åç§»
     /// </summary>
     /// <param name="offsetPos"></param>
     public void UpdateVirtualCameraOffset(Vector3 offsetPos)

@@ -38,6 +38,21 @@ Assets/Editor/                 构建(BuildProcess/BuildPack)
 | 5 | `Assets/Scripts/StarGame/Service/ResourceManager/ResourceManagerExtend.cs` |
 | 6 | `Assets/Scripts/StarGame/Service/LuaManager/LuaManager.cs` |
 
+## 模块导航 (3 层体系)
+
+改动代码前，按层级深入：
+
+```
+Level 1 → 读 diagrams/NAVIGATION.md          (总表, ~40行)
+    确定涉及哪个大模块 (A=网络/B=战斗/C=UI/...)
+Level 2 → 读 diagrams/模块名/*Nav.md          (~40行)
+    确定涉及哪个子模块 (A1=NetworkManager/C1=UIManager/...)
+Level 3 → 读 diagrams/模块名/子模块名.md       (详情)
+    改完代码后更新此文件
+```
+
+所有文档位于 `diagrams/` 下。
+
 ## 大文件规则
 
 - >500 行：只读类签名+核心方法，不要全文读入

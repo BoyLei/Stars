@@ -354,7 +354,7 @@ public class TestMipMap : MonoBehaviour
         {
             GraphicsSettings.useScriptableRenderPipelineBatching = true;
             QualitySettings.maximumLODLevel = 0;//Lod草地分三级，物件分成2级不可想用降级策略
-            QualitySettings.masterTextureLimit = 0;//降低分辨率但是不修改ui
+            QualitySettings.globalTextureMipmapLimit = 0;//降低分辨率但是不修改ui
             /*QualitySettings.maximumLODLevel = 0;*///没问题：Lod草地分三级，物件分成2级不可想用降级策略；为了拓展需采用物件0~1都是1级物件渲染策略：共享等级
             QualitySettings.lodBias = 1f;//1是向上取整,他不是0~1他之所以不能0是因为0次幂没法拉伸lod横线
             GameConfig.QualityForCameraClipNeighbor = 2;//慢速裁切都表现
@@ -367,7 +367,7 @@ public class TestMipMap : MonoBehaviour
         {
             GraphicsSettings.useScriptableRenderPipelineBatching = true;
             QualitySettings.maximumLODLevel = 1;//Lod草地分三级，物件分成2级不可想用降级策略
-            QualitySettings.masterTextureLimit = 1;//通过设置设置最大精度
+            QualitySettings.globalTextureMipmapLimit = 1;//通过设置设置最大精度
             GameConfig.QualityForCameraClipNeighbor = 1;//快速裁切
             /*QualitySettings.maximumLODLevel = 0;*///Lod草地分三级，物件分成2级不可想用降级策略；为了拓展需采用物件0~1都是1级物件渲染策略：共享等级
             QualitySettings.lodBias = 0.6f;//可不是只显示1级的0.6是概念距离的缩减；就算是按照0.6倍数拉动距离条，但是裁切的lod是固定距离的所以表现会很不同
@@ -378,7 +378,7 @@ public class TestMipMap : MonoBehaviour
         {
             GraphicsSettings.useScriptableRenderPipelineBatching = true;
             /*QualitySettings.maximumLODLevel = 0;*///Lod草地分三级，物件分成2级不可想用降级策略
-            QualitySettings.masterTextureLimit = 2;//通过设置设置最大精度
+            QualitySettings.globalTextureMipmapLimit = 2;//通过设置设置最大精度
             GameConfig.QualityForCameraClipNeighbor = 2;//快速裁切
             QualitySettings.maximumLODLevel = 2;//Lod草地分三级，物件分成2级不可想用降级策略；为了拓展需采用
             QualitySettings.lodBias = 0.5f;//0是向下取整  

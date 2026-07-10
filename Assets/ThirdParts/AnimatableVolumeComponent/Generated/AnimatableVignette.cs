@@ -22,12 +22,6 @@ namespace TsukimiNeko.AnimatableVolumeComponent
         public System.Single smoothness;
         public bool override_rounded;
         public System.Boolean rounded;
-        public bool override_letterboxingEnable;
-        public System.Boolean letterboxingEnable;
-        public bool override_letterboxingColor;
-        public UnityEngine.Color letterboxingColor;
-        public bool override_letterboxingValue;
-        public System.Single letterboxingValue;
 
 
         private void WriteToVolumeComponent(UnityEngine.Rendering.Universal.Vignette volumeComponent)
@@ -45,12 +39,6 @@ namespace TsukimiNeko.AnimatableVolumeComponent
             volumeComponent.smoothness.value = smoothness;
             volumeComponent.rounded.overrideState = override_rounded;
             volumeComponent.rounded.value = rounded;
-            volumeComponent.letterboxingEnable.overrideState = override_letterboxingEnable;
-            volumeComponent.letterboxingEnable.value = letterboxingEnable;
-            volumeComponent.letterboxingColor.overrideState = override_letterboxingColor;
-            volumeComponent.letterboxingColor.value = letterboxingColor;
-            volumeComponent.letterboxingValue.overrideState = override_letterboxingValue;
-            volumeComponent.letterboxingValue.value = letterboxingValue;
 
         }
 
@@ -69,12 +57,6 @@ namespace TsukimiNeko.AnimatableVolumeComponent
             smoothness = volumeComponent.smoothness.value;
             override_rounded = volumeComponent.rounded.overrideState;
             rounded = volumeComponent.rounded.value;
-            override_letterboxingEnable = volumeComponent.letterboxingEnable.overrideState;
-            letterboxingEnable = volumeComponent.letterboxingEnable.value;
-            override_letterboxingColor = volumeComponent.letterboxingColor.overrideState;
-            letterboxingColor = volumeComponent.letterboxingColor.value;
-            override_letterboxingValue = volumeComponent.letterboxingValue.overrideState;
-            letterboxingValue = volumeComponent.letterboxingValue.value;
 
         }
 
