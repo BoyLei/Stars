@@ -1,0 +1,78 @@
+@startuml
+!theme plain
+
+legend top
+  <color #3388DD>■</color> 接口/抽象层
+  <color #44AA66>■</color> 具体实现
+  <color #DD7733>■</color> 外部依赖/工具
+  <color #9966CC>■</color> 配置/策略
+endlegend
+
+package "传输层 (Transport)" as T0 #EBF5FB {
+  interface "ITransport" as IT #3388DD
+  component "TcpTransport\n(IOCP)" as TCP #44AA66
+  component "KcpTransport\n(UDP+KCP)" as KCP #44AA66
+  component "AesGcmDecorator" as AES #44AA66
+  component "Framer" as F #44AA66
+
+  TCP -up-> IT
+  KCP -up-> IT
+  AES -down-> TCP
+  F -right-> TCP
+}
+
+package "连接管理 (Connection)" as T1 #F0FFF0 {
+  interface "IConnMgr" as ICM #3388DD
+  component "ConnectionManager" as CM #44AA66
+  component "HeartBeat" as HB #44AA66
+  component "ReconnectPolicy" as RC #9966CC
+  component "ConnStateMachine" as ST #44AA66
+
+  IT -down--> CM
+  CM -up-> ICM
+  CM *-- ST
+  CM *-- RC
+  HB -left-> CM
+}
+
+package "RPC 层" as T2 #FFF5EE {
+  interface "IRpcService<TReq,TRes>" as IR #3388DD
+  component "RpcService" as RS #44AA66
+  component "Serializer" as SR #44AA66
+  component "RequestMatcher" as RM #44AA66
+  component "TimeoutManager" as TM #44AA66
+
+  ICM -down--> RS
+  RS -up-> IR
+  RS *-- SR
+  RS *-- RM
+  RS *-- TM
+}
+
+package "应用分发层" as T3 #F5EEFF {
+  interface "IMessageHandler<T>" as IH #3388DD
+  component "Dispatcher" as DP #44AA66
+  component "UnityMainThread" as MT #44AA66
+
+  IR -down--> DP
+  DP --> IH
+  DP -left-> MT
+}
+
+note bottom of T0
+  粘包: Length-Prefix(4)
+  加密: AES-GCM AEAD
+  零额外线程 (IOCP)
+endnote
+
+note bottom of T2
+  Channel<T> 有界队列
+  Seq→TaskSource 匹配
+  超时自动取消
+endnote
+
+note bottom of T3
+  Source Generator 自动注册
+  类型安全, 无 object
+endnote
+@enduml

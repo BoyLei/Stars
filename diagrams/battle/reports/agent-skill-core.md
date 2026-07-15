@@ -1,5 +1,7 @@
 # Agent-4a [skill-core] L3 技能引擎核心层分析报告（精简版）
 
+> **历史草稿（已复核）**：本文件保留 2026-07-09 初版阅读结果，包含已被当前代码推翻的 `DispatchSkill/OnSkillInput/ExecuteEffect/ApplyBuff/SpawnBullet/TriggerPassive/AddSkill/GetSkill/Tick` 等概念方法名。当前事实以 `agent-skill-review.md`、`../L3A_SKILL_ENGINE_CORE.md`、`../FLOW_SKILL_RELEASE.md` 为准。
+
 ## 类图（Mermaid classDiagram）
 
 ```mermaid

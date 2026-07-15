@@ -48,43 +48,51 @@ graph TD
 
 | 主类 | partial | 方法领域 |
 |------|---------|---------|
-| SkillController | SkillPartial (85KB) | UseSkill/ClientUseSkill/InterruptSkill/状态查询/冷却 |
-| SkillController | UserInputPartial (43KB) | CacheUserInput/SendUserInput/TriggerServerInput/预播输入 |
+| SkillController | SkillPartial (85KB) | UseSkill/ClientUseSkill/ClientBreakActiveSkill/BreakSkillEntity/状态查询/冷却 |
+| SkillController | UserInputPartial (43KB) | CacheUserInput/SendUserInput/TriggerServerInput/预输入缓存与协议 |
 | SkillController | EffectPartial (36KB) | 特效创建/挂点矩阵/同步 |
-| SkillController | BuffPartial | OnBuffCreateRet/OnBuffRunStage/EnterFrameBuff/EnterFrameRunnintBuff |
+| SkillController | BuffPartial | OnBuffCreateRet/OnBuffRunStage/OnBuffEndRet/EnterFrameBuff/EnterFrameRunnintBuff |
 | SkillController | MsgPartial | SendPreUseSkillReq/SendUseSkillReq/SendEnergyEndNotice/SendSkillQuit |
 | SkillController | BulletPartial | OnBulletCreateRet/OnBulletRunStage/OnBulletEndRet/EnterFrameBullet |
-| SkillController | PassivePartial | OnPassiveSkillUseRet/OnPassiveRunStageRet/EnterFramePassive |
-| SkillEntity | ActionPartial (76KB) | 动作播放/位移/打击判定 |
-| SkillEntity | UserInputPartial (57KB) | 摇杆解析/技能键映射 |
-| SkillEntity | CfgPartial | 配置表读取/动作绑定 |
+| SkillController | PassivePartial | OnPassiveSkillUseRet/OnPassiveRunStageRet/OnPassiveSkillEndRet/EnterFramePassive |
+| SkillEntity | ActionPartial (76KB) | 动画播放/阶段退出/效果执行/服务器注册效果 |
+| SkillEntity | UserInputPartial (57KB) | 输入轴黑板/ExecuteUserInput/蓄力状态 |
+| SkillEntity | CfgPartial | 配置表读取/阶段与蓄力参数/黑板回填 |
 | SkillEntity | DebugDataPartial | 调试快照 |
 
 ## 对外接口（partial 暴露的 public 方法）
 
 **SkillControllerSkillPartial（85KB，抽样验证）**
-- `UseSkill` / `ClientUseSkill` / `InterruptSkill` / `GetSkillStage`
+- `UseSkill` / `ClientUseSkill` / `ClientBreakActiveSkill` / `BreakSkillEntity` / `GetActiveStage`
 
-**SkillEntityActionPartial（76KB，未在本轮逐项展开）**
-- 文件存在；具体方法需继续按符号验证后再写，不能沿用旧的概念方法名。
+**SkillEntityActionPartial（76KB，本轮补查关键效果链）**
+- 已验证核心方法包括 `OnFuncStageTryPlayAnim()` / `StagePlayAnim()` / `OnActionExitStage()` / `BreakStage()` / `BreakCurStageToNext()` / `PlayStageEffect()` / `TryPlayEffect()` / `StageTryPlayServerEffect()` / `RegisterServerEffect()` / `TryPlayRegistedServerEffect()` / `TryPlayServerRegEffect()` / `StopStageEffect()` / `ReleaseAction()`。
+- 已验证手动阶段效果链：`OnActionStageTryPlayEffect()` → `PlayStageEffect()` → `TryPlayEffect()`，再进入 `RegisterServerEffect()` / `StageTryPlayServerEffect()` / `FuncOnTryPlayClientEffect`；`StageTryPlayServerEffect()` 内部通过服务器黑板数据调用 `TryPlayServerRegEffect()` 并更新执行结果。
 
-**SkillEntityUserInputPartial（57KB，未在本轮逐项展开）**
-- 文件存在；具体输入方法需继续按符号验证后再写。
+**SkillControllerUserInputPartial / SkillControllerMsgPartial（输入缓存与协议）**
+- 已验证 `CacheUserInput()` / `UpdateClientInputCache()` / `SendUserInput()` / `CancelUserInputReq()` / `TriggerServerInput()` / `TriggerWaitSendInputCache()` / `PrePlayUserInput()`。
+- `SendUserInput()` 先 `FormatSkillUseReq()`，再更新 `_clientInputCache`；若当前活跃阶段尚未 `ServerCreateStage`，则写入 `_waitSendInputCache` 并暂不发协议。
+- `sendUseSkill == true` 时调用 `SkillControllerMsgPartial.SendPreUseSkillReq()`；否则按运行中输入轴调用 `SkillMsgUtils.SendPreSkillUseInput()`。取消预输入走 `CancelUserInputReq()` -> `sendPreSkillUseInputCancelReq()`。
+
+**SkillEntityUserInputPartial（57KB，输入轴与蓄力执行）**
+- 已验证输入轴核心方法：`OnClientUserInputEffect()` / `OnServerInputEffect()` / `StartUserInput()` / `ExecuteUserInput()` / `ExecuteServerUserInput()` / `CheckCanPreTriggerUserInput()` / `OnTriggerUserInput()` / `DelayInvokeExecuteUserInput()` / `CancelInvokeExecuteUserInput()` / `SetUserInputState()` / `StartEnergy()` / `OnEnergyUpdate()` / `StopEnergy()`。
+- `OnClientUserInputEffect()` 写 `BaseBlackBoard.KEY_USER_INPUT`，`ExecuteUserInput()` 在客户端结果和服务器黑板结果之间合流，再分派到 `ExecuteSkillUserInput()` 或 `ExecuteEnergyUserInput()`；蓄力线由 `StartEnergy()` / `OnEnergyUpdate()` / `StopEnergy()` 维护计时与 UI 事件。
+- `ExecuteEnergyUserInput()` 在客户端蓄力不足最小时间时会 `DelayInvoker.DelayInvoke(..., DelayInvokeExecuteUserInput, ...)`；延迟回调里先 `SkillMsgUtils.SendPreSkillUseInput(RuntimeID, inputSkillUseReq, userInput.EffectID)`，再 `ExecuteUserInput(...)`，因此输入轴协议发送不只发生在 Controller partial。
 
 **<30KB 文件的真实方法抽样**
 - `SkillControllerBuffPartial.OnBuffCreateRet/OnBuffRunStage/OnBuffEndRet/EnterFrameBuff`
 - `SkillControllerMsgPartial.SendPreUseSkillReq/SendUseSkillReq/SendEnergyEndNotice/SendSkillQuit`
 - `SkillControllerBulletPartial.EnterFrameBullet/OnBulletCreateRet/OnBulletRunStage/OnBulletEndRet`
 - `SkillControllerPassivePartial.EnterFramePassive/OnPassiveSkillUseRet/OnPassiveRunStageRet/OnPassiveSkillEndRet`
+- `SkillControllerBuffPartial.EnterFrameRunnintBuff` 为代码中的实际方法名拼写，本文件保留原拼写以便搜索定位。
 
 ## 关键发现
 
 1. **按功能域拆分（非生命周期）**：12 个 partial 全按"谁负责什么"组织，无创建/更新/销毁阶段拆分。
 2. **纯物理拆分**：所有文件共享主类私有字段，跨 partial 可直接访问彼此方法/字段，无接口隔离。
 3. **双主类结构**：SkillController 侧重"调度与系统交互"（输入→协议→特效→子弹→Buff→被动）；SkillEntity 侧重"表现与配置"（动作→输入→配置→调试）。
-4. **存疑点**：
-   - `SkillControllerUserInputPartial` 与 `SkillEntityUserInputPartial` 均处理输入，职责边界可能重叠 [待确认]
-   - `SkillControllerSkillPartial`(85KB) 体量超过部分主类，是否应下沉为 SkillStateMachine 独立类 [待确认]
+4. **UserInput 边界**：`SkillControllerUserInputPartial` 负责预输入缓存、等待服务器阶段创建的 `_waitSendInputCache`、服务器输入缓存触发和 `SendUserInput()` 决策；协议发送分散在 `SkillControllerMsgPartial.SendPreUseSkillReq()`、`SkillMsgUtils.SendPreSkillUseInput()` 和 `sendPreSkillUseInputCancelReq()`。`SkillEntityUserInputPartial` 负责 `BaseBlackBoard.KEY_USER_INPUT` 的开启/关闭、客户端与服务器结果合流、`ExecuteUserInput()` 执行，以及 Energy 蓄力计时；蓄力延迟执行回调会自行补发 `SkillMsgUtils.SendPreSkillUseInput()` 后再落地输入结果。
+5. **设计建议边界**：`SkillControllerSkillPartial` 体量大是事实；是否下沉为 `SkillStateMachine` 属于重构建议，不应作为当前代码事实写入架构结论。
 
 ## 依赖关系
 - → **L3a 引擎核心**：本层是 SkillController/SkillEntity 的物理拆分，编译期合并

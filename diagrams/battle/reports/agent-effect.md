@@ -1,5 +1,7 @@
 # Agent-5 [effect] L4 战斗效果层分析报告（精简版）
 
+> **历史草稿（已复核）**：本文件保留 2026-07-09 初版阅读结果，包含未被当前代码证实的概念方法名。当前事实以 `agent-effect-review.md`、`../L4_COMBAT_EFFECT.md`、`../FLOW_DAMAGE_PIPELINE.md`、`../FLOW_BUFF_LIFECYCLE.md` 为准。
+
 ## 类图（Mermaid classDiagram）
 
 ```mermaid

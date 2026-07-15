@@ -8,6 +8,7 @@ namespace SGF.NetworkRefactorV2
         public static ConnectionUiIntent Evaluate(RealConnectionState connection, PingHealthState ping)
         {
             if (connection == RealConnectionState.Kicked || connection == RealConnectionState.ReconnectFailed) return ConnectionUiIntent.ReturnLoginDialog;
+            if (connection == RealConnectionState.ReconnectRetryable) return ConnectionUiIntent.ReconnectRetryDialog;
             if (connection == RealConnectionState.Reconnecting) return ConnectionUiIntent.RealReconnectDialog;
             if (connection != RealConnectionState.Connected) return ConnectionUiIntent.None;
             if (ping == PingHealthState.ReturnLogin) return ConnectionUiIntent.ReturnLoginDialog;
@@ -42,7 +43,10 @@ namespace SGF.NetworkRefactorV2
         private void Evaluate()
         {
             foreach (KeyValuePair<string, Entry> pair in _entries)
-                if (pair.Value.Visibility != SocketUiVisibility.Silent && (pair.Value.Visibility == SocketUiVisibility.AlwaysVisible || pair.Value.Focus == _context) && pair.Value.Intent != ConnectionUiIntent.None)
+                if (pair.Value.Visibility != SocketUiVisibility.Silent && pair.Value.Focus == _context && pair.Value.Intent != ConnectionUiIntent.None)
+                { CurrentIntent = new UiIntentResult(pair.Key, pair.Value.Intent); return; }
+            foreach (KeyValuePair<string, Entry> pair in _entries)
+                if (pair.Value.Visibility == SocketUiVisibility.AlwaysVisible && pair.Value.Intent != ConnectionUiIntent.None)
                 { CurrentIntent = new UiIntentResult(pair.Key, pair.Value.Intent); return; }
             CurrentIntent = new UiIntentResult(null, ConnectionUiIntent.None);
         }

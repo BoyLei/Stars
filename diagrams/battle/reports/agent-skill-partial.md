@@ -1,5 +1,7 @@
 # Agent-4b [skill-partial] L3 技能分部类（Partial）扩展层分析报告
 
+> **历史草稿（已复核）**：本文件保留 2026-07-09 初版阅读结果，部分 partial 方法名已由后续代码核验修正。当前事实以 `agent-skill-review.md` 和 `../L3B_SKILL_PARTIAL_EXT.md` 为准。
+
 ## 1. 文件清单
 
 | 文件名 | 大小 | partial归属主类 | 职责一句话 |

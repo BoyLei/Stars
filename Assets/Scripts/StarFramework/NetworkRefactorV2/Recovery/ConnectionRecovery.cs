@@ -28,6 +28,7 @@ namespace SGF.NetworkRefactorV2
 
         public Task<ReconnectSessionData> RecoverAsync(string socket, RecoveryAuthenticationPolicy policy, ReconnectSessionData current, CancellationToken cancellationToken)
         {
+            if (cancellationToken.IsCancellationRequested) return Canceled(cancellationToken);
             if (policy == RecoveryAuthenticationPolicy.ReuseCurrentCredential) return Task.FromResult(current);
             if (policy == RecoveryAuthenticationPolicy.ManualOnly) throw new InvalidOperationException("Connection recovery is manual.");
             lock (_gate)
@@ -37,8 +38,16 @@ namespace SGF.NetworkRefactorV2
             }
         }
 
+        private static Task<ReconnectSessionData> Canceled(CancellationToken cancellationToken)
+        {
+            var source = new TaskCompletionSource<ReconnectSessionData>();
+            source.SetCanceled();
+            return source.Task;
+        }
+
         private async Task<ReconnectSessionData> RecoverOnce(string socket, ReconnectSessionData current, CancellationToken cancellationToken)
         {
+            await Task.Yield();
             try { return await _service.RecoverAsync(socket, current, cancellationToken); }
             finally { lock (_gate) _pending.Remove(socket); }
         }

@@ -1,0 +1,174 @@
+@startuml Star网络层类图
+
+' === 入口层 ===
+class NetworkManager <<ServiceModule>> {
+  - gameSocket : SocketBase
+  - battleSocket : SocketBase
+  - messageQueue : Queue
+  + Connect()
+  + SendMessage(cmd, data)
+  + RegisterHandler(cmd, handler)
+  + Update() : 每帧分发消息
+}
+
+' === Socket中间层 ===
+class SocketBase {
+  - socketItem : SocketItem
+  - dataBuffer : DataBuffer
+  - sendQueue : Queue<SendMsgData>
+  - state : SocketState
+  - reconnectCount : int
+  - MAX_RECONNECT = 3
+  - MAX_TOTAL_RECONNECT = 5
+  - CONNECT_TIMEOUT = 3s
+  + Connect(ip, port)
+  + Disconnect()
+  + Send(msgData)
+  + OnDataReceived(bytes)
+  + CheckHeartBeat()
+  + Reconnect()
+}
+
+class SocketItem {
+  - tcpSocket : Socket
+  - connectThread : Thread
+  - receiveThread : Thread
+  + ConnectAsync()
+  + SendAsync(bytes)
+  + ReceiveLoop()
+  + Close()
+}
+
+' === 帧处理层 ===
+class DataBuffer {
+  - buffer : byte[]
+  + AddBuffer(data, len)
+  + ContainData() : bool
+  + GetData() : sSocketData
+}
+
+struct sSocketData {
+  + dataLen : int
+  + dataType : int
+  + cmd : short
+  + body : byte[]
+}
+
+' === 序列化层 ===
+class SocketUtils <<static>> {
+  + FormateData(cmd, body) : byte[]
+  + DeserializeMessageData(data) : object
+  + RPCMsgSerializer(cmd, data) : byte[]
+  - Encrypt(bytes)
+  - Decrypt(bytes)
+}
+
+class ProtoUtils <<static>> {
+  + DeserializePbMsg(data) : RPCMessage
+  - ParseRpcHeader(bytes)
+}
+
+class ByteStream {
+  + WriteInt(value)
+  + WriteString(value)
+  + ReadInt() : int
+  + ReadString() : string
+}
+
+class PBSerializer {
+  + Serialize<T>(obj) : byte[]
+  + Deserialize<T>(bytes) : T
+}
+
+class MsgEncode {
+  + Encrypt(bytes)
+  + Decrypt(bytes)
+}
+
+' === 协议注册层 ===
+class CustomMsg <<Singleton>> {
+  - cmdTypeMap : Dictionary<short, Type>
+  - cmdIdMap : Dictionary<short, CustomMsgID>
+  + Register(cmd, type)
+  + GetType(cmd) : Type
+}
+
+enum CustomMsgID {
+  ClientVerifyReq = 1
+  ClientVerifySucceedRet = 2
+  ClientVerifyFailedRet = 3
+  HeartBeat = 4
+  RPCMsg = 58
+}
+
+class ProtoDic {
+  - protoMap : Dictionary<int, ProtoInfo>
+  + GetProtoInfo(cmd) : ProtoInfo
+  + Register(cmd, info)
+}
+
+' === 消息管理层 ===
+class FixMessageManager <<ServiceModule>> {
+  - mdMgrs : List<MDMgrInterface>
+  + ProcessMessage(msg)
+  + RegisterMDMgr(mgr)
+}
+
+interface MDMgrInterface {
+  + GetMsg(id)
+  + Add(msg)
+  + Update(msg)
+  + Del(id)
+  + ClearAllData()
+}
+
+class ItemMDMgr implements MDMgrInterface
+class HeroMDMgr implements MDMgrInterface
+class PartnerMDMgr implements MDMgrInterface
+
+class MsgRetManager <<ServiceModule>> {
+  - callbacks : Dictionary<int, Action>
+  + RegisterRet(cmd, callback)
+  + ProcessRet(cmd, errorCode)
+}
+
+class Client2ThirdMsgManager <<ServiceModule>> {
+  + ForwardMessage(msg)
+  + ProcessThirdPartyMsg(msg)
+}
+
+' === 对象池 ===
+class SocketDataPools <<Singleton>> {
+  - pool : Queue<SendMsgData>
+  + GetMsgData() : SendMsgData
+  + FormateRetMsgData(data)
+}
+
+class SendMsgData {
+  + cmd : short
+  + body : byte[]
+  + callback : Action
+}
+
+' === 关系 ===
+NetworkManager *-- SocketBase : gameSocket, battleSocket
+SocketBase *-- SocketItem : 持有
+SocketBase *-- DataBuffer : 持有
+SocketBase --> SocketDataPools : 获取/归还
+SocketBase --> SocketUtils : 格式化/解析
+SocketItem ..> SocketBase : 回调OnDataReceived
+DataBuffer ..> sSocketData : 输出
+SocketUtils --> ProtoUtils : Pb路径
+SocketUtils --> ByteStream : CustomMsg路径
+SocketUtils --> MsgEncode : 加密/解密
+ProtoUtils ..> PBSerializer : 使用
+CustomMsg ..> ByteStream : 反射序列化
+NetworkManager --> CustomMsg : 注册/查询
+NetworkManager --> ProtoDic : 注册/查询
+NetworkManager *-- FixMessageManager
+NetworkManager *-- MsgRetManager
+NetworkManager *-- Client2ThirdMsgManager
+FixMessageManager o-- MDMgrInterface : 管理多个
+SocketDataPools ..> SendMsgData : 池化
+
+@enduml

@@ -4,7 +4,7 @@
 > **状态**: 待执行  
 > **v4→v5 变更**: 基于全量 `search_file` 扫描结果重写，修正 v4 的大量虚构文件和错误目录结构
 
-> **代码验证状态（2026-07-10）**: 本文件仍是历史计划草案，不是最终事实报告。已用当前工作区 `Assets/Scripts/StarGame` 文件存在性验证，仍有缺失引用：`BlackBoard.cs`、`CollectCtrlGroup.cs`、`GameDebug.cs`、`GameDefine.cs`、`GameHelper.cs`、`GameInputManager.cs`、`HeroCtrlGroup.cs`、`HeroEntity.cs`、`IEntityFactory.cs`、`IEntityManager.cs`、`LocalCollectEntity.cs`、`MainHeroEntity.cs`、`PlayerManager.cs`。后续架构说明应以已验证的 `BATTLE_*`、`FLOW_*`、`L*` 文档为准。
+> **代码验证状态（2026-07-11）**: 本文件仍是历史计划草案，不是最终事实报告。已用当前工作区验证，仍有缺失引用：`BlackBoard.cs`、`CollectCtrlGroup.cs`、`GameDebug.cs`、`GameDefine.cs`、`GameHelper.cs`、`GameInputManager.cs`、`HeroCtrlGroup.cs`、`HeroEntity.cs`、`IEntityFactory.cs`、`IEntityManager.cs`、`LocalCollectEntity.cs`、`MainHeroEntity.cs`、`PlayerManager.cs`。另外，后续 review 已确认 `EntityFactory` 不是单一 CreateXxx 分发口，`Recycler` API 是 `Pop`/`Push`/`Release`，L5 Map/TypeEffect/Camera 的若干方法名也已修正。后续架构说明应以已验证的 `BATTLE_*`、`FLOW_*`、`L*` 文档和 `reports/*-review.md` 为准。
 
 ---
 
@@ -26,9 +26,9 @@
 | `Skill/Partial/` | ❌ 实际是 `Skill/SkillPartial/` |
 
 #### 🔴 错误2: 大量虚构文件（v4 列出但实际不存在）
-- `BattleManager.cs` ❌ / `GameInputManager.cs` ❌(实际是`GameInput.cs`)
+- `BattleManager.cs` 路径归类错误（实际在 `Service/BattleManager/BattleManager.cs`）/ `GameInputManager.cs` ❌(实际是`GameInput.cs`)
 - `GameDefine.cs` ❌ / `GameHelper.cs` ❌ / `GameDebug.cs` ❌
-- **`EntityBaseData.cs` (67KB) ❌ 完全虚构！**
+- **`EntityBaseData.cs` 路径归类错误**（实际在 `Game/Data/EntityBaseData.cs`，约 67KB）
 - `IEntityFactory.cs` ❌ / `IEntityManager.cs` ❌
 - `HeroCtrlGroup.cs` ❌ / `CollectCtrlGroup.cs` ❌ / `PartnerManager.cs` ❌ / `PlayerManager.cs` ❌
 - `HeroEntity.cs` / `MainHeroEntity.cs` / `LocalCollectEntity.cs` 等多个 LocalDynamic 文件 ❌
@@ -323,7 +323,7 @@ ViewEffect/                                           # 1 文件
 | Agent ID | 名称 | 层级 | 文件数 | 巨型文件(>50KB) | 核心职责 |
 |----------|------|------|--------|----------------|---------|
 | **Agent-1** | entry | L0 | 7 | 1 (GameManager 239KB) | 游戏主循环/上下文/输入/渲染管理 |
-| **Agent-2a** | entity-factory | L1 | 20 | 0 | 工厂模式13文件/本地实体创建/静态实体 |
+| **Agent-2a** | entity-factory | L1 | 13+ | 0 | Entity/Factory 13 文件 + Agent 分工中的本地/静态实体口径 |
 | **Agent-2b** | entity-runtime | L1 | 48 | 5 (NPC 216KB, ViewAOI 145KB, ViewVitalNPC 85KB, AOIEntity 75KB, Hero 63KB) | 远程实体/AOI/View渲染层38文件 |
 | **Agent-3** | player | L2 | 15 | 2 (SkillComp 65KB, PlayerCtrl 62KB) | 控制组8文件/组件模式7文件 |
 | **Agent-4a** | skill-core | L3 | 37 | 3 (SkillEntity 83KB, SkillStage 73KB, EffectUtils 79KB) | 引擎核心20文件+Base7+Power6+Utils3+ClientEffect1 |

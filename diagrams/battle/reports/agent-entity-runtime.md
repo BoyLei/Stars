@@ -1,5 +1,7 @@
 # Agent-2b [entity-runtime] L1 实体运行时层分析报告
 
+> **历史草稿（已复核）**：本文件保留 2026-07-09 初版阅读结果，部分 AOI/View 方法名和 AttacState/AttackState 结论已被后续复核收紧。当前事实以 `agent-entity-support-plan-review.md` 和 `../L1_ENTITY_RUNTIME_LAYER.md` 为准。
+
 ## 1. 文件清单
 
 | 文件名 | 大小 | 职责一句话 |

@@ -1,5 +1,7 @@
 # Agent-3 [player] L2 角色控制层分析报告
 
+> **历史草稿（已复核）**：本文件保留 2026-07-09 初版阅读结果，部分 PartnerCtrlGroup/SkillComponent 边界已由后续代码核验修正。当前事实以 `agent-entry-control-review.md` 和 `../L2_CONTROL_LAYER.md` 为准。
+
 ## 1. 文件清单
 
 | 文件名 | 大小 | 职责一句话 |

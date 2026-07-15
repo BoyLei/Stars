@@ -1,0 +1,248 @@
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using NUnit.Framework;
+using ProtoMsg;
+using SGF.Network;
+using SGF.NetworkRefactorV2;
+using SGF.NetworkRefactorV2.Adapter;
+using SGF.Time;
+using StarProjectDef;
+
+namespace SGF.NetworkRefactorV2.Adapter.Tests
+{
+    public sealed class AdapterTests
+    {
+        #region 纯逻辑测试（命令号 / 解码 / 工厂 / UI 映射 / 自检）
+
+        [Test] public void CommandIdsMatchGameEnums()
+        {
+            Assert.AreEqual((int)CustomMsgID.ClientVerifyReq, V2GameCommandIds.ClientVerifyReq);
+            Assert.AreEqual((int)CustomMsgID.ClientVerifySucceedRet, V2GameCommandIds.ClientVerifySucceedRet);
+            Assert.AreEqual((int)CustomMsgID.ClientVerifyFailedRet, V2GameCommandIds.ClientVerifyFailedRet);
+            Assert.AreEqual((int)CustomMsgID.HeartBeat, V2GameCommandIds.HeartBeat);
+            Assert.AreEqual((int)CustomMsgID.RPCMsg, V2GameCommandIds.RPCMsg);
+            Assert.AreEqual((int)MsgIDEnum.RpcMsgID, V2GameCommandIds.RpcMsgID);
+            Assert.AreEqual((int)MsgIDEnum.ServerTimeRetID, V2GameCommandIds.ServerTimeRetID);
+        }
+
+        [Test] public void RpcDecoderRoundTripsRpcMsg()
+        {
+            var rpcMsg = new RpcMsg
+            {
+                ServerType = 1,
+                SrcEntityID = 123456,
+                MethodName = "Test",
+                MsgData = Google.Protobuf.ByteString.CopyFrom(new byte[] { 11, 22, 33 })
+            };
+            byte[] rpcBytes = rpcMsg.ToByteArray();
+            var raw = new NetworkPacket((ushort)V2GameCommandIds.RpcMsgID, 0, rpcBytes);
+            NetworkPacket decoded = GameRpcDecoder.Decode(raw);
+
+            Assert.IsNotNull(decoded);
+            Assert.IsTrue(decoded.IsRpc);
+            Assert.AreEqual((int)rpcMsg.MsgID, decoded.MessageCommand);
+            Assert.AreEqual(rpcMsg.SrcEntityID, decoded.EntityId);
+            Assert.IsNotNull(decoded.Payload);
+            Assert.AreEqual(3, decoded.Payload.Length);
+            Assert.AreEqual(33, decoded.Payload[2]);
+
+            // 非 RPC 命令返回 null
+            Assert.IsNull(GameRpcDecoder.Decode(new NetworkPacket(999, 0, new byte[1])));
+        }
+
+        [Test] public void VerifyPacketFactoryProducesClientVerifyReq()
+        {
+            var session = new ReconnectSessionData("127.0.0.1:8080", 987654321, "abc-token", false);
+            NetworkOutboundPacket verify = GameVerifyPacketFactory.Create(session);
+            Assert.IsNotNull(verify);
+            Assert.AreEqual(V2GameCommandIds.ClientVerifyReq, verify.Command);
+            Assert.IsNotNull(verify.Payload);
+            Assert.Greater(verify.Payload.Length, 0);
+            // SessState：新会话 Token 为 null 也不崩；重连会话可构造
+            Assert.IsNotNull(GameVerifyPacketFactory.Create(new ReconnectSessionData("h:1", 1, null, false)));
+            Assert.IsNotNull(GameVerifyPacketFactory.Create(new ReconnectSessionData("h:1", 1, "t", true)));
+        }
+
+        [Test] public void HeartbeatPacketFactoryProducesHeartBeat()
+        {
+            NetworkOutboundPacket hb = GameHeartbeatPacketFactory.Create();
+            Assert.IsNotNull(hb);
+            Assert.AreEqual(V2GameCommandIds.HeartBeat, hb.Command);
+            Assert.IsNotNull(hb.Payload);
+            Assert.Greater(hb.Payload.Length, 0);
+        }
+
+        [TestCase(ConnectionUiIntent.None, SocketViewState.None)]
+        [TestCase(ConnectionUiIntent.WeakLoading, SocketViewState.Connecting)]
+        [TestCase(ConnectionUiIntent.FakeReconnectDialog, SocketViewState.PingReconnectBox)]
+        [TestCase(ConnectionUiIntent.RealReconnectDialog, SocketViewState.ReconnectBox)]
+        [TestCase(ConnectionUiIntent.ReturnLoginDialog, SocketViewState.RetrunLoginBox)]
+        public void UiIntentBridgeMaps(ConnectionUiIntent intent, SocketViewState expected)
+        {
+            Assert.AreEqual(expected, GameUiIntentBridge.ToSocketViewState(intent));
+        }
+
+        [Test] public void SelfCheckReportsNoFailure()
+        {
+            string report = GameAdapterSelfCheck.Run();
+            Assert.IsFalse(report.Contains("[FAIL]"), report);
+            Assert.IsTrue(report.Contains("0 failed"), report);
+        }
+
+        #endregion
+
+        #region 集成测试（FakeTransport / Fake 恢复委托覆盖）
+
+        [Test] public async Task AdapterSendsVerifyOnStartAndConnectsOnVerifySuccess()
+        {
+            var transport = new FakeTransport();
+            using (var adapter = new GameNetworkAdapter(transportFactory: () => transport))
+            {
+                await adapter.StartAsync(new ReconnectSessionData("127.0.0.1:1", 1, "token", false), CancellationToken.None);
+                await Task.Yield();
+
+                // 启动即发送验证包（command=1）
+                Assert.AreEqual(1, transport.Sent.Count);
+                Assert.AreEqual(V2GameCommandIds.ClientVerifyReq, transport.Sent[0].Command);
+
+                // 注入验证成功回包（command=2），Tick 驱动 OnVerifySucceed -> MarkVerified
+                adapter.Connection.InjectReceivedForTests(new NetworkPacket((ushort)V2GameCommandIds.ClientVerifySucceedRet, 0, new byte[0]));
+                adapter.Tick(TimeUtils.ClientNowStampMilli);
+                Assert.AreEqual(RealConnectionState.Connected, adapter.Connection.State);
+            }
+        }
+
+        [Test] public async Task AdapterSendsHeartbeatAfterVerifiedAndHandlesPong()
+        {
+            var transport = new FakeTransport();
+            using (var adapter = new GameNetworkAdapter(transportFactory: () => transport))
+            {
+                await adapter.StartAsync(new ReconnectSessionData("127.0.0.1:1", 1, "token", false), CancellationToken.None);
+                await Task.Yield();
+
+                // 验证成功
+                adapter.Connection.InjectReceivedForTests(new NetworkPacket((ushort)V2GameCommandIds.ClientVerifySucceedRet, 0, new byte[0]));
+                adapter.Tick(TimeUtils.ClientNowStampMilli);
+                Assert.AreEqual(RealConnectionState.Connected, adapter.Connection.State);
+
+                // 首次 Tick 应触发心跳发送（command=4，异步完成，轮询等待）
+                int before = transport.Sent.Count;
+                adapter.Tick(TimeUtils.ClientNowStampMilli);
+                for (int i = 0; i < 20 && transport.Sent.Count <= before; i++) await Task.Delay(10);
+                Assert.IsTrue(transport.Sent.Count > before, "验证后 Tick 应触发心跳发送");
+                Assert.AreEqual(V2GameCommandIds.HeartBeat, transport.Sent[transport.Sent.Count - 1].Command);
+
+                // 注入心跳回包（command=4），Tick 驱动 OnHeartBeat -> RecordPong（不应抛异常）
+                adapter.Connection.InjectReceivedForTests(new NetworkPacket((ushort)V2GameCommandIds.HeartBeat, 0, new byte[0]));
+                Assert.DoesNotThrow(() => adapter.Tick(TimeUtils.ClientNowStampMilli));
+            }
+        }
+
+        [Test] public async Task RecoveryServiceRefreshesTokenViaInjectedDelegate()
+        {
+            ChooseHeroReq captured = null;
+            var svc = new GameSessionRecoveryService((req, cb) =>
+            {
+                captured = req;
+                cb(new ChossHeroAck { Token = "new-token", Result = 1 }, true);
+            });
+
+            GameLoginInfo.GameServerIpAddress = "1.2.3.4:80";
+            GameLoginInfo.M_ChooseHeroReq = new ChooseHeroReq { PID = 123 };
+
+            ReconnectSessionData result = await svc.RecoverAsync(
+                "Game", new ReconnectSessionData("1.2.3.4:80", 123, "old-token", true), CancellationToken.None);
+
+            Assert.AreSame(GameLoginInfo.M_ChooseHeroReq, captured);
+            Assert.AreEqual("new-token", result.Token);
+            Assert.AreEqual(123u, result.Pid);
+            Assert.IsTrue(result.IsReconnectSession);
+            Assert.IsNotNull(GameLoginInfo.M_ChossHeroAck);
+            Assert.AreEqual("new-token", GameLoginInfo.M_ChossHeroAck.Token);
+        }
+
+        [Test] public void RecoveryServiceFaultsOnHttpFailure()
+        {
+            var svc = new GameSessionRecoveryService((req, cb) => cb(null, false));
+            GameLoginInfo.GameServerIpAddress = "1.2.3.4:80";
+            GameLoginInfo.M_ChooseHeroReq = new ChooseHeroReq { PID = 1 };
+
+            try
+            {
+                svc.RecoverAsync("Game", new ReconnectSessionData("1.2.3.4:80", 1, "t", true), CancellationToken.None).GetAwaiter().GetResult();
+                Assert.Fail("Recovery failure should throw InvalidOperationException.");
+            }
+            catch (InvalidOperationException)
+            {
+            }
+        }
+
+        [Test] public async Task RecoveryServiceCancelsWithToken()
+        {
+            // 委托挂起不回调，模拟 HTTP 请求进行中
+            var svc = new GameSessionRecoveryService((req, cb) => { });
+            GameLoginInfo.GameServerIpAddress = "1.2.3.4:80";
+            GameLoginInfo.M_ChooseHeroReq = new ChooseHeroReq { PID = 1 };
+
+            var cts = new CancellationTokenSource();
+            Task<ReconnectSessionData> task = svc.RecoverAsync("Game", new ReconnectSessionData("1.2.3.4:80", 1, "t", true), cts.Token);
+            await Task.Yield();
+            cts.Cancel();
+            await Task.WhenAny(task, Task.Delay(1000));
+            var _ = task.Exception; // 观察可能的取消异常，避免未观测任务警告
+            Assert.IsTrue(task.IsCompleted, "取消令牌必须中断恢复任务");
+            cts.Dispose();
+        }
+
+        #endregion
+
+        private sealed class FakeTransport : INetworkTransport
+        {
+            public sealed class SentPacket
+            {
+                public int Command;
+                public byte[] Payload;
+            }
+
+            public readonly List<SentPacket> Sent = new List<SentPacket>();
+            public bool ThrowOnReceive;
+            public byte[] ReceiveData;
+            private bool _received;
+            public bool Connected { get; private set; }
+
+            public Task ConnectAsync(string host, int port, CancellationToken cancellationToken)
+            {
+                Connected = true;
+                return Task.CompletedTask;
+            }
+
+            public Task<int> SendAsync(byte[] data, int offset, int count, CancellationToken cancellationToken)
+            {
+                var reader = new PacketReader(1024);
+                reader.Append(data, offset, count);
+                Assert.IsTrue(reader.TryRead(out NetworkPacket packet));
+                Sent.Add(new SentPacket { Command = packet.Command, Payload = packet.Payload });
+                return Task.FromResult(count);
+            }
+
+            public Task<int> ReceiveAsync(byte[] buffer, CancellationToken cancellationToken)
+            {
+                if (ThrowOnReceive) throw new InvalidOperationException("receive failed");
+                if (ReceiveData != null && !_received)
+                {
+                    _received = true;
+                    Buffer.BlockCopy(ReceiveData, 0, buffer, 0, ReceiveData.Length);
+                    return Task.FromResult(ReceiveData.Length);
+                }
+                var source = new TaskCompletionSource<int>();
+                cancellationToken.Register(() => source.TrySetCanceled());
+                return source.Task;
+            }
+
+            public void Close() { Connected = false; }
+            public void Dispose() { Close(); }
+        }
+    }
+}

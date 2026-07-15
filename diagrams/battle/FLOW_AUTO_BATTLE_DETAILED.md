@@ -2,7 +2,7 @@
 
 > 生成日期：2026-07-10  
 > 代码主线：`Assets/Scripts/StarGame/Service/BattleManager/BattleManager.cs`  
-> 可直接打开的 SVG 图：[FLOW_AUTO_BATTLE_DETAILED.svg](./FLOW_AUTO_BATTLE_DETAILED.svg)
+> 历史 SVG 图：[FLOW_AUTO_BATTLE_DETAILED.svg](./FLOW_AUTO_BATTLE_DETAILED.svg)。当前代码事实以本文 Mermaid 源为准；本轮未触网安装 Mermaid CLI 重渲 SVG。
 
 ## 总览
 
@@ -11,9 +11,13 @@
 核心链路：
 
 ```text
-AutoBattleBtn / 缓存恢复
+AutoBattleBtn.OnClick
   -> BattleManager.SwitchAutoBattle()
-  -> Start()
+  -> Start() 或 Stop()
+AutoBattleBtn.OnEnable 缓存恢复
+  -> 读取 AUTOBATTLE_OPEN
+  -> Start() 或 Stop()
+Start()
   -> MonoHelper.AddFixedUpdateListener(OnFixedUpdate)
   -> IsExecuteAutoBattle()
   -> MarkDirtyState / OnTick()
@@ -31,12 +35,15 @@ AutoBattleBtn / 缓存恢复
 
 ```mermaid
 flowchart TB
-    UI["AutoBattleBtn.OnClick / OnEnable<br/>玩家点击或读取本地缓存"] --> Switch["BattleManager.SwitchAutoBattle()"]
+    UI["AutoBattleBtn.OnClick"] --> Switch["BattleManager.SwitchAutoBattle()"]
+    Cache["AutoBattleBtn.OnEnable<br/>读取 AUTOBATTLE_OPEN"] --> CacheOpen{"缓存 isOpen?"}
+    CacheOpen -- yes --> Start["Start()"]
+    CacheOpen -- no --> Stop["Stop()"]
     Switch --> Forbid{"IsForbid?"}
     Forbid -- yes --> Noop["return，不启动"]
     Forbid -- no --> IsOpen{"IsAutoBattling?"}
-    IsOpen -- no --> Start["Start()"]
-    IsOpen -- yes --> Stop["Stop()"]
+    IsOpen -- no --> Start
+    IsOpen -- yes --> Stop
 
     Start --> Open["UpdateBateState(Open, true)"]
     Open --> Listen["OnEventListener()<br/>AutoBattleEvent / LoadingViewEvent"]
@@ -80,7 +87,8 @@ flowchart TB
     HasSkill -- yes --> Area{"CheckIsSkillArea<br/>目标在技能范围内?"}
     Area -- yes --> Cast["AutoBattleUseSkill(skillContainer)"]
     Cast --> Try["TryUseSkill() -> UseSkill()"]
-    Try --> Success{"释放成功?"}
+    Try --> SlotCD["skillContainer.MarkAutoBattleCD()<br/>无论 TryUseSkill 返回值"]
+    SlotCD --> Success{"释放成功?"}
     Success -- yes --> GCD["StartGlobalSkillCD()<br/>clear ignoreSkillPoss<br/>return"]
     GCD --> Wait
     Success -- no --> Ignore["加入 ignoreSkillPoss<br/>换下一个技能槽"]
@@ -108,6 +116,7 @@ sequenceDiagram
     participant Skill as SkillContainer
     participant Find as FindPathManager
 
+    Note over Btn,BM: OnEnable 读取 AUTOBATTLE_OPEN 后直接 Start/Stop；OnClick 才 SwitchAutoBattle
     Btn->>BM: SwitchAutoBattle()
     alt 禁止自动战斗
         BM-->>Btn: return
@@ -134,8 +143,12 @@ sequenceDiagram
             alt 目标在技能范围
                 BM->>BM: AutoBattleUseSkill()
                 BM->>BM: TryUseSkill() -> UseSkill()
-                BM->>Skill: MarkAutoBattleCD()
-                BM->>BM: StartGlobalSkillCD()
+                BM->>Skill: MarkAutoBattleCD()（无论 TryUseSkill 返回值）
+                alt AutoBattleUseSkill 返回 true
+                    BM->>BM: StartGlobalSkillCD()
+                else 返回 false
+                    BM->>BM: ignoreSkillPoss.Add / 换下一个技能槽
+                end
             else 目标不在范围
                 BM->>Find: FindDistanceValidPoint()
                 BM->>PCG: TryFindPath(... AutoBattle)
@@ -157,7 +170,7 @@ sequenceDiagram
 | `OnTick()` | `BattleManager.cs:1397` | 非挂起状态下进入 `SearchEnemyFight()`。 |
 | `SearchEnemyFight()` | `BattleManager.cs:1651` | 查怪成功进入战斗；失败时回目标点/起点。 |
 | `GotoFightEnemy()` | `BattleManager.cs:1986` | 找可用技能槽，若目标在范围内直接施法；否则计算技能释放距离并寻路。 |
-| `AutoBattleUseSkill()` | `BattleManager.cs:2180` | 清脏标记、调用 `TryUseSkill()`、给技能槽打自动战斗 CD。 |
+| `AutoBattleUseSkill()` | `BattleManager.cs:2180` | 清脏标记、调用 `TryUseSkill()`，随后无论释放结果都给当前技能槽打自动战斗 CD。 |
 | `TryUseSkill()` | `BattleManager.cs:2257` | 调用 `UseSkill()`，再按是否开启预播检查施法是否成功。 |
 
 ## 与手动施法的交汇点
@@ -165,6 +178,14 @@ sequenceDiagram
 自动战斗自身只负责“什么时候该对哪个目标用哪个技能”。真正施法仍复用技能系统入口：
 
 - `TryUseSkill()` 调用 `UseSkill()`。
-- `UseSkill()` 进入后续技能发送/客户端预播逻辑。
-- 后续流程与手动点击技能一致，进入 `SkillComponent / SkillEntity / StageHandle / EffectUtils` 这条管线。
+- `UseSkill()` 不直接发送技能协议，而是通过 `InputManager.DispatchVKey(vkey, 2, true)` 触发虚拟键事件。
+- `InputManager.DispatchVKey(..., isForce: true)` 最终触发 `OnVirtualInput`；`UniversalButton.Awake()` 订阅该事件，`Reset()` 取消订阅。
+- `UniversalButton.InputVKey(arg == 2)` 模拟一次 `OnPointerDown(null)` + `OnPointerUp(null)`。
+- 后续流程与手动点击技能一致，经 `SkillComponent.SendUserSkillReq()` 进入 `SkillController.ClientUseSkill()`；手动 `SkillEntity` 效果走 `SkillEntityActionPartial`，ServerControl/Bullet 等阶段路径才走 `StageHandle`，最终按效果类型进入 `EffectUtils` 等处理。
 
+## 追加复核证据（2026-07-15）
+
+- `BattleManager.AutoBattleUseSkill()` 当前顺序为 `MarkDirtyState(false)` -> `TryUseSkill()` -> `skillContainer.MarkAutoBattleCD()` -> 返回结果；`MarkAutoBattleCD()` 不依赖释放成功。
+- `BattleManager.GotoFightEnemy()` 只在 `AutoBattleUseSkill(...) == true` 分支调用 `StartGlobalSkillCD()` 并清空 `ignoreSkillPoss`。
+- `BattleManager.UseSkill()` 只做技能槽到虚拟按键的映射，并调用 `InputManager.Instance.DispatchVKey(keyCode, 2, true)`；它不直接调用 `SkillController`。
+- `UniversalButton.InputVKey(arg == 2)` 负责把自动战斗虚拟按键转换成一次按钮按下/抬起。

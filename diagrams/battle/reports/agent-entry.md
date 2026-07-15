@@ -1,5 +1,7 @@
 # Agent-1 [entry] L0 入口调度层分析报告
 
+> **历史草稿（已复核）**：本文件保留 2026-07-09 初版阅读结果。当前入口/帧驱动/自动战斗事实以 `agent-entry-control-review.md`、`../L0_ENTRY_LAYER.md`、`../FLOW_AUTO_BATTLE_DETAILED.md` 为准。
+
 ## 1. 文件清单
 
 | 文件名 | 大小 | 职责一句话 |

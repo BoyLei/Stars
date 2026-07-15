@@ -1,5 +1,7 @@
 # Agent-2a [entity-factory] L1 实体工厂层分析报告（精简版）
 
+> **历史草稿（已复核）**：本文件保留 2026-07-09 初版阅读结果，包含已被当前代码推翻的 `Obtain/Recycle/Reset` 等对象池 API 描述。当前事实以 `agent-entity-support-plan-review.md` 和 `../L1_ENTITY_FACTORY_LAYER.md` 为准。
+
 ## 类图
 
 ```mermaid

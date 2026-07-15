@@ -1,0 +1,88 @@
+# Scope
+
+验证范围：`diagrams/battle/L1_ENTITY_FACTORY_LAYER.md`、`L1_ENTITY_RUNTIME_LAYER.md`、`L5_SUPPORT_SYS.md`、`BATTLE_OVERVIEW.md`、`PLAN_v4.md`、`PLAN_v5.md`、`_Nav_Battle.md` 中实体工厂、实体运行时、支撑系统、总览、历史计划相关描述。
+
+证据来源：优先使用 CodeGraph (`codegraph_explore`) 获取类关系与源码行号；CodeGraph 不足或提示索引边缘 stale 时，仅在 `Assets/Scripts/StarGame/Game/...` 对应小目录和目标 md 中用 `rg`/定向读取补证。
+
+最高风险问题：7 个。判定标准：文档给出不存在的 public API、错误调用链、错误生命周期方法，读者按文档会找错代码或误改入口。
+
+# Follow-up 2026-07-13
+
+- 本报告下方 `Required Fixes` 是当时发现的问题清单；当前根文档已同步：`L1_ENTITY_FACTORY_LAYER.md` 修正 EntityFactory/DynamicDataFactory/SimpleDataFactory/ViewFactory 边界和 `Recycler.Pop/Push/Release`，`L1_ENTITY_RUNTIME_LAYER.md` 收紧 AOI/View 链路并折入 Data，`L2_CONTROL_LAYER.md` 折入 Object/PartnerManager，`L5_SUPPORT_SYS.md` 修正 Map/TypeEffect/Camera/SpecialUtilComp/CustomDataStruct 并折入 ClientNpc，`BATTLE_OVERVIEW.md` 和 `_Nav_Battle.md` 改为已覆盖 220 文件口径。
+- 后续摘要复核又补充：`CusQueue.cs` 的真实类名是 `QueueExtends<T>`，总览和 L5 文档已用 `QueueExtends/CusListQueue` 表述。
+- `L1_ENTITY_RUNTIME_LAYER.md` 二次复核：`E_EntityType.BulletEntity` 的现行创建链在 `GameManager.CreateEntity()` 中走 `CreateBulletSummon -> CreateSummon -> SummonCtrlGroup`，而不是直接创建 `BulletEntityCtrl`。
+- `L1_ENTITY_RUNTIME_LAYER.md` 二次复核：`BulletEntity : AOIEntityObject` 与 `BulletEntityCtrl` 仍是代码中存在的程序定义 Bullet 支线；`BulletEntity.CreateRuntime(BulletCreateRet)` 只保存 `runtimeID`、`bulletID`、`bulletCreateRet`。
+- 2026-07-15 三次复核：`L1_ENTITY_RUNTIME_LAYER.md` 已把可见性主链从 `ViewVitalNPCNormal.OnActionVisible(bool)` 收紧为 `EntityRemoteDynamic.ControlShowHide(EntityShowHidenTag,bool) -> ViewVitalNPCNormal.OnLogicControlShow(...)`；后续代码图未发现 `OnActionVisible(bool)` 调用方，因此不写成当前主调度入口。
+- `L5_SUPPORT_SYS.md` 三次复核：只读 sidecar 未发现当前 L5 根文档的明确错误；已复核 `private GameMap.LoadMapJson -> IMapLogic.OnLoad`、`SetObstacleInfo -> SceneObstacleLogic`、`IMapLogic` 方法集、`GameMap.EnterFrame -> MapScript.EnterFrame`、`SerSnapshotSeqManager.Init()` 当前边界、`GameCamera.Update/LateUpdate`、`GameCameraFeel` 非有效调用链、`TypeEffectFactory.Create(GlobalShowSerialize)` 17 类映射并只 `Init`、`BaseTypeEffect` 生命周期、`ViewVitalNPCNormal -> SoundManager/Wwise` 音频链、`QueueExtends/CusListQueue` 实际 API。
+- `L5_SUPPORT_SYS.md` 三次复核边界：`StarShadowFollow/StarShadowMirror/Footprints` 更细行为、`BATTLE_FRAMEWORK_ARCHITECTURE.md` 中 `LocalDataManager` 配置支撑，以及 `SerSnapshotSeqManager` 全类方法清单未在该 sidecar 范围内完整展开；当前根文档未因此新增修正。
+- 2026-07-15 四次复核：`L5_SUPPORT_SYS.md` 已把 TypeEffect 的 `OnEnter/OnExit` 触发者从“技能/子弹侧”扩为真实持有者：`ServerControlStageEntityBase` 覆盖 Buff/Passive/阶段实体，`SkillBullet` 覆盖子弹；`OnShowEnter/OnShowUpdate/OnShowExit` 由 `EntityCtrlBase` 栈事件转到 `ViewVitalNPCNormal` 表现层。
+- 2026-07-15 五次复核：`SerSnapshotSeqManager.Init()` 为空实现，注册/序列/回放主体为注释；但 `ServiceSnapshotData` 子类仍有现行动态缓存用途：`NetworkManager` 使用 `SerMessageSnapData` 缓存并在 `InvokeMessageSnapDataCache` 弹出处理，`GameManager` 使用 `SerRPCOneFrameSnapALLData` 在 `ClientAddSpeedInvoke -> InvokeFrameRPCDataCache` 弹出处理；THD/MainPlayer 缓存分发当前在帧入口被注释或早返回。
+- 2026-07-15 四次复核：`L5_SUPPORT_SYS.md` 已保留 TypeEffect 工厂映射 17 类，但补充 `BUFF_SkillSlotHide` 虽可创建 `HiddenSkillSlotEffect`，其隐藏技能槽下游 `Start/StopHiddenSkillSlotEffects` 当前直接 `return` 屏蔽。
+- 2026-07-15 五次复核：`L1_ENTITY_FACTORY_LAYER.md` 已把 `ViewFactory` 表述收紧为推荐 `CreateViewAsync(...)` 路径：池命中直接 callback `GameObject`，未命中 `LoadResourceUniRefAsync<GameObject>` 后 callback `GameObject`，再 `SetView(...)` 绑定 `ViewObject`；`CreateView(...)` / `CreateViewAddressables(...)` 仍存在但都标记 `[Obsolete("请使用 CreateViewAsync", false)]`。
+- 2026-07-15 六次复核：`L1_ENTITY_FACTORY_LAYER.md`、`BATTLE_OVERVIEW.md`、`BATTLE_FRAMEWORK_ARCHITECTURE.md` 已把图形语义从 `EntityFactory -> DynamicDataFactory/SimpleDataFactory/ViewFactory` 收紧为并列 `L1 Factories` 入口；`Recycler` 标注为各工厂各自持有，避免图形上回退成 EntityFactory 单口分发。
+- 2026-07-15 七次复核：`L5_SUPPORT_SYS.md` 已把 Map 对外入口从 `LoadMapJson` 收紧为 `Load/SetObstacleInfo/EnterFrame`；`LoadMapJson` 标为 private 内部加载；关系图移除 `MapScript -> IMapLogic`，避免误读成 `MapScript` 每帧驱动 MapLogic。
+- 2026-07-15 八次复核：`L1_ENTITY_RUNTIME_LAYER.md` 已把显隐链路补成 `ViewAOI.ControllShowHide -> M_EntityBase.ControlShowHide?.Invoke(Self,isShow) -> ViewVitalNPCNormal.OnLogicControlShow(...)`；`ViewVitalNPCNormal.OnEventListener()` / `OffEventListener()` 明确订阅/反订阅 `ControlShowHide`，代码图未发现 `ViewVitalNPCNormal.OnActionVisible(bool)` 调用方。
+- 2026-07-15 九次复核：`L1_ENTITY_FACTORY_LAYER.md` 已把 `EntityFactory.ReleaseEntity(EntityObject)` 从“释放回池”收紧为“调用 `ReleaseInFactory()` 标记释放”；真正从 `m_listObject` 移除并 `m_recycler.Push(obj)` 回池发生在 `ClearReleasedObjects()`。
+- 2026-07-15 十次复核：`L5_SUPPORT_SYS.md` / `BATTLE_FRAMEWORK_ARCHITECTURE.md` 已拆清普通技能 Camera 与 CameraShake：`SkillStageFrame.Play()` 的 Camera 帧可一路到 `SkillController.OnActionPlayCamera()`，但该函数第一行 `return;`；CameraShake 另走 `SkillController.OnActionPlayCameraShake()` 或 `StageHandle.OnActionOnStageTryPlayCameraShake()`，触发 `GlobalEvent.OnVirtualCameraShakeEvent`。`GameCameraFeel` 类主体和 `GameCamera/UICamera.DoCameraAction/StopCameraAction` 调用仍为注释化边界。
+- 2026-07-16 十一次复核：L5 只读核验确认 Map、ClientNpc、Snapshot、Camera、TypeEffect、Audio、Shadow、Queue 关键断言匹配代码；仅 `BATTLE_OVERVIEW.md` 总览图 L5 标签漏掉已折入的 `ClientNpc 9` 文件，已改为 `51 + ClientNpc 9 文件`，与同文表格和 `L5_SUPPORT_SYS.md` 口径一致。
+
+# Evidence Table
+
+| md file | claim checked | verdict | code evidence |
+|---|---|---|---|
+| `L1_ENTITY_FACTORY_LAYER.md:49-52`, `:78-90` | `EntityFactory.CreateXxx(type,data)`、`CreateLocalDynamic/CreateRemoteDynamic/CreateLocalStatic/CreateRemoteStatic/GetEntity`、`Recycler.Obtain/Recycle` 为对外接口 | 需修正 | `EntityFactory` 当前入口是 `InstanceEntity<T>()`、`ReleaseEntity(EntityObject)`、`ClearReleasedObjects()`：`Assets/Scripts/StarGame/Game/Entity/Factory/EntityFactory.cs:98`, `:133`, `:158`。`Recycler` 当前 API 是 `Push(IRecyclableObject)`、`Pop(string)`、`Release()`：`Assets/Scripts/StarGame/Game/Entity/Factory/Recycler.cs:66`, `:84`, `:104`。 |
+| `L1_ENTITY_FACTORY_LAYER.md:50`, `:88-93`, `:98` | Recycler 以 type key 优先复用，并在回收时 Reset/Recycled | 需修正 | 池 key 来自 `obj.GetRecycleType()` 或调用方传入 string：`Recycler.Push` `Assets/Scripts/StarGame/Game/Entity/Factory/Recycler.cs:84-93`，`Recycler.Pop` `:104-111`。接口只有 `GetRecycleType()`/`Dispose()`，无 `Reset()`/`Recycled()`：`Recycler.cs:14-24`。 |
+| `L1_ENTITY_FACTORY_LAYER.md:97`, `BATTLE_OVERVIEW.md:121` | EntityFactory 按 `m_nType`/三条创建链分派 DynamicData/SimpleData/View | 需修正 | `EntityFactory` 只按泛型类型池化实体：`InstanceEntity<T>() where T : EntityObject, new()` `EntityFactory.cs:98-122`。`DynamicDataFactory.InstanceData<T>()` 是独立动态数据队列入口：`DynamicDataFactory.cs:311-362`；`SimpleDataFactory.InstanceData<T>()` 是独立简单数据入口：`SimpleDataFactory.cs:83-107`；`ViewFactory.CreateViewAsync`/`SetView` 由实体显示创建调用：`ViewFactory.cs:334-372`, `:375-401`。 |
+| `L1_ENTITY_FACTORY_LAYER.md:99` | `EntityRemoteDynamic` 直接派生 `ViewObject`，创建即伴随 View 构建 | 需修正 | `EntityRemoteDynamic : EntityObject`：`Assets/Scripts/StarGame/Game/Entity/Factory/EntityRemoteDynamic.cs:13`。`ViewObject : MonoBehaviour, IRecyclableObject`：`Assets/Scripts/StarGame/Game/Entity/Factory/ViewObject.cs:11`。远程实体子类按需调用 `ViewFactory.CreateViewAsync`，如 `HeroEntityBase` `Assets/Scripts/StarGame/Game/Entity/RemoteDynamic/HeroEntityBase.cs:204`、`MonsterEntityBase.cs:206`、`GameNPCEntityBase.cs:118`。 |
+| `L1_ENTITY_FACTORY_LAYER.md:100` | ViewFactory 工厂级 + Recycler 池级管理 View 生命周期 | 正确 | `ViewFactory` 持有 `DictionaryEx<EntityObject, ViewObject> m_mapObject` 和 `Recycler m_recycler`：`ViewFactory.cs:20`, `:28`；`ReleaseView` 调 `ReleaseInFactory()` 后 `m_recycler.Push(obj)`：`ViewFactory.cs:425-448`。 |
+| `L1_ENTITY_FACTORY_LAYER.md:52`, `:86`, `:101` | `CreateViewAsync` 与旧同步 View 创建接口边界 | 已修正 | `CreateViewAsync` at `Assets/Scripts/StarGame/Game/Entity/Factory/ViewFactory.cs:334-373` 从 `m_recycler.Pop(recycleType)` 复用或 `LoadResourceUniRefAsync<GameObject>` 异步加载，callback `GameObject` 后调用 `SetView(...)`；`SetView` at `ViewFactory.cs:375-417` 绑定 `ViewObject`；`CreateView` at `ViewFactory.cs:74-159` 和 `CreateViewAddressables` at `ViewFactory.cs:161-250` 均标记 `[Obsolete("请使用 CreateViewAsync", false)]`。 |
+| `L1_ENTITY_FACTORY_LAYER.md:101` | `InteractiveShowEntity`/`LocalSimulateEntity` 为 LocalDynamic 基类 | 正确 | `EntityLocalDynamic : EntityObject`：`Assets/Scripts/StarGame/Game/Entity/Factory/EntityLocalDynamic.cs:16`；本地动态子类位于 `Assets/Scripts/StarGame/Game/Entity/LocalDynamic/InteractiveShowEntity.cs` 和 `.../LocalSimulateEntity.cs`（`rg` 命中 `ViewFactory.CreateViewAsync` 调用链中同目录本地实体）。 |
+| `L1_ENTITY_RUNTIME_LAYER.md:10-22`, `PLAN_v5.md:92-94`, `:150`, `BATTLE_OVERVIEW.md:24-27` | NPC/Hero/AOI/View 大文件大小与继承链 | 正确 | `NPCEntityBase : AOIEntityObject`：`Assets/Scripts/StarGame/Game/Entity/RemoteDynamic/NPCEntityBase.cs:101`；`HeroEntityBase : NPCEntityBase`：`Assets/Scripts/StarGame/Game/Entity/RemoteDynamic/HeroEntityBase.cs:49`；`AOIEntityObject : EntityRemoteDynamic`：`Assets/Scripts/StarGame/Game/Entity/RemoteDynamic/Base/AOIEntityObject.cs:22`；`ViewAOI : ViewModel`：`Assets/Scripts/StarGame/Game/Entity/View/VitalEnity/Base/ViewAOI.cs:23`。当前大小：`NPCEntityBase.cs 216.02KB`、`HeroEntityBase.cs 62.97KB`、`ViewAOI.cs 145.25KB`、`ViewVitalNPCNormal.cs 85.5KB`。 |
+| `L1_ENTITY_RUNTIME_LAYER.md:45-47`, `:75-83` | `AOIEntityObject.OnAOIUpdate()` / `SetVisible(bool)` / `ViewAOI.OnVisible` 是可见性链路 | 需修正 | `rg` 在 `RemoteDynamic`/`View/VitalEnity` 未找到 `OnAOIUpdate`、`SetVisible`、`ViewAOI.OnVisible`。实际 AOI 数据入口是属性注册：`Data.RegisterAttribute(AOIAttrDefine.Position, OnAOIPositionChange)` 等 `AOIEntityObject.cs:402-408`；后续复核补充可见性主链是 `ViewAOI.ControllShowHide -> M_EntityBase.ControlShowHide?.Invoke(Self,isShow) -> ViewVitalNPCNormal.OnLogicControlShow(...)`，`ViewVitalNPCNormal.OnEventListener()` / `OffEventListener()` 订阅/反订阅 `ControlShowHide`，代码图未发现 `ViewVitalNPCNormal.OnActionVisible(bool)` 调用方。 |
+| `L1_ENTITY_RUNTIME_LAYER.md:98`, `BATTLE_OVERVIEW.md:122`, `_Nav_Battle.md:36` | `AOIEntityObject -> ViewAOI -> ViewVitalNPCNormal` 三层方向 | 正确但需精确化 | CodeGraph 关系：`ViewVitalNPCNormal -> ViewAOI -> ViewModel -> ViewObject`，`NPCEntityBase -> AOIEntityObject -> EntityRemoteDynamic -> EntityObject`。代码中 `ViewAOI.Create` 保存 `m_entity = (AOIEntityObject)entity`：`ViewAOI.cs:472-475`；`ViewVitalNPCNormal` 订阅 `M_EntityBase.ActionOnStackShowTypeChange`：`ViewVitalNPCNormal.cs:187`, `:240`。 |
+| `L1_ENTITY_RUNTIME_LAYER.md:100` | View 更新策略为 Anim/状态机每帧 Update，实体同步为事件/脏标记 | 未证实 | 已证实事件订阅/属性回调：`AOIEntityObject.cs:402-408`，`ViewVitalNPCNormal.cs:187-214`。但本次没有找到可支撑“Anim/状态机每帧 Update”和“脏标记”的直接行号。 |
+| `L5_SUPPORT_SYS.md:3`, `BATTLE_OVERVIEW.md:116`, `PLAN_v5.md:332`, `_Nav_Battle.md:41`, `:63` | L5 文件数 51，分布 Map7/SnapShot7/StarsCamera6/TypeEffect26/CustomDataStruct2/SpecialUtilComp2/ViewEffect1 | 正确 | 当前计数：`Assets/Scripts/StarGame/Game/Map` 7、`SnapShot` 7、`StarsCamera` 6、`TypeEffect` 26、`CustomDataStruct` 2、`SpecialUtilComp` 2。加 `ViewEffect` 1 与文档 51 口径一致。 |
+| `L5_SUPPORT_SYS.md:56`, `:88`, `:107` | `GameMap.RegisterEntity/WorldToGrid/QueryObstacle/QueryArea`，GameMap 做坐标网格换算、实体位置登记与邻居查询 | 需修正 | `rg` 在 `Assets/Scripts/StarGame/Game/Map` 未找到这些方法名。实际 `GameMap` 维护 `MapLogics`：`GameMap.cs:86-90`，加载地图 JSON：`GameMap.cs:379-399`，设置动态阻挡：`GameMap.cs:253-258`；`SceneJsonData` 承载区域/阻挡配置：`SceneJsonData.cs:23`, `:35`, `:38`, `:677`, `:1054`。 |
+| `L5_SUPPORT_SYS.md:108` | `IMapLogic.Update()`，MapScript 每帧驱动多 Logic | 需修正 | `GameMap.EnterFrame(int frameIndex)` 存在：`GameMap.cs:216`，但本次 `rg` 输出只证实 `MapLogics` 在 `LoadMapJson` 后调用 `OnLoad()`：`GameMap.cs:397-399`，卸载调用 `OnUnLoad()`：`GameMap.cs:199-203`。`IMapLogic.Update()` 与 MapScript 每帧驱动未在本次证据中成立。 |
+| `L5_SUPPORT_SYS.md:59`, `:98-99`, `:111`, `PLAN_v5.md:665` | `TypeEffectFactory.Create(typeId,data)`，`BaseTypeEffect.Init/Update/Release`，按 typeId 分发 | 需修正 | `TypeEffectFactory.Create(GlobalShowSerialize typeSerialize)` 通过 `typeSerialize.GlobalShowType` 查 `Dictionary<GlobalShowType, Type>` 并 `Activator.CreateInstance`：`Assets/Scripts/StarGame/Game/TypeEffect/TypeEffect/TypeEffectFactory.cs:21-56`。`BaseTypeEffect` 生命周期是 `Init(GlobalShowSerialize)`、`InitBlackBoard`、`OnEnter`、`OnExit`、`OnShowEnter`、`OnShowUpdate`、`OnShowExit`，无 `Update()`/`Release()`：`Assets/Scripts/StarGame/Game/TypeEffect/BaseTypeEffect.cs:45-99`。调用方：`SkillBullet.cs:599-622`、`ServerControlStageEntityBase.cs:617-640`。 |
+| `L5_SUPPORT_SYS.md:95`, `:110` | GameCamera 聚合 Scale/Rotate/Feel，每帧合成姿态 | 正确但需精确化 | `GameCamera.Create()`/`Release()`：`Assets/Scripts/StarGame/Game/StarsCamera/GameCamera.cs:163`, `:177`；`DoCameraAction`：`:215`；`UpdateCameraPos`/`SetCameraPos`：`:250`, `:284`, `:311`；`Update()`/`LateUpdate()`：`:329`, `:344`。文档中的 `GameCamera.Update(target)` 不是实际方法签名。 |
+| `L5_SUPPORT_SYS.md:102-103`, `:112-113` | `StarShadowFollow.Update(transform)`/`StarShadowMirror.Update()`；`CusQueue.Enqueue/Dequeue`；CusQueue 是环形无 GC 队列 | 需修正 | `StarShadowFollow : ViewModel, I_VVitalAnim`，实际 `Create`/`Release`/状态回调/位置角度回调，无 `Update(transform)` 命中：`StarShadowFollow.cs:20`, `:67`, `:203`, `:552`。`StarShadowMirror` 同理：`StarShadowMirror.cs:20`, `:66`, `:210`, `:528`。`CusQueue.cs` 实际类名是 `QueueExtends<T> : Queue<T>`，提供 `HeadEnqueue`/`Remove`：`Assets/Scripts/StarGame/Game/CustomDataStruct/CusQueue.cs:11`, `:19`, `:45`；`CusListQueue<T> : List<T>` 有 `Enqueue`/`Dequeue`：`Assets/Scripts/StarGame/Game/CustomDataStruct/CusListQueue.cs:15-21`。 |
+| `BATTLE_OVERVIEW.md:3`, `_Nav_Battle.md:3`, `PLAN_v5.md:314`, `:334` | Game 根下总计 200 个 `.cs` | 正确 | `_Nav_Battle.md:63` 的分布与当前定向计数一致：Entity 68、Map7、SnapShot7、StarsCamera6、TypeEffect26、CustomDataStruct2、SpecialUtilComp2。 |
+| `BATTLE_OVERVIEW.md:15`, `:110`, `PLAN_v5.md:326`, `:349-356`, `_Nav_Battle.md:35` | entity-factory 20 文件 | 需修正 | `Assets/Scripts/StarGame/Game/Entity/Factory` 当前只有 13 个 `.cs`：`DynamicDataFactory.cs`、`DynamicDataObject.cs`、`EntityFactory.cs`、`EntityLocalDynamic.cs`、`EntityLocalStatic.cs`、`EntityObject.cs`、`EntityRemoteDynamic.cs`、`EntityRemoteStatic.cs`、`Recycler.cs`、`SimpleDataFactory.cs`、`SimpleDataObject.cs`、`ViewFactory.cs`、`ViewObject.cs`。若 20 口径包含 `Entity/LocalDynamic` 部分文件，应在 md 明确口径。 |
+| `PLAN_v4.md:7`, `PLAN_v5.md:7`, `_Nav_Battle.md:59` | 历史计划含虚构/过期路径，不能当当前事实 | 正确 | 当前代码证实 `BattleManager` 在 `Assets/Scripts/StarGame/Service/BattleManager/BattleManager.cs`，且 `GameInput.cs` 存在而 `GameInputManager.cs` 未在目标小范围证据中出现；`PLAN_v5.md:7` 已提示应以已验证 `BATTLE_*`/`FLOW_*`/`L*` 文档为准。 |
+| `PLAN_v5.md:288-294`, `:488-489` | TypeEffect 根 7 + 子目录 19 = 26 | 正确 | `Assets/Scripts/StarGame/Game/TypeEffect` 当前计数 26；`TypeEffectFactory` 位于 `Assets/Scripts/StarGame/Game/TypeEffect/TypeEffect/TypeEffectFactory.cs:19`。 |
+
+# Required Fixes
+
+1. `L1_ENTITY_FACTORY_LAYER.md:49-52`, `:78-90`, `:97-99`；`BATTLE_OVERVIEW.md:121`；`_Nav_Battle.md:35`
+   - 问题：使用不存在的 `CreateXxx`/`Obtain`/`Recycle`/`Reset`/`Recycled` API，并把 `EntityFactory` 写成按 type 分派三条创建链。
+   - 建议替换文本：`实体/数据/显示池化不是一个 EntityFactory.CreateXxx 分发口。EntityFactory 提供 InstanceEntity<T>/ReleaseEntity/ClearReleasedObjects 管理 EntityObject；DynamicDataFactory.InstanceData<T>/PopEarliestDataByRecorde<T> 管理动态快照数据；SimpleDataFactory.InstanceData<T>/ReleaseData 管理简单数据；ViewFactory 推荐使用 CreateViewAsync，旧 CreateView/CreateViewAddressables 已标记 Obsolete，ReleaseView 负责回收 ViewObject。Recycler 的实际 API 是 Pop(string)/Push(IRecyclableObject)/Release()，key 来自 GetRecycleType() 或调用方传入的 recycleType。`
+
+2. `L1_ENTITY_FACTORY_LAYER.md:99`
+   - 问题：`EntityRemoteDynamic` 直接派生 `ViewObject` 错误。
+   - 建议替换文本：`EntityRemoteDynamic 继承 EntityObject；ViewObject 是独立 MonoBehaviour 表现基类。远程实体子类在需要显示时优先调用 ViewFactory.CreateViewAsync 绑定 ViewObject；CreateView/CreateViewAddressables 仍存在但已标记 Obsolete。`
+
+3. `L1_ENTITY_RUNTIME_LAYER.md:45-47`, `:75-83`
+   - 问题：`OnAOIUpdate`/`SetVisible`/`ViewAOI.OnVisible` 未找到。
+   - 建议替换文本：`AOIEntityObject 通过 Data.RegisterAttribute 注册 Position/PathPoses/CurrPathIndex/Rot/TruthSpeed/Faction 等 AOI 属性回调；ViewAOI.Create 保存 AOIEntityObject 引用；AOI/逻辑显隐主链为 ViewAOI.ControllShowHide -> M_EntityBase.ControlShowHide?.Invoke(EntityShowHidenTag.Self,isShow) -> ViewVitalNPCNormal.OnLogicControlShow(...)；OnActionVisible(bool) 当前未发现调用方，不写成主调度入口。`
+
+4. `L5_SUPPORT_SYS.md:56`, `:88`, `:107-108`
+   - 问题：地图接口与职责写成不存在的 `RegisterEntity/WorldToGrid/QueryObstacle/QueryArea/IMapLogic.Update/MapScript`。
+   - 建议替换文本：`GameMap 对外入口是 Load/SetObstacleInfo/EnterFrame；持有 MapLogics，包含 SceneAreaLogic、SceneObstacleLogic、ActiveSceneCameraLogic；private LoadMapJson 反序列化 SceneJsonData 后调用各 Logic.OnLoad；Unload 调 OnUnLoad；动态阻挡通过 GameMap.SetObstacleInfo 转发 SceneObstacleLogic.SetObstacleInfo；GameMap.EnterFrame 只转发 MapScript.EnterFrame，MapScript 不驱动 IMapLogic。SceneJsonData 保存 Areas/Obstacles 等静态场景配置。`
+
+5. `L5_SUPPORT_SYS.md:59`, `:98-99`, `:111`; `PLAN_v5.md:665`
+   - 问题：TypeEffect 工厂和生命周期方法名错误。
+   - 建议替换文本：`TypeEffectFactory.Create(GlobalShowSerialize) 根据 GlobalShowSerialize.GlobalShowType 映射到具体 BaseTypeEffect 子类并调用 Init。BaseTypeEffect 生命周期为 Init/InitBlackBoard/OnEnter/OnExit/OnShowEnter/OnShowUpdate/OnShowExit；调用方包括 SkillBullet 和 ServerControlStageEntityBase。`
+
+6. `L5_SUPPORT_SYS.md:102-103`, `:112-113`
+   - 问题：影子组件和自定义队列 API/实现描述不准确。
+   - 建议替换文本：`StarShadowFollow/StarShadowMirror 继承 ViewModel 并实现 I_VVitalAnim，通过 Create/Release 订阅或解绑 HeroEntityBase 的 ControlShowHide、CheckHasControllerShow，并通过状态/角度/位置回调同步表现。CusQueue.cs 实际定义 QueueExtends<T> : Queue<T>，提供 HeadEnqueue/Remove；CusListQueue<T> : List<T>，提供 Enqueue/Dequeue。不要称 CusQueue 为环形队列。`
+
+7. `BATTLE_OVERVIEW.md:110`, `PLAN_v5.md:326`, `:349-356`, `_Nav_Battle.md:35`
+   - 问题：entity-factory “20 文件”口径与 `Entity/Factory` 当前 13 文件不一致。
+   - 建议替换文本：`若指 Entity/Factory 目录，当前为 13 个 .cs；若 Agent-2a 还包含 Entity/LocalDynamic 的部分实体，请在表格中写成“13 个 Factory 文件 + LocalDynamic/Static 相关文件，共 20（按 Agent 分工口径）”。`
+
+# Unverified Claims
+
+- `L1_ENTITY_RUNTIME_LAYER.md:100`：`Anim/状态机为每帧 Update 驱动` 与 `实体同步侧为事件/脏标记驱动` 只证实了属性回调/事件订阅，未在本次定向搜索中拿到“每帧 Update”和“脏标记”的直接代码行号。
+- `L5_SUPPORT_SYS.md:109`：SnapShot 不应整体写成“仅 Init/历史注释”。准确边界是 `SerSnapshotSeqManager` 历史注释化；`ServiceSnapshotData` 子类仍作为 `DynamicDataFactory` 数据缓存，其中 `SerMessageSnapData` 与 `SerRPCOneFrameSnapALLData` 有现行调用，THD/MainPlayer 当前缓存分发入口被注释或早返回。

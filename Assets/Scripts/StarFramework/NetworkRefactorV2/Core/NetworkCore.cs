@@ -5,9 +5,9 @@ using System.Threading;
 
 namespace SGF.NetworkRefactorV2
 {
-    public enum RealConnectionState { Disconnected, Connecting, Verifying, Connected, Reconnecting, ReconnectFailed, Kicked, Closed }
+    public enum RealConnectionState { Disconnected, Connecting, Verifying, Connected, Reconnecting, ReconnectRetryable, ReconnectFailed, Kicked, Closed }
     public enum PingHealthState { Healthy, Weak, CriticalWeak, HeartbeatLost, ReturnLogin }
-    public enum ConnectionUiIntent { None, WeakLoading, FakeReconnectDialog, RealReconnectDialog, ReturnLoginDialog }
+    public enum ConnectionUiIntent { None, WeakLoading, FakeReconnectDialog, RealReconnectDialog, ReconnectRetryDialog, ReturnLoginDialog }
     public enum UiContext { Login, Lobby, Battle, Loading }
     public enum SocketUiVisibility { AlwaysVisible, VisibleWhenFocused, Silent }
     public enum RecoveryAuthenticationPolicy { ReuseCurrentCredential, RefreshSessionBeforeReconnect, ManualOnly }
@@ -32,8 +32,10 @@ namespace SGF.NetworkRefactorV2
                 case RealConnectionState.Connecting: return next == RealConnectionState.Verifying || next == RealConnectionState.Reconnecting || next == RealConnectionState.ReconnectFailed;
                 case RealConnectionState.Verifying: return next == RealConnectionState.Connected || next == RealConnectionState.Reconnecting || next == RealConnectionState.ReconnectFailed;
                 case RealConnectionState.Connected: return next == RealConnectionState.Reconnecting || next == RealConnectionState.Disconnected;
-                case RealConnectionState.Reconnecting: return next == RealConnectionState.Connecting || next == RealConnectionState.ReconnectFailed;
+                case RealConnectionState.Reconnecting: return next == RealConnectionState.Connecting || next == RealConnectionState.ReconnectFailed || next == RealConnectionState.ReconnectRetryable;
+                case RealConnectionState.ReconnectRetryable: return next == RealConnectionState.Connecting || next == RealConnectionState.Reconnecting || next == RealConnectionState.ReconnectFailed;
                 case RealConnectionState.ReconnectFailed: return next == RealConnectionState.Connecting;
+                case RealConnectionState.Kicked: return false;
                 default: return false;
             }
         }
@@ -47,7 +49,14 @@ namespace SGF.NetworkRefactorV2
         public void Tick()
         {
             IsTicking = true;
-            try { while (_events.TryDequeue(out Action action)) action(); }
+            try
+            {
+                while (_events.TryDequeue(out Action action))
+                {
+                    try { action(); }
+                    catch (Exception) { /* 单个回调异常不中断后续消息处理，与原始 NetworkManager.OnMyUpdate 行为一致 */ }
+                }
+            }
             finally { IsTicking = false; }
         }
     }

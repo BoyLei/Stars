@@ -1,5 +1,7 @@
 # Agent-6 [support] L5 支撑系统层分析报告
 
+> **历史草稿（已复核）**：本文件保留 2026-07-09 初版阅读结果，包含已被当前代码推翻的 Map/Camera/TypeEffect API 描述。当前事实以 `agent-entity-support-plan-review.md` 和 `../L5_SUPPORT_SYS.md` 为准。
+
 ## 1. 文件清单
 
 | 文件名 | 大小 | 子系统 | 职责一句话 |

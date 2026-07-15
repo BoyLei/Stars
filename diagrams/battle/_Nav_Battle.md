@@ -1,6 +1,6 @@
 # Star 战斗层代码分析导航 (Battle Layer Navigation)
 
-> 生成日期：2026-07-09 | 代码根：`Assets/Scripts/StarGame/Game/` | 文件总数：**200** | SubAgent：**8 路**
+> 生成日期：2026-07-09 | 代码根：`Assets/Scripts/StarGame/Game/` | 已覆盖文件：**220** | 补充目录已折入：ClientNpc 9 / Data 8 / Object 2 / Partner 1 | SubAgent：**8 路**
 
 ## 📊 分层架构图（点击查看）
 
@@ -9,36 +9,36 @@
 | 框架图 | [BATTLE_FRAMEWORK_ARCHITECTURE.md](./BATTLE_FRAMEWORK_ARCHITECTURE.md) | All | 运行时主轴 + BattleManager 服务线 + 技能效果链路 |
 | 全景图 | [BATTLE_OVERVIEW.md](./BATTLE_OVERVIEW.md) | All | 6 层模块关系总览 |
 | L0 入口调度 | [L0_ENTRY_LAYER.md](./L0_ENTRY_LAYER.md) | L0 | GameManager/GameInput/渲染队列 |
-| L1a 实体工厂 | [L1_ENTITY_FACTORY_LAYER.md](./L1_ENTITY_FACTORY_LAYER.md) | L1 | 三条创建链 + 对象池 |
-| L1b 实体运行时 | [L1_ENTITY_RUNTIME_LAYER.md](./L1_ENTITY_RUNTIME_LAYER.md) | L1 | 远程实体/AOI/View 渲染 |
-| L2 角色控制 | [L2_CONTROL_LAYER.md](./L2_CONTROL_LAYER.md) | L2 | 控制组家族 + 组件模式 |
+| L1a 实体工厂 | [L1_ENTITY_FACTORY_LAYER.md](./L1_ENTITY_FACTORY_LAYER.md) | L1 | Entity/Data/View 分工 + Recycler 对象池 |
+| L1b 实体运行时 | [L1_ENTITY_RUNTIME_LAYER.md](./L1_ENTITY_RUNTIME_LAYER.md) | L1 | 远程实体/AOI/View 渲染 + Data 数据底座 |
+| L2 角色控制 | [L2_CONTROL_LAYER.md](./L2_CONTROL_LAYER.md) | L2 | 控制组家族 + 组件模式 + Object/PartnerManager |
 | L3a 技能引擎 | [L3A_SKILL_ENGINE_CORE.md](./L3A_SKILL_ENGINE_CORE.md) | L3 | Timeline 驱动管线 |
 | L3b 技能分部 | [L3B_SKILL_PARTIAL_EXT.md](./L3B_SKILL_PARTIAL_EXT.md) | L3 | 12 个 partial 扩展 |
 | L4 战斗效果 | [L4_COMBAT_EFFECT.md](./L4_COMBAT_EFFECT.md) | L4 | Buff/Bullet/Passive/AutoBattle |
-| L5 支撑系统 | [L5_SUPPORT_SYS.md](./L5_SUPPORT_SYS.md) | L5 | 地图/快照/相机/特效 |
+| L5 支撑系统 | [L5_SUPPORT_SYS.md](./L5_SUPPORT_SYS.md) | L5 | 地图/ClientNpc/快照现状/相机/特效/音效 |
 
 ## 🔄 时序图（跨层调用链）
 
 | 图 | 文件 | 描述 |
 |----|------|------|
 | 自动战斗详细流程 | [FLOW_AUTO_BATTLE_DETAILED.md](./FLOW_AUTO_BATTLE_DETAILED.md) | AutoBattleBtn→BattleManager→FixedUpdate→索敌→移动→施法 |
-| 技能施法全流程 | [FLOW_SKILL_CAST_FULL.md](./FLOW_SKILL_CAST_FULL.md) | 技能按钮→SkillComponent→SkillDispatcher→StageHandle→EffectUtils→目标实体 |
-| 技能释放 | [FLOW_SKILL_RELEASE.md](./FLOW_SKILL_RELEASE.md) | 输入→SkillDispatcher→SkillStage→EffectUtils |
-| 伤害结算 | [FLOW_DAMAGE_PIPELINE.md](./FLOW_DAMAGE_PIPELINE.md) | EffectUtils→Buff/Bullet→命中→伤害 |
-| Buff 生命周期 | [FLOW_BUFF_LIFECYCLE.md](./FLOW_BUFF_LIFECYCLE.md) | AddBuff→Tick→到期 |
+| 技能施法全流程 | [FLOW_SKILL_CAST_FULL.md](./FLOW_SKILL_CAST_FULL.md) | 手动按钮→SkillComponent→SkillController.ClientUseSkill；自动战斗经 DispatchVKey(arg=2) 模拟按钮 |
+| 技能释放 | [FLOW_SKILL_RELEASE.md](./FLOW_SKILL_RELEASE.md) | SkillComponent.SendUserSkillReq→SkillController.ClientUseSkill→服务器回包/Stage |
+| 伤害结算 | [FLOW_DAMAGE_PIPELINE.md](./FLOW_DAMAGE_PIPELINE.md) | EffectUtils.HandleEffectDamage→HandleHurtNodeMsg→BattleManager.OnHurtData→DamageEntity 飘字 |
+| Buff 生命周期 | [FLOW_BUFF_LIFECYCLE.md](./FLOW_BUFF_LIFECYCLE.md) | OnBuffCreateRet→SkillBuff.Create/EnterFrame→OnBuffEndRet→Release |
 
-## 📁 SubAgent 原始报告
+## 📁 SubAgent 历史报告
 
 | Agent | 报告 | 文件数 | 关键发现 |
 |-------|------|--------|---------|
-| entry | [agent-entry.md](./reports/agent-entry.md) | 7 | GameManager 非 MonoBehaviour，由外部 EnterFrame 驱动 |
-| entity-factory | [agent-entity-factory.md](./reports/agent-entity-factory.md) | 20 | 三条创建链 + Recycler 对象池 |
-| entity-runtime | [agent-entity-runtime.md](./reports/agent-entity-runtime.md) | 48 | NPCEntityBase 216KB 仅读法名；AOI 三层裁剪 |
-| player | [agent-player.md](./reports/agent-player.md) | 15 | 三段式异步加载 + 组件按需注册 |
-| skill-core | [agent-skill-core.md](./reports/agent-skill-core.md) | 37 | Timeline 管线主轴 + EffectUtils 对接 L4 |
-| skill-partial | [agent-skill-partial.md](./reports/agent-skill-partial.md) | 12 | 按功能域拆分，非生命周期 |
-| effect | [agent-effect.md](./reports/agent-effect.md) | 10 | StageHandle 范式统一 L3/L4 |
-| support | [agent-support.md](./reports/agent-support.md) | 51 | TypeEffect 工厂 + SnapShot 帧同步 |
+| entry | [agent-entry.md](./reports/agent-entry.md) | 7 | 历史原始报告；入口结论以 L0_ENTRY_LAYER.md 和 entry-control review 为准 |
+| entity-factory | [agent-entity-factory.md](./reports/agent-entity-factory.md) | 13+ | 历史报告口径；当前以 L1_ENTITY_FACTORY_LAYER.md 的真实 API 为准 |
+| entity-runtime | [agent-entity-runtime.md](./reports/agent-entity-runtime.md) | 48 | 历史原始报告；AOI/View 结论以 L1_ENTITY_RUNTIME_LAYER.md 为准 |
+| player | [agent-player.md](./reports/agent-player.md) | 15 | 历史原始报告；控制组结论以 L2_CONTROL_LAYER.md 为准 |
+| skill-core | [agent-skill-core.md](./reports/agent-skill-core.md) | 37 | 历史原始报告；技能入口以 L3A/FLOW 文档为准 |
+| skill-partial | [agent-skill-partial.md](./reports/agent-skill-partial.md) | 12 | 历史原始报告；UserInput/ActionPartial 以 L3B 为准 |
+| effect | [agent-effect.md](./reports/agent-effect.md) | 10 | 历史原始报告；Buff/Bullet/Passive 以 L4 和 FLOW 文档为准 |
+| support | [agent-support.md](./reports/agent-support.md) | 51 | 历史原始报告；Map/Camera/TypeEffect 以 L5 为准 |
 
 ## 📌 阅读顺序建议
 
@@ -48,19 +48,21 @@
 3. FLOW_SKILL_RELEASE.md       ← 理解技能主链路
 4. FLOW_DAMAGE_PIPELINE.md     ← 理解效果落地
 5. FLOW_BUFF_LIFECYCLE.md      ← 理解 Buff 机制
-6. reports/agent-*.md          ← 需要细节时查原始报告
+6. VERIFY_BATTLE_MD_AGAINST_CODE.md / reports/*-review.md ← 查校验依据；原始 agent-*.md 只作历史输入
 ```
 
 ## ⚠️ 已知局限
 
 1. **大文件仅读法名/签名**：NPCEntityBase(216KB)、ViewAOI(145KB)、SkillControllerSkillPartial(85KB)、SkillEntityActionPartial(76KB)、GameManager(239KB)、EffectUtils(79KB)、SkillEntity(83KB) 等巨型文件按截断策略只读结构/签名，实现细节未读。
-2. **跨层接口存疑点**：EffectUtils 对 L4 的具体方法签名、AutoBattle 决策逻辑所在模块、AttacState vs AttackState 冗余等已标注 `[待确认]`/`[语义不清]`。
-3. **L0 驱动源未确认**：GameManager.EnterFrame 的外部调用点（应在 Battle/World/MonoHelper 层）不在本次分析范围。
-4. **虚构文件已剔除**：v4 计划中的 BattleManager.cs、EntityBaseData.cs 等 22 个文件经全量扫描确认不存在。
+2. **跨层接口校正**：EffectUtils/L4 方法签名以 `L4_COMBAT_EFFECT.md` 与 `FLOW_DAMAGE_PIPELINE.md` 的已验证链路为准；`AttacState/AttackState` 只保留代码可证的 `VitalState` 继承与 `OnEnable` 差异，不再声明资产 GUID 引用状态。
+3. **已补证入口**：AutoBattle 决策主线已确认在 BattleManager；L0 帧驱动源已确认由 StarWorldGame.FixedUpdate/OnEnterFrame 调用 GameManager.EnterFrame / BattleManager.EnterFrame。
+4. **历史计划需复核**：v4/v5 计划中的部分路径和文件结论已被当前代码推翻；例如 `BattleManager.cs` 实际位于 `Service/BattleManager/`，`EntityBaseData.cs` 实际位于 `Game/Data/`。
+5. **补充目录拆分进度**：`ClientNpc` 已折入 `L5_SUPPORT_SYS.md`；`Data` 已折入 `L1_ENTITY_RUNTIME_LAYER.md`；`Object` 与 `PartnerManager` 已折入 `L2_CONTROL_LAYER.md`。原始归属记录见 `reports/agent-game-extra-review.md`。
 
 ## 📊 统计
 
-- 总文件：200（Game 7 / Entity 68 / Player 15 / Skill 59 / Map 7 / SnapShot 7 / StarsCamera 6 / TypeEffect 26 / CustomDataStruct 2 / SpecialUtilComp 2 / ViewEffect 1）
+- 已覆盖文件：220（原 200 + ClientNpc 9 + Data 8 + Object 2 + PartnerManager 1）
+- ClientNpc 已折入 L5；Data 已折入 L1；Object/PartnerManager 已折入 L2
 - 大文件（>30KB）：37 个，均按截断策略处理
-- Mermaid 图：12 张（1 全景 + 8 分层 + 3 时序）
-- 原始报告：8 份
+- Mermaid 图：13 张（1 全景 + 8 分层 + 4 时序）
+- 原始报告：8 份（历史输入）+ review 校验报告 4 份 + VERIFY 校验表
