@@ -85,7 +85,7 @@ sequenceDiagram
 
 **AOIEntityObject（实体层 AOI 入口）**
 - `Data.RegisterAttribute(...)` — 注册 Position/PathPoses/CurrPathIndex/Rot/TruthSpeed/Faction 等属性回调
-- AOI/逻辑显隐主链为 `EntityRemoteDynamic.ControlShowHide(EntityShowHidenTag,bool) -> ViewVitalNPCNormal.OnLogicControlShow(...)`；`ViewVitalNPCNormal.OnEventListener()` 订阅该事件，`OffEventListener()` 反订阅；代码图未发现 `ViewVitalNPCNormal.OnActionVisible(bool)` 的调用方，不能写成主调度入口；未发现 `OnAOIUpdate()` / `SetVisible(bool)` 这两个精确方法名
+- AOI/逻辑显隐主链为 `ViewAOI.HideModel/ShowModel -> ViewAOI.ControllShowHide(bool) -> M_EntityBase.ControlShowHide?.Invoke(EntityShowHidenTag.Self,isShow) -> ViewVitalNPCNormal.OnLogicControlShow(...)`；`ViewVitalNPCNormal.OnEventListener()` 订阅该事件，`OffEventListener()` 反订阅。StarGame C# 代码图结果为 `ViewVitalNPCNormal.OnActionVisible(bool)` 无调用方，不能写成主调度入口；`ViewObjectNormal.OnActionVisible(bool)` 是 OutLifeEntity 自身 Hide/ShowModel 使用的独立方法；`OnAOIUpdate()` / `SetVisible(bool)` 精确方法名查询为 0 命中。
 
 **Game/Data 数据底座（补充折入）**
 - 目录 8 个 C#：`EntityBaseData` / `VitalSignData` / `NoneVitalSignData` / `VitalSignAttrData` / `VitalSignViewShowData` / `GameParam` / `GameVKey` / `MapData`。
@@ -98,7 +98,7 @@ sequenceDiagram
 
 **ViewAOI / ViewVitalNPCNormal（View 基类）**
 - `ViewAOI.Create(...)` 保存 `AOIEntityObject` 引用
-- `ViewVitalNPCNormal.OnLogicControlShow(...)` — 通过 `ControlShowHide` 触发的逻辑显隐主处理；`OnActionVisible(bool)` 当前未发现调用方，不写成主入口
+- `ViewVitalNPCNormal.OnLogicControlShow(...)` — 通过 `ControlShowHide` 触发的逻辑显隐主处理；`ViewVitalNPCNormal.OnActionVisible(bool)` 代码图结果为无调用方，不写成主入口
 - 常态表现更新入口（Normal 表现基类）
 
 **I_VVitalAnim（动画接口契约）**

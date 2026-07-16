@@ -10,10 +10,10 @@
 
 这个项目的战斗框架不是一个单独的 `BattleManager` 总控类，而是两条线协同：
 
-- `GameManager` 是战斗世界运行时入口，`Init()` 初始化四类 L1 工厂，`CreateGame()` 保障 Entity/View 工厂的模式内初始化，并驱动实体控制组和本地实体逐帧 `EnterFrame`。
+- `GameManager` 是战斗世界运行时入口，`Init()` 初始化四类 L1 工厂，`CreateGame()` 保障 Entity/View 工厂的模式内初始化，并驱动实体控制组、本地实体、地图 `m_map.EnterFrame()` 和超时消息 `HandleOverTimeMsgRet()`。
 - `BattleManager` 是服务层战斗管理器，负责自动战斗、目标搜索、战斗设置、战斗相关网络通知和 UI 状态。
-- 技能主轴在 `Game/Skill` 下，核心链路是 `SkillDispatcher -> SkillController / SkillUnitController -> SkillContainer -> SkillEntity / SkillStage -> StageHandle / SkillEntityActionPartial -> EffectUtils`。
-- 战斗效果层由 `SkillBuff`、`SkillBullet`、`PassiveSkillEntity` 等运行时实体承接；`PassiveInfo` 是被动配置承载，最终落到实体状态、受击表现、伤害飘字、特效、音效和相机等支撑系统。`SerSnapshotSeqManager` 当前只保留空 `Init()` 与历史注释逻辑，不作为现行战斗主链路描述；`ServiceSnapshotData` 子类仍承担网络/RPC 动态缓存对象。
+- 技能主轴在 `Game/Skill` 下，`SkillDispatcher` 每帧推进 `SkillController` / `SkillUnitController`；`SkillController` 通过 `SkillContainer` 选择/校验 `SkillInfo` 并创建 `SkillEntity`，阶段效果再分叉到手动 `SkillEntityActionPartial` 或 ServerControl/Bullet 等 `StageHandle` 路径。
+- 战斗效果层由 `SkillBuff`、`SkillBullet`、`PassiveSkillEntity` 等运行时实体承接；`PassiveInfo` 是被动配置承载，最终落到实体状态、受击表现、伤害飘字、特效、音效和相机等支撑系统。`SerSnapshotSeqManager` 当前只保留空 `Init()` 与历史注释逻辑，不作为现行战斗主链路描述；`SerMessageSnapData` 仍承担网络消息快照缓存，RPC 快照类保留结构但当前不在主帧驱动链。
 
 ## 总体分层图
 
@@ -42,6 +42,8 @@ flowchart TB
         SE["SkillEntity"]
         SS["SkillStage"]
         SH["StageHandle"]
+        Act["SkillEntityActionPartial"]
+        FxBridge["SkillControllerEffectPartial<br/>NPCEntityBase"]
         BB["SkillBlackBoard"]
         EU["EffectUtils"]
     end
@@ -58,7 +60,7 @@ flowchart TB
         Map["GameMap / SceneJsonData"]
         TypeFx["TypeEffectFactory<br/>ShaderChange / Invisible / ShadowFollow"]
         Camera["StarsCamera / CameraManager<br/>技能相机链当前 return"]
-        Snap["SnapShot<br/>SeqManager 历史化 / Data 缓存"]
+        Snap["SnapShot<br/>SeqManager 历史化 / Message 缓存"]
         Audio["Audio<br/>ViewVitalNPCNormal -> SoundManager/Wwise"]
         Data["LocalDataManager<br/>技能 / Buff / 效果配置"]
     end
@@ -79,13 +81,16 @@ flowchart TB
 
     SD --> SUC
     SD --> SC
-    SUC --> SC
-    SC --> SCont
-    SCont --> SE
-    SC --> SS
+    SC --> SUC
+    SUC --> SCont
+    SC --> SE
+    SE --> SS
+    SS --> Act
     SS --> SH
     SH --> BB
-    SH --> EU
+    Act --> FxBridge
+    SH --> FxBridge
+    FxBridge --> EU
     SC --> Buff
     SC --> Bullet
     SC --> Passive
@@ -118,6 +123,7 @@ sequenceDiagram
     participant Local as EntityLocalDynamic
     participant SD as SkillDispatcher
     participant SC as SkillController
+    participant SUC as SkillUnitController
     participant Bullet as SkillBullet
     participant Map as GameMap
 
@@ -129,7 +135,7 @@ sequenceDiagram
         Ctrl->>Ent: M_Curr.EnterFrame(frameIndex)
         Ent->>SD: skillDispatcher.EnterFrame()
         SD->>SC: skillController.EnterFrame()
-        SD->>SC: skillUnitController.EnterFrame()
+        SD->>SUC: skillUnitController.EnterFrame()
         SC->>Bullet: EnterFrameBullet()
     end
     loop 本地实体列表
@@ -163,9 +169,9 @@ sequenceDiagram
     SC->>SE: UseSkill -> UseNewSkill -> CreateSkillEntity -> ClientUseSkill
     SE->>Stage: OnClientPreEnter -> EnterCurStage
     Stage->>Act: ExecuteFrameEvents -> OnActionStageTryPlayEffect
-    Act->>EU: PlayStageEffect / TryPlayEffect / EffectParam
+    Act->>Act: PlayStageEffect / TryPlayEffect / EffectParam
     Act->>SC: FuncOnTryPlayClientEffect -> StageTryPlayClientEffect / TryPlayClientEffect
-    SH->>EU: ServerControl/Bullet 路径的 PlayStageEffect / TryPlayEffect
+    SH->>SC: ServerControl/Bullet 路径的 PlayStageEffect / TryPlayEffect
     SC->>Target: FuncOnPlayClientSkillEffect -> PlayClientSkillEffect
     SC->>Effect: 上游 CtrlGroup 转交后的 OnBuffCreateRet / OnBulletCreateRet / OnPassiveSkillUseRet
     Effect->>Target: 状态变更 / 阶段推进 / Buff EnterFrame
@@ -184,7 +190,7 @@ flowchart LR
     Tick --> Blackboard["SkillBlackBoard<br/>阶段状态和临时标记"]
     Tick --> Entity["目标实体<br/>属性 / 状态 / 动作"]
     Tick --> Visual["TypeEffect / FX / DamageEntity<br/>视觉表现"]
-    Tick --> Release["Reset / Release<br/>回收复用"]
+    Tick --> Release["Release / EntityFactory.ReleaseEntity<br/>回收复用边界"]
 ```
 
 ## 关键代码锚点

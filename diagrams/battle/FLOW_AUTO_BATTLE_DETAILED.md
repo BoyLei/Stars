@@ -93,6 +93,7 @@ flowchart TB
     GCD --> Wait
     Success -- no --> Ignore["加入 ignoreSkillPoss<br/>换下一个技能槽"]
     Ignore --> SkillSlot
+    SkillSlot -.循环退出.-> ClearIgnore["ignoreSkillPoss.Clear()<br/>再进入移动到范围分支"]
 
     Area -- no --> MoveCalc["按 SkillAutoUseDistance<br/>计算释放中心点"]
     MoveCalc --> ValidPoint["FindPathManager.FindDistanceValidPoint()"]
@@ -186,6 +187,6 @@ sequenceDiagram
 ## 追加复核证据（2026-07-15）
 
 - `BattleManager.AutoBattleUseSkill()` 当前顺序为 `MarkDirtyState(false)` -> `TryUseSkill()` -> `skillContainer.MarkAutoBattleCD()` -> 返回结果；`MarkAutoBattleCD()` 不依赖释放成功。
-- `BattleManager.GotoFightEnemy()` 只在 `AutoBattleUseSkill(...) == true` 分支调用 `StartGlobalSkillCD()` 并清空 `ignoreSkillPoss`。
+- `BattleManager.GotoFightEnemy()` 只在 `AutoBattleUseSkill(...) == true` 分支调用 `StartGlobalSkillCD()`；`ignoreSkillPoss` 在入口、成功分支和循环退出后都会清空，失败分支会先加入当前技能槽再尝试下一个。
 - `BattleManager.UseSkill()` 只做技能槽到虚拟按键的映射，并调用 `InputManager.Instance.DispatchVKey(keyCode, 2, true)`；它不直接调用 `SkillController`。
 - `UniversalButton.InputVKey(arg == 2)` 负责把自动战斗虚拟按键转换成一次按钮按下/抬起。

@@ -107,7 +107,7 @@ sequenceDiagram
 
 **EffectUtils（已验证的效果处理接口）**
 - `HandleEffectDamage(...)` / `HandleEffectDamageTar(...)` / `HandleEffectDamageSecond(...)`
-- 未发现 `ExecuteEffect(SkillEffectParam)` / `ApplyBuff` / `SpawnBullet` / `TriggerPassive` 这些精确方法名
+- StarGame C# 代码图未发现 `EffectUtils.ExecuteEffect(SkillEffectParam)` / `ApplyBuff` / `SpawnBullet` / `TriggerPassive` 这些精确方法名；`NpcTrigger.ExecuteEffect` 与 `E_UseSkillType.ExecuteEffect` 不属于 `EffectUtils` 阶段效果入口
 
 **SkillBlackBoard**
 - `SkillBlackBoard : BaseBlackBoard`，实际 API 是 `Set(key, value, tag, ...)` / `Get(key, tag)` / `Clear()`
@@ -115,7 +115,7 @@ sequenceDiagram
 ## 关键发现
 
 1. **Timeline 驱动主轴**：`SkillInfo/BaseConfigInfo.GetTimeLineStage(...)` 提供 `TimeLineStage[]`，运行期由 `SkillStage.OnUpdate()` / `ExecuteFrameEvents()` 播放帧事件；手动技能走 `SkillEntityActionPartial.PlayStageEffect()`，Buff/Bullet/Passive 等 ServerControl 路径走 `StageHandle.TryPlayEffect()`。
-2. **三层实体关系**：SkillContainer 管理技能槽 `SkillInfo` / `ShowSkillInfos`；SkillController 通过 `CreateSkillEntity` 生成 SkillEntity；SkillEntity 引用 SkillInfo 配置并生成 SkillStage 运行时；SkillStage 由 SkillController 驱动支持中断/重入。
+2. **三层实体关系**：SkillContainer 管理技能槽 `SkillInfo` / `ShowSkillInfos`；SkillController 通过 `CreateSkillEntity` 生成 SkillEntity；SkillEntity 引用 SkillInfo 配置并生成 SkillStage 运行时；SkillStage 由 SkillController 经 SkillEntity 间接驱动，并通过 `BreakSkillEntity` / `TrySetActiveSkill`、`EnterCurStage` / `OnStageBroken` 支持中断/重入。
 3. **阶段效果分叉点**：手动 `SkillEntity` 路径的效果入口在 `SkillEntityActionPartial.PlayStageEffect()` / `TryPlayEffect()`；`StageHandle.PlayStageEffect()` / `TryPlayEffect()` 用于 `ServerControlStageEntityBase` / `SkillBullet` 等阶段路径。`EffectUtils.HandleEffectDamage()` 是已验证的伤害落地方法。旧版 `ExecuteEffect/ApplyBuff/SpawnBullet/TriggerPassive` 不是当前代码中的真实方法名。
 4. **SkillBlackBoard 作用域**：单技能运行期 key-value 黑板，SkillController 与 SkillStage 均可读写，跨 Stage 传递临时状态（连击数/蓄力值），技能结束经 `BaseBlackBoard.Clear()` 清理，不跨技能共享。
 5. **SkillDispatcher 运行时聚合点**：创建并持有 SkillController / SkillUnitController，并在 `EnterFrame()` 中推进两者；技能输入由 SkillComponent 或自动战斗虚拟按键进入 `SkillController.ClientUseSkill()`，不是 SkillDispatcher 直接接收。

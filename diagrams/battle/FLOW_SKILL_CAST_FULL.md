@@ -36,12 +36,14 @@ flowchart TB
     subgraph Control["3. 技能控制器入口"]
         Entity["m_NPCEntityBase.skillDispatcher"]
         ClientUse["SkillController.ClientUseSkill()"]
+        UseFlow["UseSkill() / UseNewSkill()<br/>CreateSkillEntity()"]
     end
 
     subgraph Runtime["4. 技能运行时"]
         SD["SkillDispatcher.EnterFrame()"]
         SC["SkillController.EnterFrame()"]
         SUC["SkillUnitController.EnterFrame()"]
+        SkillContainer["SkillContainer.EnterFrame()<br/>SkillInfo / ShowSkillInfos"]
         SkillEntity["SkillEntity<br/>技能实例 / partial 扩展"]
     end
 
@@ -74,12 +76,13 @@ flowchart TB
     Check --> NetReq
     Req --> Entity
     Entity --> ClientUse
-    ClientUse --> SkillEntity
+    ClientUse --> UseFlow
+    UseFlow --> SkillEntity
     Entity --> SD
     SD --> SC
     SD --> SUC
     SC --> SkillEntity
-    SUC --> SkillEntity
+    SUC --> SkillContainer
     SkillEntity --> SS
     SS --> Act
     Act --> Anim
@@ -109,6 +112,7 @@ sequenceDiagram
     participant NPC as NPCEntityBase
     participant SD as SkillDispatcher
     participant SCtrl as SkillController
+    participant SUC as SkillUnitController
     participant SE as SkillEntity
     participant Stage as SkillStage
     participant Act as SkillEntityActionPartial
@@ -125,16 +129,17 @@ sequenceDiagram
 
     loop 每帧
         SD->>SCtrl: skillController.EnterFrame()
-        SD->>SCtrl: skillUnitController.EnterFrame()
+        SD->>SUC: skillUnitController.EnterFrame()
         SCtrl->>SE: 更新当前技能
         SE->>Stage: OnEnter / OnUpdate / OnExit
         Stage->>Act: ExecuteFrameEvents / OnActionStageTryPlayEffect
         Act->>Act: PlayStageEffect()
         Act->>Act: RegisterServerEffect()
-        Act->>EU: FuncOnTryPlayClientEffect()
-        EU->>EU: 按 EffectType 分发
+        Act->>SCtrl: FuncOnTryPlayClientEffect / StageTryPlayClientEffect
+        SCtrl->>Target: FuncOnPlayClientSkillEffect -> PlayClientSkillEffect
         alt Damage
-            EU->>Target: HandleEffectDamage() -> HandleHurtNodeMsg()
+            Target->>EU: HandleEffectDamage()
+            EU->>Target: HandleHurtNodeMsg()
         else Buff
             SCtrl->>Target: OnBuffCreateRet / SkillBuff.EnterFrame
         else Bullet

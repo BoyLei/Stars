@@ -6,7 +6,7 @@
 
 ```mermaid
 flowchart TB
-    subgraph 控制组["CtrlGroup 家族 (Player/ 8文件)"]
+    subgraph 控制组["控制层类 (Player/ 8文件 + Object 2)"]
         PCG[PlayerCtrlGroup 62KB]
         GNPG[GameNPCCtrlGroup 20KB]
         MCG[MonsterCtrlGroup 19KB]
@@ -46,7 +46,7 @@ flowchart TB
 
 ```
 GameManager.Init 初始化服务工厂；CreateGame 初始化 EntityFactory/ViewFactory/相机和运行标记；CreateMap 懒创建并重置 GameContext；网络实体创建进入 GameManager.CreateEntity
-  → EntityCtrlBase.Create(data, pos) [三段式异步加载]
+  → CtrlGroup.Create(data, pos)：先调用 EntityCtrlBase.Create 做公共初始化，再由子类绑定 OnTemplateCreateFinifh / OnActionOnViewCreateFinifh 回调
     → [处理] 子类按需在 OnTemplateCreateFinifh / OnActionOnViewCreateFinifh 注册组件
              PlayerCtrlGroup：壳子完成时加 UnitPendant/CheckIndicator，模型完成时为主角加 SkillIndicator
     → [输出] 控制组就绪，每帧 EnterFrame 驱动组件 + m_CurrentCtrledVitBase
@@ -55,7 +55,7 @@ GameManager.CreateEntity 遇到 E_EntityType.BulletEntity
   → CreateBulletSummon(gameCommand)
     → CreateSummon(gameCommand) / new SummonCtrlGroup()
     → [处理] OnBulletCreateRet 转发给 SummonEntityBase -> SkillController.OnBulletCreateRet -> SkillBullet.Create
-    → [输出] OnBulletEndRet 先经 SummonEntityBase -> SkillController.OnBulletEndRet 释放 SkillBullet，再在帧末用 E_Command.Destroy 销毁 bulletEndRet.OwnerEntityID
+    → [输出] OnBulletEndRet 先经 SummonEntityBase -> SkillControllerBulletPartial.OnBulletEndRet，内部先 skillBullet.OnBulletEndRet(...) 再 ReleaseBullet()；随后帧末用 E_Command.Destroy 销毁 bulletEndRet.OwnerEntityID
 
 GameManager.CreateEntity 遇到 E_EntityType.Interact
   → CreateInterActionObject(gameCommand) / new ObjectCtrlGroup()
@@ -126,7 +126,7 @@ sequenceDiagram
 
 ## 关键发现
 
-1. **三段式异步加载**：`Create→OnTemplateCreateFinifh→OnActionOnViewCreateFinifh`，组件在子类回调中按需 `new` 并 Add 到 `m_listCompoent`（非统一注册）。
+1. **三段式异步加载**：三段式不是 `EntityCtrlBase.Create()` 单独完成；各 `CtrlGroup.Create()` 先调用 `EntityCtrlBase.Create()` 做公共初始化，再由子类绑定 `OnTemplateCreateFinifh` / `OnActionOnViewCreateFinifh` 回调，组件在子类回调中按需 `new` 并 Add 到 `m_listCompoent`（非统一注册）。
 2. **EntityCtrlBase 多态调度**：GameManager 通过 `GetEntityCtr(ulong)` 返回基类引用，统一持有数组；RPC 经 `EntityCtrlMsgBase.HandleRpcMsg` 的 `rpcMsgHandles` 字典分发到子类重写方法。
 3. **SkillComponent 是独立 UI 协调器**：不继承 PlayerComponent，由 PlayerCtrlGroup.g_SkillComponent 显式持有并在 EnterFrame 单独驱动；直接读 skillDispatcher.SkillController 查询技能，`SendUserSkillReq` 组装 `SkillUseReq/BlackList` 后交给 `SkillController.ClientUseSkill`，实际发送/预播/缓存由 `SkillController.UseSkill` 的结果分支决定（与 EntityCtrlBase 耦合过紧，代码注释 TODO 解绑）。
 4. **各 CtrlGroup 差异**：PlayerCtrlGroup 持 g_SkillComponent + FollowDynamicTarget；GameNPCCtrlGroup 独有触发器/LookAtMainPlayer；MonsterCtrlGroup 处理 Buff/Skill/RunStage/RuntimeSync 回包 + Boss 掉落，未找到 `OnBulletCreateRet`；PartnerCtrlGroup 在主角召唤物创建/离开时通过事件通知伙伴技能按钮刷新，主角侧 SkillComponent 仍由 PlayerCtrlGroup.g_SkillComponent 路径承担；SummonCtrlGroup 负责现行 `E_EntityType.BulletEntity` 的 BulletSummon 控制链；BulletEntityCtrl（文件 `BulletCtrl.cs`）直接继承 EntityCtrlBase，是程序定义 `BulletEntity` 支线，非 CtrlGroup。

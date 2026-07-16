@@ -43,7 +43,7 @@ flowchart TB
     ELS --> SIM --> LOC
     DDF --> DDO[DynamicDataObject 数据对象]
     SDF --> SDO[SimpleDataObject 数据对象]
-    VF --> ERD
+    VF --> VO[ViewObject<br/>MonoBehaviour + IRecyclableObject]
     STO -.-> MB[MonoBehaviour 普通静态脚本]
 ```
 
@@ -52,8 +52,8 @@ flowchart TB
 ```
 调用方请求创建实体 / 数据对象 / View(type, data)
   → EntityFactory.InstanceEntity<T>() / DynamicDataFactory.InstanceData<T>() / SimpleDataFactory.InstanceData<T>() / ViewFactory.CreateViewAsync(...)
-    → [处理] Recycler.Pop(type.FullName) 优先复用 / 否则 new；释放时先标记，ClearReleasedObjects 再 Recycler.Push(IRecyclableObject)
-    → [输出] 返回 EntityObject / DynamicDataObject / SimpleDataObject；ViewFactory 推荐路径为 CreateViewAsync：池命中直接 callback GameObject，未命中异步加载并 callback GameObject，再 SetView 绑定 ViewObject
+    → [处理] Entity/Simple 用 Recycler.Pop(typeof(T).FullName) 优先复用；ViewFactory 用 resPath 作为池 key；Entity/Simple 释放先标记，ClearReleasedObjects 再 Push，Dynamic/View 释放时直接 Push
+    → [输出] 返回 EntityObject / DynamicDataObject / SimpleDataObject；ViewFactory 推荐路径为 CreateViewAsync：池命中 callback GameObject 后 SetView，未命中异步加载成功且 entity 未释放时 callback GameObject 并 SetView
 ```
 
 ## 关键调用链
@@ -100,7 +100,7 @@ sequenceDiagram
 ## 关键发现
 
 1. **不是单一 CreateXxx 分发口**：EntityFactory 管 EntityObject；DynamicDataFactory 管动态数据；SimpleDataFactory 管简单数据；ViewFactory 管 ViewObject，四者各有入口。
-2. **Recycler 对象池**：以 string key 的 Stack 池，`Pop` 优先复用，`Push` 回收；接口只有 `GetRecycleType()` / `Dispose()`，没有 `Reset()` / `Recycled()`。
+2. **Recycler 对象池**：以 string key 的 Stack 池，`Pop` 优先复用，`Push` 回收；`IRecyclableObject` 接口只有 `GetRecycleType()` / `Dispose()`，没有 `Reset()` / `Recycled()`。
 3. **RemoteDynamic 与 View 分离**：EntityRemoteDynamic 继承 EntityObject；ViewObject 是独立 MonoBehaviour 表现基类，远程实体子类按需调用 ViewFactory 创建/绑定 View。
 4. **ViewFactory 双层管理**：工厂级 + Recycler 池级，管理 View 生命周期与缓存；`CreateView` / `CreateViewAddressables` 仍存在但已标记为请使用 `CreateViewAsync`。
 5. **LocalDynamic 公共骨架**：根目录 4 个具体实体，InteractiveShowEntity（交互表现）/ LocalSimulateEntity（本地模拟）为 Base 目录下 2 个基类。

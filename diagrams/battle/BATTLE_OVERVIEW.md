@@ -39,10 +39,12 @@ flowchart TB
         SD[SkillDispatcher]
         SC2[SkillController]
         SUC[SkillUnitController]
+        SCONT[SkillContainer]
         SE[SkillEntity 83KB]
         SS[SkillStage 73KB]
         SH[StageHandle]
         EU[EffectUtils 79KB]
+        FXPIPE[SkillControllerEffectPartial<br/>NPCEntityBase]
         SB[SkillBlackBoard]
     end
 
@@ -52,7 +54,7 @@ flowchart TB
         SUI[SkillEntityUserInputPartial 57KB]
     end
 
-    subgraph L4["L4 战斗效果层 (Agent-5, 10文件)"]
+    subgraph L4["L4 战斗效果层 (Agent-5, 11文件)"]
         BUFF[SkillBuff 18KB]
         BULLET[SkillBullet 25KB]
         PASS[PassiveSkillEntity<br/>PassiveInfo 配置]
@@ -62,8 +64,8 @@ flowchart TB
 
     subgraph L5["L5 支撑系统层 (Agent-6, 51 + ClientNpc 9 文件)"]
         MAP[GameMap+SceneJsonData]
-        SNAP[SnapShot<br/>SeqManager 历史化 / Data 缓存仍用]
-        CAM[StarsCamera]
+        SNAP[SnapShot<br/>SeqManager 历史化 / Message 缓存仍用]
+        CAM[StarsCamera<br/>普通 Camera return / Shake 有效]
         TE[TypeEffect<br/>工厂映射17类]
         CDS[QueueExtends/CusListQueue]
         SHADOW[StarShadowFollow/Mirror]
@@ -88,10 +90,15 @@ flowchart TB
 
     NPC --> SD
     SD --> SC2 & SUC
-    SC2 --> SE & SS & BUFF & BULLET & PASS
-    SUC --> SE
+    SC2 --> SCONT
+    SUC --> SCONT
+    SC2 --> SE & BUFF & BULLET & PASS
+    SE --> SS
+    SS --> SEA
     SS --> SH
-    SH --> EU
+    SEA --> FXPIPE
+    SH --> FXPIPE
+    FXPIPE --> EU
     SC2 --> BUFF & BULLET & PASS
     EU --> HURT[HandleHurtNodeMsg<br/>BattleManager.OnHurtData]
     HURT --> DMG
@@ -117,10 +124,10 @@ flowchart TB
 | L0 入口调度 | entry | 7 | 帧循环总驱动、输入分发、渲染队列规划 | GameManager 239KB |
 | L1a 工厂 | entity-factory | 13+ | EntityFactory / DynamicDataFactory / SimpleDataFactory / ViewFactory 各自入口 + Recycler 对象池 | ViewFactory 29KB |
 | L1b 运行时 | entity-runtime | 48 + Data 8 | 远程实体/AOI/View 渲染表现 + 实体数据底座 | NPCEntityBase 216KB, EntityBaseData 76KB |
-| L2 控制 | player | 15 + Object 2 + PartnerManager 1 | 控制组家族 + 组件模式 + 交互物/伙伴管理支撑 | SkillComponent 65KB, PlayerCtrlGroup 62KB |
+| L2 控制 | player | 15 + Object 2 + PartnerManager 1 | 控制层类 + 组件模式 + 交互物/伙伴管理支撑 | SkillComponent 65KB, PlayerCtrlGroup 62KB |
 | L3a 引擎 | skill-core | 37 | Timeline 驱动技能管线 | SkillEntity 83KB, EffectUtils 79KB |
 | L3b 分部 | skill-partial | 12 | partial 类功能扩展 | SkillControllerSkillPartial 85KB |
-| L4 效果 | effect | 10 | Buff/Bullet/Passive/AutoBattle | SkillBullet 25KB |
+| L4 效果 | effect | 11 | Buff/Bullet/Passive/AutoBattle + PassiveSkillEntity | SkillBullet 25KB |
 | L5 支撑 | support | 51 + ClientNpc 9 | 地图/ClientNpc/快照现状/相机/特效/音效/数据结构 | SceneJsonData 36KB |
 
 ## 补充定位目录
@@ -134,7 +141,7 @@ flowchart TB
 
 ## 关键架构洞察
 
-1. **Timeline 驱动主轴**：`SkillStage / SkillEntityActionPartial → StageHandle/阶段效果逻辑 → EffectResultUtils/EffectExecuteResult → EffectUtils` 是技能 pipeline 的核心链路；当前代码已验证 `StageHandle.TryPlayEffect()` 与 `SkillEntityActionPartial.TryPlayEffect()` 都会更新执行结果并调用效果逻辑，`EffectUtils.HandleEffectDamage()` 是伤害消息落地入口之一，伤害飘字实体由 `BattleManager.OnHurtData/PlayDamageText` 创建。
+1. **Timeline 驱动主轴**：Active Skill 阶段效果走 `SkillStage -> SkillEntityActionPartial -> SkillControllerEffectPartial/NPCEntityBase -> EffectUtils`；Buff/Bullet/Passive 等阶段实体走 `SkillStage -> Buff/Bullet/PassiveStageHandle -> SkillControllerEffectPartial/NPCEntityBase -> EffectUtils`。两条路径都会记录 `EffectResultUtils/EffectExecuteResult`，`EffectUtils.HandleEffectDamage()` 是伤害消息落地入口之一，伤害飘字实体由 `BattleManager.OnHurtData/PlayDamageText` 创建。
 2. **工厂+对象池模式**：当前代码不是 `EntityFactory` 单口按 m_nType 分派；`EntityFactory.InstanceEntity<T>()`、`DynamicDataFactory.InstanceData<T>()`、`SimpleDataFactory.InstanceData<T>()`、`ViewFactory.CreateViewAsync(...)` 分别管理实体/动态数据/简单数据/表现对象，`Recycler` 通过 `Pop`/`Push` 复用，`DynamicDataFactory` 不创建本地实体。
 3. **AOI/表现链**：逻辑实体链为 `NPCEntityBase → AOIEntityObject → EntityRemoteDynamic`，表现链为 `ViewVitalNPCNormal → ViewAOI → ViewModel`，ViewAOI 持有 AOIEntityObject 引用后由事件/属性回调驱动表现。
 4. **StageHandle 范式复用**：L3 技能阶段和 L4 Buff/Bullet/Passive 都围绕 Stage/StageHandle 运行，但具体类分别是 `StageHandle`、`BuffStageHandle`、`BulletStageHandle`、`PassiveStageHandle`，不能简化成完全同一套实现。

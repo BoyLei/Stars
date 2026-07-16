@@ -26,7 +26,7 @@
 |------|----------|
 | `architecture/InitFlow.md` | InitServices 调用序列修正，增加编号 |
 | `architecture/StarProjectDef.md` | UIDef.cs 路径修正 `StarGame/UI/UIDef.cs` |
-| `battle/SkillSystem.md` | ServerControlStageEntityBase 源文件路径修正 `Game/Skill/Base/` |
+| `battle/L4_COMBAT_EFFECT.md` | ServerControlStageEntityBase 源文件路径修正 `Game/Skill/Base/` |
 
 ### 第三轮：Lua 模块详情补充（基于实际源码阅读）
 
@@ -48,7 +48,7 @@
 | `../AGENTS.md` | **新增** | AI Agent 项目入口 (AGENTS.md 规范) |
 | `architecture/StarProjectDef.md` | **新增** | GameEnums/GameConfig/ModuleDef/UIDef/WrapData |
 | `architecture/InitFlow.md` | **新增** | 完整初始化链路 (Prepare→AppMain→Login) |
-| `battle/SkillSystem.md` | **新增** | SkillDispatcher/Controller/Entity/Stage/Buff/Bullet/Passive |
+| `battle/BATTLE_OVERVIEW.md` | **新增** | SkillDispatcher/Controller/Entity/Stage/Buff/Bullet/Passive 分层总览 |
 | `services/ServicesSupplement.md` | **新增** | 16个未文档化服务 (SDK/User/Business/Trigger等) |
 | `module/CsBusinessModules.md` | **新增** | 10+ C# 业务模块详情 |
 | `lua/module/LuaModuleList.md` | **重写** | Lua模块按6域分组+绑定机制 |

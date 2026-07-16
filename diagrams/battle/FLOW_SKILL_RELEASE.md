@@ -11,6 +11,7 @@ sequenceDiagram
     participant SS as SkillStage (L3)
     participant SEA as SkillEntityActionPartial (L3b)
     participant EU as EffectUtils (L3)
+    participant Target as 目标实体
     participant L4 as Buff/Bullet/Passive (L4)
 
     UI->>SC: OnPointerDown / OnPointerUp / OnEndDrag / onPressing
@@ -26,9 +27,12 @@ sequenceDiagram
         SE->>SS: SkillStage.OnUpdate()
         SS->>SS: ExecuteFrameEvents -> SkillStageFrame.Play()
         SS->>SEA: OnActionStageTryPlayEffect
-        SEA->>EU: PlayStageEffect / TryPlayEffect -> TryPlayServerEffect / FuncOnTryPlayClientEffect
-        EU->>L4: HandleEffectDamage / 效果黑板注册
-        L4-->>EU: 阶段结果 / 目标表现回流
+        SEA->>SEA: PlayStageEffect / TryPlayEffect
+        SEA->>Ctrl: TryPlayServerEffect / FuncOnTryPlayClientEffect
+        Ctrl->>Target: FuncOnPlayClientSkillEffect -> PlayClientSkillEffect
+        Target->>EU: Damage 分支 HandleEffectDamage
+        EU->>Target: HandleHurtNodeMsg / 受击表现
+        Ctrl->>L4: CtrlGroup 回包后的 Buff/Bullet/Passive 创建与推进
     end
     Note over Ctrl,L4: SkillControllerSkillPartial(85KB) 驱动状态机<br/>SkillEntityActionPartial(76KB) 执行动作/位移/打击
 ```

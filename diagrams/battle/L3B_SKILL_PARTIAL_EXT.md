@@ -57,10 +57,10 @@ graph TD
 | SkillController | PassivePartial | OnPassiveSkillUseRet/OnPassiveRunStageRet/OnPassiveSkillEndRet/EnterFramePassive |
 | SkillEntity | ActionPartial (76KB) | 动画播放/阶段退出/效果执行/服务器注册效果 |
 | SkillEntity | UserInputPartial (57KB) | 输入轴黑板/ExecuteUserInput/蓄力状态 |
-| SkillEntity | CfgPartial | 配置表读取/阶段与蓄力参数/黑板回填 |
+| SkillEntity | CfgPartial | 配置引用/阶段与蓄力运行参数/轮盘配置选择/黑板回填 |
 | SkillEntity | DebugDataPartial | 调试快照 |
 
-## 对外接口（partial 暴露的 public 方法）
+## 关键接口与内部方法（partial 中定义的方法）
 
 **SkillControllerSkillPartial（85KB，抽样验证）**
 - `UseSkill` / `ClientUseSkill` / `ClientBreakActiveSkill` / `BreakSkillEntity` / `GetActiveStage`
@@ -71,7 +71,7 @@ graph TD
 
 **SkillControllerUserInputPartial / SkillControllerMsgPartial（输入缓存与协议）**
 - 已验证 `CacheUserInput()` / `UpdateClientInputCache()` / `SendUserInput()` / `CancelUserInputReq()` / `TriggerServerInput()` / `TriggerWaitSendInputCache()` / `PrePlayUserInput()`。
-- `SendUserInput()` 先 `FormatSkillUseReq()`，再更新 `_clientInputCache`；若当前活跃阶段尚未 `ServerCreateStage`，则写入 `_waitSendInputCache` 并暂不发协议。
+- `SendUserInput()` 先 `FormatSkillUseReq()`，再调用 `UpdateClientInputCache()`；若当前活跃阶段尚未 `ServerCreateStage`，则只写入 `_waitSendInputCache` 并暂不发协议，否则才更新 `_clientInputCache`。
 - `sendUseSkill == true` 时调用 `SkillControllerMsgPartial.SendPreUseSkillReq()`；否则按运行中输入轴调用 `SkillMsgUtils.SendPreSkillUseInput()`。取消预输入走 `CancelUserInputReq()` -> `sendPreSkillUseInputCancelReq()`。
 
 **SkillEntityUserInputPartial（57KB，输入轴与蓄力执行）**
@@ -91,7 +91,7 @@ graph TD
 1. **按功能域拆分（非生命周期）**：12 个 partial 全按"谁负责什么"组织，无创建/更新/销毁阶段拆分。
 2. **纯物理拆分**：所有文件共享主类私有字段，跨 partial 可直接访问彼此方法/字段，无接口隔离。
 3. **双主类结构**：SkillController 侧重"调度与系统交互"（输入→协议→特效→子弹→Buff→被动）；SkillEntity 侧重"表现与配置"（动作→输入→配置→调试）。
-4. **UserInput 边界**：`SkillControllerUserInputPartial` 负责预输入缓存、等待服务器阶段创建的 `_waitSendInputCache`、服务器输入缓存触发和 `SendUserInput()` 决策；协议发送分散在 `SkillControllerMsgPartial.SendPreUseSkillReq()`、`SkillMsgUtils.SendPreSkillUseInput()` 和 `sendPreSkillUseInputCancelReq()`。`SkillEntityUserInputPartial` 负责 `BaseBlackBoard.KEY_USER_INPUT` 的开启/关闭、客户端与服务器结果合流、`ExecuteUserInput()` 执行，以及 Energy 蓄力计时；蓄力延迟执行回调会自行补发 `SkillMsgUtils.SendPreSkillUseInput()` 后再落地输入结果。
+4. **UserInput 边界**：`SkillControllerUserInputPartial` 负责预输入缓存、等待服务器阶段创建的 `_waitSendInputCache`、服务器输入缓存触发和 `SendUserInput()` 决策；协议发送分散在 `SkillControllerMsgPartial.SendPreUseSkillReq()`、`SkillMsgUtils.SendPreSkillUseInput()` 和 `sendPreSkillUseInputCancelReq()`。`SkillEntityUserInputPartial` 负责 `BaseBlackBoard.KEY_USER_INPUT` 的开启与结束状态处理、客户端与服务器结果合流、`ExecuteUserInput()` 执行，以及 Energy 蓄力计时；蓄力延迟执行回调会自行补发 `SkillMsgUtils.SendPreSkillUseInput()` 后再落地输入结果。
 5. **设计建议边界**：`SkillControllerSkillPartial` 体量大是事实；是否下沉为 `SkillStateMachine` 属于重构建议，不应作为当前代码事实写入架构结论。
 
 ## 依赖关系

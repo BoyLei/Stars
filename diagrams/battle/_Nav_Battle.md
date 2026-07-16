@@ -11,7 +11,7 @@
 | L0 入口调度 | [L0_ENTRY_LAYER.md](./L0_ENTRY_LAYER.md) | L0 | GameManager/GameInput/渲染队列 |
 | L1a 实体工厂 | [L1_ENTITY_FACTORY_LAYER.md](./L1_ENTITY_FACTORY_LAYER.md) | L1 | Entity/Data/View 分工 + Recycler 对象池 |
 | L1b 实体运行时 | [L1_ENTITY_RUNTIME_LAYER.md](./L1_ENTITY_RUNTIME_LAYER.md) | L1 | 远程实体/AOI/View 渲染 + Data 数据底座 |
-| L2 角色控制 | [L2_CONTROL_LAYER.md](./L2_CONTROL_LAYER.md) | L2 | 控制组家族 + 组件模式 + Object/PartnerManager |
+| L2 角色控制 | [L2_CONTROL_LAYER.md](./L2_CONTROL_LAYER.md) | L2 | 控制层类 + 组件模式 + Object/PartnerManager |
 | L3a 技能引擎 | [L3A_SKILL_ENGINE_CORE.md](./L3A_SKILL_ENGINE_CORE.md) | L3 | Timeline 驱动管线 |
 | L3b 技能分部 | [L3B_SKILL_PARTIAL_EXT.md](./L3B_SKILL_PARTIAL_EXT.md) | L3 | 12 个 partial 扩展 |
 | L4 战斗效果 | [L4_COMBAT_EFFECT.md](./L4_COMBAT_EFFECT.md) | L4 | Buff/Bullet/Passive/AutoBattle |
@@ -53,7 +53,7 @@
 
 ## ⚠️ 已知局限
 
-1. **大文件仅读法名/签名**：NPCEntityBase(216KB)、ViewAOI(145KB)、SkillControllerSkillPartial(85KB)、SkillEntityActionPartial(76KB)、GameManager(239KB)、EffectUtils(79KB)、SkillEntity(83KB) 等巨型文件按截断策略只读结构/签名，实现细节未读。
+1. **原始报告截断策略**：NPCEntityBase(216KB)、ViewAOI(145KB)、SkillControllerSkillPartial(85KB)、SkillEntityActionPartial(76KB)、GameManager(239KB)、EffectUtils(79KB)、SkillEntity(83KB) 等巨型文件在初版 agent 报告中按截断策略读取；当前根文档的关键链路已通过 CodeGraph / 定向源码复核，依据见 `VERIFY_BATTLE_MD_AGAINST_CODE.md` 与 `reports/*-review.md`，不得从原始报告外推未复核实现。
 2. **跨层接口校正**：EffectUtils/L4 方法签名以 `L4_COMBAT_EFFECT.md` 与 `FLOW_DAMAGE_PIPELINE.md` 的已验证链路为准；`AttacState/AttackState` 只保留代码可证的 `VitalState` 继承与 `OnEnable` 差异，不再声明资产 GUID 引用状态。
 3. **已补证入口**：AutoBattle 决策主线已确认在 BattleManager；L0 帧驱动源已确认由 StarWorldGame.FixedUpdate/OnEnterFrame 调用 GameManager.EnterFrame / BattleManager.EnterFrame。
 4. **历史计划需复核**：v4/v5 计划中的部分路径和文件结论已被当前代码推翻；例如 `BattleManager.cs` 实际位于 `Service/BattleManager/`，`EntityBaseData.cs` 实际位于 `Game/Data/`。
@@ -63,6 +63,6 @@
 
 - 已覆盖文件：220（原 200 + ClientNpc 9 + Data 8 + Object 2 + PartnerManager 1）
 - ClientNpc 已折入 L5；Data 已折入 L1；Object/PartnerManager 已折入 L2
-- 大文件（>30KB）：37 个，均按截断策略处理
+- 大文件（>30KB）：37 个；初版原始报告按截断策略处理，当前根文档关键链路以 VERIFY / review 复核记录为准
 - Mermaid 图：13 张（1 全景 + 8 分层 + 4 时序）
 - 原始报告：8 份（历史输入）+ review 校验报告 4 份 + VERIFY 校验表
