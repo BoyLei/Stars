@@ -38,8 +38,8 @@ sequenceDiagram
     end
     NPC->>EU: DamageSecond -> HandleClientDamageSecond() -> EffectUtils.HandleEffectDamageSecond(...)
     Ctrl->>SB: OnBulletCreateRet() -> SkillBullet.Create()
-    SB->>BI: CreateBulletInfo()
     SB->>BSH: CreateStageHandle()
+    SB->>BI: CreateBulletInfo()
     loop 子弹每帧
         SB->>SB: EnterFrame() / EnterFrameStages()
     end

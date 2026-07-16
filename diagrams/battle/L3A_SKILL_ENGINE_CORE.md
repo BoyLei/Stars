@@ -33,13 +33,14 @@ flowchart TB
 
     SD --> SUC & SC
     SUC --> SCON
-    SCON --> SE
-    SC --> SS & SE & SBP
+    SCON --> SINFO
+    SC --> SE
+    SE --> SINFO
+    SE --> SS
+    SE --> SBP
     SS --> SH --> TLI
-    SH --> EER --> EU
-    EU --> EER
+    SH --> ERU --> EER
     SS --> SBP
-    SC --> SBP
 ```
 
 ## 输入-处理-输出
@@ -74,7 +75,7 @@ sequenceDiagram
     participant S as SkillStage
     participant A as SkillEntityActionPartial
     participant H as StageHandle
-    participant R as EffectExecuteResult
+    participant R as EffectResultUtils / EffectExecuteResult
     participant E as EffectUtils
     D->>C: EnterFrame()
     D->>UC: EnterFrame()
@@ -82,10 +83,14 @@ sequenceDiagram
     SE->>S: OnUpdate()
     S->>S: ExecuteFrameEvents()
     S->>A: OnActionStageTryPlayEffect()
-    A->>R: PlayStageEffect() / TryPlayEffect()
-    H->>R: PlayStageEffect() / TryPlayEffect()（ServerControl/Bullet 路径）
-    R->>E: TryPlayServerEffect / FuncOnTryPlayClientEffect
-    E-->>C: 回写 Buff/Bullet/Passive (L4)
+    A->>A: PlayStageEffect() / TryPlayEffect()
+    H->>H: PlayStageEffect() / TryPlayEffect()（ServerControl/Bullet 路径）
+    A->>C: StageTryPlayServerEffect / FuncOnTryPlayClientEffect
+    H->>C: TryPlayServerEffect / FuncOnTryPlayClientEffect
+    A->>R: UpdateEffectExecuteResult()
+    H->>R: UpdateEffectExecuteResult()
+    C->>E: Damage 分支进入 EffectUtils
+    Note over C,E: Damage 分支才进入 EffectUtils；Buff/Bullet/Passive 由 CtrlGroup 回包后的 SkillController partial 创建
 ```
 
 ## 对外接口（与其他层契约）
@@ -117,10 +122,11 @@ sequenceDiagram
 1. **Timeline 驱动主轴**：`SkillInfo/BaseConfigInfo.GetTimeLineStage(...)` 提供 `TimeLineStage[]`，运行期由 `SkillStage.OnUpdate()` / `ExecuteFrameEvents()` 播放帧事件；手动技能走 `SkillEntityActionPartial.PlayStageEffect()`，Buff/Bullet/Passive 等 ServerControl 路径走 `StageHandle.TryPlayEffect()`。
 2. **三层实体关系**：SkillContainer 管理技能槽 `SkillInfo` / `ShowSkillInfos`；SkillController 通过 `CreateSkillEntity` 生成 SkillEntity；SkillEntity 引用 SkillInfo 配置并生成 SkillStage 运行时；SkillStage 由 SkillController 经 SkillEntity 间接驱动，并通过 `BreakSkillEntity` / `TrySetActiveSkill`、`EnterCurStage` / `OnStageBroken` 支持中断/重入。
 3. **阶段效果分叉点**：手动 `SkillEntity` 路径的效果入口在 `SkillEntityActionPartial.PlayStageEffect()` / `TryPlayEffect()`；`StageHandle.PlayStageEffect()` / `TryPlayEffect()` 用于 `ServerControlStageEntityBase` / `SkillBullet` 等阶段路径。`EffectUtils.HandleEffectDamage()` 是已验证的伤害落地方法。旧版 `ExecuteEffect/ApplyBuff/SpawnBullet/TriggerPassive` 不是当前代码中的真实方法名。
-4. **SkillBlackBoard 作用域**：单技能运行期 key-value 黑板，SkillController 与 SkillStage 均可读写，跨 Stage 传递临时状态（连击数/蓄力值），技能结束经 `BaseBlackBoard.Clear()` 清理，不跨技能共享。
-5. **SkillDispatcher 运行时聚合点**：创建并持有 SkillController / SkillUnitController，并在 `EnterFrame()` 中推进两者；技能输入由 SkillComponent 或自动战斗虚拟按键进入 `SkillController.ClientUseSkill()`，不是 SkillDispatcher 直接接收。
-6. **StageHandle 职责边界**：在 ServerControl/Bullet 等路径中做"时间线帧→效果结果"的翻译+编排；手动 SkillEntity 的动作/效果执行在 SkillEntityActionPartial。
-7. **ClientEffect 与 Server 分离**：ClientMoveFx 仅消费 FxParam/FxUtils 产出表现，不介入逻辑判定。
+4. **黑板作用域**：`SkillEntity` 持有 `SkillBlackBoard`；`SkillStage` 持有 `StageBlackBoard`，初始化时把父黑板设为 Skill 级黑板。效果执行按 `SaveSkill` 选择写 Skill 级或 Stage 级黑板，技能结束经 `BaseBlackBoard.Clear()` 清理，不跨技能共享。
+5. **EffectExecuteResult 边界**：`EffectExecuteResult` 不是效果执行调度器；`SkillEntityActionPartial` / `StageHandle` 执行客户端或服务器效果后，通过 `EffectResultUtils.UpdateEffectExecuteResult()` 把结果写回黑板，供后续 Next/注册效果判断。
+6. **SkillDispatcher 运行时聚合点**：创建并持有 SkillController / SkillUnitController，并在 `EnterFrame()` 中推进两者；技能输入由 SkillComponent 或自动战斗虚拟按键进入 `SkillController.ClientUseSkill()`，不是 SkillDispatcher 直接接收。
+7. **StageHandle 职责边界**：在 ServerControl/Bullet 等路径中做"时间线帧→效果结果"的翻译+编排；手动 SkillEntity 的动作/效果执行在 SkillEntityActionPartial。
+8. **ClientEffect 与 Server 分离**：ClientMoveFx 仅消费 FxParam/FxUtils 产出表现，不介入逻辑判定。
 
 ## 依赖上层/下层
 - ← **L2 控制**：SkillComponent 查询 skillDispatcher.SkillController 触发；SendUserSkillReq 输入

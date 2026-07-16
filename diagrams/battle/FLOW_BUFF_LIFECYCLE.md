@@ -30,6 +30,7 @@ sequenceDiagram
     GM->>ECG: HandleRPCMsg(BuffEndRet, enityId)
     ECG->>Src: CtrlGroup.OnBuffEndRet
     Src->>SB: SkillControllerBuffPartial.OnBuffEndRet() -> SkillBuff.OnBuffEndRet()
+    SB->>BB: HandleBlackList(BuffEndRet.BlackList, ..., true)
     SB->>SB: 标记 ServerClose / ClientClose
     Src->>SB: 后续 EnterFrameBuff 收集 !IsRunning
     Src->>SB: ReleaseTempBuffs -> ReleaseItemBuff -> EntityFactory.ReleaseEntity
@@ -43,7 +44,7 @@ sequenceDiagram
 3. **BlackBoard 同步**：`ServerControlStageEntityBase.HandleBlackList()` 将服务器 BlackList 转成 `CustomBlackBoardNode` 后调用虚方法 `HandleItemBlackBoard()`；`SkillBuff.HandleItemBlackBoard()` 先走基类写 `EntityBlackBoard` / 尝试注册服务器效果，再调用 `HandleBuffBlackBoardNode()` 处理 StartTime/LiveTime/StackCount/ShieldVal。阶段运行回包由 `SkillStage.OnRunStageRet()` 处理：普通节点写入 `StageBlackBoard` 并尝试注册效果；StartTime/LiveTime/StackCount/ShieldVal 等特殊节点只触发 `ActionOnSpecialServerBlackBoardNode?.Invoke(...)`。StarGame C# 定向代码图仅发现字段定义、`OnRunStageRet()` Invoke 和 `ReleaseAction()` 清空，未发现 `+=` 或非清空赋值注册点。
    - `HandleBuffBlackBoardNode()` 对 `StartTime` / `LiveTime` / `StackCount` / `ShieldVal` 的可证行为是写 `SkillBuff` 本地字段、调用 `playerData.TriggerBuffChange(...)` 并置 `dirtyUpdateBuff`；`SkillBuff.EnterFrame()` 在后续帧把 dirty 标记转成 `ActionOnUpdateBuff -> SkillController.ActionOnBuffUpdate`。`EntityBaseData.TriggerBuffChange()` 只是构造 `BuffEventData` 后 `TriggerChange("buff_{id}", ...)`；消费侧已验证为 `SkillContainer.RegItemConditionListener(Cond_Buff)` 注册 `RegBuffListener(..., OnTriggleCondition, ...)`，用于刷新技能显示/当前技能，属性监听则走 `RegChangeListener(attrsType.Name, ...)`。
 4. **视觉特效**：已验证存在 `SkillBuff.PlayBuffEffects()` / `StopBuffEffects()`，实际 TypeEffect 创建在 ServerControlStageEntityBase 的 PlayEffects 链路。
-5. **到期/移除**：服务器 BuffEnd 协议先由 `GameManager.HandleRPCMsg()` 按 `enityId` 分发到 `EntityCtrlMsgBase/CtrlGroup`，CtrlGroup 再调用 `SkillControllerBuffPartial.OnBuffEndRet()`；后者转到 `SkillBuff.OnBuffEndRet()` 标记 ServerClose/ClientClose。释放不会在结束回包里直接完成，而是在后续 `EnterFrameBuff()` 收集 `!IsRunning` 后调用 `ReleaseTempBuffs()` / `ReleaseItemBuff()` / `EntityFactory.ReleaseEntity()`，实体回收落到 `SkillBuff.Release()` / `base.Release()` / `Reset()`。Skill 目录定向代码图未发现 `SkillBuff.RemoveBuff()` 方法。
+5. **到期/移除**：服务器 BuffEnd 协议先由 `GameManager.HandleRPCMsg()` 按 `enityId` 分发到 `EntityCtrlMsgBase/CtrlGroup`，CtrlGroup 再调用 `SkillControllerBuffPartial.OnBuffEndRet()`；后者转到 `SkillBuff.OnBuffEndRet()`，先处理 `BuffEndRet.BlackList`，再标记 ServerClose/ClientClose。释放不会在结束回包里直接完成，而是在后续 `EnterFrameBuff()` 收集 `!IsRunning` 后调用 `ReleaseTempBuffs()` / `ReleaseItemBuff()` / `EntityFactory.ReleaseEntity()`，实体回收落到 `SkillBuff.Release()` / `base.Release()` / `Reset()`。Skill 目录定向代码图未发现 `SkillBuff.RemoveBuff()` 方法。
 6. **Passive 联动**：运行时入口是 `SkillControllerPassivePartial.OnPassiveSkillUseRet()` / `OnPassiveRunStageRet()` / `OnPassiveSkillEndRet()`，运行时实体是 `PassiveSkillEntity`；`PassiveInfo` 只负责配置 `Init/InitData/Release`，`PassiveSkillEntity.CreatePassiveInfo()` 负责创建它。Skill 目录定向代码图未发现 `PassiveInfo.TriggerPassive()` 方法。
 
 ## 涉及文件（按层）

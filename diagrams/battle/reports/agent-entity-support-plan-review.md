@@ -16,7 +16,7 @@
 - `L5_SUPPORT_SYS.md` 三次复核：只读 sidecar 未发现当前 L5 根文档的明确错误；已复核 `private GameMap.LoadMapJson -> IMapLogic.OnLoad`、`SetObstacleInfo -> SceneObstacleLogic`、`IMapLogic` 方法集、`GameMap.EnterFrame -> MapScript.EnterFrame`、`SerSnapshotSeqManager.Init()` 当前边界、`GameCamera.Update/LateUpdate`、`GameCameraFeel` 非有效调用链、`TypeEffectFactory.Create(GlobalShowSerialize)` 17 类映射并只 `Init`、`BaseTypeEffect` 生命周期、`ViewVitalNPCNormal -> SoundManager/Wwise` 音频链、`QueueExtends/CusListQueue` 实际 API。
 - `L5_SUPPORT_SYS.md` 三次复核边界：`StarShadowFollow/StarShadowMirror/Footprints` 更细行为、`BATTLE_FRAMEWORK_ARCHITECTURE.md` 中 `LocalDataManager` 配置支撑，以及 `SerSnapshotSeqManager` 全类方法清单未在该 sidecar 范围内完整展开；当前根文档未因此新增修正。
 - 2026-07-15 四次复核：`L5_SUPPORT_SYS.md` 已把 TypeEffect 的 `OnEnter/OnExit` 触发者从“技能/子弹侧”扩为真实持有者：`ServerControlStageEntityBase` 覆盖 Buff/Passive/阶段实体，`SkillBullet` 覆盖子弹；`OnShowEnter/OnShowUpdate/OnShowExit` 由 `EntityCtrlBase` 栈事件转到 `ViewVitalNPCNormal` 表现层。
-- 2026-07-15 五次复核：`SerSnapshotSeqManager.Init()` 为空实现，注册/序列/回放主体为注释；但 `ServiceSnapshotData` 子类仍有现行动态缓存用途：`NetworkManager` 使用 `SerMessageSnapData` 缓存并在 `InvokeMessageSnapDataCache` 弹出处理，`GameManager` 使用 `SerRPCOneFrameSnapALLData` 在 `ClientAddSpeedInvoke -> InvokeFrameRPCDataCache` 弹出处理；THD/MainPlayer 缓存分发当前在帧入口被注释或早返回。
+- 2026-07-15 五次复核，2026-07-16 续核修正：`SerSnapshotSeqManager.Init()` 为空实现，注册/序列/回放主体为注释；`ServiceSnapshotData` 子类仍有现行动态缓存用途，其中 `NetworkManager` 使用 `SerMessageSnapData` 缓存并在 `InvokeMessageSnapDataCache` 弹出处理。`SerRPCOneFrameSnapALLData` 相关字段和 `InvokeFrameRPCDataCache()` 保留结构，但当前 `GameManager.EnterFrame()` 不驱动 `ClientAddSpeedInvoke()`，`CacheRPCMsg()` 无调用方；THD/MainPlayer 缓存分发当前在帧入口被注释或早返回。
 - 2026-07-15 四次复核：`L5_SUPPORT_SYS.md` 已保留 TypeEffect 工厂映射 17 类，但补充 `BUFF_SkillSlotHide` 虽可创建 `HiddenSkillSlotEffect`，其隐藏技能槽下游 `Start/StopHiddenSkillSlotEffects` 当前直接 `return` 屏蔽。
 - 2026-07-15 五次复核：`L1_ENTITY_FACTORY_LAYER.md` 已把 `ViewFactory` 表述收紧为推荐 `CreateViewAsync(...)` 路径：池命中直接 callback `GameObject`，未命中 `LoadResourceUniRefAsync<GameObject>` 后 callback `GameObject`，再 `SetView(...)` 绑定 `ViewObject`；`CreateView(...)` / `CreateViewAddressables(...)` 仍存在但都标记 `[Obsolete("请使用 CreateViewAsync", false)]`。
 - 2026-07-15 六次复核：`L1_ENTITY_FACTORY_LAYER.md`、`BATTLE_OVERVIEW.md`、`BATTLE_FRAMEWORK_ARCHITECTURE.md` 已把图形语义从 `EntityFactory -> DynamicDataFactory/SimpleDataFactory/ViewFactory` 收紧为并列 `L1 Factories` 入口；`Recycler` 标注为各工厂各自持有，避免图形上回退成 EntityFactory 单口分发。
@@ -25,6 +25,7 @@
 - 2026-07-15 九次复核：`L1_ENTITY_FACTORY_LAYER.md` 已把 `EntityFactory.ReleaseEntity(EntityObject)` 从“释放回池”收紧为“调用 `ReleaseInFactory()` 标记释放”；真正从 `m_listObject` 移除并 `m_recycler.Push(obj)` 回池发生在 `ClearReleasedObjects()`。
 - 2026-07-15 十次复核：`L5_SUPPORT_SYS.md` / `BATTLE_FRAMEWORK_ARCHITECTURE.md` 已拆清普通技能 Camera 与 CameraShake：`SkillStageFrame.Play()` 的 Camera 帧可一路到 `SkillController.OnActionPlayCamera()`，但该函数第一行 `return;`；CameraShake 另走 `SkillController.OnActionPlayCameraShake()` 或 `StageHandle.OnActionOnStageTryPlayCameraShake()`，触发 `GlobalEvent.OnVirtualCameraShakeEvent`。`GameCameraFeel` 类主体和 `GameCamera/UICamera.DoCameraAction/StopCameraAction` 调用仍为注释化边界。
 - 2026-07-16 十一次复核：L5 只读核验确认 Map、ClientNpc、Snapshot、Camera、TypeEffect、Audio、Shadow、Queue 关键断言匹配代码；仅 `BATTLE_OVERVIEW.md` 总览图 L5 标签漏掉已折入的 `ClientNpc 9` 文件，已改为 `51 + ClientNpc 9 文件`，与同文表格和 `L5_SUPPORT_SYS.md` 口径一致。
+- 2026-07-16 十二次复核：修正上方五次复核的 Snapshot 边界。当前源码中 `GameManager.EnterFrame()` 里的 `ClientAddSpeedInvoke()` 为注释，`ClientAddSpeedInvoke()` / `CacheRPCMsg()` 均无调用方；`SerRPCOneFrameSnapALLData` 相关字段和 `InvokeFrameRPCDataCache()` 保留结构，但不在现行主帧链路。RPC 现行入口仍是 `HandleRPCMsg()`；实体缺失时直接加入 `CacheRPCMsgList`，再由 `UseCacheRPCMsgList()` 重放。
 
 # Evidence Table
 
@@ -85,4 +86,4 @@
 # Unverified Claims
 
 - `L1_ENTITY_RUNTIME_LAYER.md:100`：`Anim/状态机为每帧 Update 驱动` 与 `实体同步侧为事件/脏标记驱动` 只证实了属性回调/事件订阅，未在本次定向搜索中拿到“每帧 Update”和“脏标记”的直接代码行号。
-- `L5_SUPPORT_SYS.md:109`：SnapShot 不应整体写成“仅 Init/历史注释”。准确边界是 `SerSnapshotSeqManager` 历史注释化；`ServiceSnapshotData` 子类仍作为 `DynamicDataFactory` 数据缓存，其中 `SerMessageSnapData` 与 `SerRPCOneFrameSnapALLData` 有现行调用，THD/MainPlayer 当前缓存分发入口被注释或早返回。
+- `L5_SUPPORT_SYS.md:109`：SnapShot 不应整体写成“仅 Init/历史注释”。准确边界是 `SerSnapshotSeqManager` 历史注释化；`ServiceSnapshotData` 子类仍作为 `DynamicDataFactory` 数据缓存，其中 `SerMessageSnapData` 仍有现行网络消息缓存链。`SerRPCOneFrameSnapALLData` 相关字段和处理函数保留，但当前 `GameManager.EnterFrame()` 不驱动 `ClientAddSpeedInvoke()`，`CacheRPCMsg()` 无调用方；RPC 现行入口仍是 `HandleRPCMsg()`，实体缺失时使用 `CacheRPCMsgList`。

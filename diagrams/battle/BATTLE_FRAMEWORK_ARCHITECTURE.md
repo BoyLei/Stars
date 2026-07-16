@@ -77,7 +77,7 @@ flowchart TB
     GM --> Ctrl
     GM --> Map
     Ctrl --> Entity
-    Ctrl --> SD
+    Entity --> SD
 
     SD --> SUC
     SD --> SC
@@ -149,7 +149,7 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant Input as UI / GameInput
+    participant Input as UI / UniversalButton
     participant SkillComp as SkillComponent
     participant SC as SkillController
     participant Cont as SkillContainer
@@ -163,7 +163,7 @@ sequenceDiagram
     participant BM as BattleManager
     participant Fx as TypeEffect / DamageEntity
 
-    Input->>SkillComp: 技能按钮 / 方向 / 长按输入
+    Input->>SkillComp: 技能按钮 / 长按 / 方向参数
     SkillComp->>SC: SendUserSkillReq -> skillDispatcher.SkillController.ClientUseSkill
     SC->>Cont: GetSkillContainer / CheckCanUseSkill
     SC->>SE: UseSkill -> UseNewSkill -> CreateSkillEntity -> ClientUseSkill

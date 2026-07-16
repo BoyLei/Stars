@@ -21,7 +21,7 @@ flowchart TB
         PI[PassiveInfo 4KB]
         PSH[PassiveStageHandle 2KB]
     end
-    subgraph Auto["AutoBattle 子系统"]
+    subgraph Auto["AutoBattle 按钮支线"]
         AB[AutoBattleBtn 4KB]
         SE[SwitchEnemyBtn 1KB]
     end
@@ -39,7 +39,7 @@ L3 阶段效果执行器：SkillEntityActionPartial（手动）/ StageHandle（S
   → [运行时创建] 服务器回包先经 GameManager/EntityCtrlMsgBase/CtrlGroup，再由 SkillController partial 分发
     → Buff: OnBuffCreateRet → SkillBuff.Create / CreateStageHandle / InitBuff → EnterFrame
     → Bullet: OnBulletCreateRet → SkillBullet.Create / CreateStageHandle / CreateBulletInfo → EnterFrameStages / OnRunStageRet；OnBulletEndRet 后 ReleaseBullet
-    → Passive: OnPassiveSkillUseRet → PassiveSkillEntity.Create / CreateStageHandle / CreatePassiveInfo
+    → Passive: OnPassiveSkillUseRet → PassiveSkillEntity.Create / CreateStageHandle / CreatePassiveInfo；OnPassiveSkillEndRet 后 ReleaseEntity
   → [输出] 效果同步、阶段推进、伤害落地和视觉特效
 ```
 
@@ -65,7 +65,9 @@ sequenceDiagram
     end
     GM->>ECG: HandleRPCMsg(BuffEndRet, enityId)
     ECG->>Src: CtrlGroup.OnBuffEndRet
-    Src->>SB: SkillBuff.OnBuffEndRet() 标记 ServerClose / ClientClose
+    Src->>SB: SkillBuff.OnBuffEndRet()
+    SB->>SB: HandleBlackList(BuffEndRet.BlackList, ..., true)
+    SB->>SB: 标记 ServerClose / ClientClose
     Src->>SB: 后续 EnterFrameBuff 收集 !IsRunning 并 ReleaseTempBuffs
     SB->>SB: Release / Reset
 ```
@@ -82,10 +84,14 @@ sequenceDiagram
 - 此处指 `SkillController` / `SummonEntityBase` 路线；`BulletEntityCtrl` 的 AOI/runtime 入口只写入 `BulletEntity.CreateRuntime(...)`，不等同于当前 `SkillBullet` 主链。
 - `SkillBullet.Create(BulletCreateRet)` 用 `hasCreate` 避免服务器运行时创建与 AOI 创建通知造成重复子弹特效；创建时写 RuntimeID/BulletID/Owner/Builder，随后 `CreateStageHandle()`、`CreateBulletInfo()`、`HandleBlackList(...)`、`PlayCreateLoopEffects(...)`、`PlayEffects(...)`。
 - `SkillControllerBulletPartial.OnBulletEndRet()` 先调用 `SkillBullet.OnBulletEndRet()` 处理结束黑板并 `StopEffects()`，随后立即 `ReleaseBullet()`；不是等每帧延迟回收。
+- `SkillControllerBulletPartial.OnBulletRuntimeSync()` 校验当前 `skillBullet.RuntimeID` 后转给 `SkillBullet.OnBuffRuntimeSync(RuntimeSyncRet)`；后者只处理 `RuntimeSyncRet.BlackList`。
 - StarGame C# 代码图在 `SkillBullet.cs` 未发现 `OnHitTarget` / `HitTarget` / `OnCollision` / `OnTrigger` / `SkillUtils` / `HandleEffectDamage` 等本地命中或直接伤害 API；Bullet 阶段推进由服务器 `RunStageRet` 转到 `SkillBullet.OnRunStageRet()` / `SkillStage.OnServerRunStageRet()`。
 
 **PassiveSkillEntity / PassiveInfo**
 - `PassiveSkillEntity.Create(...)` / `CreateStageHandle()` / `CreatePassiveInfo()`
+- `PassiveSkillEntity.Create(...)` 顺序为 `CreateStageHandle()`、`CreatePassiveInfo()`、`HandleBlackList(PassiveSkillUseRet.BlackList, ..., true)`、`PlayCreateLoopEffects(..., true)`、`ExecuteStageStates(..., true)`。
+- `SkillControllerPassivePartial.OnPassiveSkillEndRet()` 先触发 `ActionOnPassiveEnd`，再调用 `PassiveSkillEntity.OnPassiveSkillEndRet()` 标记 `ServerClose` 并 `StopEffects()`，随后 `EntityFactory.ReleaseEntity(passiveSkillEntity)` 并从 `passiveSkillDic` 移除。
+- `PassiveSkillEntity.Release()` 才执行 `ExecuteStageStates(passiveInfo?.States, false)`，并调用 `PlayCreateLoopEffects(passiveInfo?.LoopEffectFxs, true)`；文档只记录源码参数，不推断该布尔值语义。
 - `PassiveInfo.Init()` / `InitData()` / `Release()`，仅承载被动配置
 
 **BuffStageHandle / BulletStageHandle / PassiveStageHandle**
@@ -96,9 +102,9 @@ sequenceDiagram
 
 1. **统一抽象是 StageHandle/SkillStage 而非 IBaseEffect**：三者均通过 `*StageHandle` 驱动生命周期，实体类本身偏薄（持有 Info + Handle），与 L3 技能阶段模型一致。
 2. **基类差异**：`SkillBuff` / `PassiveSkillEntity` 继承 `ServerControlStageEntityBase`；`PassiveInfo` 继承 `BaseConfigInfo`，只承载被动配置；`SkillBullet` 继承 `EntityRemoteStatic`。
-3. **结构差异**：SkillBuff 通过 `EnterFrame()` / `OnFrameInit()` 持续更新，并在后续帧回收；SkillBullet 通过 `EnterFrame()` / `EnterFrameStages()` 和阶段回包推进，结束回包后由 `SkillControllerBulletPartial.ReleaseBullet()` 立即回收；PassiveSkillEntity 持有 PassiveInfo + PassiveStageHandle。
+3. **结构差异**：SkillBuff 通过 `EnterFrame()` / `OnFrameInit()` 持续更新，并在后续帧回收；SkillBullet 通过 `EnterFrame()` / `EnterFrameStages()` 和阶段回包推进，结束回包后由 `SkillControllerBulletPartial.ReleaseBullet()` 立即回收；PassiveSkillEntity 持有 PassiveInfo + PassiveStageHandle，结束回包后由 `SkillControllerPassivePartial.OnPassiveSkillEndRet()` 触发实体释放。
 4. **触发时机**：Buff/Bullet/Passive 的创建和阶段推进均已验证经过 `SkillController*Partial` 处理；协议入口在更上游的 `GameManager.HandleRPCMsg -> EntityCtrlMsgBase/CtrlGroup`。Bullet 的效果执行通过 `RegisterBulletAction()` 把 `FuncOnTryPlayClientEffect` / `FuncOnTryPlayServerEffect` 委托接回 `StageTryPlayClientEffect()` / `OnFuncStageTryPlayServerEffect()`，StarGame C# 代码图未发现独立的 `OnHitTarget -> EffectUtils` 方法链。
-5. **AutoBattle 决策在 BattleManager**：AutoBattleBtn 仅 UI 入口，真正决策逻辑在 `BattleManager.OnFixedUpdate/SearchEnemyFight/GotoFightEnemy/AutoBattleUseSkill`。
+5. **AutoBattle 决策在 BattleManager**：`AutoBattleBtn` / `SwitchEnemyBtn` 只是 UI 按钮支线，分别调用 `BattleManager.SwitchAutoBattle()` / `SwitchCurSearchTarget()`；真正决策逻辑在 `BattleManager.OnFixedUpdate/SearchEnemyFight/GotoFightEnemy/AutoBattleUseSkill`。
 6. **L4 与 L3 对接**：L4 负责"效果载体与生命周期"；伤害落地由 L3 `EffectUtils.HandleEffectDamage()` 消费服务器 `HurtNodeMsg` 并转交目标实体 `HandleHurtNodeMsg()`。`HandleEffectDamageTar()` 只验证到客户端目标受击特效/动作线，不进入 `BattleManager.OnHurtData()` 飘字链。
 7. **Passive 配置来源**：`PassiveInfo.InitData()` 读取 `PassiveSkillConfig`，运行时实体是 `PassiveSkillEntity`。
 

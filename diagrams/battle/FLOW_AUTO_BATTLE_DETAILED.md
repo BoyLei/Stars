@@ -182,7 +182,7 @@ sequenceDiagram
 - `UseSkill()` 不直接发送技能协议，而是通过 `InputManager.DispatchVKey(vkey, 2, true)` 触发虚拟键事件。
 - `InputManager.DispatchVKey(..., isForce: true)` 最终触发 `OnVirtualInput`；`UniversalButton.Awake()` 订阅该事件，`Reset()` 取消订阅。
 - `UniversalButton.InputVKey(arg == 2)` 模拟一次 `OnPointerDown(null)` + `OnPointerUp(null)`。
-- 后续流程与手动点击技能一致，经 `SkillComponent.SendUserSkillReq()` 进入 `SkillController.ClientUseSkill()`；手动 `SkillEntity` 效果走 `SkillEntityActionPartial`，ServerControl/Bullet 等阶段路径才走 `StageHandle`，最终按效果类型进入 `EffectUtils` 等处理。
+- 后续流程与手动点击技能一致，经 `SkillComponent.SendUserSkillReq()` 进入 `SkillController.ClientUseSkill()`；手动 `SkillEntity` 效果走 `SkillEntityActionPartial`，ServerControl/Bullet 等阶段路径才走 `StageHandle`，Damage 分支才继续进入 `EffectUtils` 等伤害落地处理。
 
 ## 追加复核证据（2026-07-15）
 

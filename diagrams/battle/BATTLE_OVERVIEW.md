@@ -105,8 +105,7 @@ flowchart TB
     SC2 --> SB
     SS --> SB
 
-    SC --> SD
-    SC --> SE
+    SC -->|ClientUseSkill| SC2
 
     L3P -.->|partial 扩展| SC2
     L3P -.->|partial 扩展| SE
@@ -127,7 +126,7 @@ flowchart TB
 | L2 控制 | player | 15 + Object 2 + PartnerManager 1 | 控制层类 + 组件模式 + 交互物/伙伴管理支撑 | SkillComponent 65KB, PlayerCtrlGroup 62KB |
 | L3a 引擎 | skill-core | 37 | Timeline 驱动技能管线 | SkillEntity 83KB, EffectUtils 79KB |
 | L3b 分部 | skill-partial | 12 | partial 类功能扩展 | SkillControllerSkillPartial 85KB |
-| L4 效果 | effect | 11 | Buff/Bullet/Passive/AutoBattle + PassiveSkillEntity | SkillBullet 25KB |
+| L4 效果 | effect | 11 | Buff/Bullet/Passive + AutoBattle 按钮支线 + PassiveSkillEntity | SkillBullet 25KB |
 | L5 支撑 | support | 51 + ClientNpc 9 | 地图/ClientNpc/快照现状/相机/特效/音效/数据结构 | SceneJsonData 36KB |
 
 ## 补充定位目录
@@ -141,7 +140,7 @@ flowchart TB
 
 ## 关键架构洞察
 
-1. **Timeline 驱动主轴**：Active Skill 阶段效果走 `SkillStage -> SkillEntityActionPartial -> SkillControllerEffectPartial/NPCEntityBase -> EffectUtils`；Buff/Bullet/Passive 等阶段实体走 `SkillStage -> Buff/Bullet/PassiveStageHandle -> SkillControllerEffectPartial/NPCEntityBase -> EffectUtils`。两条路径都会记录 `EffectResultUtils/EffectExecuteResult`，`EffectUtils.HandleEffectDamage()` 是伤害消息落地入口之一，伤害飘字实体由 `BattleManager.OnHurtData/PlayDamageText` 创建。
+1. **Timeline 驱动主轴**：Active Skill 阶段效果走 `SkillStage -> SkillEntityActionPartial -> SkillControllerEffectPartial/NPCEntityBase`；Buff/Bullet/Passive 等阶段实体走 `SkillStage -> Buff/Bullet/PassiveStageHandle -> SkillControllerEffectPartial/NPCEntityBase`。两条路径都会记录 `EffectResultUtils/EffectExecuteResult`；只有 Damage 分支继续进入 `EffectUtils.HandleEffectDamage()` 等伤害落地方法，伤害飘字实体由 `BattleManager.OnHurtData/PlayDamageText` 创建。
 2. **工厂+对象池模式**：当前代码不是 `EntityFactory` 单口按 m_nType 分派；`EntityFactory.InstanceEntity<T>()`、`DynamicDataFactory.InstanceData<T>()`、`SimpleDataFactory.InstanceData<T>()`、`ViewFactory.CreateViewAsync(...)` 分别管理实体/动态数据/简单数据/表现对象，`Recycler` 通过 `Pop`/`Push` 复用，`DynamicDataFactory` 不创建本地实体。
 3. **AOI/表现链**：逻辑实体链为 `NPCEntityBase → AOIEntityObject → EntityRemoteDynamic`，表现链为 `ViewVitalNPCNormal → ViewAOI → ViewModel`，ViewAOI 持有 AOIEntityObject 引用后由事件/属性回调驱动表现。
 4. **StageHandle 范式复用**：L3 技能阶段和 L4 Buff/Bullet/Passive 都围绕 Stage/StageHandle 运行，但具体类分别是 `StageHandle`、`BuffStageHandle`、`BulletStageHandle`、`PassiveStageHandle`，不能简化成完全同一套实现。

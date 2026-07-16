@@ -14,7 +14,7 @@
 | L2 角色控制 | [L2_CONTROL_LAYER.md](./L2_CONTROL_LAYER.md) | L2 | 控制层类 + 组件模式 + Object/PartnerManager |
 | L3a 技能引擎 | [L3A_SKILL_ENGINE_CORE.md](./L3A_SKILL_ENGINE_CORE.md) | L3 | Timeline 驱动管线 |
 | L3b 技能分部 | [L3B_SKILL_PARTIAL_EXT.md](./L3B_SKILL_PARTIAL_EXT.md) | L3 | 12 个 partial 扩展 |
-| L4 战斗效果 | [L4_COMBAT_EFFECT.md](./L4_COMBAT_EFFECT.md) | L4 | Buff/Bullet/Passive/AutoBattle |
+| L4 战斗效果 | [L4_COMBAT_EFFECT.md](./L4_COMBAT_EFFECT.md) | L4 | Buff/Bullet/Passive + AutoBattle 按钮支线 |
 | L5 支撑系统 | [L5_SUPPORT_SYS.md](./L5_SUPPORT_SYS.md) | L5 | 地图/ClientNpc/快照现状/相机/特效/音效 |
 
 ## 🔄 时序图（跨层调用链）

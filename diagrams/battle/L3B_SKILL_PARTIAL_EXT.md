@@ -80,11 +80,11 @@ graph TD
 - `ExecuteEnergyUserInput()` 在客户端蓄力不足最小时间时会 `DelayInvoker.DelayInvoke(..., DelayInvokeExecuteUserInput, ...)`；延迟回调里先 `SkillMsgUtils.SendPreSkillUseInput(RuntimeID, inputSkillUseReq, userInput.EffectID)`，再 `ExecuteUserInput(...)`，因此输入轴协议发送不只发生在 Controller partial。
 
 **<30KB 文件的真实方法抽样**
-- `SkillControllerBuffPartial.OnBuffCreateRet/OnBuffRunStage/OnBuffEndRet/EnterFrameBuff`
+- `SkillControllerBuffPartial.OnBuffCreateRet/OnBuffRunStage/OnBuffRuntimeSync/OnBuffEndRet/EnterFrameBuff`
 - `SkillControllerMsgPartial.SendPreUseSkillReq/SendUseSkillReq/SendEnergyEndNotice/SendSkillQuit`
-- `SkillControllerBulletPartial.EnterFrameBullet/OnBulletCreateRet/OnBulletRunStage/OnBulletEndRet`
+- `SkillControllerBulletPartial.EnterFrameBullet/OnBulletCreateRet/OnBulletRunStage/OnBulletRuntimeSync/OnBulletEndRet/ReleaseBullet/ResetBullet`
 - `SkillControllerPassivePartial.EnterFramePassive/OnPassiveSkillUseRet/OnPassiveRunStageRet/OnPassiveSkillEndRet`
-- `SkillControllerBuffPartial.EnterFrameRunnintBuff` 为代码中的实际方法名拼写，本文件保留原拼写以便搜索定位。
+- `SkillControllerBuffPartial.EnterFrameRunnintBuff` / `JoyStickCancleBuff` 为代码中的实际方法名拼写，本文件保留原拼写以便搜索定位。
 
 ## 关键发现
 

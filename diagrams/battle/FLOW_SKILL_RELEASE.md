@@ -22,6 +22,7 @@ sequenceDiagram
     Ctrl->>SE: UseSkill -> UseNewSkill -> SkillEntity.ClientUseSkill -> OnClientPreEnter -> EnterCurStage
     SE->>SE: SkillInfo 绑定运行时技能数据，处理 SkillUseReq / BlackList / 朝向
     SE->>SS: 创建运行时 Stage 实例
+    Note over Ctrl,L4: Buff/Bullet/Passive 运行时由 CtrlGroup 回包触发 On*Ret 创建；帧循环只推进已有实例
     loop 每帧 EnterFrame
         Ctrl->>SE: EnterFrame / OnUpdate
         SE->>SS: SkillStage.OnUpdate()
@@ -32,7 +33,7 @@ sequenceDiagram
         Ctrl->>Target: FuncOnPlayClientSkillEffect -> PlayClientSkillEffect
         Target->>EU: Damage 分支 HandleEffectDamage
         EU->>Target: HandleHurtNodeMsg / 受击表现
-        Ctrl->>L4: CtrlGroup 回包后的 Buff/Bullet/Passive 创建与推进
+        Ctrl->>L4: EnterFrameBuff / EnterFrameBullet / EnterFramePassive
     end
     Note over Ctrl,L4: SkillControllerSkillPartial(85KB) 驱动状态机<br/>SkillEntityActionPartial(76KB) 执行动作/位移/打击
 ```
@@ -44,6 +45,7 @@ sequenceDiagram
 3. **Timeline 主轴**：SkillInfo/BaseConfigInfo 提供 TimeLineStage[]；运行期 `SkillStage.OnUpdate()` / `ExecuteFrameEvents()` 播放帧事件，手动 SkillEntity 路径由 `SkillEntityActionPartial.PlayStageEffect()` / `TryPlayEffect()` 执行动作和效果。
 4. **效果落地**：`SkillEntityActionPartial` 的 `TryPlayEffect()` 通过 `TryPlayServerEffect` / `FuncOnTryPlayClientEffect` 进入效果逻辑；`StageHandle.PlayStageEffect()` / `TryPlayEffect()` 用于 ServerControl/Bullet 等阶段路径。伤害落地已验证到 `EffectUtils.HandleEffectDamage()`。Buff/Bullet/Passive 运行时创建来自上游协议分发后的 `SkillController*Partial` 处理。
 5. **partial 扩展**：SkillControllerSkillPartial 驱动技能状态机；SkillEntityActionPartial 执行底层动作（动画/位移/打击点）。
+6. **Passive 结束边界**：`SkillControllerPassivePartial.OnPassiveSkillEndRet()` 调用 `PassiveSkillEntity.OnPassiveSkillEndRet()` 标记 `ServerClose` 并 `StopEffects()` 后立即 `EntityFactory.ReleaseEntity(passiveSkillEntity)`；`PassiveSkillEntity.Release()` 中再执行 `ExecuteStageStates(passiveInfo?.States, false)`。
 
 ## 涉及文件（按层）
 
@@ -53,4 +55,4 @@ sequenceDiagram
 | L2 | PlayerCtrlGroup.cs, SkillComponent.cs |
 | L3 | SkillDispatcher.cs, SkillUnitController.cs, SkillController.cs, SkillEntity.cs, SkillStage.cs, EffectUtils.cs |
 | L3b | SkillControllerSkillPartial.cs, SkillEntityActionPartial.cs, SkillEntityUserInputPartial.cs |
-| L4 | SkillBuff.cs, SkillBullet.cs, PassiveInfo.cs |
+| L4 | SkillBuff.cs, SkillBullet.cs, PassiveSkillEntity.cs, PassiveInfo.cs |

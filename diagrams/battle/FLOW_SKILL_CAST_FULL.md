@@ -34,7 +34,7 @@ flowchart TB
     end
 
     subgraph Control["3. 技能控制器入口"]
-        Entity["m_NPCEntityBase.skillDispatcher"]
+        DispatcherRef["m_NPCEntityBase.skillDispatcher<br/>引用"]
         ClientUse["SkillController.ClientUseSkill()"]
         UseFlow["UseSkill() / UseNewSkill()<br/>CreateSkillEntity()"]
     end
@@ -74,11 +74,11 @@ flowchart TB
     Req --> Check
     Check --> ClientPre
     Check --> NetReq
-    Req --> Entity
-    Entity --> ClientUse
+    Req --> DispatcherRef
+    DispatcherRef --> ClientUse
     ClientUse --> UseFlow
     UseFlow --> SkillEntity
-    Entity --> SD
+    DispatcherRef --> SD
     SD --> SC
     SD --> SUC
     SC --> SkillEntity
@@ -109,7 +109,6 @@ flowchart TB
 sequenceDiagram
     participant UI as 技能按钮/摇杆
     participant SCmp as SkillComponent
-    participant NPC as NPCEntityBase
     participant SD as SkillDispatcher
     participant SCtrl as SkillController
     participant SUC as SkillUnitController
@@ -124,8 +123,7 @@ sequenceDiagram
     UI->>SCmp: OnPointerUp(dir, Pressed, arg)
     SCmp->>SCmp: RefreshForbidStickDir(false)
     SCmp->>SCmp: SendUserSkillReq(dir, false, PointerUp, arg)
-    SCmp->>NPC: m_NPCEntityBase.skillDispatcher
-    NPC->>SCtrl: SkillController.ClientUseSkill()
+    SCmp->>SCtrl: m_NPCEntityBase.skillDispatcher.SkillController.ClientUseSkill()
 
     loop 每帧
         SD->>SCtrl: skillController.EnterFrame()

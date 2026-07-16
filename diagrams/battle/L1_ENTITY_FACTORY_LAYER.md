@@ -94,7 +94,7 @@ sequenceDiagram
 - `Push(IRecyclableObject)` — 按 `GetRecycleType()` 入池
 - `Release()` — Dispose 池内对象
 
-**IRecyclableObject（所有实体实现）**
+**IRecyclableObject（池化对象接口）**
 - `GetRecycleType()` / `Dispose()`
 
 ## 关键发现
